@@ -1,0 +1,21 @@
+# Dependencies and generated builds
+node_modules/
+dist/
+out/
+
+# Local machine files
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Downloaded repositories and local skill/tool installations
+/agent-skills-main/
+/design-for-ai-main/
+/stripe/
+/supabase/
+/tools/
+
+# Generated design review captures
+.taste-skill/unslop-review/
+.impeccable/hook.cache.json

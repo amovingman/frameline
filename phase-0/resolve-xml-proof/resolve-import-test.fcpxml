@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1/24s" width="1920" height="1080"/>
+    <asset id="r2" name="Alpine ridge" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg" start="0s" duration="10s" hasVideo="1" hasAudio="0" format="r1"/>
+    <asset id="r3" name="Frozen peaks" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-greenland.jpg" start="0s" duration="10s" hasVideo="1" hasAudio="0" format="r1"/>
+    <asset id="r4" name="Snowy summit" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-summit.jpg" start="0s" duration="10s" hasVideo="1" hasAudio="0" format="r1"/>
+  </resources>
+  <library><event name="Resolve compatibility test"><project name="Frameline Resolve Test"><sequence format="r1" duration="9/1s" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k"><spine>
+      <asset-clip id="clip-1" name="Alpine ridge" ref="r2" offset="0/1s" start="0s" duration="3/1s"/>
+      <asset-clip id="clip-2" name="Frozen peaks" ref="r3" offset="3/1s" start="0s" duration="3/1s"/>
+      <asset-clip id="clip-3" name="Snowy summit" ref="r4" offset="6/1s" start="0s" duration="3/1s"/>
+    </spine></sequence></project></event></library>
+</fcpxml>

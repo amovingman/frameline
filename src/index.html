@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
+  <title>Frameline — Launch film</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./sample-data.js"></script>
+  <script defer src="./renderer.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-head">
+      <div class="brand" aria-label="Frameline"><span class="brand-mark" aria-hidden="true"><i></i><i></i></span><strong>Frameline</strong></div>
+      <div class="project-context"><span class="project-monogram">Lf</span><div><strong>Launch film</strong><span>Local workspace</span></div></div><nav class="main-nav" aria-label="Sections">
+        <button type="button" data-view="workspace" class="active" aria-current="page">Review<span class="nav-count">3</span></button>
+        <button type="button" data-view="history">History</button>
+        <button type="button" data-view="media">Media</button>
+      </nav>
+      <div class="sidebar-note"><span class="connection-dot"></span> Local prototype<p>Your project stays on your device.</p></div><div class="head-actions"><span class="sample-mark">Sample workspace</span><button id="choose-file" type="button">Choose file</button></div>
+    </header>
+
+    <main class="page"><div class="workspace-bar"><span>Launch film <span class="breadcrumb-separator">/</span> <strong id="view-label">Review changes</strong></span><span class="branch-label">main <span class="branch-dot"></span> Sample project</span></div>
+      <div id="file-notice" class="file-notice" role="status" hidden></div>
+      <section id="view-workspace" class="view active" aria-label="Workspace">
+        <div class="masthead">
+          <div class="masthead-main"><h1>Review incoming changes</h1><p id="workspace-finding">3 proposed edits. 1 overlapping trim needs your attention.</p></div>
+          <div class="revision-jump"><span>Your cut <strong>v0.3</strong></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"/></svg><span>Incoming <strong>v0.4</strong></span></div>
+        </div>
+        <section class="film-section" aria-labelledby="film-title">
+          <div class="film-head"><h2 id="film-title">Sequence 01</h2><span id="timeline-selection">A02 · Frozen peaks</span></div>
+          <div id="video-track" class="film-strip" aria-label="Illustrative picture track V1"></div>
+          <div class="film-meta"><span>V1 · Picture</span><span>00:00</span><span>00:10</span><span>00:20</span><span>00:30</span><span>00:40</span></div>
+          <button id="audio-track" type="button" class="audio-track" aria-label="Music bed, sample audio track"></button>
+          <div class="sample-line"><span>Sample mountain footage</span><p>These frames and timeline values are sample content, not media read from a project file.</p></div>
+        </section>
+
+        <div class="work-grid">
+          <section class="change-section" aria-labelledby="queue-title"><div class="section-head"><h2 id="queue-title">Incoming edits</h2><span id="queue-total">3</span></div><div id="change-queue" class="change-queue" aria-label="Incoming changes"></div><div id="compact-queue" hidden></div></section>
+          <section class="detail-section" aria-labelledby="comparison-title"><div class="section-head"><h2 id="comparison-title">Compare revisions</h2><span id="change-status" class="status conflict"><i aria-hidden="true"></i>Conflict</span></div><span id="change-position" class="change-position">A02 · V1 · Trim · Out point</span><h3 id="change-title">Frozen peaks</h3><p id="change-description" class="change-description"></p><div class="value-grid" aria-label="Common base, your cut, and incoming values"><div><span>Common base</span><strong id="base-value"></strong></div><div><span>Your cut</span><strong id="local-value"></strong></div><div class="incoming-value"><span>Incoming</span><strong id="incoming-value"></strong></div></div><p id="change-explanation" class="change-explanation"></p></section>
+          <section class="pull-section" aria-labelledby="pull-title"><div class="section-head"><h2 id="pull-title">Pull destination</h2></div><p>Choose how to review this cut.</p><div class="pull-options" role="group" aria-label="Pull destination"><button type="button" class="pull-option selected" data-mode="copy" aria-pressed="true"><span class="choice-mark" aria-hidden="true"></span><span><strong>Create review copy</strong><small>Inspect a separate file first.</small></span></button><button type="button" class="pull-option" data-mode="in-place" aria-pressed="false"><span class="choice-mark" aria-hidden="true"></span><span><strong>Apply in place</strong><small>Update this file after a restore point.</small></span></button></div><p id="mode-explanation" class="mode-explanation">Your current project would stay untouched while you review the result.</p><div class="pull-action"><button type="button" disabled>Pull unavailable</button><p>Project parsing, conflict resolution, and pull are not implemented in this prototype.</p></div></section>
+        </div>
+      </section>
+
+      <section id="view-history" class="view" aria-label="History"><div class="secondary-hero"><span>Launch film / main</span><h1>Revision history</h1><p>Four sample revisions. The latest is incoming; v0.3 is your current cut.</p></div><div class="secondary-section"><div class="section-head"><h2>Revision log</h2><span>Newest first</span></div><div id="history-list" class="history-list"></div><p class="view-footnote">This history is illustrative. Revision data will come from the project service.</p></div></section>
+
+      <section id="view-media" class="view" aria-label="Media"><div class="secondary-hero"><span>Launch film / Sequence 01</span><h1>Project media</h1><p>Four assets referenced by the sample cut. No local media has been scanned.</p></div><div class="secondary-section"><div class="section-head"><h2>Referenced files</h2><span>Sample data</span></div><div id="media-list" class="media-list"></div><p class="view-footnote">A supported editor adapter will resolve actual asset paths and availability.</p></div></section>
+    <footer class="workspace-footer"><span id="file-name">No project file selected</span><span>Sample sequence · 24 fps · 00:40</span></footer></main>
+  </div>
+</body>
+</html>

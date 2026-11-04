@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1/24s" width="1920" height="1080"/>
+    <asset id="r2" name="alpine-wide.mov" src="file:///sample/alpine-wide.mov" start="0s" duration="12s" hasVideo="1" hasAudio="1"/>
+    <asset id="r3" name="ridge-detail.mov" src="file:///sample/ridge-detail.mov" start="0s" duration="20s" hasVideo="1" hasAudio="0"/>
+  </resources>
+  <library><event name="Frameline fixture"><project name="Mountain sample"><sequence format="r1" duration="20s">
+    <spine><asset-clip id="clip-1" name="Alpine wide" ref="r2" offset="0s" start="1s" duration="8s"/>
+      <asset-clip id="clip-2" name="Ridge detail" ref="r3" offset="8s" start="2s" duration="6s"/></spine>
+    </sequence></project></event></library>
+</fcpxml>

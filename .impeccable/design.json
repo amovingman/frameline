@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T00:32:01Z",
+  "title": "Design System: Frameline contact-sheet workspace",
+  "extensions": {
+    "colorMeta": {
+      "cyan": {
+        "role": "main field",
+        "displayName": "Workspace cyan"
+      },
+      "ink": {
+        "role": "anchor",
+        "displayName": "Film and pull ink"
+      },
+      "lime": {
+        "role": "selection",
+        "displayName": "Selected and incoming"
+      },
+      "pink": {
+        "role": "conflict selection",
+        "displayName": "Selected conflict"
+      },
+      "conflict": {
+        "role": "status",
+        "displayName": "Conflict"
+      },
+      "ready": {
+        "role": "status",
+        "displayName": "Ready"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Editorial heading",
+        "purpose": "Large contact-sheet masthead and view titles."
+      },
+      "interface": {
+        "displayName": "Operating text",
+        "purpose": "Navigation, controls, explanations."
+      },
+      "data": {
+        "displayName": "Identifiers",
+        "purpose": "Revision IDs, clip IDs, and timecodes."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "state-feedback",
+        "value": "150ms",
+        "purpose": "Button hover and selection feedback only."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "tablet",
+        "value": "1100px"
+      },
+      {
+        "name": "phone",
+        "value": "700px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Film contact sheet",
+      "kind": "timeline",
+      "refersTo": "film-section",
+      "description": "Illustrative three-frame V1 sequence, time ruler, and A1 waveform; selection links to the three-way diff.",
+      "html": "<section class=\"film-section\">\u2026</section>",
+      "css": ".film-section{background:var(--ink);color:var(--white)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "See the affected cut first",
+    "overview": "An editor locates an incoming edit in an illustrative contact sheet, compares three revision values, and chooses a future pull destination.",
+    "keyCharacteristics": [
+      "image-led sequence",
+      "oversized condensed typography",
+      "flat color fields",
+      "three-way diff",
+      "honest sample data"
+    ],
+    "rules": [
+      {
+        "name": "Show location first",
+        "body": "The selected change remains visible in the sequence above its property comparison.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Show status with words.",
+      "Keep base, local, and incoming adjacent.",
+      "Label the storyboard as illustrative."
+    ],
+    "donts": [
+      "Imply generated frames came from a chosen file.",
+      "Enable pull without an editor adapter.",
+      "Use ornamental panel borders."
+    ]
+  }
+}

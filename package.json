@@ -1,0 +1,19 @@
+{
+  "name": "git-for-video-editing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop starter for versioning video editing projects",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@fontsource/anton": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "electron": "^41.0.0"
+  },
+  "allowScripts": {
+    "electron@41.10.7": true
+  }
+}

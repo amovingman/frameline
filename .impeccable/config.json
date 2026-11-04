@@ -1,0 +1,34 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "sans",
+        "createdAt": "2026-10-29T17:47:40.615Z",
+        "reason": "Agent: generic fallback follows the documented Bricolage and Plex font families in DESIGN.md"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "mocks/workspace.html",
+          "src/index.html"
+        ],
+        "createdAt": "2026-10-29T17:47:54.952Z",
+        "reason": "Agent: these files use 11px only for documented compact data labels and metadata; reading copy is 12px or larger"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "mocks/workspace.html",
+          "src/index.html"
+        ],
+        "createdAt": "2026-10-29T17:47:55.014Z",
+        "reason": "Agent: selected queue metadata uses a darker #65473e override with measured 5.94:1 contrast; the hook reads the base token"
+      }
+    ]
+  }
+}
