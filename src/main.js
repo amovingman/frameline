@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const { createAppState, selectProject } = require('./project-state');
+const logger = require('./logger');
 
 let appState = createAppState();
 function getAppState() {
@@ -27,6 +28,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => getAppState());
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
@@ -34,9 +36,20 @@ app.whenReady().then(() => {
       properties: ['openFile', 'treatPackageAsDirectory'],
       filters: [{ name: 'DaVinci Resolve timeline exchange', extensions: ['fcpxml', 'fcpxmld'] }]
     });
-    if (result.canceled || result.filePaths.length === 0) return getAppState();
+    if (result.canceled || result.filePaths.length === 0) {
+      logger.info('project.selection-cancelled');
+      return getAppState();
+    }
     const selectedPath = result.filePaths[0];
     appState = selectProject(appState, selectedPath);
+    if (appState.error) {
+      logger.warn('project.selection-rejected', { filePath: selectedPath });
+    } else {
+      logger.info('project.selected', {
+        format: appState.selectedProject.format,
+        filePath: selectedPath
+      });
+    }
     return getAppState();
   });
   createWindow();
