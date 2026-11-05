@@ -2,6 +2,19 @@ const sample = window.FRAME_SAMPLE;
 const changes = new Map(sample.changes.map(change => [change.id, change]));
 let selectedChangeId = 'trim';
 
+function renderAppState(state) {
+  const projectName = state?.selectedProject?.name;
+  document.querySelector('.branch-label').textContent = `${state?.currentBranch || 'main'} · ${projectName ? 'Local project' : 'Sample project'}`;
+  document.getElementById('file-name').textContent = projectName
+    ? `${projectName} · ${state.selectedProject.format} · ${state.scanStatus}`
+    : 'No project file selected';
+  if (state?.error === 'unsupported-format') {
+    const notice = document.getElementById('file-notice');
+    notice.textContent = 'Choose an FCPXML timeline (.fcpxml or .fcpxmld) exported from DaVinci Resolve.';
+    notice.hidden = false;
+  }
+}
+
 function make(tag, className, textValue) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -154,15 +167,13 @@ async function chooseFile() {
   const notice = document.getElementById('file-notice');
   try {
     if (!window.desktop?.chooseProject) throw new Error('Desktop picker unavailable');
-    const selected = await window.desktop.chooseProject();
-    if (!selected) return;
-    if (selected.error === 'unsupported-format') {
-      notice.textContent = 'Choose an FCPXML timeline (.fcpxml or .fcpxmld) exported from DaVinci Resolve.';
+    const state = await window.desktop.chooseProject();
+    if (!state) return;
+    renderAppState(state);
+    if (state.selectedProject) {
+      notice.textContent = `${state.selectedProject.name} · ${state.selectedProject.format} selected. Timeline scanning is the next adapter step.`;
       notice.hidden = false;
-      return;
     }
-    document.getElementById('file-name').textContent = `Chosen file: ${selected.name}`;
-    notice.textContent = `${selected.name} · ${selected.format} selected. Timeline scanning is the next adapter step.`;
   } catch {
     notice.textContent = 'The file picker is available in the desktop app.';
   }
@@ -177,6 +188,7 @@ selectChange(selectedChangeId);
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => chooseMode(button)));
 document.getElementById('choose-file').addEventListener('click', chooseFile);
+window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {
     event.preventDefault();
