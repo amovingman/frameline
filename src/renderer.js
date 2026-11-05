@@ -156,8 +156,13 @@ async function chooseFile() {
     if (!window.desktop?.chooseProject) throw new Error('Desktop picker unavailable');
     const selected = await window.desktop.chooseProject();
     if (!selected) return;
+    if (selected.error === 'unsupported-format') {
+      notice.textContent = 'Choose an FCPXML timeline (.fcpxml or .fcpxmld) exported from DaVinci Resolve.';
+      notice.hidden = false;
+      return;
+    }
     document.getElementById('file-name').textContent = `Chosen file: ${selected.name}`;
-    notice.textContent = `File chosen: ${selected.name}. This prototype cannot read it yet; a supported editor adapter is required.`;
+    notice.textContent = `${selected.name} · ${selected.format} selected. Timeline scanning is the next adapter step.`;
   } catch {
     notice.textContent = 'The file picker is available in the desktop app.';
   }
