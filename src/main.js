@@ -1,6 +1,14 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 
+const supportedProjectExtensions = new Set(['.fcpxml', '.fcpxmld']);
+
+function getProjectFormat(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  if (!supportedProjectExtensions.has(extension)) return null;
+  return extension === '.fcpxmld' ? 'FCPXML bundle' : 'FCPXML';
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1440,
@@ -23,11 +31,15 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Choose a file for this project prototype',
-      properties: ['openFile']
+      title: 'Choose a DaVinci Resolve timeline',
+      properties: ['openFile', 'treatPackageAsDirectory'],
+      filters: [{ name: 'DaVinci Resolve timeline exchange', extensions: ['fcpxml', 'fcpxmld'] }]
     });
     if (result.canceled || result.filePaths.length === 0) return null;
-    return { name: path.basename(result.filePaths[0]), path: result.filePaths[0] };
+    const selectedPath = result.filePaths[0];
+    const format = getProjectFormat(selectedPath);
+    if (!format) return { error: 'unsupported-format' };
+    return { name: path.basename(selectedPath), format };
   });
   createWindow();
   app.on('activate', () => {
