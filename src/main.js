@@ -1,22 +1,10 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
+const { createAppState, selectProject } = require('./project-state');
 
-const supportedProjectExtensions = new Set(['.fcpxml', '.fcpxmld']);
-const appState = {
-  selectedProject: null,
-  scanStatus: 'idle',
-  currentBranch: 'main',
-  error: null
-};
-
+let appState = createAppState();
 function getAppState() {
   return { ...appState, selectedProject: appState.selectedProject && { ...appState.selectedProject } };
-}
-
-function getProjectFormat(filePath) {
-  const extension = path.extname(filePath).toLowerCase();
-  if (!supportedProjectExtensions.has(extension)) return null;
-  return extension === '.fcpxmld' ? 'FCPXML bundle' : 'FCPXML';
 }
 
 function createWindow() {
@@ -48,14 +36,7 @@ app.whenReady().then(() => {
     });
     if (result.canceled || result.filePaths.length === 0) return getAppState();
     const selectedPath = result.filePaths[0];
-    const format = getProjectFormat(selectedPath);
-    if (!format) {
-      appState.error = 'unsupported-format';
-      return getAppState();
-    }
-    appState.selectedProject = { name: path.basename(selectedPath), format };
-    appState.scanStatus = 'not-scanned';
-    appState.error = null;
+    appState = selectProject(appState, selectedPath);
     return getAppState();
   });
   createWindow();
