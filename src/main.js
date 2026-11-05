@@ -2,6 +2,16 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 
 const supportedProjectExtensions = new Set(['.fcpxml', '.fcpxmld']);
+const appState = {
+  selectedProject: null,
+  scanStatus: 'idle',
+  currentBranch: 'main',
+  error: null
+};
+
+function getAppState() {
+  return { ...appState, selectedProject: appState.selectedProject && { ...appState.selectedProject } };
+}
 
 function getProjectFormat(filePath) {
   const extension = path.extname(filePath).toLowerCase();
@@ -29,17 +39,24 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle('app:get-state', () => getAppState());
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a DaVinci Resolve timeline',
       properties: ['openFile', 'treatPackageAsDirectory'],
       filters: [{ name: 'DaVinci Resolve timeline exchange', extensions: ['fcpxml', 'fcpxmld'] }]
     });
-    if (result.canceled || result.filePaths.length === 0) return null;
+    if (result.canceled || result.filePaths.length === 0) return getAppState();
     const selectedPath = result.filePaths[0];
     const format = getProjectFormat(selectedPath);
-    if (!format) return { error: 'unsupported-format' };
-    return { name: path.basename(selectedPath), format };
+    if (!format) {
+      appState.error = 'unsupported-format';
+      return getAppState();
+    }
+    appState.selectedProject = { name: path.basename(selectedPath), format };
+    appState.scanStatus = 'not-scanned';
+    appState.error = null;
+    return getAppState();
   });
   createWindow();
   app.on('activate', () => {
