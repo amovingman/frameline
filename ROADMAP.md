@@ -53,8 +53,8 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 ## Phase 1 — Local-first project foundation
 
 ### 1.1 Replace the demo-only shell with an application foundation
-- [ ] Define supported project file extensions and safe project-root selection.
-- [ ] Add an application state model for selected project, scan status, current branch, and errors.
+- [x] Define the supported project file picker for `.fcpxml` and `.fcpxmld`, validate extensions in the main process, and avoid exposing local paths to the renderer.
+- [x] Add a main-process application state model for selected project, scan status, current branch, and selection errors.
 - [ ] Keep the Electron renderer isolated; expose only narrow, validated preload methods.
 - [ ] Add structured logging with local paths and sensitive values redacted.
 - [ ] Design migrations and backup/restore behavior for Frameline's local metadata.
