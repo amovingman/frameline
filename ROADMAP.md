@@ -42,7 +42,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 ### 0.3 Prove safe read and write access
 - [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>` and Resolve-exported `<video>` elements.
-- [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. A read-only comparison probe under `phase-0/resolve-xml-proof/` now detects ambiguous repeated-media clips, but it does not establish stable IDs.
+- [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. The repeated-media Resolve import/export proof shows resource refs and clip names are unstable; a sidecar mapping or supported API identity is still required.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
 - [ ] Measure scan, write, and reopen behavior on realistically sized projects.

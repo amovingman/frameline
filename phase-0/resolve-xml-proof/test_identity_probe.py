@@ -3,6 +3,7 @@
 import unittest
 from copy import deepcopy
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from identity_probe import compare, scan
 
@@ -10,6 +11,12 @@ from identity_probe import compare, scan
 FIXTURE = Path(__file__).with_name("resolve-roundtrip.fcpxmld")
 REPEATED_BEFORE = Path(__file__).with_name("identity-repeated-before.fcpxmld")
 REPEATED_AFTER = Path(__file__).with_name("identity-repeated-after-trim.fcpxmld")
+REORDERED_INPUT = Path(__file__).with_name("identity-reordered-input.fcpxmld")
+REORDERED_EXPORT = Path(__file__).with_name("identity-reordered-export.fcpxmld")
+
+
+def clip_elements(bundle):
+    return list(ET.parse(bundle / "Info.fcpxml").getroot().find(".//sequence/spine"))
 
 
 class IdentityProbeTests(unittest.TestCase):
@@ -64,6 +71,19 @@ class IdentityProbeTests(unittest.TestCase):
             "before": [0, 3, 4], "after": [0, 3, 4], "reason": "same-media-candidates"
         }])
         self.assertFalse(result["candidate_matches_unambiguous"])
+
+    def test_resolve_reassigns_resource_refs_and_discards_clip_rename_on_reorder(self):
+        sent, returned = clip_elements(REORDERED_INPUT), clip_elements(REORDERED_EXPORT)
+        self.assertEqual([clip.get("duration") for clip in sent],
+                         [clip.get("duration") for clip in returned])
+        self.assertEqual([clip.get("offset") for clip in sent],
+                         [clip.get("offset") for clip in returned])
+        self.assertEqual([clip.get("ref") for clip in sent[3:]], ["r8", "r7"])
+        self.assertEqual([clip.get("ref") for clip in returned[3:]], ["r7", "r8"])
+        self.assertEqual(sent[3].get("name"), "Alps alternate")
+        self.assertEqual(returned[3].get("name"), "mountain-alps.jpg")
+        self.assertFalse(compare(scan(REPEATED_AFTER), scan(REORDERED_EXPORT))[
+            "candidate_matches_unambiguous"])
 
 
 if __name__ == "__main__":
