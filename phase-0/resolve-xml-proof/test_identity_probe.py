@@ -8,6 +8,8 @@ from identity_probe import compare, scan
 
 
 FIXTURE = Path(__file__).with_name("resolve-roundtrip.fcpxmld")
+REPEATED_BEFORE = Path(__file__).with_name("identity-repeated-before.fcpxmld")
+REPEATED_AFTER = Path(__file__).with_name("identity-repeated-after-trim.fcpxmld")
 
 
 class IdentityProbeTests(unittest.TestCase):
@@ -52,6 +54,16 @@ class IdentityProbeTests(unittest.TestCase):
         result = compare(self.before, modified)
         self.assertEqual(len(result["matches"]), 3)
         self.assertEqual(result["ambiguous"], [])
+
+    def test_real_resolve_repeated_media_trim_is_ambiguous(self):
+        before, after = scan(REPEATED_BEFORE), scan(REPEATED_AFTER)
+        self.assertEqual([clip["duration_frames"] for clip in before["clips"]], [72, 96, 72, 120, 120])
+        self.assertEqual([clip["duration_frames"] for clip in after["clips"]], [72, 96, 72, 120, 97])
+        result = compare(before, after)
+        self.assertEqual(result["ambiguous"], [{
+            "before": [0, 3, 4], "after": [0, 3, 4], "reason": "same-media-candidates"
+        }])
+        self.assertFalse(result["candidate_matches_unambiguous"])
 
 
 if __name__ == "__main__":

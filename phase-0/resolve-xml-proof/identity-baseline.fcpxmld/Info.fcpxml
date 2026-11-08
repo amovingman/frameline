@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+    <resources>
+        <format id="r0" width="1920" frameDuration="1/24s" name="FFVideoFormat1080p24" height="1080"/>
+        <format id="r1" width="1200" name="FFVideoFormatRateUndefined" height="801"/>
+        <format id="r3" width="1200" name="FFVideoFormatRateUndefined" height="900"/>
+        <format id="r5" width="1200" name="FFVideoFormatRateUndefined" height="1800"/>
+        <asset id="r2" start="0/1s" duration="0/1s" format="r1" name="mountain-alps.jpg" hasVideo="1">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg"/>
+        </asset>
+        <asset id="r4" start="0/1s" duration="0/1s" format="r3" name="mountain-greenland.jpg" hasVideo="1">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-greenland.jpg"/>
+        </asset>
+        <asset id="r6" start="0/1s" duration="0/1s" format="r5" name="mountain-summit.jpg" hasVideo="1">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-summit.jpg"/>
+        </asset>
+    </resources>
+    <library>
+        <event name="Frameline Modified Test (Resolve)">
+            <project name="Frameline Modified Test (Resolve)">
+                <sequence format="r0" duration="10/1s" tcStart="0/1s" tcFormat="NDF">
+                    <spine>
+                        <video start="0/1s" offset="0/1s" duration="3/1s" ref="r2" enabled="1" name="mountain-alps.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform scale="1 1" position="0 0" anchor="0 0"/>
+                        </video>
+                        <video start="0/1s" offset="3/1s" duration="4/1s" ref="r4" enabled="1" name="mountain-greenland.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform scale="1 1" position="0 0" anchor="0 0"/>
+                        </video>
+                        <video start="0/1s" offset="7/1s" duration="3/1s" ref="r6" enabled="1" name="mountain-summit.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform scale="1 1" position="0 0" anchor="0 0"/>
+                        </video>
+                    </spine>
+                </sequence>
+            </project>
+        </event>
+    </library>
+</fcpxml>
