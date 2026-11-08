@@ -20,6 +20,21 @@ The interchange worked for this isolated duration change. Identity did not round
 
 `probe.py` now inventories both fixture and Resolve-exported clip elements, keeps exact rational time values, reports frame counts when they align to the sequence frame duration, and marks ID-less export entries as unstable position keys. It remains a disposable spike, not a production adapter.
 
+## Identity comparison experiment
+
+`identity_probe.py` compares two exports without using timeline position, clip name, or duration as identity. It first matches clips whose media reference appears exactly once on each side. For repeated media, it only matches source-in points that are unique on both sides. Remaining same-media candidates are reported as ambiguous. Run it with:
+
+```sh
+python3 phase-0/resolve-xml-proof/identity_probe.py \
+  phase-0/resolve-xml-proof/resolve-roundtrip.fcpxmld \
+  phase-0/resolve-xml-proof/resolve-roundtrip-modified.fcpxmld
+python3 -m unittest discover -s phase-0/resolve-xml-proof -p 'test_*.py' -v
+```
+
+The known original and duration-edited Resolve exports yield three candidate matches. Synthetic comparisons show that a rename, move, and duration change can retain a unique candidate when each media reference is used once. Repeated use of the same media at the same source-in point is ambiguous even when timeline positions differ. These matches are **heuristics, not stable IDs**: replacing a clip with a new use of the same media can look identical, and relinking or changing source-in can defeat matching. `candidate_matches_unambiguous` means only that this probe found no competing candidates; it does not authorize an automatic merge or write.
+
+The next editor-backed experiment is to duplicate the same source clip twice in a disposable Resolve timeline, move one copy, rename it, save, export, then compare the two exports. Repeat with distinct source-in points and with an identical source-in point. Check whether any Resolve metadata survives that distinguishes the occurrences. Preserve both untouched exports and record the Resolve build and edition. Until that evidence exists, repeated-media clips require manual identity resolution, and Phase 0's stable-ID gate remains open.
+
 The initial UI automation attempts failed to navigate the file picker, but did not indicate a Resolve compatibility problem. The working method was the macOS Go to Folder shortcut (`super+shift+g`) in the import picker; the fixture path was already entered in the sheet, and pressing Return navigated to the selected file.
 
 ## Next checks

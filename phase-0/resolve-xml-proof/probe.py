@@ -1,4 +1,5 @@
 """Small, read-only FCPXML inventory probe for the Resolve compatibility spike."""
+from __future__ import annotations
 from copy import deepcopy
 from fractions import Fraction
 from pathlib import Path
