@@ -23,6 +23,8 @@ test('starts with a local idle project state', () => {
     revisionDetailError: null,
     scanStatus: 'idle',
     currentBranch: 'main',
+    branches: ['main'],
+    branchError: null,
     error: null
   });
 });
@@ -39,6 +41,8 @@ test('selecting a supported project records safe display metadata only', () => {
     revisionDetailError: null,
     scanStatus: 'not-scanned',
     currentBranch: 'main',
+    branches: ['main'],
+    branchError: null,
     error: null
   });
   assert.equal(JSON.stringify(state).includes('/private/projects'), false);

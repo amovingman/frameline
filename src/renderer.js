@@ -2,6 +2,7 @@ const sample = window.FRAME_SAMPLE;
 const changes = new Map(sample.changes.map(change => [change.id, change]));
 let selectedChangeId = 'trim';
 let currentAppState = null;
+let branchBusy = false;
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -21,7 +22,11 @@ const scanRecovery = {
   'revision-message-invalid': 'Enter a revision message of 1 to 120 characters.',
   'revision-scan-required': 'Scan the selected export before saving a revision.',
   'revision-not-found': 'This revision is no longer in the local history for this project.',
-  'revision-corrupt': 'This revision could not be verified. Keep the local metadata and revision files for recovery.'
+  'revision-corrupt': 'This revision could not be verified. Keep the local metadata and revision files for recovery.',
+  'branch-name-invalid': 'Use 1–40 lowercase letters, numbers, dots, underscores, or hyphens. Start with a letter or number.',
+  'branch-exists': 'A branch with that name already exists. Choose another name.',
+  'branch-not-found': 'That branch is no longer available. Choose the project again to refresh the branch list.',
+  'branch-project-required': 'Choose an FCPXML export before managing branches.'
 };
 
 function renderAppState(state) {
@@ -43,12 +48,21 @@ function renderAppState(state) {
     document.querySelector('.revision-jump').hidden = true;
     document.getElementById('audio-track').hidden = true;
     document.querySelector('.nav-count').textContent = '';
-    document.querySelector('#view-history .secondary-hero p').textContent = `${state.revisions?.length || 0} local revision${state.revisions?.length === 1 ? '' : 's'} saved for this export. Clip identity is unresolved, so comparison and pull remain unavailable.`;
+    document.querySelector('#view-history .secondary-hero p').textContent = `${state.revisions?.length || 0} revision${state.revisions?.length === 1 ? '' : 's'} on ${state.currentBranch}. Clip identity is unresolved, so comparison and pull remain unavailable.`;
+    document.getElementById('branch-controls').hidden = false;
+    const branchSelect = document.getElementById('branch-switch');
+    branchSelect.replaceChildren();
+    (state.branches || ['main']).forEach(name => {
+      const option = make('option', '', name);
+      option.value = name;
+      branchSelect.append(option);
+    });
+    branchSelect.value = state.currentBranch;
     document.getElementById('revision-form').hidden = false;
     document.getElementById('save-revision').disabled = state.scanStatus !== 'ready' || state.revisionStatus === 'saving';
     renderRealHistory(state.revisions || [], state.selectedRevision?.id);
     renderRevisionDetail(state.selectedRevision, state.revisionDetailError);
-    document.querySelector('#view-history .view-footnote').textContent = 'These are local scan snapshots. Revision comparison and pull are not available yet.';
+    document.querySelector('#view-history .view-footnote').textContent = 'History follows the selected branch. These are local scan snapshots; comparison and pull are not available yet.';
     document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media assets · ${scan.media.filter(item => item.availability === 'local').length} available locally · ${scan.media.filter(item => item.availability === 'missing').length} missing` : 'Media could not be scanned.';
     document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
     document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
@@ -263,6 +277,30 @@ async function openRevision(revisionId) {
   }
 }
 
+async function changeBranch(name, create) {
+  if (branchBusy) return;
+  branchBusy = true;
+  const notice = document.getElementById('file-notice');
+  const branchSelect = document.getElementById('branch-switch');
+  const createButton = document.querySelector('#branch-form button');
+  branchSelect.disabled = true;
+  createButton.disabled = true;
+  try {
+    const state = create ? await window.desktop.createBranch(name) : await window.desktop.switchBranch(name);
+    renderAppState(state);
+    notice.textContent = state.branchError ? scanRecovery[state.branchError] || 'Could not change branches.' : `${create ? 'Created and switched to' : 'Switched to'} ${state.currentBranch}.`;
+    notice.hidden = false;
+    if (create && !state.branchError) document.getElementById('branch-name').value = '';
+  } catch {
+    notice.textContent = 'Could not change branches. Try again.';
+    notice.hidden = false;
+  } finally {
+    branchBusy = false;
+    branchSelect.disabled = false;
+    createButton.disabled = false;
+  }
+}
+
 function renderMedia() {
   const list = document.getElementById('media-list');
   list.replaceChildren();
@@ -404,6 +442,11 @@ document.querySelectorAll('[data-mode]').forEach(button => button.addEventListen
 document.getElementById('choose-file').addEventListener('click', chooseFile);
 document.getElementById('rescan-project').addEventListener('click', rescanProject);
 document.getElementById('revision-form').addEventListener('submit', saveRevision);
+document.getElementById('branch-form').addEventListener('submit', event => {
+  event.preventDefault();
+  changeBranch(document.getElementById('branch-name').value, true);
+});
+document.getElementById('branch-switch').addEventListener('change', event => changeBranch(event.target.value, false));
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {

@@ -5,6 +5,7 @@ const { validateScanManifest } = require('./scan-manifest');
 
 const FILE_NAME = 'metadata.json';
 const BACKUP_NAME = 'metadata.json.bak';
+const branchNamePattern = /^[a-z0-9][a-z0-9._-]{0,39}$/;
 
 class MetadataError extends Error {
   constructor(code) {
@@ -14,7 +15,7 @@ class MetadataError extends Error {
 }
 
 function validateMetadata(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || ![1, 2].includes(value.schemaVersion)
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![1, 2, 3].includes(value.schemaVersion)
     || !value.projects || typeof value.projects !== 'object' || Array.isArray(value.projects)) throw new MetadataError('metadata-invalid');
   for (const [fingerprint, project] of Object.entries(value.projects)) {
     if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new MetadataError('metadata-invalid');
@@ -27,15 +28,23 @@ function validateMetadata(value) {
         || (revision.recordHash !== undefined && !/^[a-f0-9]{64}$/.test(revision.recordHash)))) {
       throw new MetadataError('metadata-invalid');
     }
+    if (value.schemaVersion === 3) {
+      if (!project.branches || typeof project.branches !== 'object' || Array.isArray(project.branches)
+        || !Object.hasOwn(project.branches, 'main') || !Object.hasOwn(project.branches, project.currentBranch)
+        || Object.entries(project.branches).some(([name, headId]) => !branchNamePattern.test(name)
+          || (headId !== null && !project.revisions.some(revision => revision.id === headId)))) throw new MetadataError('metadata-invalid');
+    }
   }
   return value;
 }
 
 function migrateMetadata(value) {
-  if (value.schemaVersion === 2) return value;
-  return { schemaVersion: 2, projects: Object.fromEntries(
-    Object.entries(value.projects).map(([fingerprint, id]) => [fingerprint, { id, revisions: [] }])
-  ) };
+  if (value.schemaVersion === 3) return value;
+  const projects = Object.fromEntries(Object.entries(value.projects).map(([fingerprint, project]) => {
+    const entry = value.schemaVersion === 1 ? { id: project, revisions: [] } : project;
+    return [fingerprint, { ...entry, branches: { main: entry.revisions.at(-1)?.id || null }, currentBranch: 'main' }];
+  }));
+  return { schemaVersion: 3, projects };
 }
 
 async function readMetadata(filePath) {
@@ -48,7 +57,7 @@ async function readMetadata(filePath) {
   let value;
   try { value = JSON.parse(content); }
   catch { throw new MetadataError('metadata-invalid'); }
-  if (value?.schemaVersion > 2) throw new MetadataError('metadata-newer-version');
+  if (value?.schemaVersion > 3) throw new MetadataError('metadata-newer-version');
   return validateMetadata(value);
 }
 
@@ -110,8 +119,8 @@ function createLocalMetadataStore(directory) {
           metadata = backup;
         }
       }
-      metadata ||= { schemaVersion: 2, projects: {} };
-      if (metadata.schemaVersion === 1) {
+      metadata ||= { schemaVersion: 3, projects: {} };
+      if (metadata.schemaVersion !== 3) {
         metadata = migrateMetadata(metadata);
         await writeMetadata(directory, metadata);
       }
@@ -125,28 +134,76 @@ function createLocalMetadataStore(directory) {
     const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
     return transact(async (metadata, recovered) => {
       if (!metadata.projects[fingerprint]) {
-        metadata.projects[fingerprint] = { id: randomUUID(), revisions: [] };
+        metadata.projects[fingerprint] = { id: randomUUID(), revisions: [], branches: { main: null }, currentBranch: 'main' };
         await writeMetadata(directory, metadata);
       }
       return { id: metadata.projects[fingerprint].id, recovered };
     });
   }
 
-  function listRevisions(projectId) {
+  function listRevisions(projectId, branchName = null) {
     return transact(async metadata => {
       const project = Object.values(metadata.projects).find(item => item.id === projectId);
       if (!project) throw new MetadataError('metadata-project-missing');
-      return structuredClone(project.revisions).reverse();
+      const headId = project.branches[branchName || project.currentBranch];
+      if (headId === undefined) throw new MetadataError('branch-not-found');
+      const byId = new Map(project.revisions.map(revision => [revision.id, revision]));
+      const result = [];
+      const seen = new Set();
+      let id = headId;
+      while (id) {
+        if (seen.has(id) || !byId.has(id)) throw new MetadataError('metadata-invalid');
+        seen.add(id);
+        const revision = byId.get(id);
+        result.push(revision);
+        id = revision.parentRevisionId;
+      }
+      return structuredClone(result);
     });
   }
 
-  function saveRevision(projectId, manifest, message, expectedHeadId = null) {
+  function getBranchState(projectId) {
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      return { currentBranch: project.currentBranch, branches: Object.keys(project.branches).sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b)) };
+    });
+  }
+
+  function createBranch(projectId, name, expectedHeadId = null) {
+    return transact(async metadata => {
+      if (typeof name !== 'string' || !branchNamePattern.test(name)) throw new MetadataError('branch-name-invalid');
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      if (Object.hasOwn(project.branches, name)) throw new MetadataError('branch-exists');
+      const headId = project.branches[project.currentBranch];
+      if (headId !== expectedHeadId) throw new MetadataError('revision-head-changed');
+      project.branches[name] = headId;
+      project.currentBranch = name;
+      await writeMetadata(directory, metadata);
+      return { currentBranch: name, branches: Object.keys(project.branches).sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b)) };
+    });
+  }
+
+  function switchBranch(projectId, name) {
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      if (typeof name !== 'string' || !Object.hasOwn(project.branches, name)) throw new MetadataError('branch-not-found');
+      project.currentBranch = name;
+      await writeMetadata(directory, metadata);
+      return { currentBranch: name, branches: Object.keys(project.branches).sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b)) };
+    });
+  }
+
+  function saveRevision(projectId, manifest, message, expectedHeadId = null, branchName = 'main') {
     return transact(async metadata => {
       if (typeof message !== 'string' || !message.trim() || message.length > 120) throw new MetadataError('revision-message-invalid');
       validateScanManifest(manifest);
       const project = Object.values(metadata.projects).find(item => item.id === projectId);
       if (!project) throw new MetadataError('metadata-project-missing');
-      const parentRevisionId = project.revisions.at(-1)?.id || null;
+      if (!Object.hasOwn(project.branches, branchName) || project.currentBranch !== branchName) throw new MetadataError('branch-not-found');
+      const parentRevisionId = project.branches[branchName];
       if (parentRevisionId !== expectedHeadId) throw new MetadataError('revision-head-changed');
       const revision = {
         id: randomUUID(), projectId, parentRevisionId, author: 'Local editor',
@@ -165,6 +222,7 @@ function createLocalMetadataStore(directory) {
       const { manifest: _manifest, ...summary } = revision;
       summary.recordHash = createHash('sha256').update(recordBytes).digest('hex');
       project.revisions.push(summary);
+      project.branches[branchName] = revision.id;
       await writeMetadata(directory, metadata);
       return structuredClone(summary);
     });
@@ -189,7 +247,7 @@ function createLocalMetadataStore(directory) {
     });
   }
 
-  return { getProjectId, listRevisions, saveRevision, getRevision };
+  return { getProjectId, listRevisions, getBranchState, createBranch, switchBranch, saveRevision, getRevision };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

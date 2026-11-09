@@ -40,8 +40,13 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
           const { id, recovered } = await metadataStore.getProjectId(filePath);
           if (selectionGeneration !== generation) return getState();
           state = { ...state, selectedProject: { ...state.selectedProject, id, metadataRecovered: recovered } };
+          if (metadataStore.getBranchState) {
+            const branchState = await metadataStore.getBranchState(id);
+            if (selectionGeneration !== generation) return getState();
+            state = { ...state, ...branchState };
+          }
           if (metadataStore.listRevisions) {
-            const revisions = await metadataStore.listRevisions(id);
+            const revisions = await metadataStore.listRevisions(id, state.currentBranch);
             if (selectionGeneration !== generation) return getState();
             state = { ...state, revisions };
           }
@@ -71,11 +76,12 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
       const projectId = state.selectedProject.id;
       const manifest = structuredClone(state.scan);
       const headId = state.revisions[0]?.id || null;
+      const branchName = state.currentBranch;
       state = { ...state, revisionStatus: 'saving', revisionError: null };
       try {
         await verifySource(selectedPath, manifest.sourceHash);
         if (currentGeneration !== generation) return getState();
-        const revision = await metadataStore.saveRevision(projectId, manifest, cleanMessage, headId);
+        const revision = await metadataStore.saveRevision(projectId, manifest, cleanMessage, headId, branchName);
         if (currentGeneration === generation) state = { ...state, revisions: [revision, ...state.revisions], revisionStatus: 'idle', revisionError: null };
       } catch (error) {
         if (currentGeneration === generation) state = { ...state, revisionStatus: 'idle', revisionError: error.code || 'metadata-unavailable' };
@@ -93,6 +99,36 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
         if (currentGeneration === generation) state = { ...state, selectedRevision: revision, revisionDetailError: null };
       } catch (error) {
         if (currentGeneration === generation) state = { ...state, selectedRevision: null, revisionDetailError: error.code || 'revision-corrupt' };
+      }
+      return getState();
+    },
+    async createBranch(name) {
+      if (!state.selectedProject?.id || !metadataStore?.createBranch) {
+        state = { ...state, branchError: 'branch-project-required' };
+        return getState();
+      }
+      const currentGeneration = generation;
+      try {
+        const branchState = await metadataStore.createBranch(state.selectedProject.id, name, state.revisions[0]?.id || null);
+        const revisions = await metadataStore.listRevisions(state.selectedProject.id, branchState.currentBranch);
+        if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, branchError: null };
+      } catch (error) {
+        if (currentGeneration === generation) state = { ...state, branchError: error.code || 'metadata-unavailable' };
+      }
+      return getState();
+    },
+    async switchBranch(name) {
+      if (!state.selectedProject?.id || !metadataStore?.switchBranch) {
+        state = { ...state, branchError: 'branch-project-required' };
+        return getState();
+      }
+      const currentGeneration = generation;
+      try {
+        const branchState = await metadataStore.switchBranch(state.selectedProject.id, name);
+        const revisions = await metadataStore.listRevisions(state.selectedProject.id, branchState.currentBranch);
+        if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, branchError: null };
+      } catch (error) {
+        if (currentGeneration === generation) state = { ...state, branchError: error.code || 'metadata-unavailable' };
       }
       return getState();
     }

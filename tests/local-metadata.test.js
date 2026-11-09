@@ -21,7 +21,7 @@ test('project IDs survive restart and metadata stores no project paths', async (
   assert.equal(first.recovered, false);
   const saved = await fs.readFile(path.join(directory, 'metadata.json'), 'utf8');
   assert.doesNotMatch(saved, /private|editing|client-cut|fcpxml/);
-  assert.deepEqual(JSON.parse(saved).schemaVersion, 2);
+  assert.deepEqual(JSON.parse(saved).schemaVersion, 3);
   assert.equal(await fs.readFile(path.join(directory, 'metadata.json.bak'), 'utf8'), saved);
 }));
 
@@ -39,7 +39,7 @@ test('restores a damaged primary from backup and preserves the damaged file', as
 
 test('rejects a future schema version without overwriting it', async () => withStore(async directory => {
   const filePath = path.join(directory, 'metadata.json');
-  const newer = '{"schemaVersion":3,"projects":{}}';
+  const newer = '{"schemaVersion":4,"projects":{}}';
   await fs.writeFile(filePath, newer);
   await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-newer-version' });
   assert.equal(await fs.readFile(filePath, 'utf8'), newer);
@@ -57,7 +57,7 @@ test('migrates v1 project IDs before storing immutable linked revisions', async 
   await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify({ schemaVersion: 1, projects: { [fingerprint]: projectId } }));
   const store = createLocalMetadataStore(directory);
   assert.equal((await store.getProjectId(filePath)).id, projectId);
-  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 2);
+  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 3);
 
   const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
   const first = await store.saveRevision(projectId, manifest, 'First cut', null);
@@ -86,4 +86,33 @@ test('rejects a revision record changed after it was saved', async () => withSto
   record.manifest.clips[0].name = 'Altered clip';
   await fs.writeFile(filePath, JSON.stringify(record));
   await assert.rejects(store.getRevision(projectId, summary.id), { code: 'revision-corrupt' });
+}));
+
+test('migrates v2 history into main and keeps branch histories separate', async () => withStore(async directory => {
+  const filePath = '/private/editing/client-cut.fcpxml';
+  const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
+  const projectId = '11111111-1111-4111-8111-111111111111';
+  const oldId = '22222222-2222-4222-8222-222222222222';
+  const oldSummary = { id: oldId, projectId, parentRevisionId: null, message: 'Old cut', contentHash: 'a'.repeat(64) };
+  await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify({ schemaVersion: 2, projects: { [fingerprint]: { id: projectId, revisions: [oldSummary] } } }));
+  const store = createLocalMetadataStore(directory);
+  assert.equal((await store.getProjectId(filePath)).id, projectId);
+  assert.deepEqual(await store.getBranchState(projectId), { currentBranch: 'main', branches: ['main'] });
+  assert.deepEqual((await store.listRevisions(projectId)).map(item => item.id), [oldId]);
+
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  const branch = await store.createBranch(projectId, 'alternate-cut', oldId);
+  assert.equal(branch.currentBranch, 'alternate-cut');
+  assert.equal((await createLocalMetadataStore(directory).getBranchState(projectId)).currentBranch, 'alternate-cut');
+  const alternate = await store.saveRevision(projectId, manifest, 'Alternate opening', oldId, 'alternate-cut');
+  await store.switchBranch(projectId, 'main');
+  const main = await store.saveRevision(projectId, manifest, 'Main opening', oldId, 'main');
+  assert.equal(alternate.parentRevisionId, oldId);
+  assert.equal(main.parentRevisionId, oldId);
+  assert.deepEqual((await store.listRevisions(projectId, 'main')).map(item => item.id), [main.id, oldId]);
+  assert.deepEqual((await store.listRevisions(projectId, 'alternate-cut')).map(item => item.id), [alternate.id, oldId]);
+  assert.equal((await createLocalMetadataStore(directory).getBranchState(projectId)).currentBranch, 'main');
+  await assert.rejects(store.createBranch(projectId, 'alternate-cut', main.id), { code: 'branch-exists' });
+  await assert.rejects(store.createBranch(projectId, '../escape', main.id), { code: 'branch-name-invalid' });
+  await assert.rejects(store.saveRevision(projectId, manifest, 'Stale', oldId, 'main'), { code: 'revision-head-changed' });
 }));

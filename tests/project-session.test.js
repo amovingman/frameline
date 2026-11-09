@@ -130,5 +130,13 @@ test('revisions persist across sessions and require a fresh scan after source ch
     const next = await reopened.saveRevision('Changed cut');
     assert.equal(next.revisionError, null);
     assert.equal(next.revisions[0].parentRevisionId, saved.revisions[0].id);
+    const branch = await reopened.createBranch('alternate-cut');
+    assert.equal(branch.currentBranch, 'alternate-cut');
+    assert.deepEqual(branch.branches, ['main', 'alternate-cut']);
+    const alternate = await reopened.saveRevision('Alternate cut');
+    assert.equal(alternate.revisions[0].message, 'Alternate cut');
+    const main = await reopened.switchBranch('main');
+    assert.equal(main.currentBranch, 'main');
+    assert.equal(main.revisions[0].message, 'Changed cut');
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });
