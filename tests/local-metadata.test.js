@@ -143,3 +143,44 @@ test('active metadata locks time out and abandoned locks are reclaimed', async (
   assert.match(recovered.id, /^[a-f0-9-]{36}$/);
   assert.equal((await fs.readdir(directory)).includes('metadata.lock'), false);
 }));
+
+test('exports verified history and imports it onto new branches without replacing local work', async () => withStore(async directory => {
+  const source = createLocalMetadataStore(path.join(directory, 'source'));
+  const target = createLocalMetadataStore(path.join(directory, 'target'));
+  const sourceId = (await source.getProjectId('/private/source.fcpxml')).id;
+  const targetId = (await target.getProjectId('/private/target.fcpxml')).id;
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  const base = await source.saveRevision(sourceId, manifest, 'Base');
+  await source.createBranch(sourceId, 'alternate', base.id);
+  const alternate = await source.saveRevision(sourceId, manifest, 'Alternate', base.id, 'alternate');
+  await source.switchBranch(sourceId, 'main');
+  const main = await source.saveRevision(sourceId, manifest, 'Main', base.id);
+  const local = await target.saveRevision(targetId, manifest, 'Local');
+  const bundle = await source.exportRevisions(sourceId);
+  assert.equal(bundle.records.length, 3);
+  assert.deepEqual(bundle.branches, { main: main.id, alternate: alternate.id });
+  const result = await target.importRevisions(targetId, JSON.parse(JSON.stringify(bundle)));
+  assert.equal(result.revisionCount, 3);
+  assert.deepEqual(result.branches, ['import-main', 'import-alternate']);
+  assert.deepEqual((await target.listRevisions(targetId)).map(item => item.id), [local.id]);
+  const importedMain = await target.listRevisions(targetId, 'import-main');
+  const importedAlternate = await target.listRevisions(targetId, 'import-alternate');
+  assert.deepEqual(importedMain.map(item => item.message), ['Main', 'Base']);
+  assert.deepEqual(importedAlternate.map(item => item.message), ['Alternate', 'Base']);
+  assert.equal(importedMain[1].id, importedAlternate[1].id);
+  assert.deepEqual((await target.getRevision(targetId, importedMain[0].id)).manifest, manifest);
+  assert.deepEqual((await target.importRevisions(targetId, bundle)).branches, ['import-main-2', 'import-alternate-2']);
+  assert.deepEqual((await source.listRevisions(sourceId)).map(item => item.id), [main.id, base.id]);
+}));
+
+test('rejects damaged transfer packages before changing target history', async () => withStore(async directory => {
+  const store = createLocalMetadataStore(directory);
+  const projectId = (await store.getProjectId('/private/cut.fcpxml')).id;
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  await store.saveRevision(projectId, manifest, 'Base');
+  const bundle = await store.exportRevisions(projectId);
+  bundle.records[0].bytes = bundle.records[0].bytes.replace('Base', 'Fake');
+  await assert.rejects(store.importRevisions(projectId, bundle), { code: 'revision-transfer-invalid' });
+  assert.deepEqual((await store.getBranchState(projectId)).branches, ['main']);
+  assert.equal((await store.listRevisions(projectId)).length, 1);
+}));

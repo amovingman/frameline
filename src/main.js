@@ -1,5 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs/promises');
+const { randomUUID } = require('node:crypto');
 const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
 const { scanFcpXml } = require('./fcpxml-adapter');
@@ -75,6 +77,47 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('project:open-revision', async (_event, revisionId) => projectSession.openRevision(revisionId));
   ipcMain.handle('project:create-branch', async (_event, name) => projectSession.createBranch(name));
   ipcMain.handle('project:switch-branch', async (_event, name) => projectSession.switchBranch(name));
+  ipcMain.handle('project:export-revisions', async () => {
+    try {
+      const bundle = await projectSession.exportRevisions();
+      const result = await dialog.showSaveDialog({
+        title: 'Export revision backup',
+        defaultPath: 'frameline-revisions.json',
+        filters: [{ name: 'Frameline revision backup', extensions: ['json'] }]
+      });
+      if (result.canceled || !result.filePath) return { canceled: true };
+      const tempPath = `${result.filePath}.${randomUUID()}.tmp`;
+      try {
+        const handle = await fs.open(tempPath, 'wx', 0o600);
+        try { await handle.writeFile(`${JSON.stringify(bundle, null, 2)}\n`); await handle.sync(); }
+        finally { await handle.close(); }
+        await fs.rename(tempPath, result.filePath);
+      } finally { await fs.rm(tempPath, { force: true }).catch(() => {}); }
+      return { revisionCount: bundle.records.length, branchCount: Object.keys(bundle.branches).length };
+    } catch (error) {
+      logger.warn('revision.export-failed', { code: error.code || 'metadata-unavailable' });
+      return { error: error.code || 'metadata-unavailable' };
+    }
+  });
+  ipcMain.handle('project:import-revisions', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import revision backup',
+      properties: ['openFile'],
+      filters: [{ name: 'Frameline revision backup', extensions: ['json'] }]
+    });
+    if (result.canceled || !result.filePaths.length) return { canceled: true };
+    try {
+      const filePath = result.filePaths[0];
+      const stat = await fs.stat(filePath);
+      if (stat.size > 50 * 1024 * 1024) return { error: 'revision-transfer-too-large' };
+      const bundle = JSON.parse(await fs.readFile(filePath, 'utf8'));
+      return await projectSession.importRevisions(bundle);
+    } catch (error) {
+      const code = error instanceof SyntaxError ? 'revision-transfer-invalid' : error.code || 'metadata-unavailable';
+      logger.warn('revision.import-failed', { code });
+      return { error: code };
+    }
+  });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

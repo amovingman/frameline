@@ -131,6 +131,20 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
         if (currentGeneration === generation) state = { ...state, branchError: error.code || 'metadata-unavailable' };
       }
       return getState();
+    },
+    async exportRevisions() {
+      if (!state.selectedProject?.id || !metadataStore?.exportRevisions) throw Object.assign(new Error('branch-project-required'), { code: 'branch-project-required' });
+      return metadataStore.exportRevisions(state.selectedProject.id);
+    },
+    async importRevisions(bundle) {
+      if (!state.selectedProject?.id || !metadataStore?.importRevisions) throw Object.assign(new Error('branch-project-required'), { code: 'branch-project-required' });
+      const currentGeneration = generation;
+      const projectId = state.selectedProject.id;
+      const result = await metadataStore.importRevisions(projectId, bundle);
+      const branchState = await metadataStore.getBranchState(projectId);
+      const revisions = await metadataStore.listRevisions(projectId, branchState.currentBranch);
+      if (currentGeneration === generation) state = { ...state, ...branchState, revisions };
+      return { state: getState(), result };
     }
   };
 }

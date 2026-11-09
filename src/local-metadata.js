@@ -3,6 +3,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { validateScanManifest } = require('./scan-manifest');
 const { acquireMetadataLock } = require('./metadata-lock');
+const { validateTransferBundle, verifyRecord } = require('./revision-transfer');
 
 const FILE_NAME = 'metadata.json';
 const BACKUP_NAME = 'metadata.json.bak';
@@ -253,7 +254,67 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  return { getProjectId, listRevisions, getBranchState, createBranch, switchBranch, saveRevision, getRevision };
+  function exportRevisions(projectId) {
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      const records = [];
+      for (const summary of project.revisions) {
+        let bytes;
+        try { bytes = await fs.readFile(path.join(directory, 'revisions', projectId, `${summary.id}.json`), 'utf8'); }
+        catch { throw new MetadataError('revision-corrupt'); }
+        try { verifyRecord(summary, bytes); }
+        catch { throw new MetadataError('revision-corrupt'); }
+        records.push({ summary, bytes });
+      }
+      const bundle = { format: 'frameline-revisions', version: 1, projectId, branches: project.branches, records };
+      try { validateTransferBundle(bundle); }
+      catch { throw new MetadataError('revision-corrupt'); }
+      return structuredClone(bundle);
+    });
+  }
+
+  function importRevisions(projectId, bundle) {
+    return transact(async metadata => {
+      const incoming = validateTransferBundle(bundle);
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      const ids = new Map([...incoming.keys()].map(id => [id, randomUUID()]));
+      const newRecords = [];
+      for (const record of incoming.values()) {
+        const rewritten = {
+          ...record, id: ids.get(record.id), projectId,
+          parentRevisionId: record.parentRevisionId ? ids.get(record.parentRevisionId) : null
+        };
+        const bytes = `${JSON.stringify(rewritten, null, 2)}\n`;
+        const { manifest: _manifest, ...summary } = rewritten;
+        summary.recordHash = createHash('sha256').update(bytes).digest('hex');
+        newRecords.push({ summary, bytes });
+      }
+      const importedBranches = [];
+      for (const [name, head] of Object.entries(bundle.branches)) {
+        const stem = `import-${name}`.slice(0, 36);
+        let candidate = stem;
+        for (let suffix = 2; Object.hasOwn(project.branches, candidate) || importedBranches.some(([used]) => used === candidate); suffix++) candidate = `${stem}-${suffix}`.slice(0, 40);
+        importedBranches.push([candidate, head ? ids.get(head) : null]);
+      }
+      const folder = path.join(directory, 'revisions', projectId);
+      try {
+        await fs.mkdir(folder, { recursive: true, mode: 0o700 });
+        for (const { summary, bytes } of newRecords) {
+          const handle = await fs.open(path.join(folder, `${summary.id}.json`), 'wx', 0o600);
+          try { await handle.writeFile(bytes); await handle.sync(); }
+          finally { await handle.close(); }
+        }
+      } catch { throw new MetadataError('metadata-unavailable'); }
+      project.revisions.push(...newRecords.map(item => item.summary));
+      for (const [name, head] of importedBranches) project.branches[name] = head;
+      await writeMetadata(directory, metadata);
+      return { revisionCount: newRecords.length, branches: importedBranches.map(([name]) => name) };
+    });
+  }
+
+  return { getProjectId, listRevisions, getBranchState, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };
