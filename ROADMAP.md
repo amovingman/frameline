@@ -86,7 +86,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Detect concurrent local writes and prevent silent branch-head replacement.
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
-- [ ] Provide local revision export/import for backup and transfer before cloud sync exists.
+- [x] Provide local revision export/import for backup and transfer before cloud sync exists.
 
 ### 1.4 Change detection and comparison
 - [ ] Match objects using stable IDs, not names or timeline positions alone.

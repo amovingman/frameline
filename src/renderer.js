@@ -27,7 +27,9 @@ const scanRecovery = {
   'branch-name-invalid': 'Use 1–40 lowercase letters, numbers, dots, underscores, or hyphens. Start with a letter or number.',
   'branch-exists': 'A branch with that name already exists. Choose another name.',
   'branch-not-found': 'That branch is no longer available. Choose the project again to refresh the branch list.',
-  'branch-project-required': 'Choose an FCPXML export before managing branches.'
+  'branch-project-required': 'Choose an FCPXML export before managing branches.',
+  'revision-transfer-invalid': 'This backup is damaged or is not a supported Frameline revision backup. No revisions were imported.',
+  'revision-transfer-too-large': 'This backup exceeds the 50 MB import limit.'
 };
 
 function renderAppState(state) {
@@ -433,6 +435,24 @@ async function saveRevision(event) {
   }
 }
 
+async function transferRevisions(importing) {
+  const button = document.getElementById(importing ? 'import-revisions' : 'export-revisions');
+  const notice = document.getElementById('file-notice');
+  button.disabled = true;
+  try {
+    const response = await (importing ? window.desktop.importRevisions() : window.desktop.exportRevisions());
+    if (response.canceled) return;
+    if (response.state) renderAppState(response.state);
+    notice.textContent = response.error ? scanRecovery[response.error] || 'Could not transfer revisions. Try again.'
+      : importing ? `Imported ${response.result.revisionCount} revisions onto ${response.result.branches.join(', ')}. Switch branches to review them.`
+        : `Exported ${response.revisionCount} revisions from ${response.branchCount} branches.`;
+    notice.hidden = false;
+  } catch {
+    notice.textContent = 'Could not transfer revisions. Try again.';
+    notice.hidden = false;
+  } finally { button.disabled = false; }
+}
+
 renderChangeChoices();
 renderTimeline();
 renderHistory();
@@ -448,6 +468,8 @@ document.getElementById('branch-form').addEventListener('submit', event => {
   changeBranch(document.getElementById('branch-name').value, true);
 });
 document.getElementById('branch-switch').addEventListener('change', event => changeBranch(event.target.value, false));
+document.getElementById('export-revisions').addEventListener('click', () => transferRevisions(false));
+document.getElementById('import-revisions').addEventListener('click', () => transferRevisions(true));
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {
