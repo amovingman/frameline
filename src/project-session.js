@@ -1,7 +1,7 @@
 const { createAppState, selectProject } = require('./project-state');
 const { scanFcpXml } = require('./fcpxml-adapter');
 
-function createProjectSession(scan = scanFcpXml) {
+function createProjectSession(scan = scanFcpXml, metadataStore = null) {
   let state = createAppState();
   let selectedPath = null;
   let generation = 0;
@@ -26,17 +26,29 @@ function createProjectSession(scan = scanFcpXml) {
 
   return {
     getState,
-    select(filePath) {
+    async select(filePath) {
+      const selectionGeneration = ++generation;
       const next = selectProject(state, filePath);
       if (next.error) {
         state = next;
-        return Promise.resolve(getState());
+        return getState();
       }
       selectedPath = filePath;
       state = next;
+      if (metadataStore) {
+        try {
+          const { id, recovered } = await metadataStore.getProjectId(filePath);
+          if (selectionGeneration !== generation) return getState();
+          state = { ...state, selectedProject: { ...state.selectedProject, id, metadataRecovered: recovered } };
+        } catch (error) {
+          if (selectionGeneration === generation) state = { ...state, scanStatus: 'error', error: error.code || 'metadata-unavailable' };
+          return getState();
+        }
+      }
       return startScan(filePath);
     },
     rescan() {
+      if (state.error?.startsWith('metadata-')) return selectedPath ? this.select(selectedPath) : Promise.resolve(getState());
       return selectedPath ? startScan(selectedPath) : Promise.resolve(getState());
     }
   };

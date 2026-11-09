@@ -49,3 +49,28 @@ test('rescan with no selected file does not invoke the adapter', async () => {
   const session = createProjectSession(() => { throw new Error('should not scan'); });
   assert.deepEqual(await session.rescan(), session.getState());
 });
+
+test('selection exposes a stable project ID but never its path', async () => {
+  const session = createProjectSession(async () => ({ clips: [], media: [], warnings: [] }), {
+    getProjectId: async () => ({ id: 'local-project-id', recovered: false })
+  });
+  const state = await session.select('/private/project/cut.fcpxml');
+  assert.equal(state.selectedProject.id, 'local-project-id');
+  assert.equal(state.scanStatus, 'ready');
+  assert.doesNotMatch(JSON.stringify(state), /\/private\/project/);
+});
+
+test('rescan retries a metadata failure before scanning', async () => {
+  let attempts = 0;
+  let scans = 0;
+  const session = createProjectSession(async () => { scans += 1; return { clips: [], media: [], warnings: [] }; }, {
+    getProjectId: async () => {
+      if (++attempts === 1) throw Object.assign(new Error('disk full'), { code: 'metadata-unavailable' });
+      return { id: 'local-project-id', recovered: false };
+    }
+  });
+  assert.equal((await session.select('/private/cut.fcpxml')).error, 'metadata-unavailable');
+  assert.equal(scans, 0);
+  assert.equal((await session.rescan()).selectedProject.id, 'local-project-id');
+  assert.equal(scans, 1);
+});

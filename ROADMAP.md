@@ -62,7 +62,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Add a main-process application state model for selected project, scan status, current branch, and selection errors.
 - [x] Keep the Electron renderer isolated; expose only narrow, validated preload methods.
 - [x] Add structured logging with local paths and sensitive values redacted.
-- [ ] Design migrations and backup/restore behavior for Frameline's local metadata.
+- [x] Design the versioned local metadata store, atomic write, backup/restore, and downgrade refusal behavior; document the future migration gate in `LOCAL_METADATA.md`.
 
 ### 1.2 Project adapter and normalized manifest
 - [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
@@ -77,7 +77,8 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Add metadata schema migrations and migration tests when local revision storage is introduced.
 
 ### 1.3 Local revisions and branches
-- [ ] Create stable local project IDs and immutable revision records.
+- [x] Assign durable local project IDs for exports selected at the same path, without storing or exposing that path.
+- [ ] Create immutable revision records; add an explicit ID relink workflow before treating moved exports as the same project.
 - [ ] Store parent revision, author, timestamp, message, editor version, manifest version, and content hash.
 - [ ] Implement branch creation, naming, switching, and branch-head updates.
 - [ ] Add commit message and revision creation flow.
