@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { fileURLToPath } = require('node:url');
 const { XMLParser, XMLValidator } = require('fast-xml-parser');
+const { validateScanManifest } = require('./scan-manifest');
 
 const MAX_XML_BYTES = 20 * 1024 * 1024;
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', processEntities: false });
@@ -105,7 +106,7 @@ function buildInventory(xml) {
     media: [...referencedAssets.values()].map(({ name }) => ({ name, availability: 'unknown' })),
     warnings: [...warnings]
   };
-  return { scan, referencedAssets: [...referencedAssets.values()] };
+  return { scan: validateScanManifest(scan), referencedAssets: [...referencedAssets.values()] };
 }
 
 function scanXml(xml) {
@@ -138,7 +139,7 @@ async function scanFcpXml(selectedPath) {
   try { xml = await fs.readFile(xmlPath, 'utf8'); } catch (error) { throw new ScanError(fileErrorCode(error)); }
   const { scan, referencedAssets } = buildInventory(xml);
   scan.media = await Promise.all(referencedAssets.map(async ({ name, source }) => ({ name, availability: await checkMedia(source) })));
-  return scan;
+  return validateScanManifest(scan);
 }
 
 module.exports = { ScanError, fileErrorCode, scanFcpXml, scanXml };

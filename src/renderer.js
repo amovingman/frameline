@@ -10,7 +10,8 @@ const scanRecovery = {
   'file-too-large': 'This export exceeds the 20 MB scan limit. Export a smaller timeline or sequence, then choose that file.',
   'malformed-xml': 'The export contains malformed XML. Export the timeline again from Resolve, then choose the new file.',
   'unsupported-structure': 'No supported top-level picture sequence was found. Export a timeline with a primary picture track from Resolve, then choose the new file.',
-  'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.'
+  'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.',
+  'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.'
 };
 
 function renderAppState(state) {

@@ -73,7 +73,8 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
 - [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [x] Give clear recovery instructions for malformed, unsupported, missing, permission-denied, and busy FCPXML exports; rescan retries after the underlying issue is fixed. An open Resolve project cannot be detected from an exported FCPXML file.
-- [ ] Create schema validation and migration tests against the compatibility corpus.
+- [x] Validate the read-only v1 scan manifest against the current FCPXML compatibility corpus; reject unknown versions and extra fields before handing scan data to the interface.
+- [ ] Add metadata schema migrations and migration tests when local revision storage is introduced.
 
 ### 1.3 Local revisions and branches
 - [ ] Create stable local project IDs and immutable revision records.
