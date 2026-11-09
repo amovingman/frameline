@@ -22,9 +22,9 @@ function renderAppState(state) {
     document.querySelector('#view-history .secondary-hero p').textContent = 'No revisions have been saved for this file.';
     document.getElementById('history-list').replaceChildren();
     document.querySelector('#view-history .view-footnote').textContent = 'Local revision history is not implemented yet.';
-    document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media names found in the selected timeline.` : 'Media could not be scanned.';
+    document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media assets · ${scan.media.filter(item => item.availability === 'local').length} available locally · ${scan.media.filter(item => item.availability === 'missing').length} missing` : 'Media could not be scanned.';
     document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
-    document.querySelector('#view-media .view-footnote').textContent = 'Media availability and paths are not checked by this scan.';
+    document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
     if (scan) renderScan(scan);
     else {
       document.querySelector('.masthead h1').textContent = 'Timeline scan';
@@ -80,9 +80,10 @@ function renderScan(scan) {
   document.getElementById('sequence-summary').textContent = `${scan.sequence.frameDuration} per frame · ${scan.sequence.durationFrames} frames`;
   const media = document.getElementById('media-list');
   media.replaceChildren();
-  scan.media.forEach(name => {
+  const availabilityLabels = { local: 'Available locally', missing: 'Missing', external: 'External source · not checked', unknown: 'Source unspecified', unavailable: 'Could not check' };
+  scan.media.forEach(({ name, availability }) => {
     const row = make('div', 'media-row scanned-media');
-    row.append(make('strong', '', name), make('span', '', 'Referenced in timeline'), make('span', 'media-availability', 'Availability not checked'));
+    row.append(make('strong', '', name), make('span', '', 'Referenced in timeline'), make('span', `media-availability ${availability}`, availabilityLabels[availability] || 'Could not check'));
     media.append(row);
   });
 }

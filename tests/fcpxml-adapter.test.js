@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const { pathToFileURL } = require('node:url');
 const { scanFcpXml, scanXml } = require('../src/fcpxml-adapter');
 
 const fixture = name => path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', name);
@@ -12,7 +15,7 @@ test('scans a plain FCPXML fixture into exact frames', async () => {
   assert.equal(scan.identityStatus, 'unresolved');
   assert.deepEqual(scan.sequence, { name: 'Mountain sample', frameDuration: '1/24s', durationFrames: 480 });
   assert.deepEqual(scan.clips.map(({ offsetFrames, durationFrames, sourceInFrames }) => [offsetFrames, durationFrames, sourceInFrames]), [[0, 192, 24], [192, 144, 48]]);
-  assert.deepEqual(scan.media, ['alpine-wide.mov', 'ridge-detail.mov']);
+  assert.deepEqual(scan.media, [{ name: 'alpine-wide.mov', availability: 'missing' }, { name: 'ridge-detail.mov', availability: 'missing' }]);
 });
 
 test('scans a Resolve bundle and never sends source paths to the renderer', async () => {
@@ -23,6 +26,25 @@ test('scans a Resolve bundle and never sends source paths to the renderer', asyn
   assert.equal(scan.sequence.durationFrames, 554);
   assert.equal(scan.media.length, 3);
   assert.doesNotMatch(JSON.stringify(scan), /file:\/\/|Users\/user|Downloads/);
+});
+
+test('checks local, missing, external, and unspecified sources without exposing paths', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-media-'));
+  try {
+    const localPath = path.join(dir, 'local clip.mov');
+    await fs.writeFile(localPath, 'fixture');
+    const sources = [pathToFileURL(localPath).href, pathToFileURL(path.join(dir, 'missing.mov')).href, 'https://example.invalid/remote.mov', null];
+    const assets = sources.map((source, index) => `<asset id="a${index}" name="clip-${index}.mov"${source ? ` src="${source}"` : ''}/>`).join('');
+    const clips = sources.map((_, index) => `<asset-clip ref="a${index}" offset="${index}s" duration="1s"/>`).join('');
+    const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/>${assets}</resources><library><event><project><sequence format="f" duration="4s"><spine>${clips}</spine></sequence></project></event></library></fcpxml>`;
+    const xmlPath = path.join(dir, 'cut.fcpxml');
+    await fs.writeFile(xmlPath, xml);
+    const scan = await scanFcpXml(xmlPath);
+    assert.deepEqual(scan.media.map(item => item.availability), ['local', 'missing', 'external', 'unknown']);
+    assert.doesNotMatch(JSON.stringify(scan), /frameline-media-|file:\/\/|example\.invalid/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('reports unsupported timeline elements without inventing clips', () => {

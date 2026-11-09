@@ -131,6 +131,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 - [ ] Clean up incomplete temporary copies safely after failed operations.
 
 ### 2.5 Local media inventory and relinking
+- [x] Check referenced `file:` media paths for local availability in the read-only FCPXML scan, without loading media contents or exposing paths to the renderer; relinking and richer asset states remain open.
 - [ ] Scan referenced asset paths without reading large media fully into memory.
 - [ ] Show available, missing, offline-volume, proxy-only, and excluded states.
 - [ ] Resolve moved files by user-selected folder and metadata hints.
