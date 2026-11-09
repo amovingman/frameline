@@ -1,9 +1,11 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const { createProjectSession } = require('./project-session');
+const { createLocalMetadataStore } = require('./local-metadata');
+const { scanFcpXml } = require('./fcpxml-adapter');
 const logger = require('./logger');
 
-const projectSession = createProjectSession();
+let projectSession;
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -25,6 +27,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  projectSession = createProjectSession(scanFcpXml, createLocalMetadataStore(app.getPath('userData')));
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:choose', async () => {

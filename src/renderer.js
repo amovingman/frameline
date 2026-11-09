@@ -11,7 +11,10 @@ const scanRecovery = {
   'malformed-xml': 'The export contains malformed XML. Export the timeline again from Resolve, then choose the new file.',
   'unsupported-structure': 'No supported top-level picture sequence was found. Export a timeline with a primary picture track from Resolve, then choose the new file.',
   'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.',
-  'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.'
+  'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.',
+  'metadata-unavailable': 'Frameline could not save local project metadata. Check free disk space and folder permissions, then rescan. The export was not changed.',
+  'metadata-invalid': 'Local project metadata is damaged and no valid backup was found. Keep the metadata files for recovery before trying again. The export was not changed.',
+  'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.'
 };
 
 function renderAppState(state) {
@@ -251,7 +254,9 @@ async function chooseFile() {
     if (!state) return;
     renderAppState(state);
     if (state.selectedProject && !state.error) {
-      notice.textContent = `${state.selectedProject.name} scanned read only. Clip identity is unresolved; edits and pull are unavailable.`;
+      notice.textContent = state.selectedProject.metadataRecovered
+        ? 'Local project metadata was restored from its backup. The damaged file was preserved. The export was scanned read only.'
+        : `${state.selectedProject.name} scanned read only. Clip identity is unresolved; edits and pull are unavailable.`;
       notice.hidden = false;
     }
   } catch {
