@@ -2,6 +2,17 @@ const sample = window.FRAME_SAMPLE;
 const changes = new Map(sample.changes.map(change => [change.id, change]));
 let selectedChangeId = 'trim';
 
+const scanRecovery = {
+  'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
+  'file-unavailable': 'The export is missing or unreadable. Restore it to its original location, or choose a new export. For a .fcpxmld bundle, keep Info.fcpxml inside it, then rescan.',
+  'file-access-denied': 'Frameline does not have permission to read this export. Check file and folder permissions, then rescan or choose a readable copy.',
+  'file-busy': 'The export is in use. Close the app holding it, or export a separate copy from Resolve, then rescan.',
+  'file-too-large': 'This export exceeds the 20 MB scan limit. Export a smaller timeline or sequence, then choose that file.',
+  'malformed-xml': 'The export contains malformed XML. Export the timeline again from Resolve, then choose the new file.',
+  'unsupported-structure': 'No supported top-level picture sequence was found. Export a timeline with a primary picture track from Resolve, then choose the new file.',
+  'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.'
+};
+
 function renderAppState(state) {
   const projectName = state?.selectedProject?.name;
   const scan = state?.scan;
@@ -31,24 +42,17 @@ function renderAppState(state) {
       document.querySelector('.masthead h1').textContent = 'Timeline scan';
       document.getElementById('video-track').replaceChildren();
       document.getElementById('media-list').replaceChildren();
-      document.getElementById('workspace-finding').textContent = 'The timeline could not be scanned.';
+      document.getElementById('workspace-finding').textContent = state.error ? 'Scan stopped. The project file was not changed.' : 'The timeline could not be scanned.';
       document.getElementById('timeline-selection').textContent = 'No scan data';
       document.getElementById('film-title').textContent = projectName;
       document.querySelector('.sample-line span').textContent = 'Read-only FCPXML inventory';
-      document.querySelector('.sample-line p').textContent = 'Choose another export to try again.';
+      document.querySelector('.sample-line p').textContent = scanRecovery[state.error] || 'Choose another export or rescan to try again.';
       document.getElementById('sequence-summary').textContent = 'Scan unavailable';
     }
   }
   if (state?.error) {
     const notice = document.getElementById('file-notice');
-    notice.textContent = {
-      'unsupported-format': 'Choose an FCPXML timeline (.fcpxml or .fcpxmld) exported from DaVinci Resolve.',
-      'file-unavailable': 'The selected FCPXML could not be read. Check that the file or bundle is available.',
-      'file-too-large': 'This FCPXML exceeds the 20 MB scan limit.',
-      'malformed-xml': 'The selected file is malformed XML. Export the timeline again from Resolve.',
-      'unsupported-structure': 'This FCPXML has no supported sequence and spine.',
-      'unsupported-timing': 'This timeline uses timing that cannot be represented in whole frames.'
-    }[state.error] || 'The timeline scan failed. Try exporting it again from Resolve.';
+    notice.textContent = scanRecovery[state.error] || 'The timeline scan failed. Try exporting it again from Resolve.';
     notice.hidden = false;
   }
 }

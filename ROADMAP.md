@@ -72,7 +72,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
 - [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
-- [ ] Handle malformed, unsupported, locked, and currently open project files with clear recovery instructions.
+- [x] Give clear recovery instructions for malformed, unsupported, missing, permission-denied, and busy FCPXML exports; rescan retries after the underlying issue is fixed. An open Resolve project cannot be detected from an exported FCPXML file.
 - [ ] Create schema validation and migration tests against the compatibility corpus.
 
 ### 1.3 Local revisions and branches

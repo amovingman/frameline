@@ -15,6 +15,12 @@ class ScanError extends Error {
   }
 }
 
+function fileErrorCode(error) {
+  if (['EACCES', 'EPERM'].includes(error?.code)) return 'file-access-denied';
+  if (['EBUSY', 'ETXTBSY'].includes(error?.code)) return 'file-busy';
+  return 'file-unavailable';
+}
+
 function rational(value) {
   const match = /^(\d+)(?:\/(\d+))?s$/.exec(String(value ?? ''));
   if (!match || match[2] === '0') throw new ScanError('unsupported-timing');
@@ -125,14 +131,14 @@ async function scanFcpXml(selectedPath) {
   if (!['.fcpxml', '.fcpxmld'].includes(extension)) throw new ScanError('unsupported-format');
   const xmlPath = extension === '.fcpxmld' ? path.join(selectedPath, 'Info.fcpxml') : selectedPath;
   let stat;
-  try { stat = await fs.stat(xmlPath); } catch { throw new ScanError('file-unavailable'); }
+  try { stat = await fs.stat(xmlPath); } catch (error) { throw new ScanError(fileErrorCode(error)); }
   if (!stat.isFile()) throw new ScanError('file-unavailable');
   if (stat.size > MAX_XML_BYTES) throw new ScanError('file-too-large');
   let xml;
-  try { xml = await fs.readFile(xmlPath, 'utf8'); } catch { throw new ScanError('file-unavailable'); }
+  try { xml = await fs.readFile(xmlPath, 'utf8'); } catch (error) { throw new ScanError(fileErrorCode(error)); }
   const { scan, referencedAssets } = buildInventory(xml);
   scan.media = await Promise.all(referencedAssets.map(async ({ name, source }) => ({ name, availability: await checkMedia(source) })));
   return scan;
 }
 
-module.exports = { ScanError, scanFcpXml, scanXml };
+module.exports = { ScanError, fileErrorCode, scanFcpXml, scanXml };
