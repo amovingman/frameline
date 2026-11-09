@@ -57,6 +57,7 @@ def capture(resolve):
     return {
         "schema_version": SCHEMA_VERSION,
         "resolve_version": resolve.GetVersionString(),
+        "project_id": project.GetUniqueId(),
         "project_name": project.GetName(),
         "timelines": timelines,
     }
@@ -74,8 +75,8 @@ def capture_to(resolve, output):
 def compare(before, after):
     if before.get("schema_version") != SCHEMA_VERSION or after.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("Unsupported snapshot schema")
-    if before["project_name"] != after["project_name"]:
-        raise ValueError("Snapshots come from differently named projects")
+    if not before.get("project_id") or before["project_id"] != after.get("project_id"):
+        raise ValueError("Snapshots come from different or unidentified projects")
 
     old_timelines = {timeline["id"]: timeline for timeline in before["timelines"]}
     new_timelines = {timeline["id"]: timeline for timeline in after["timelines"]}

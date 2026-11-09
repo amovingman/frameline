@@ -49,7 +49,9 @@ Next, evaluate a persistent sidecar mapping or a supported Resolve API that expo
 
 ### Read-only Resolve API identity probe
 
-The installed Resolve 21.1.2 scripting reference (`Developer/Scripting/DaVinciResolveScript.pyi`, last updated 2026-08-31) documents `Timeline.GetUniqueId()` and `TimelineItem.GetUniqueId()`. These are separate from the unstable FCPXML resource references. `resolve_api_identity.py` captures timeline and item IDs, track placement, frame positions, and media-pool IDs without saving or changing the Resolve project. The probe rejects missing or duplicate item IDs, and refuses to overwrite an earlier snapshot. Its mock tests pass, but **the IDs' persistence has not yet been verified in a running Resolve instance**. An API method named “unique” alone is not evidence that the value persists after edits, save/reopen, or import/export.
+The installed Resolve 21.1.2 scripting reference (`Developer/Scripting/DaVinciResolveScript.pyi`, last updated 2026-08-31) documents `Project.GetUniqueId()`, `Timeline.GetUniqueId()`, and `TimelineItem.GetUniqueId()`. These are separate from the unstable FCPXML resource references. `resolve_api_identity.py` captures project, timeline, and item IDs, track placement, frame positions, and media-pool IDs without saving or changing the Resolve project. The probe rejects missing or duplicate item IDs, refuses to overwrite an earlier snapshot, and rejects comparisons between different project IDs. Its mock tests pass. An API method named “unique” alone is not evidence that the value persists after every kind of edit, save/reopen, or import/export.
+
+On 2026-11-08, the installed **Free** Resolve 21.1.2 internal Lua console returned a distinct API ID for each of the five clips in `Frameline Identity Probe`, including three uses of `mountain-alps.jpg`. The existing `Identity Reorder Import` timeline was duplicated as `Frameline API Identity Test`; its five clip IDs differed from the original timeline's IDs. On the duplicate, the 97-frame Alps occurrence retained ID `03bfe5cd-537d-4dcf-ae7f-cc3a04737fa4` after `SetName("Alps API rename")` and `SetPosition({startFrame=457})` returned true. Its start/end changed from 240/337 to 457/554. `SaveProject()` returned true. This is **live evidence for rename and move persistence within one Resolve session**, and also shows that duplication creates new occurrence IDs. Save/reopen, trim, deletion, relink, and FCPXML mapping still need tests. The duplicate test timeline remains in the saved disposable project; the original timeline was not changed by this experiment.
 
 Use a disposable Resolve project and save each observation to a new file. With Resolve Studio external scripting enabled, run the bundled ResolvePython interpreter:
 
@@ -58,7 +60,7 @@ Use a disposable Resolve project and save each observation to a new file. With R
   phase-0/resolve-xml-proof/resolve_api_identity.py capture /private/tmp/resolve-before.json
 ```
 
-In Resolve Free, try the internal Python console with the absolute script path, then call `capture_to` on its returned namespace:
+Resolve Free's internal scripting console worked for the live API check. Select Python in that console to run the snapshot probe with the absolute script path, then call `capture_to` on its returned namespace:
 
 ```python
 import runpy
@@ -73,7 +75,7 @@ python3 phase-0/resolve-xml-proof/resolve_api_identity.py compare \
   /private/tmp/resolve-before.json /private/tmp/resolve-after.json
 ```
 
-Keep each pair in the **same project**; the comparison deliberately rejects differently named projects. Confirm whether IDs survive each operation and whether a copied project or FCPXML import produces new IDs. Even if API IDs persist, using them for an FCPXML-based write still needs a proven mapping between API items and exported XML occurrences, or a supported API write path.
+Keep each pair in the **same project**; the comparison rejects different project IDs. Confirm whether IDs survive each operation and whether a copied project or FCPXML import produces new IDs. Even if API IDs persist, using them for an FCPXML-based write still needs a proven mapping between API items and exported XML occurrences, or a supported API write path.
 
 The initial UI automation attempts failed to navigate the file picker, but did not indicate a Resolve compatibility problem. The working method was the macOS Go to Folder shortcut (`super+shift+g`) in the import picker; the fixture path was already entered in the sheet, and pressing Return navigated to the selected file.
 

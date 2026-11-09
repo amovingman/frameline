@@ -30,6 +30,7 @@ class FakeTimeline:
 
 class FakeProject:
     def __init__(self, items): self.timeline = FakeTimeline(items)
+    def GetUniqueId(self): return "project-1"
     def GetTimelineCount(self): return 1
     def GetTimelineByIndex(self, index): return self.timeline
     def GetName(self): return "Disposable project"
@@ -62,6 +63,13 @@ class ResolveApiIdentityTests(unittest.TestCase):
             capture_to(FakeResolve([FakeItem("a", 0)]), output)
             with self.assertRaises(FileExistsError):
                 capture_to(FakeResolve([FakeItem("b", 0)]), output)
+
+    def test_different_project_ids_cannot_be_compared(self):
+        before = capture(FakeResolve([FakeItem("a", 0)]))
+        after = capture(FakeResolve([FakeItem("a", 0)]))
+        after["project_id"] = "different-project"
+        with self.assertRaises(ValueError):
+            compare(before, after)
 
 
 if __name__ == "__main__":
