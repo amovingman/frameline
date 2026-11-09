@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { validateScanManifest } = require('./scan-manifest');
+const { acquireMetadataLock } = require('./metadata-lock');
 
 const FILE_NAME = 'metadata.json';
 const BACKUP_NAME = 'metadata.json.bak';
@@ -93,38 +94,43 @@ async function writeMetadata(directory, value, backupExisting = true) {
   }
 }
 
-function createLocalMetadataStore(directory) {
+function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
   let pending = Promise.resolve();
 
   function transact(action) {
     const operation = pending.then(async () => {
-      let recovered = false;
-      const primary = path.join(directory, FILE_NAME);
-      let metadata;
-      try { metadata = await readMetadata(primary); }
-      catch (error) {
-        if (error.code !== 'metadata-invalid') throw error;
-        const backup = await readMetadata(path.join(directory, BACKUP_NAME));
-        if (!backup) throw error;
-        await fs.rename(primary, path.join(directory, `${FILE_NAME}.corrupt-${randomUUID()}`));
-        await writeMetadata(directory, backup, false);
-        recovered = true;
-        metadata = backup;
-      }
-      if (!metadata) {
-        const backup = await readMetadata(path.join(directory, BACKUP_NAME));
-        if (backup) {
+      const release = await acquireMetadataLock(directory, lockTimeoutMs);
+      try {
+        let recovered = false;
+        const primary = path.join(directory, FILE_NAME);
+        let metadata;
+        try { metadata = await readMetadata(primary); }
+        catch (error) {
+          if (error.code !== 'metadata-invalid') throw error;
+          const backup = await readMetadata(path.join(directory, BACKUP_NAME));
+          if (!backup) throw error;
+          await fs.rename(primary, path.join(directory, `${FILE_NAME}.corrupt-${randomUUID()}`));
           await writeMetadata(directory, backup, false);
           recovered = true;
           metadata = backup;
         }
+        if (!metadata) {
+          const backup = await readMetadata(path.join(directory, BACKUP_NAME));
+          if (backup) {
+            await writeMetadata(directory, backup, false);
+            recovered = true;
+            metadata = backup;
+          }
+        }
+        metadata ||= { schemaVersion: 3, projects: {} };
+        if (metadata.schemaVersion !== 3) {
+          metadata = migrateMetadata(metadata);
+          await writeMetadata(directory, metadata);
+        }
+        return await action(metadata, recovered);
+      } finally {
+        await release();
       }
-      metadata ||= { schemaVersion: 3, projects: {} };
-      if (metadata.schemaVersion !== 3) {
-        metadata = migrateMetadata(metadata);
-        await writeMetadata(directory, metadata);
-      }
-      return action(metadata, recovered);
     });
     pending = operation.catch(() => {});
     return operation;

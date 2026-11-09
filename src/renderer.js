@@ -15,6 +15,7 @@ const scanRecovery = {
   'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.',
   'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.',
   'metadata-unavailable': 'Frameline could not save local project metadata. Check free disk space and folder permissions, then rescan. The export was not changed.',
+  'metadata-locked': 'Local project metadata is in use by another process. Close the other Frameline window and retry. The export was not changed.',
   'metadata-invalid': 'Local project metadata is damaged and no valid backup was found. Keep the metadata files for recovery before trying again. The export was not changed.',
   'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.',
   'revision-source-changed': 'The export changed since the last scan. Rescan it before saving a revision.',
