@@ -15,6 +15,8 @@ function createAppState() {
     revisions: [],
     revisionStatus: 'idle',
     revisionError: null,
+    selectedRevision: null,
+    revisionDetailError: null,
     scanStatus: 'idle',
     currentBranch: 'main',
     error: null
@@ -32,6 +34,8 @@ function selectProject(state, filePath) {
     revisions: [],
     revisionStatus: 'idle',
     revisionError: null,
+    selectedRevision: null,
+    revisionDetailError: null,
     scanStatus: 'not-scanned',
     error: null
   };

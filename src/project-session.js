@@ -81,6 +81,20 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
         if (currentGeneration === generation) state = { ...state, revisionStatus: 'idle', revisionError: error.code || 'metadata-unavailable' };
       }
       return getState();
+    },
+    async openRevision(revisionId) {
+      if (!state.selectedProject?.id || !metadataStore?.getRevision || typeof revisionId !== 'string') {
+        state = { ...state, selectedRevision: null, revisionDetailError: 'revision-not-found' };
+        return getState();
+      }
+      const currentGeneration = generation;
+      try {
+        const revision = await metadataStore.getRevision(state.selectedProject.id, revisionId);
+        if (currentGeneration === generation) state = { ...state, selectedRevision: revision, revisionDetailError: null };
+      } catch (error) {
+        if (currentGeneration === generation) state = { ...state, selectedRevision: null, revisionDetailError: error.code || 'revision-corrupt' };
+      }
+      return getState();
     }
   };
 }

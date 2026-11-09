@@ -19,7 +19,9 @@ const scanRecovery = {
   'revision-source-changed': 'The export changed since the last scan. Rescan it before saving a revision.',
   'revision-head-changed': 'Revision history changed while saving. Choose the project again and retry.',
   'revision-message-invalid': 'Enter a revision message of 1 to 120 characters.',
-  'revision-scan-required': 'Scan the selected export before saving a revision.'
+  'revision-scan-required': 'Scan the selected export before saving a revision.',
+  'revision-not-found': 'This revision is no longer in the local history for this project.',
+  'revision-corrupt': 'This revision could not be verified. Keep the local metadata and revision files for recovery.'
 };
 
 function renderAppState(state) {
@@ -44,7 +46,8 @@ function renderAppState(state) {
     document.querySelector('#view-history .secondary-hero p').textContent = `${state.revisions?.length || 0} local revision${state.revisions?.length === 1 ? '' : 's'} saved for this export. Clip identity is unresolved, so comparison and pull remain unavailable.`;
     document.getElementById('revision-form').hidden = false;
     document.getElementById('save-revision').disabled = state.scanStatus !== 'ready' || state.revisionStatus === 'saving';
-    renderRealHistory(state.revisions || []);
+    renderRealHistory(state.revisions || [], state.selectedRevision?.id);
+    renderRevisionDetail(state.selectedRevision, state.revisionDetailError);
     document.querySelector('#view-history .view-footnote').textContent = 'These are local scan snapshots. Revision comparison and pull are not available yet.';
     document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media assets · ${scan.media.filter(item => item.availability === 'local').length} available locally · ${scan.media.filter(item => item.availability === 'missing').length} missing` : 'Media could not be scanned.';
     document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
@@ -192,7 +195,7 @@ function renderHistory() {
   });
 }
 
-function renderRealHistory(revisions) {
+function renderRealHistory(revisions, selectedId) {
   const list = document.getElementById('history-list');
   list.replaceChildren();
   if (!revisions.length) {
@@ -200,7 +203,10 @@ function renderRealHistory(revisions) {
     return;
   }
   revisions.forEach((revision, index) => {
-    const row = make('div', 'history-item');
+    const row = make('button', 'history-item revision-history-button');
+    row.type = 'button';
+    row.setAttribute('aria-pressed', String(revision.id === selectedId));
+    row.addEventListener('click', () => openRevision(revision.id));
     const main = make('div', 'history-main');
     main.append(make('strong', '', revision.message), make('small', '', `${revision.manifestVersion === 2 ? 'Read-only scan' : 'Scan'} · ${revision.contentHash.slice(0, 10)} · ${revision.id.slice(0, 8)}`));
     const state = make('div', 'history-state');
@@ -208,6 +214,53 @@ function renderRealHistory(revisions) {
     row.append(make('span', 'history-id', String(revisions.length - index).padStart(2, '0')), main, state);
     list.append(row);
   });
+}
+
+function renderRevisionDetail(revision, error) {
+  const section = document.getElementById('revision-detail');
+  const title = document.getElementById('revision-detail-title');
+  const body = document.getElementById('revision-detail-body');
+  body.replaceChildren();
+  section.hidden = !revision && !error;
+  if (error) {
+    title.textContent = 'Revision unavailable';
+    body.append(make('p', '', scanRecovery[error] || 'This revision could not be opened.'));
+    return;
+  }
+  if (!revision) return;
+  title.textContent = revision.message;
+  const manifest = revision.manifest;
+  const details = make('dl', 'revision-facts');
+  const facts = [
+    ['Saved', new Date(revision.createdAt).toLocaleString()],
+    ['Author', revision.author],
+    ['Sequence', manifest.sequence.name],
+    ['Timing', `${manifest.sequence.durationFrames} frames · ${manifest.sequence.frameDuration} per frame`],
+    ['Parent', revision.parentRevisionId || 'First revision'],
+    ['Source hash', revision.contentHash],
+    ['Editor version', revision.editorVersion || 'Unknown']
+  ];
+  facts.forEach(([key, value]) => details.append(make('dt', '', key), make('dd', '', value)));
+  body.append(details, make('h4', '', `Picture clips (${manifest.clips.length})`));
+  const clips = make('ul', 'revision-detail-list');
+  manifest.clips.forEach(clip => clips.append(make('li', '', `${clip.name} · ${clip.offsetFrames}f → ${clip.offsetFrames + clip.durationFrames}f · source in ${clip.sourceInFrames}f`)));
+  body.append(clips, make('h4', '', `Referenced media (${manifest.media.length})`));
+  const media = make('ul', 'revision-detail-list');
+  manifest.media.forEach(item => media.append(make('li', '', `${item.name} · ${item.availability}`)));
+  body.append(media);
+  if (manifest.warnings.length) body.append(make('p', 'revision-detail-warnings', `Scan warnings: ${manifest.warnings.join(' · ')}`));
+  body.append(make('p', 'revision-detail-note', 'Clip identity is unresolved. This snapshot cannot be used for comparison or pull yet.'));
+}
+
+async function openRevision(revisionId) {
+  try {
+    const state = await window.desktop.openRevision(revisionId);
+    renderAppState(state);
+    document.getElementById('revision-detail-title').focus();
+  } catch {
+    renderRevisionDetail(null, 'revision-corrupt');
+    document.getElementById('revision-detail-title').focus();
+  }
 }
 
 function renderMedia() {

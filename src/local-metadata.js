@@ -23,7 +23,8 @@ function validateMetadata(value) {
     } else if (!project || typeof project !== 'object' || !/^[a-f0-9-]{36}$/.test(project.id)
       || !Array.isArray(project.revisions) || project.revisions.some(revision =>
         !/^[a-f0-9-]{36}$/.test(revision.id) || typeof revision.message !== 'string'
-        || !/^[a-f0-9]{64}$/.test(revision.contentHash))) {
+        || !/^[a-f0-9]{64}$/.test(revision.contentHash)
+        || (revision.recordHash !== undefined && !/^[a-f0-9]{64}$/.test(revision.recordHash)))) {
       throw new MetadataError('metadata-invalid');
     }
   }
@@ -154,20 +155,41 @@ function createLocalMetadataStore(directory) {
         contentHash: manifest.sourceHash, manifest
       };
       const folder = path.join(directory, 'revisions', projectId);
+      const recordBytes = `${JSON.stringify(revision, null, 2)}\n`;
       try {
         await fs.mkdir(folder, { recursive: true, mode: 0o700 });
         const handle = await fs.open(path.join(folder, `${revision.id}.json`), 'wx', 0o600);
-        try { await handle.writeFile(`${JSON.stringify(revision, null, 2)}\n`); await handle.sync(); }
+        try { await handle.writeFile(recordBytes); await handle.sync(); }
         finally { await handle.close(); }
       } catch { throw new MetadataError('metadata-unavailable'); }
       const { manifest: _manifest, ...summary } = revision;
+      summary.recordHash = createHash('sha256').update(recordBytes).digest('hex');
       project.revisions.push(summary);
       await writeMetadata(directory, metadata);
       return structuredClone(summary);
     });
   }
 
-  return { getProjectId, listRevisions, saveRevision };
+  function getRevision(projectId, revisionId) {
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      const summary = project?.revisions.find(item => item.id === revisionId);
+      if (!summary) throw new MetadataError('revision-not-found');
+      let bytes;
+      try { bytes = await fs.readFile(path.join(directory, 'revisions', projectId, `${revisionId}.json`)); }
+      catch { throw new MetadataError('revision-corrupt'); }
+      if (summary.recordHash && createHash('sha256').update(bytes).digest('hex') !== summary.recordHash) throw new MetadataError('revision-corrupt');
+      let revision;
+      try { revision = JSON.parse(bytes.toString('utf8')); validateScanManifest(revision.manifest); }
+      catch { throw new MetadataError('revision-corrupt'); }
+      const fields = ['id', 'projectId', 'parentRevisionId', 'author', 'createdAt', 'message', 'editorVersion', 'manifestVersion', 'contentHash'];
+      if (fields.some(field => revision[field] !== summary[field]) || revision.contentHash !== revision.manifest.sourceHash
+        || revision.manifestVersion !== revision.manifest.schemaVersion) throw new MetadataError('revision-corrupt');
+      return structuredClone(revision);
+    });
+  }
+
+  return { getProjectId, listRevisions, saveRevision, getRevision };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

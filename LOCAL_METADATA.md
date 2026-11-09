@@ -6,4 +6,6 @@ Frameline stores its own metadata in Electron's user data directory. It does not
 
 Each saved revision has its own immutable JSON file under `revisions/<project ID>/`. It contains the validated scan manifest, source content hash, parent revision ID, author label, timestamp, message, manifest version, and an unknown editor version. The metadata index is updated only after the revision file is written and synced. A crash between those steps can leave an unindexed file, which is kept for future recovery. The app checks the source FCPXML hash again before saving and refuses a stale scan.
 
+New revision summaries also store a SHA-256 hash of the record file. Opening a revision verifies that hash, checks the manifest schema, and confirms its metadata matches the index. Records saved before this hash was added are still readable through the schema and index checks. A missing or changed record is reported without exposing its local path.
+
 Future metadata changes must increment `schemaVersion` and migrate a validated copy before replacing the primary file. Tests must cover upgrade, interrupted write, backup restore, and refusal to downgrade. A project moved to a new path currently receives a new local ID; moving and relinking IDs requires a separate workflow before revisions can follow moved exports.

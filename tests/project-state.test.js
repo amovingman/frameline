@@ -19,6 +19,8 @@ test('starts with a local idle project state', () => {
     revisions: [],
     revisionStatus: 'idle',
     revisionError: null,
+    selectedRevision: null,
+    revisionDetailError: null,
     scanStatus: 'idle',
     currentBranch: 'main',
     error: null
@@ -33,6 +35,8 @@ test('selecting a supported project records safe display metadata only', () => {
     revisions: [],
     revisionStatus: 'idle',
     revisionError: null,
+    selectedRevision: null,
+    revisionDetailError: null,
     scanStatus: 'not-scanned',
     currentBranch: 'main',
     error: null
