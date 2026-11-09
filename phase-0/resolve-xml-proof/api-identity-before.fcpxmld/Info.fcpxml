@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+    <resources>
+        <format frameDuration="1/24s" id="r0" width="1920" name="FFVideoFormat1080p24" height="1080"/>
+        <format id="r1" width="1200" name="FFVideoFormatRateUndefined" height="801"/>
+        <format id="r3" width="1200" name="FFVideoFormatRateUndefined" height="900"/>
+        <format id="r5" width="1200" name="FFVideoFormatRateUndefined" height="1800"/>
+        <asset duration="0/1s" format="r1" id="r2" start="0/1s" hasVideo="1" name="mountain-alps.jpg">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg"/>
+        </asset>
+        <asset duration="0/1s" format="r3" id="r4" start="0/1s" hasVideo="1" name="mountain-greenland.jpg">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-greenland.jpg"/>
+        </asset>
+        <asset duration="0/1s" format="r5" id="r6" start="0/1s" hasVideo="1" name="mountain-summit.jpg">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-summit.jpg"/>
+        </asset>
+        <asset duration="0/1s" format="r1" id="r7" start="0/1s" hasVideo="1" name="mountain-alps.jpg">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg"/>
+        </asset>
+        <asset duration="0/1s" format="r1" id="r8" start="0/1s" hasVideo="1" name="mountain-alps.jpg">
+            <media-rep kind="original-media" src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg"/>
+        </asset>
+    </resources>
+    <library>
+        <event name="Frameline API Identity Test (Resolve)">
+            <project name="Frameline API Identity Test (Resolve)">
+                <sequence tcStart="0/1s" format="r0" duration="277/12s" tcFormat="NDF">
+                    <spine>
+                        <video offset="0/1s" duration="3/1s" enabled="1" ref="r2" start="0/1s" name="mountain-alps.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform anchor="0 0" position="0 0" scale="1 1"/>
+                        </video>
+                        <video offset="3/1s" duration="4/1s" enabled="1" ref="r4" start="0/1s" name="mountain-greenland.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform anchor="0 0" position="0 0" scale="1 1"/>
+                        </video>
+                        <video offset="7/1s" duration="3/1s" enabled="1" ref="r6" start="0/1s" name="mountain-summit.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform anchor="0 0" position="0 0" scale="1 1"/>
+                        </video>
+                        <gap offset="10/1s" duration="97/24s" start="3600/1s" name="Gap"/>
+                        <video offset="337/24s" duration="5/1s" enabled="1" ref="r7" start="0/1s" name="mountain-alps.jpg">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform anchor="0 0" position="0 0" scale="1 1"/>
+                        </video>
+                        <video offset="457/24s" duration="97/24s" enabled="1" ref="r8" start="0/1s" name="Alps API rename">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform anchor="0 0" position="0 0" scale="1 1"/>
+                        </video>
+                    </spine>
+                </sequence>
+            </project>
+        </event>
+    </library>
+</fcpxml>
