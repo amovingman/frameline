@@ -19,6 +19,10 @@ Editors can scan a local project, save immutable revisions, share a branch with 
 
 Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequenced after the local project model and pull transaction have proven safe.
 
+## Delivery workflow
+
+After every completed feature, commit and push the change to GitHub. Verify the remote commit, keep its pull request updated when using a feature branch, and report the GitHub link and whether the change has been merged into `main`.
+
 ---
 
 ## Phase 0 — Editor choice and integration proof
