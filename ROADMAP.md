@@ -74,14 +74,14 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [x] Give clear recovery instructions for malformed, unsupported, missing, permission-denied, and busy FCPXML exports; rescan retries after the underlying issue is fixed. An open Resolve project cannot be detected from an exported FCPXML file.
 - [x] Validate the read-only v2 scan manifest against the current FCPXML compatibility corpus; reject unknown versions and extra fields before handing scan data to the interface.
-- [x] Migrate v1 local metadata to v2 when revision storage is introduced, preserving project IDs and testing downgrade refusal.
+- [x] Migrate v1 local metadata to v2 for revision storage and v2 to v3 for branches, preserving project IDs and history while testing downgrade refusal.
 
 ### 1.3 Local revisions and branches
 - [x] Assign durable local project IDs for exports selected at the same path, without storing or exposing that path.
 - [x] Store immutable local scan revision records for exports selected at the same path.
 - [ ] Add an explicit ID relink workflow before treating moved exports as the same project.
 - [ ] Store parent revision, author, timestamp, message, editor version, manifest version, and content hash.
-- [ ] Implement branch creation, naming, switching, and branch-head updates.
+- [x] Implement local branch creation, naming, switching, and branch-head updates for read-only scan revisions.
 - [x] Add a revision message and save flow for the current read-only scan; reject it if the FCPXML source changed since scanning.
 - [ ] Detect concurrent local writes and prevent silent branch-head replacement.
 - [x] Show local revision history backed by saved records for the selected export.

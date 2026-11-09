@@ -73,6 +73,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     return state;
   });
   ipcMain.handle('project:open-revision', async (_event, revisionId) => projectSession.openRevision(revisionId));
+  ipcMain.handle('project:create-branch', async (_event, name) => projectSession.createBranch(name));
+  ipcMain.handle('project:switch-branch', async (_event, name) => projectSession.switchBranch(name));
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

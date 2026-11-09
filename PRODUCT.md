@@ -22,7 +22,7 @@ DaVinci Resolve 21.1.2 is the first integration candidate, using FCPXML for time
 
 ## Capabilities and Constraints
 
-The current app is an Electron UI prototype. It can scan and rescan the first top-level picture sequence in an FCPXML file or bundle read only, show exact frame counts, and check referenced local media files for availability without exposing their paths to the renderer. It can save immutable local scan revisions after verifying the export has not changed since scanning. History uses saved records and opens their validated details for selected files; the review examples remain synthetic and labeled as such. Stable clip mapping, revision comparison, merging, and pulling are not implemented, so the pull action stays disabled.
+The current app is an Electron UI prototype. It can scan and rescan the first top-level picture sequence in an FCPXML file or bundle read only, show exact frame counts, and check referenced local media files for availability without exposing their paths to the renderer. It can save immutable local scan revisions on named branches after verifying the export has not changed since scanning. History follows the selected branch and opens validated revision details for selected files; the review examples remain synthetic and labeled as such. Stable clip mapping, revision comparison, merging, and pulling are not implemented, so the pull action stays disabled.
 
 ## Evidence on Hand
 

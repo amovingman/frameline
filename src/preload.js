@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('desktop', {
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   rescanProject: () => ipcRenderer.invoke('project:rescan'),
   saveRevision: message => ipcRenderer.invoke('project:save-revision', message),
-  openRevision: revisionId => ipcRenderer.invoke('project:open-revision', revisionId)
+  openRevision: revisionId => ipcRenderer.invoke('project:open-revision', revisionId),
+  createBranch: name => ipcRenderer.invoke('project:create-branch', name),
+  switchBranch: name => ipcRenderer.invoke('project:switch-branch', name)
 });
