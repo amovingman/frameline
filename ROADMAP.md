@@ -43,7 +43,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 ### 0.3 Prove safe read and write access
 - [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>` and Resolve-exported `<video>` elements.
 - [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. The repeated-media Resolve import/export proof shows resource refs and clip names are unstable; a sidecar mapping or supported API identity is still required.
-- [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained one ID through rename and move on a duplicate timeline. Save/reopen and FCPXML mapping remain unverified; this does not close the stable-ID gate.
+- [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained all five IDs through save/reopen and a full Resolve restart; one ID also survived rename and move on a duplicate timeline. Trim, deletion, relink, and FCPXML mapping remain unverified; this does not close the stable-ID gate.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
 - [ ] Measure scan, write, and reopen behavior on realistically sized projects.
