@@ -65,6 +65,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 - [ ] Preserve editor-specific fields required for lossless round-trip writing.
 - [ ] Build an adapter interface for scan, stable-ID mapping, apply, save, and validate.
 - [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
+- [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
 - [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [ ] Handle malformed, unsupported, locked, and currently open project files with clear recovery instructions.

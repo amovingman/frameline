@@ -1,13 +1,9 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
-const { createAppState, selectProject } = require('./project-state');
-const { scanFcpXml } = require('./fcpxml-adapter');
+const { createProjectSession } = require('./project-session');
 const logger = require('./logger');
 
-let appState = createAppState();
-function getAppState() {
-  return structuredClone(appState);
-}
+const projectSession = createProjectSession();
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -30,7 +26,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   logger.info('app.ready', { version: app.getVersion() });
-  ipcMain.handle('app:get-state', () => getAppState());
+  ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a DaVinci Resolve timeline',
@@ -39,28 +35,27 @@ app.whenReady().then(() => {
     });
     if (result.canceled || result.filePaths.length === 0) {
       logger.info('project.selection-cancelled');
-      return getAppState();
+      return projectSession.getState();
     }
     const selectedPath = result.filePaths[0];
-    appState = selectProject(appState, selectedPath);
-    if (appState.error) {
+    const state = await projectSession.select(selectedPath);
+    if (state.error === 'unsupported-format') {
       logger.warn('project.selection-rejected', { filePath: selectedPath });
     } else {
       logger.info('project.selected', {
-        format: appState.selectedProject.format,
+        format: state.selectedProject.format,
         filePath: selectedPath
       });
-      try {
-        appState.scan = await scanFcpXml(selectedPath);
-        appState.scanStatus = 'ready';
-        logger.info('project.scan-complete', { clipCount: appState.scan.clips.length, warningCount: appState.scan.warnings.length });
-      } catch (error) {
-        appState.scanStatus = 'error';
-        appState.error = error.code || 'scan-failed';
-        logger.warn('project.scan-failed', { code: appState.error });
-      }
+      if (state.scanStatus === 'ready') logger.info('project.scan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
+      else logger.warn('project.scan-failed', { code: state.error });
     }
-    return getAppState();
+    return state;
+  });
+  ipcMain.handle('project:rescan', async () => {
+    const state = await projectSession.rescan();
+    if (state.scanStatus === 'ready') logger.info('project.rescan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
+    else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
+    return state;
   });
   createWindow();
   app.on('activate', () => {

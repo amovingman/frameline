@@ -5,6 +5,7 @@ let selectedChangeId = 'trim';
 function renderAppState(state) {
   const projectName = state?.selectedProject?.name;
   const scan = state?.scan;
+  document.getElementById('rescan-project').hidden = !projectName;
   document.querySelector('.branch-label').textContent = `${state?.currentBranch || 'main'} · ${projectName ? 'Local project' : 'Sample project'}`;
   document.getElementById('file-name').textContent = projectName
     ? `${projectName} · ${state.selectedProject.format} · ${state.scanStatus}`
@@ -238,6 +239,7 @@ function chooseMode(button) {
 
 async function chooseFile() {
   const notice = document.getElementById('file-notice');
+  setScanBusy(true);
   try {
     if (!window.desktop?.chooseProject) throw new Error('Desktop picker unavailable');
     const state = await window.desktop.chooseProject();
@@ -249,8 +251,36 @@ async function chooseFile() {
     }
   } catch {
     notice.textContent = 'The file picker is available in the desktop app.';
+  } finally {
+    setScanBusy(false);
   }
   notice.hidden = false;
+}
+
+function setScanBusy(busy) {
+  document.getElementById('choose-file').disabled = busy;
+  document.getElementById('rescan-project').disabled = busy;
+  document.getElementById('rescan-project').textContent = busy ? 'Scanning…' : 'Rescan project';
+  document.getElementById('view-workspace').setAttribute('aria-busy', String(busy));
+}
+
+async function rescanProject() {
+  const notice = document.getElementById('file-notice');
+  setScanBusy(true);
+  try {
+    if (!window.desktop?.rescanProject) throw new Error('Rescan unavailable');
+    const state = await window.desktop.rescanProject();
+    renderAppState(state);
+    if (!state.error) {
+      notice.textContent = 'Timeline and local media availability refreshed. This scan did not change the project.';
+      notice.hidden = false;
+    }
+  } catch {
+    notice.textContent = 'Could not rescan the selected project. Try again.';
+    notice.hidden = false;
+  } finally {
+    setScanBusy(false);
+  }
 }
 
 renderChangeChoices();
@@ -261,6 +291,7 @@ selectChange(selectedChangeId);
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => chooseMode(button)));
 document.getElementById('choose-file').addEventListener('click', chooseFile);
+document.getElementById('rescan-project').addEventListener('click', rescanProject);
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {
