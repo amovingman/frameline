@@ -1,6 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const { createProjectSession } = require('../src/project-session');
+const { createLocalMetadataStore } = require('../src/local-metadata');
+const { scanFcpXml } = require('../src/fcpxml-adapter');
 
 test('rescans the privately held path and replaces stale media results', async () => {
   const calls = [];
@@ -73,4 +78,50 @@ test('rescan retries a metadata failure before scanning', async () => {
   assert.equal(scans, 0);
   assert.equal((await session.rescan()).selectedProject.id, 'local-project-id');
   assert.equal(scans, 1);
+});
+
+test('saving a revision updates real history without exposing the selected path', async () => {
+  let saved;
+  const scan = { sourceHash: 'a'.repeat(64), schemaVersion: 2, clips: [], media: [], warnings: [] };
+  const store = {
+    getProjectId: async () => ({ id: 'local-project-id', recovered: false }),
+    listRevisions: async () => [],
+    saveRevision: async (_id, manifest, message, parent) => {
+      saved = { manifest, message, parent };
+      return { id: 'revision-id', message, createdAt: '2026-11-09T00:00:00.000Z', contentHash: manifest.sourceHash, manifestVersion: 2 };
+    }
+  };
+  const session = createProjectSession(async () => scan, store, async () => {});
+  await session.select('/private/project/cut.fcpxml');
+  const state = await session.saveRevision('  First cut  ');
+  assert.equal(saved.message, 'First cut');
+  assert.equal(saved.parent, null);
+  assert.equal(state.revisions[0].id, 'revision-id');
+  assert.doesNotMatch(JSON.stringify(state), /\/private\/project/);
+});
+
+test('revisions persist across sessions and require a fresh scan after source changes', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-revisions-'));
+  try {
+    const projectPath = path.join(directory, 'cut.fcpxml');
+    await fs.copyFile(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'), projectPath);
+    const metadataPath = path.join(directory, 'app-data');
+    const first = createProjectSession(scanFcpXml, createLocalMetadataStore(metadataPath));
+    await first.select(projectPath);
+    const saved = await first.saveRevision('First cut');
+    assert.equal(saved.revisions.length, 1);
+    assert.equal(saved.revisionError, null);
+
+    const reopened = createProjectSession(scanFcpXml, createLocalMetadataStore(metadataPath));
+    const restored = await reopened.select(projectPath);
+    assert.equal(restored.revisions[0].id, saved.revisions[0].id);
+    await fs.appendFile(projectPath, '\n');
+    const stale = await reopened.saveRevision('Changed cut');
+    assert.equal(stale.revisionError, 'revision-source-changed');
+    assert.equal(stale.revisions.length, 1);
+    await reopened.rescan();
+    const next = await reopened.saveRevision('Changed cut');
+    assert.equal(next.revisionError, null);
+    assert.equal(next.revisions[0].parentRevisionId, saved.revisions[0].id);
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });

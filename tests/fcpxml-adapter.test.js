@@ -4,13 +4,14 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { fileErrorCode, scanFcpXml, scanXml } = require('../src/fcpxml-adapter');
+const { fileErrorCode, scanFcpXml, scanXml, verifyFcpXmlSource } = require('../src/fcpxml-adapter');
 
 const fixture = name => path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', name);
 
 test('scans a plain FCPXML fixture into exact frames', async () => {
   const scan = await scanFcpXml(fixture('sample.fcpxml'));
-  assert.equal(scan.schemaVersion, 1);
+  assert.equal(scan.schemaVersion, 2);
+  assert.match(scan.sourceHash, /^[a-f0-9]{64}$/);
   assert.equal(scan.readOnly, true);
   assert.equal(scan.identityStatus, 'unresolved');
   assert.deepEqual(scan.sequence, { name: 'Mountain sample', frameDuration: '1/24s', durationFrames: 480 });
@@ -71,4 +72,16 @@ test('classifies filesystem errors without returning paths or system error detai
   assert.equal(fileErrorCode({ code: 'EBUSY' }), 'file-busy');
   assert.equal(fileErrorCode({ code: 'ETXTBSY' }), 'file-busy');
   assert.equal(fileErrorCode({ code: 'ENOENT', path: '/private/project/cut.fcpxml' }), 'file-unavailable');
+});
+
+test('rejects saving a scan after the FCPXML source changes', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-source-'));
+  try {
+    const filePath = path.join(directory, 'cut.fcpxml');
+    await fs.copyFile(fixture('sample.fcpxml'), filePath);
+    const scan = await scanFcpXml(filePath);
+    await verifyFcpXmlSource(filePath, scan.sourceHash);
+    await fs.appendFile(filePath, '\n');
+    await assert.rejects(verifyFcpXmlSource(filePath, scan.sourceHash), { code: 'revision-source-changed' });
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });

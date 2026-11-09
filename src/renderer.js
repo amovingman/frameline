@@ -1,6 +1,7 @@
 const sample = window.FRAME_SAMPLE;
 const changes = new Map(sample.changes.map(change => [change.id, change]));
 let selectedChangeId = 'trim';
+let currentAppState = null;
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -14,10 +15,15 @@ const scanRecovery = {
   'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.',
   'metadata-unavailable': 'Frameline could not save local project metadata. Check free disk space and folder permissions, then rescan. The export was not changed.',
   'metadata-invalid': 'Local project metadata is damaged and no valid backup was found. Keep the metadata files for recovery before trying again. The export was not changed.',
-  'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.'
+  'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.',
+  'revision-source-changed': 'The export changed since the last scan. Rescan it before saving a revision.',
+  'revision-head-changed': 'Revision history changed while saving. Choose the project again and retry.',
+  'revision-message-invalid': 'Enter a revision message of 1 to 120 characters.',
+  'revision-scan-required': 'Scan the selected export before saving a revision.'
 };
 
 function renderAppState(state) {
+  currentAppState = state;
   const projectName = state?.selectedProject?.name;
   const scan = state?.scan;
   document.getElementById('rescan-project').hidden = !projectName;
@@ -35,9 +41,11 @@ function renderAppState(state) {
     document.querySelector('.revision-jump').hidden = true;
     document.getElementById('audio-track').hidden = true;
     document.querySelector('.nav-count').textContent = '';
-    document.querySelector('#view-history .secondary-hero p').textContent = 'No revisions have been saved for this file.';
-    document.getElementById('history-list').replaceChildren();
-    document.querySelector('#view-history .view-footnote').textContent = 'Local revision history is not implemented yet.';
+    document.querySelector('#view-history .secondary-hero p').textContent = `${state.revisions?.length || 0} local revision${state.revisions?.length === 1 ? '' : 's'} saved for this export. Clip identity is unresolved, so comparison and pull remain unavailable.`;
+    document.getElementById('revision-form').hidden = false;
+    document.getElementById('save-revision').disabled = state.scanStatus !== 'ready' || state.revisionStatus === 'saving';
+    renderRealHistory(state.revisions || []);
+    document.querySelector('#view-history .view-footnote').textContent = 'These are local scan snapshots. Revision comparison and pull are not available yet.';
     document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media assets · ${scan.media.filter(item => item.availability === 'local').length} available locally · ${scan.media.filter(item => item.availability === 'missing').length} missing` : 'Media could not be scanned.';
     document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
     document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
@@ -184,6 +192,24 @@ function renderHistory() {
   });
 }
 
+function renderRealHistory(revisions) {
+  const list = document.getElementById('history-list');
+  list.replaceChildren();
+  if (!revisions.length) {
+    list.append(make('p', 'history-empty', 'No saved revisions yet. Scan this export, then save the current cut above.'));
+    return;
+  }
+  revisions.forEach((revision, index) => {
+    const row = make('div', 'history-item');
+    const main = make('div', 'history-main');
+    main.append(make('strong', '', revision.message), make('small', '', `${revision.manifestVersion === 2 ? 'Read-only scan' : 'Scan'} · ${revision.contentHash.slice(0, 10)} · ${revision.id.slice(0, 8)}`));
+    const state = make('div', 'history-state');
+    state.append(make('strong', '', 'Saved locally'), make('span', '', new Date(revision.createdAt).toLocaleString()));
+    row.append(make('span', 'history-id', String(revisions.length - index).padStart(2, '0')), main, state);
+    list.append(row);
+  });
+}
+
 function renderMedia() {
   const list = document.getElementById('media-list');
   list.replaceChildren();
@@ -293,6 +319,28 @@ async function rescanProject() {
   }
 }
 
+async function saveRevision(event) {
+  event.preventDefault();
+  const button = document.getElementById('save-revision');
+  const input = document.getElementById('revision-message');
+  const notice = document.getElementById('file-notice');
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  try {
+    const state = await window.desktop.saveRevision(input.value);
+    renderAppState(state);
+    notice.textContent = state.revisionError ? scanRecovery[state.revisionError] || 'Could not save the revision.' : 'Revision saved locally. The FCPXML export was not changed.';
+    notice.hidden = false;
+    if (!state.revisionError) input.value = '';
+  } catch {
+    notice.textContent = 'Could not save the revision. Try again.';
+    notice.hidden = false;
+  } finally {
+    button.textContent = 'Save revision';
+    button.disabled = currentAppState?.scanStatus !== 'ready' || !window.desktop?.saveRevision;
+  }
+}
+
 renderChangeChoices();
 renderTimeline();
 renderHistory();
@@ -302,6 +350,7 @@ document.querySelectorAll('[data-view]').forEach(button => button.addEventListen
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => chooseMode(button)));
 document.getElementById('choose-file').addEventListener('click', chooseFile);
 document.getElementById('rescan-project').addEventListener('click', rescanProject);
+document.getElementById('revision-form').addEventListener('submit', saveRevision);
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {

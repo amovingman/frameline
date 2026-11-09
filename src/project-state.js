@@ -12,6 +12,9 @@ function createAppState() {
   return {
     selectedProject: null,
     scan: null,
+    revisions: [],
+    revisionStatus: 'idle',
+    revisionError: null,
     scanStatus: 'idle',
     currentBranch: 'main',
     error: null
@@ -26,6 +29,9 @@ function selectProject(state, filePath) {
     ...state,
     selectedProject: { name: path.basename(filePath), format },
     scan: null,
+    revisions: [],
+    revisionStatus: 'idle',
+    revisionError: null,
     scanStatus: 'not-scanned',
     error: null
   };

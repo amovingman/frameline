@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
+const { validateScanManifest } = require('./scan-manifest');
 
 const FILE_NAME = 'metadata.json';
 const BACKUP_NAME = 'metadata.json.bak';
@@ -13,13 +14,27 @@ class MetadataError extends Error {
 }
 
 function validateMetadata(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || value.schemaVersion !== 1
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![1, 2].includes(value.schemaVersion)
     || !value.projects || typeof value.projects !== 'object' || Array.isArray(value.projects)) throw new MetadataError('metadata-invalid');
-  for (const [fingerprint, id] of Object.entries(value.projects)) {
-    if (!/^[a-f0-9]{64}$/.test(fingerprint) || typeof id !== 'string'
-      || !/^[a-f0-9-]{36}$/.test(id)) throw new MetadataError('metadata-invalid');
+  for (const [fingerprint, project] of Object.entries(value.projects)) {
+    if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new MetadataError('metadata-invalid');
+    if (value.schemaVersion === 1) {
+      if (typeof project !== 'string' || !/^[a-f0-9-]{36}$/.test(project)) throw new MetadataError('metadata-invalid');
+    } else if (!project || typeof project !== 'object' || !/^[a-f0-9-]{36}$/.test(project.id)
+      || !Array.isArray(project.revisions) || project.revisions.some(revision =>
+        !/^[a-f0-9-]{36}$/.test(revision.id) || typeof revision.message !== 'string'
+        || !/^[a-f0-9]{64}$/.test(revision.contentHash))) {
+      throw new MetadataError('metadata-invalid');
+    }
   }
   return value;
+}
+
+function migrateMetadata(value) {
+  if (value.schemaVersion === 2) return value;
+  return { schemaVersion: 2, projects: Object.fromEntries(
+    Object.entries(value.projects).map(([fingerprint, id]) => [fingerprint, { id, revisions: [] }])
+  ) };
 }
 
 async function readMetadata(filePath) {
@@ -32,7 +47,7 @@ async function readMetadata(filePath) {
   let value;
   try { value = JSON.parse(content); }
   catch { throw new MetadataError('metadata-invalid'); }
-  if (value?.schemaVersion > 1) throw new MetadataError('metadata-newer-version');
+  if (value?.schemaVersion > 2) throw new MetadataError('metadata-newer-version');
   return validateMetadata(value);
 }
 
@@ -71,8 +86,7 @@ async function writeMetadata(directory, value, backupExisting = true) {
 function createLocalMetadataStore(directory) {
   let pending = Promise.resolve();
 
-  async function getProjectId(filePath) {
-    const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
+  function transact(action) {
     const operation = pending.then(async () => {
       let recovered = false;
       const primary = path.join(directory, FILE_NAME);
@@ -95,18 +109,65 @@ function createLocalMetadataStore(directory) {
           metadata = backup;
         }
       }
-      metadata ||= { schemaVersion: 1, projects: {} };
-      if (!metadata.projects[fingerprint]) {
-        metadata.projects[fingerprint] = randomUUID();
+      metadata ||= { schemaVersion: 2, projects: {} };
+      if (metadata.schemaVersion === 1) {
+        metadata = migrateMetadata(metadata);
         await writeMetadata(directory, metadata);
       }
-      return { id: metadata.projects[fingerprint], recovered };
+      return action(metadata, recovered);
     });
     pending = operation.catch(() => {});
     return operation;
   }
 
-  return { getProjectId };
+  async function getProjectId(filePath) {
+    const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
+    return transact(async (metadata, recovered) => {
+      if (!metadata.projects[fingerprint]) {
+        metadata.projects[fingerprint] = { id: randomUUID(), revisions: [] };
+        await writeMetadata(directory, metadata);
+      }
+      return { id: metadata.projects[fingerprint].id, recovered };
+    });
+  }
+
+  function listRevisions(projectId) {
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      return structuredClone(project.revisions).reverse();
+    });
+  }
+
+  function saveRevision(projectId, manifest, message, expectedHeadId = null) {
+    return transact(async metadata => {
+      if (typeof message !== 'string' || !message.trim() || message.length > 120) throw new MetadataError('revision-message-invalid');
+      validateScanManifest(manifest);
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      const parentRevisionId = project.revisions.at(-1)?.id || null;
+      if (parentRevisionId !== expectedHeadId) throw new MetadataError('revision-head-changed');
+      const revision = {
+        id: randomUUID(), projectId, parentRevisionId, author: 'Local editor',
+        createdAt: new Date().toISOString(), message,
+        editorVersion: null, manifestVersion: manifest.schemaVersion,
+        contentHash: manifest.sourceHash, manifest
+      };
+      const folder = path.join(directory, 'revisions', projectId);
+      try {
+        await fs.mkdir(folder, { recursive: true, mode: 0o700 });
+        const handle = await fs.open(path.join(folder, `${revision.id}.json`), 'wx', 0o600);
+        try { await handle.writeFile(`${JSON.stringify(revision, null, 2)}\n`); await handle.sync(); }
+        finally { await handle.close(); }
+      } catch { throw new MetadataError('metadata-unavailable'); }
+      const { manifest: _manifest, ...summary } = revision;
+      project.revisions.push(summary);
+      await writeMetadata(directory, metadata);
+      return structuredClone(summary);
+    });
+  }
+
+  return { getProjectId, listRevisions, saveRevision };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

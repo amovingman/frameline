@@ -1,5 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
 const { XMLParser, XMLValidator } = require('fast-xml-parser');
 const { validateScanManifest } = require('./scan-manifest');
@@ -39,7 +40,7 @@ function frames(value, frameDuration) {
   return result;
 }
 
-function buildInventory(xml) {
+function buildInventory(xml, sourceHash = createHash('sha256').update(xml).digest('hex')) {
   if (XMLValidator.validate(xml) !== true) throw new ScanError('malformed-xml');
   const document = parser.parse(xml);
   const root = document.fcpxml;
@@ -97,10 +98,11 @@ function buildInventory(xml) {
   if (projects.length > 1) warnings.add('Only the first sequence was scanned');
   const durationFrames = sequence.duration ? frames(sequence.duration, frameDuration) : Math.max(0, ...clips.map(clip => clip.offsetFrames + clip.durationFrames));
   const scan = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     adapter: 'fcpxml',
     readOnly: true,
     identityStatus: 'unresolved',
+    sourceHash,
     sequence: { name: displayName(project.name || 'Untitled sequence'), frameDuration: `${frameDuration[0]}/${frameDuration[1]}s`, durationFrames },
     clips,
     media: [...referencedAssets.values()].map(({ name }) => ({ name, availability: 'unknown' })),
@@ -135,11 +137,25 @@ async function scanFcpXml(selectedPath) {
   try { stat = await fs.stat(xmlPath); } catch (error) { throw new ScanError(fileErrorCode(error)); }
   if (!stat.isFile()) throw new ScanError('file-unavailable');
   if (stat.size > MAX_XML_BYTES) throw new ScanError('file-too-large');
-  let xml;
-  try { xml = await fs.readFile(xmlPath, 'utf8'); } catch (error) { throw new ScanError(fileErrorCode(error)); }
-  const { scan, referencedAssets } = buildInventory(xml);
+  let xmlBytes;
+  try { xmlBytes = await fs.readFile(xmlPath); } catch (error) { throw new ScanError(fileErrorCode(error)); }
+  if (xmlBytes.length > MAX_XML_BYTES) throw new ScanError('file-too-large');
+  const { scan, referencedAssets } = buildInventory(xmlBytes.toString('utf8'), createHash('sha256').update(xmlBytes).digest('hex'));
   scan.media = await Promise.all(referencedAssets.map(async ({ name, source }) => ({ name, availability: await checkMedia(source) })));
   return validateScanManifest(scan);
 }
 
-module.exports = { ScanError, fileErrorCode, scanFcpXml, scanXml };
+async function verifyFcpXmlSource(selectedPath, sourceHash) {
+  const xmlPath = path.extname(selectedPath).toLowerCase() === '.fcpxmld' ? path.join(selectedPath, 'Info.fcpxml') : selectedPath;
+  let stat;
+  try { stat = await fs.stat(xmlPath); }
+  catch { throw new ScanError('file-unavailable'); }
+  if (!stat.isFile() || stat.size > MAX_XML_BYTES) throw new ScanError('revision-source-changed');
+  let xmlBytes;
+  try { xmlBytes = await fs.readFile(xmlPath); }
+  catch { throw new ScanError('file-unavailable'); }
+  if (xmlBytes.length > MAX_XML_BYTES) throw new ScanError('revision-source-changed');
+  if (createHash('sha256').update(xmlBytes).digest('hex') !== sourceHash) throw new ScanError('revision-source-changed');
+}
+
+module.exports = { ScanError, fileErrorCode, scanFcpXml, scanXml, verifyFcpXmlSource };

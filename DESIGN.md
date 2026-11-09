@@ -32,9 +32,9 @@ The sequence is the visual anchor. Selecting an affected clip, its audio track, 
 
 ## Product truth
 
-All sequence, media, and revision data are illustrative. Three online mountain photographs replace the generated artwork in Review and Media. They are downloaded locally and shown as sample footage, not extracted from a project. CSS cover crops keep them responsive. Sources and photographer credits are recorded in `src/assets/visuals/MOUNTAIN-CREDITS.md`.
+Before a file is selected, sequence, media, and revision data are illustrative. Three online mountain photographs replace the generated artwork in Review and Media. They are downloaded locally and shown as sample footage, not extracted from a project. CSS cover crops keep them responsive. Sources and photographer credits are recorded in `src/assets/visuals/MOUNTAIN-CREDITS.md`.
 
-The desktop file picker can select a file, but no adapter reads its content. Pull remains disabled. Review-copy and in-place options describe future behavior without modifying project files. Keyboard shortcuts Command/Control + 1, 2, and 3 switch views.
+The desktop file picker scans FCPXML read only. For a selected file, History shows local scan revisions saved with user messages; the review comparison is still sample content. Pull remains disabled. Review-copy and in-place options describe future behavior without modifying project files. Keyboard shortcuts Command/Control + 1, 2, and 3 switch views.
 
 ## Design sources
 

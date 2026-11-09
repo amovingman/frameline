@@ -6,6 +6,12 @@ const { scanFcpXml } = require('./fcpxml-adapter');
 const logger = require('./logger');
 
 let projectSession;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
+else app.on('second-instance', () => {
+  const window = BrowserWindow.getAllWindows()[0];
+  if (window) { if (window.isMinimized()) window.restore(); window.focus(); }
+});
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -26,7 +32,7 @@ function createWindow() {
   window.loadFile(path.join(__dirname, 'index.html'));
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) app.whenReady().then(() => {
   projectSession = createProjectSession(scanFcpXml, createLocalMetadataStore(app.getPath('userData')));
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
@@ -58,6 +64,12 @@ app.whenReady().then(() => {
     const state = await projectSession.rescan();
     if (state.scanStatus === 'ready') logger.info('project.rescan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
+    return state;
+  });
+  ipcMain.handle('project:save-revision', async (_event, message) => {
+    const state = await projectSession.saveRevision(message);
+    if (state.revisionError) logger.warn('revision.save-failed', { code: state.revisionError });
+    else if (state.revisionStatus === 'idle' && state.revisions.length) logger.info('revision.saved', { projectId: state.selectedProject.id, revisionId: state.revisions[0].id });
     return state;
   });
   createWindow();

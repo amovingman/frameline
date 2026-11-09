@@ -16,6 +16,9 @@ test('starts with a local idle project state', () => {
   assert.deepEqual(createAppState(), {
     selectedProject: null,
     scan: null,
+    revisions: [],
+    revisionStatus: 'idle',
+    revisionError: null,
     scanStatus: 'idle',
     currentBranch: 'main',
     error: null
@@ -27,6 +30,9 @@ test('selecting a supported project records safe display metadata only', () => {
   assert.deepEqual(state, {
     selectedProject: { name: 'cut.fcpxml', format: 'FCPXML' },
     scan: null,
+    revisions: [],
+    revisionStatus: 'idle',
+    revisionError: null,
     scanStatus: 'not-scanned',
     currentBranch: 'main',
     error: null
