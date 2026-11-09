@@ -47,6 +47,34 @@ The exported order, offsets, and durations match the input. **Resolve reassigned
 
 Next, evaluate a persistent sidecar mapping or a supported Resolve API that exposes occurrence IDs. Test it with repeated media, source trims, moves, deletions, and relinks before enabling automatic clip-level merges. Until then, repeated-media clips require manual identity resolution, and Phase 0's stable-ID gate remains open.
 
+### Read-only Resolve API identity probe
+
+The installed Resolve 21.1.2 scripting reference (`Developer/Scripting/DaVinciResolveScript.pyi`, last updated 2026-08-31) documents `Timeline.GetUniqueId()` and `TimelineItem.GetUniqueId()`. These are separate from the unstable FCPXML resource references. `resolve_api_identity.py` captures timeline and item IDs, track placement, frame positions, and media-pool IDs without saving or changing the Resolve project. The probe rejects missing or duplicate item IDs, and refuses to overwrite an earlier snapshot. Its mock tests pass, but **the IDs' persistence has not yet been verified in a running Resolve instance**. An API method named “unique” alone is not evidence that the value persists after edits, save/reopen, or import/export.
+
+Use a disposable Resolve project and save each observation to a new file. With Resolve Studio external scripting enabled, run the bundled ResolvePython interpreter:
+
+```sh
+"/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Applications/ResolvePython" \
+  phase-0/resolve-xml-proof/resolve_api_identity.py capture /private/tmp/resolve-before.json
+```
+
+In Resolve Free, try the internal Python console with the absolute script path, then call `capture_to` on its returned namespace:
+
+```python
+import runpy
+probe = runpy.run_path('/absolute/path/to/resolve_api_identity.py')
+probe['capture_to'](resolve, '/private/tmp/resolve-before.json')
+```
+
+Repeat after a trim, move, rename, deletion, relink, and save/reopen. Compare two observations with:
+
+```sh
+python3 phase-0/resolve-xml-proof/resolve_api_identity.py compare \
+  /private/tmp/resolve-before.json /private/tmp/resolve-after.json
+```
+
+Keep each pair in the **same project**; the comparison deliberately rejects differently named projects. Confirm whether IDs survive each operation and whether a copied project or FCPXML import produces new IDs. Even if API IDs persist, using them for an FCPXML-based write still needs a proven mapping between API items and exported XML occurrences, or a supported API write path.
+
 The initial UI automation attempts failed to navigate the file picker, but did not indicate a Resolve compatibility problem. The working method was the macOS Go to Folder shortcut (`super+shift+g`) in the import picker; the fixture path was already entered in the sheet, and pressing Return navigated to the selected file.
 
 ## Next checks
