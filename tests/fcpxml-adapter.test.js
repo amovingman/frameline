@@ -4,7 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { scanFcpXml, scanXml } = require('../src/fcpxml-adapter');
+const { fileErrorCode, scanFcpXml, scanXml } = require('../src/fcpxml-adapter');
 
 const fixture = name => path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', name);
 
@@ -63,4 +63,12 @@ test('rejects malformed XML and non-frame-aligned timing', () => {
 test('rejects absent bundle content and unsupported files', async () => {
   await assert.rejects(scanFcpXml(fixture('missing.fcpxmld')), { code: 'file-unavailable' });
   await assert.rejects(scanFcpXml(fixture('sample.txt')), { code: 'unsupported-format' });
+});
+
+test('classifies filesystem errors without returning paths or system error details', () => {
+  assert.equal(fileErrorCode({ code: 'EACCES' }), 'file-access-denied');
+  assert.equal(fileErrorCode({ code: 'EPERM' }), 'file-access-denied');
+  assert.equal(fileErrorCode({ code: 'EBUSY' }), 'file-busy');
+  assert.equal(fileErrorCode({ code: 'ETXTBSY' }), 'file-busy');
+  assert.equal(fileErrorCode({ code: 'ENOENT', path: '/private/project/cut.fcpxml' }), 'file-unavailable');
 });
