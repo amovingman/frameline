@@ -254,7 +254,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 ## Key decisions to resolve early
 
-1. Which editor and project format are first? A Resolve FCPXML probe is now available under `phase-0/resolve-xml-proof/`; it validates a synthetic fixture only, not Resolve compatibility.
+1. Which editor and project format are first? The Resolve FCPXML probe under `phase-0/resolve-xml-proof/` includes synthetic and Resolve-exported evidence, while safe write support remains unproven.
 2. Can its supported API reliably enumerate and write the timeline objects needed for clip-level changes?
 3. Which platforms and editor versions must the first release support?
 4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests?
@@ -263,4 +263,4 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic revisions, timeline, and media. File selection works, but project parsing, real manifests, commit history, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap deliberately places editor selection and a real round-trip proof before those features.
+The repository contains an Electron UI prototype with synthetic revision review. File selection, a read-only FCPXML timeline manifest, and local media availability checks work for a narrow top-level picture sequence. Stable clip mapping, durable history, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap places safe editor identity and write validation before those features.
