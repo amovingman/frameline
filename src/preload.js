@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('desktop', {
   getAppState: () => ipcRenderer.invoke('app:get-state'),
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   rescanProject: () => ipcRenderer.invoke('project:rescan'),
-  saveRevision: message => ipcRenderer.invoke('project:save-revision', message)
+  saveRevision: message => ipcRenderer.invoke('project:save-revision', message),
+  openRevision: revisionId => ipcRenderer.invoke('project:open-revision', revisionId)
 });

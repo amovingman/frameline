@@ -69,6 +69,21 @@ test('migrates v1 project IDs before storing immutable linked revisions', async 
   const saved = JSON.parse(await fs.readFile(path.join(directory, 'revisions', projectId, `${first.id}.json`), 'utf8'));
   assert.deepEqual(saved.manifest, manifest);
   assert.equal(saved.message, 'First cut');
+  assert.deepEqual(await store.getRevision(projectId, first.id), saved);
+  assert.match(first.recordHash, /^[a-f0-9]{64}$/);
+  await assert.rejects(store.getRevision(projectId, '22222222-2222-4222-8222-222222222222'), { code: 'revision-not-found' });
   await assert.rejects(store.saveRevision(projectId, manifest, 'Stale write', null), { code: 'revision-head-changed' });
   assert.equal((await fs.readFile(path.join(directory, 'revisions', projectId, `${first.id}.json`), 'utf8')).includes('Shorter opening'), false);
+}));
+
+test('rejects a revision record changed after it was saved', async () => withStore(async directory => {
+  const store = createLocalMetadataStore(directory);
+  const projectId = (await store.getProjectId('/private/cut.fcpxml')).id;
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  const summary = await store.saveRevision(projectId, manifest, 'First cut');
+  const filePath = path.join(directory, 'revisions', projectId, `${summary.id}.json`);
+  const record = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  record.manifest.clips[0].name = 'Altered clip';
+  await fs.writeFile(filePath, JSON.stringify(record));
+  await assert.rejects(store.getRevision(projectId, summary.id), { code: 'revision-corrupt' });
 }));

@@ -115,6 +115,13 @@ test('revisions persist across sessions and require a fresh scan after source ch
     const reopened = createProjectSession(scanFcpXml, createLocalMetadataStore(metadataPath));
     const restored = await reopened.select(projectPath);
     assert.equal(restored.revisions[0].id, saved.revisions[0].id);
+    const detail = await reopened.openRevision(saved.revisions[0].id);
+    assert.equal(detail.selectedRevision.manifest.sequence.name, 'Mountain sample');
+    assert.equal(detail.selectedRevision.message, 'First cut');
+    assert.doesNotMatch(JSON.stringify(detail.selectedRevision), /frameline-revisions-|file:\/\//);
+    const missing = await reopened.openRevision('22222222-2222-4222-8222-222222222222');
+    assert.equal(missing.revisionDetailError, 'revision-not-found');
+    assert.equal(missing.selectedRevision, null);
     await fs.appendFile(projectPath, '\n');
     const stale = await reopened.saveRevision('Changed cut');
     assert.equal(stale.revisionError, 'revision-source-changed');

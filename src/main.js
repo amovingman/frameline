@@ -72,6 +72,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     else if (state.revisionStatus === 'idle' && state.revisions.length) logger.info('revision.saved', { projectId: state.selectedProject.id, revisionId: state.revisions[0].id });
     return state;
   });
+  ipcMain.handle('project:open-revision', async (_event, revisionId) => projectSession.openRevision(revisionId));
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
