@@ -1,11 +1,12 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const { createAppState, selectProject } = require('./project-state');
+const { scanFcpXml } = require('./fcpxml-adapter');
 const logger = require('./logger');
 
 let appState = createAppState();
 function getAppState() {
-  return { ...appState, selectedProject: appState.selectedProject && { ...appState.selectedProject } };
+  return structuredClone(appState);
 }
 
 function createWindow() {
@@ -49,6 +50,15 @@ app.whenReady().then(() => {
         format: appState.selectedProject.format,
         filePath: selectedPath
       });
+      try {
+        appState.scan = await scanFcpXml(selectedPath);
+        appState.scanStatus = 'ready';
+        logger.info('project.scan-complete', { clipCount: appState.scan.clips.length, warningCount: appState.scan.warnings.length });
+      } catch (error) {
+        appState.scanStatus = 'error';
+        appState.error = error.code || 'scan-failed';
+        logger.warn('project.scan-failed', { code: appState.error });
+      }
     }
     return getAppState();
   });

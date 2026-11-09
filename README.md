@@ -13,6 +13,8 @@ npm start
 
 ## Project status
 
-The Electron interface is a prototype with clearly labeled sample project data. DaVinci Resolve 21.1.2 has passed a basic FCPXML import, export, and edited-copy reimport proof using a synthetic three-still timeline. Stable clip identity and broader timeline support remain under investigation.
+The Electron interface can scan a selected `.fcpxml` file or `.fcpxmld` bundle read only. It shows the first sequence's top level picture clips, exact frame counts, referenced media names, and warnings for unsupported timeline elements. Local paths stay in the main process; the scan does not check media availability. The sample review remains available until a file is selected. Clip identity, revisions, merge, and pull are not yet implemented for scanned files.
+
+DaVinci Resolve 21.1.2 has passed a basic FCPXML import, export, and edited-copy reimport proof using a synthetic three-still timeline. Stable clip identity and broader timeline support remain under investigation.
 
 See [ROADMAP.md](ROADMAP.md), [PRODUCT.md](PRODUCT.md), and [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) for scope and current plans. Phase 0 evidence and the disposable parser spike are in [phase-0/resolve-xml-proof](phase-0/resolve-xml-proof/README.md).

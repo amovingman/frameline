@@ -61,12 +61,12 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 - [ ] Design migrations and backup/restore behavior for Frameline's local metadata.
 
 ### 1.2 Project adapter and normalized manifest
-- [ ] Define a versioned, editor-independent manifest schema.
+- [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
 - [ ] Preserve editor-specific fields required for lossless round-trip writing.
 - [ ] Build an adapter interface for scan, stable-ID mapping, apply, save, and validate.
-- [ ] Implement the chosen editor adapter, starting read-only.
+- [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
-- [ ] Represent frame-accurate timing as integer frames or exact rational frame rates, not rounded seconds.
+- [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [ ] Handle malformed, unsupported, locked, and currently open project files with clear recovery instructions.
 - [ ] Create schema validation and migration tests against the compatibility corpus.
 

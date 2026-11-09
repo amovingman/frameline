@@ -15,6 +15,7 @@ test('rejects unsupported project formats', () => {
 test('starts with a local idle project state', () => {
   assert.deepEqual(createAppState(), {
     selectedProject: null,
+    scan: null,
     scanStatus: 'idle',
     currentBranch: 'main',
     error: null
@@ -25,6 +26,7 @@ test('selecting a supported project records safe display metadata only', () => {
   const state = selectProject(createAppState(), '/private/projects/cut.fcpxml');
   assert.deepEqual(state, {
     selectedProject: { name: 'cut.fcpxml', format: 'FCPXML' },
+    scan: null,
     scanStatus: 'not-scanned',
     currentBranch: 'main',
     error: null

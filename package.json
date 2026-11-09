@@ -16,5 +16,8 @@
   },
   "allowScripts": {
     "electron@41.10.7": true
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.12.0"
   }
 }
