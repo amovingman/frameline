@@ -16,11 +16,12 @@ const label = value => typeof value === 'string' && value.trim().length > 0;
 const frame = value => Number.isSafeInteger(value) && value >= 0;
 
 function validateScanManifest(scan) {
-  const valid = objectWithKeys(scan, ['schemaVersion', 'adapter', 'readOnly', 'identityStatus', 'sequence', 'clips', 'media', 'warnings'])
-    && scan.schemaVersion === 1
+  const valid = objectWithKeys(scan, ['schemaVersion', 'adapter', 'readOnly', 'identityStatus', 'sourceHash', 'sequence', 'clips', 'media', 'warnings'])
+    && scan.schemaVersion === 2
     && scan.adapter === 'fcpxml'
     && scan.readOnly === true
     && scan.identityStatus === 'unresolved'
+    && /^[a-f0-9]{64}$/.test(scan.sourceHash)
     && objectWithKeys(scan.sequence, ['name', 'frameDuration', 'durationFrames'])
     && label(scan.sequence.name)
     && /^\d+\/[1-9]\d*s$/.test(scan.sequence.frameDuration)

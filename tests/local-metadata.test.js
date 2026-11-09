@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { createLocalMetadataStore } = require('../src/local-metadata');
+const { scanFcpXml } = require('../src/fcpxml-adapter');
 
 async function withStore(run) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-metadata-'));
@@ -19,7 +21,7 @@ test('project IDs survive restart and metadata stores no project paths', async (
   assert.equal(first.recovered, false);
   const saved = await fs.readFile(path.join(directory, 'metadata.json'), 'utf8');
   assert.doesNotMatch(saved, /private|editing|client-cut|fcpxml/);
-  assert.deepEqual(JSON.parse(saved).schemaVersion, 1);
+  assert.deepEqual(JSON.parse(saved).schemaVersion, 2);
   assert.equal(await fs.readFile(path.join(directory, 'metadata.json.bak'), 'utf8'), saved);
 }));
 
@@ -37,7 +39,7 @@ test('restores a damaged primary from backup and preserves the damaged file', as
 
 test('rejects a future schema version without overwriting it', async () => withStore(async directory => {
   const filePath = path.join(directory, 'metadata.json');
-  const newer = '{"schemaVersion":2,"projects":{}}';
+  const newer = '{"schemaVersion":3,"projects":{}}';
   await fs.writeFile(filePath, newer);
   await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-newer-version' });
   assert.equal(await fs.readFile(filePath, 'utf8'), newer);
@@ -46,4 +48,27 @@ test('rejects a future schema version without overwriting it', async () => withS
 test('reports damage when no valid backup exists', async () => withStore(async directory => {
   await fs.writeFile(path.join(directory, 'metadata.json'), '{broken');
   await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-invalid' });
+}));
+
+test('migrates v1 project IDs before storing immutable linked revisions', async () => withStore(async directory => {
+  const filePath = '/private/editing/client-cut.fcpxml';
+  const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
+  const projectId = '11111111-1111-4111-8111-111111111111';
+  await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify({ schemaVersion: 1, projects: { [fingerprint]: projectId } }));
+  const store = createLocalMetadataStore(directory);
+  assert.equal((await store.getProjectId(filePath)).id, projectId);
+  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 2);
+
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  const first = await store.saveRevision(projectId, manifest, 'First cut', null);
+  const second = await store.saveRevision(projectId, manifest, 'Shorter opening', first.id);
+  assert.equal(second.parentRevisionId, first.id);
+  assert.equal(second.contentHash, manifest.sourceHash);
+  assert.equal(second.manifestVersion, 2);
+  assert.deepEqual((await createLocalMetadataStore(directory).listRevisions(projectId)).map(item => item.id), [second.id, first.id]);
+  const saved = JSON.parse(await fs.readFile(path.join(directory, 'revisions', projectId, `${first.id}.json`), 'utf8'));
+  assert.deepEqual(saved.manifest, manifest);
+  assert.equal(saved.message, 'First cut');
+  await assert.rejects(store.saveRevision(projectId, manifest, 'Stale write', null), { code: 'revision-head-changed' });
+  assert.equal((await fs.readFile(path.join(directory, 'revisions', projectId, `${first.id}.json`), 'utf8')).includes('Shorter opening'), false);
 }));

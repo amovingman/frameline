@@ -73,17 +73,19 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
 - [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [x] Give clear recovery instructions for malformed, unsupported, missing, permission-denied, and busy FCPXML exports; rescan retries after the underlying issue is fixed. An open Resolve project cannot be detected from an exported FCPXML file.
-- [x] Validate the read-only v1 scan manifest against the current FCPXML compatibility corpus; reject unknown versions and extra fields before handing scan data to the interface.
-- [ ] Add metadata schema migrations and migration tests when local revision storage is introduced.
+- [x] Validate the read-only v2 scan manifest against the current FCPXML compatibility corpus; reject unknown versions and extra fields before handing scan data to the interface.
+- [x] Migrate v1 local metadata to v2 when revision storage is introduced, preserving project IDs and testing downgrade refusal.
 
 ### 1.3 Local revisions and branches
 - [x] Assign durable local project IDs for exports selected at the same path, without storing or exposing that path.
-- [ ] Create immutable revision records; add an explicit ID relink workflow before treating moved exports as the same project.
+- [x] Store immutable local scan revision records for exports selected at the same path.
+- [ ] Add an explicit ID relink workflow before treating moved exports as the same project.
 - [ ] Store parent revision, author, timestamp, message, editor version, manifest version, and content hash.
 - [ ] Implement branch creation, naming, switching, and branch-head updates.
-- [ ] Add commit message and revision creation flow.
+- [x] Add a revision message and save flow for the current read-only scan; reject it if the FCPXML source changed since scanning.
 - [ ] Detect concurrent local writes and prevent silent branch-head replacement.
-- [ ] Add history browsing and revision detail views backed by actual local data.
+- [x] Show local revision history backed by saved records for the selected export.
+- [ ] Add revision detail views backed by saved manifests.
 - [ ] Provide local revision export/import for backup and transfer before cloud sync exists.
 
 ### 1.4 Change detection and comparison
