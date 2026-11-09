@@ -47,6 +47,46 @@ The exported order, offsets, and durations match the input. **Resolve reassigned
 
 Next, evaluate a persistent sidecar mapping or a supported Resolve API that exposes occurrence IDs. Test it with repeated media, source trims, moves, deletions, and relinks before enabling automatic clip-level merges. Until then, repeated-media clips require manual identity resolution, and Phase 0's stable-ID gate remains open.
 
+### Read-only Resolve API identity probe
+
+The installed Resolve 21.1.2 scripting reference (`Developer/Scripting/DaVinciResolveScript.pyi`, last updated 2026-08-31) documents `Project.GetUniqueId()`, `Timeline.GetUniqueId()`, and `TimelineItem.GetUniqueId()`. These are separate from the unstable FCPXML resource references. `resolve_api_identity.py` captures project, timeline, and item IDs, track placement, frame positions, and media-pool IDs without saving or changing the Resolve project. The probe rejects missing or duplicate item IDs, refuses to overwrite an earlier snapshot, and rejects comparisons between different project IDs. Its mock tests pass. An API method named “unique” alone is not evidence that the value persists after every kind of edit, save/reopen, or import/export.
+
+On 2026-11-08, the installed **Free** Resolve 21.1.2 internal Lua console returned a distinct API ID for each of the five clips in `Frameline Identity Probe`, including three uses of `mountain-alps.jpg`. The existing `Identity Reorder Import` timeline was duplicated as `Frameline API Identity Test`; its five clip IDs differed from the original timeline's IDs. On the duplicate, the 97-frame Alps occurrence retained ID `03bfe5cd-537d-4dcf-ae7f-cc3a04737fa4` after `SetName("Alps API rename")` and `SetPosition({startFrame=457})` returned true. Its start/end changed from 240/337 to 457/554. `SaveProject()` returned true. This shows that duplication creates new occurrence IDs while rename and move retained one ID within the session.
+
+The saved project was then switched away from, reopened, and Resolve itself was fully quit and relaunched. After reopening `Frameline Identity Probe`, the project ID remained `bf825329-ae26-45ea-9a9a-73e9717df0be`, the duplicated timeline ID remained `b7e6a3b4-75dd-41cb-8079-764c7ff8361a`, and **all five clip IDs remained unchanged**. The renamed and moved Alps occurrence still had ID `03bfe5cd-537d-4dcf-ae7f-cc3a04737fa4` at frames 457–554. This is live evidence that these API IDs persisted across save/reopen and a full application restart in this disposable project. The duplicate test timeline remains in the saved disposable project; the original timeline was not changed by this experiment.
+
+### API trim, deletion, and XML mapping check (2026-11-08)
+
+The saved `Frameline API Identity Test` timeline was duplicated again as `Frameline API Trim Delete Test` (timeline ID `67801c2e-92ab-4073-8d49-a078f6648641`). Its repeated Alps occurrence had ID `93b4a8e3-143a-470a-b469-94c8b3abdb34` at frames 457–554. `SetRightOffset` increased the right offset by 10 frames, shortened that occurrence to frames 457–544, and **retained the same API ID**. `DeleteClips` then removed a different Alps occurrence (ID `fb4d3595-fd71-4218-9c26-51399e9407f3`) without ripple; that ID disappeared from `GetItemListInTrack`, while the four surviving IDs stayed the same. These checks were performed only on the duplicate timeline.
+
+Resolve API exports of the before and after timelines are preserved in `api-identity-before.fcpxmld` and `api-trim-delete-after.fcpxmld`. The XML has the expected 97-to-87-frame trim and five-to-four-clip deletion, but **does not contain the API occurrence IDs**. The read-only XML matcher correctly reports the three repeated Alps occurrences before and two after as ambiguous. A sidecar cannot safely attach those API IDs to an arbitrary FCPXML export solely by resource ref, name, media path, or source-in. A same-session API-to-export mapping based on exact track/timing still needs separate validation, and would need to reject collisions and any stale export.
+
+For a relink test, the project was exported as a `.drp` and imported under a different name, `Frameline API Relink Test`. The imported copy displayed the test timeline as empty/one frame in Resolve, so it was **not used for relinking**. The reason for that failed copy is not yet established. The original saved `Frameline Identity Probe` project and source media were not relinked. Use a verified isolated project copy before testing `MediaPool.RelinkClips`.
+
+Use a disposable Resolve project and save each observation to a new file. With Resolve Studio external scripting enabled, run the bundled ResolvePython interpreter:
+
+```sh
+"/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Applications/ResolvePython" \
+  phase-0/resolve-xml-proof/resolve_api_identity.py capture /private/tmp/resolve-before.json
+```
+
+Resolve Free's internal scripting console worked for the live API check. Select Python in that console to run the snapshot probe with the absolute script path, then call `capture_to` on its returned namespace:
+
+```python
+import runpy
+probe = runpy.run_path('/absolute/path/to/resolve_api_identity.py')
+probe['capture_to'](resolve, '/private/tmp/resolve-before.json')
+```
+
+Repeat after a relink and for additional timeline structures. Compare two observations with:
+
+```sh
+python3 phase-0/resolve-xml-proof/resolve_api_identity.py compare \
+  /private/tmp/resolve-before.json /private/tmp/resolve-after.json
+```
+
+Keep each pair in the **same project**; the comparison rejects different project IDs. Confirm whether IDs survive each operation and whether a copied project or FCPXML import produces new IDs. Even if API IDs persist, using them for an FCPXML-based write still needs a proven mapping between API items and exported XML occurrences, or a supported API write path.
+
 The initial UI automation attempts failed to navigate the file picker, but did not indicate a Resolve compatibility problem. The working method was the macOS Go to Folder shortcut (`super+shift+g`) in the import picker; the fixture path was already entered in the sheet, and pressing Return navigated to the selected file.
 
 ## Next checks

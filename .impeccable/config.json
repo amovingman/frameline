@@ -28,6 +28,15 @@
         ],
         "createdAt": "2026-10-29T17:47:55.014Z",
         "reason": "Agent: selected queue metadata uses a darker #65473e override with measured 5.94:1 contrast; the hook reads the base token"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "src/index.html"
+        ],
+        "createdAt": "2026-11-09T02:37:50.554Z",
+        "reason": "Agent: comparison panel has 20px inset beside side borders; mobile removes those borders and adds 24px above its top rule. Detector combines responsive border and padding states."
       }
     ]
   }

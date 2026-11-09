@@ -11,6 +11,7 @@ function getProjectFormat(filePath) {
 function createAppState() {
   return {
     selectedProject: null,
+    scan: null,
     scanStatus: 'idle',
     currentBranch: 'main',
     error: null
@@ -24,6 +25,7 @@ function selectProject(state, filePath) {
   return {
     ...state,
     selectedProject: { name: path.basename(filePath), format },
+    scan: null,
     scanStatus: 'not-scanned',
     error: null
   };

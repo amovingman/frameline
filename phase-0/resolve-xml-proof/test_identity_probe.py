@@ -13,6 +13,8 @@ REPEATED_BEFORE = Path(__file__).with_name("identity-repeated-before.fcpxmld")
 REPEATED_AFTER = Path(__file__).with_name("identity-repeated-after-trim.fcpxmld")
 REORDERED_INPUT = Path(__file__).with_name("identity-reordered-input.fcpxmld")
 REORDERED_EXPORT = Path(__file__).with_name("identity-reordered-export.fcpxmld")
+API_BEFORE = Path(__file__).with_name("api-identity-before.fcpxmld")
+API_AFTER = Path(__file__).with_name("api-trim-delete-after.fcpxmld")
 
 
 def clip_elements(bundle):
@@ -84,6 +86,20 @@ class IdentityProbeTests(unittest.TestCase):
         self.assertEqual(returned[3].get("name"), "mountain-alps.jpg")
         self.assertFalse(compare(scan(REPEATED_AFTER), scan(REORDERED_EXPORT))[
             "candidate_matches_unambiguous"])
+
+    def test_api_trim_delete_exports_do_not_expose_occurrence_ids(self):
+        before, after = scan(API_BEFORE), scan(API_AFTER)
+        self.assertEqual([clip["duration_frames"] for clip in before["clips"]],
+                         [72, 96, 72, 120, 97])
+        self.assertEqual([clip["duration_frames"] for clip in after["clips"]],
+                         [72, 96, 72, 87])
+        self.assertTrue(all(clip["id"] is None for clip in before["clips"] + after["clips"]))
+        self.assertNotIn("93b4a8e3-143a-470a-b469-94c8b3abdb34",
+                         (API_AFTER / "Info.fcpxml").read_text())
+        result = compare(before, after)
+        self.assertFalse(result["candidate_matches_unambiguous"])
+        self.assertEqual(result["ambiguous"][0]["before"], [0, 3, 4])
+        self.assertEqual(result["ambiguous"][0]["after"], [0, 3])
 
 
 if __name__ == "__main__":

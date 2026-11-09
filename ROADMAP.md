@@ -43,6 +43,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 ### 0.3 Prove safe read and write access
 - [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>` and Resolve-exported `<video>` elements.
 - [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. The repeated-media Resolve import/export proof shows resource refs and clip names are unstable; a sidecar mapping or supported API identity is still required.
+- [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained all five IDs through save/reopen and a full Resolve restart. IDs also survived rename, move, and trim on duplicate timelines; deletion removed only the deleted occurrence's ID. FCPXML exports still omit those IDs and leave repeated-media mapping ambiguous. Relink and safe API-to-export mapping remain open; this does not close the stable-ID gate.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
 - [ ] Measure scan, write, and reopen behavior on realistically sized projects.
@@ -60,12 +61,13 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 - [ ] Design migrations and backup/restore behavior for Frameline's local metadata.
 
 ### 1.2 Project adapter and normalized manifest
-- [ ] Define a versioned, editor-independent manifest schema.
+- [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
 - [ ] Preserve editor-specific fields required for lossless round-trip writing.
 - [ ] Build an adapter interface for scan, stable-ID mapping, apply, save, and validate.
-- [ ] Implement the chosen editor adapter, starting read-only.
+- [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
+- [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
-- [ ] Represent frame-accurate timing as integer frames or exact rational frame rates, not rounded seconds.
+- [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [ ] Handle malformed, unsupported, locked, and currently open project files with clear recovery instructions.
 - [ ] Create schema validation and migration tests against the compatibility corpus.
 
@@ -130,6 +132,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 - [ ] Clean up incomplete temporary copies safely after failed operations.
 
 ### 2.5 Local media inventory and relinking
+- [x] Check referenced `file:` media paths for local availability in the read-only FCPXML scan, without loading media contents or exposing paths to the renderer; relinking and richer asset states remain open.
 - [ ] Scan referenced asset paths without reading large media fully into memory.
 - [ ] Show available, missing, offline-volume, proxy-only, and excluded states.
 - [ ] Resolve moved files by user-selected folder and metadata hints.
@@ -252,7 +255,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 ## Key decisions to resolve early
 
-1. Which editor and project format are first? A Resolve FCPXML probe is now available under `phase-0/resolve-xml-proof/`; it validates a synthetic fixture only, not Resolve compatibility.
+1. Which editor and project format are first? The Resolve FCPXML probe under `phase-0/resolve-xml-proof/` includes synthetic and Resolve-exported evidence, while safe write support remains unproven.
 2. Can its supported API reliably enumerate and write the timeline objects needed for clip-level changes?
 3. Which platforms and editor versions must the first release support?
 4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests?
@@ -261,4 +264,4 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic revisions, timeline, and media. File selection works, but project parsing, real manifests, commit history, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap deliberately places editor selection and a real round-trip proof before those features.
+The repository contains an Electron UI prototype with synthetic revision review. File selection, a read-only FCPXML timeline manifest, and local media availability checks work for a narrow top-level picture sequence. Stable clip mapping, durable history, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap places safe editor identity and write validation before those features.

@@ -22,7 +22,7 @@ DaVinci Resolve 21.1.2 is the first integration candidate, using FCPXML for time
 
 ## Capabilities and Constraints
 
-The current app is an Electron UI prototype. It can open a system file picker and show the selected filename. Revision, timeline, and media examples are synthetic and must be labeled as such. Parsing, merging, and pulling are not implemented, so the pull action stays disabled.
+The current app is an Electron UI prototype. It can scan and rescan the first top-level picture sequence in an FCPXML file or bundle read only, show exact frame counts, and check referenced local media files for availability without exposing their paths to the renderer. The review and revision examples are synthetic and labeled as such. Stable clip mapping, merging, and pulling are not implemented, so the pull action stays disabled.
 
 ## Evidence on Hand
 
