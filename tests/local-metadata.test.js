@@ -116,3 +116,30 @@ test('migrates v2 history into main and keeps branch histories separate', async 
   await assert.rejects(store.createBranch(projectId, '../escape', main.id), { code: 'branch-name-invalid' });
   await assert.rejects(store.saveRevision(projectId, manifest, 'Stale', oldId, 'main'), { code: 'revision-head-changed' });
 }));
+
+test('separate store instances cannot replace the same branch head', async () => withStore(async directory => {
+  const firstStore = createLocalMetadataStore(directory);
+  const secondStore = createLocalMetadataStore(directory);
+  const projectId = (await firstStore.getProjectId('/private/cut.fcpxml')).id;
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  const outcomes = await Promise.allSettled([
+    firstStore.saveRevision(projectId, manifest, 'First writer', null, 'main'),
+    secondStore.saveRevision(projectId, manifest, 'Second writer', null, 'main')
+  ]);
+  assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
+  assert.equal(outcomes.filter(item => item.status === 'rejected').length, 1);
+  assert.equal(outcomes.find(item => item.status === 'rejected').reason.code, 'revision-head-changed');
+  assert.equal((await firstStore.listRevisions(projectId)).length, 1);
+}));
+
+test('active metadata locks time out and abandoned locks are reclaimed', async () => withStore(async directory => {
+  const lockPath = path.join(directory, 'metadata.lock');
+  await fs.writeFile(lockPath, JSON.stringify({ pid: process.pid, token: 'active' }));
+  const store = createLocalMetadataStore(directory, { lockTimeoutMs: 120 });
+  await assert.rejects(store.getProjectId('/private/cut.fcpxml'), { code: 'metadata-locked' });
+  assert.equal((await fs.readdir(directory)).includes('metadata.json'), false);
+  await fs.writeFile(lockPath, JSON.stringify({ pid: 99999999, token: 'abandoned' }));
+  const recovered = await store.getProjectId('/private/cut.fcpxml');
+  assert.match(recovered.id, /^[a-f0-9-]{36}$/);
+  assert.equal((await fs.readdir(directory)).includes('metadata.lock'), false);
+}));

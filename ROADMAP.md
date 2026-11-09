@@ -83,7 +83,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Store parent revision, author, timestamp, message, editor version, manifest version, and content hash.
 - [x] Implement local branch creation, naming, switching, and branch-head updates for read-only scan revisions.
 - [x] Add a revision message and save flow for the current read-only scan; reject it if the FCPXML source changed since scanning.
-- [ ] Detect concurrent local writes and prevent silent branch-head replacement.
+- [x] Detect concurrent local writes and prevent silent branch-head replacement.
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
 - [ ] Provide local revision export/import for backup and transfer before cloud sync exists.
