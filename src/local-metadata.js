@@ -4,6 +4,7 @@ const { createHash, randomUUID } = require('node:crypto');
 const { validateScanManifest } = require('./scan-manifest');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { validateTransferBundle, verifyRecord } = require('./revision-transfer');
+const { verifyFcpXmlSource } = require('./fcpxml-adapter');
 
 const FILE_NAME = 'metadata.json';
 const BACKUP_NAME = 'metadata.json.bak';
@@ -19,6 +20,7 @@ class MetadataError extends Error {
 function validateMetadata(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || ![1, 2, 3].includes(value.schemaVersion)
     || !value.projects || typeof value.projects !== 'object' || Array.isArray(value.projects)) throw new MetadataError('metadata-invalid');
+  const projectIds = new Set();
   for (const [fingerprint, project] of Object.entries(value.projects)) {
     if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new MetadataError('metadata-invalid');
     if (value.schemaVersion === 1) {
@@ -31,6 +33,24 @@ function validateMetadata(value) {
       throw new MetadataError('metadata-invalid');
     }
     if (value.schemaVersion === 3) {
+      if (projectIds.has(project.id)) throw new MetadataError('metadata-invalid');
+      projectIds.add(project.id);
+      const byId = new Map(project.revisions.map(revision => [revision.id, revision]));
+      if (byId.size !== project.revisions.length || project.revisions.some(revision =>
+        revision.projectId !== project.id || (revision.parentRevisionId !== null && !byId.has(revision.parentRevisionId)))) {
+        throw new MetadataError('metadata-invalid');
+      }
+      const checked = new Set();
+      for (const revision of project.revisions) {
+        const seen = new Set();
+        let current = revision;
+        while (current && !checked.has(current.id)) {
+          if (seen.has(current.id)) throw new MetadataError('metadata-invalid');
+          seen.add(current.id);
+          current = byId.get(current.parentRevisionId);
+        }
+        for (const id of seen) checked.add(id);
+      }
       if (!project.branches || typeof project.branches !== 'object' || Array.isArray(project.branches)
         || !Object.hasOwn(project.branches, 'main') || !Object.hasOwn(project.branches, project.currentBranch)
         || Object.entries(project.branches).some(([name, headId]) => !branchNamePattern.test(name)
@@ -177,6 +197,53 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
+  function listRelinkCandidates(targetProjectId, sourceHash) {
+    return transact(async metadata => {
+      if (!/^[a-f0-9]{64}$/.test(sourceHash)) throw new MetadataError('relink-source-changed');
+      const target = Object.values(metadata.projects).find(item => item.id === targetProjectId);
+      if (!target) throw new MetadataError('metadata-project-missing');
+      if (target.revisions.length || Object.keys(target.branches).length !== 1
+        || target.branches.main !== null || target.currentBranch !== 'main') return [];
+      const candidates = [];
+      for (const project of Object.values(metadata.projects)) {
+        if (project.id === targetProjectId) continue;
+        const branch = project.currentBranch;
+        const headId = project.branches[branch];
+        const head = project.revisions.find(item => item.id === headId);
+        if (head?.contentHash !== sourceHash) continue;
+        try {
+          const bytes = await fs.readFile(path.join(directory, 'revisions', project.id, `${head.id}.json`), 'utf8');
+          verifyRecord(head, bytes);
+        } catch { continue; }
+        candidates.push({ projectId: project.id, branch, revisionId: head.id, message: head.message, createdAt: head.createdAt });
+      }
+      return candidates.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    });
+  }
+
+  function relinkProject(filePath, targetProjectId, sourceProjectId, sourceHash) {
+    return transact(async metadata => {
+      const targetFingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
+      const target = metadata.projects[targetFingerprint];
+      const sourceEntry = Object.entries(metadata.projects).find(([, project]) => project.id === sourceProjectId);
+      if (!target || target.id !== targetProjectId || !sourceEntry || targetProjectId === sourceProjectId
+        || target.revisions.length || Object.keys(target.branches).length !== 1
+        || target.branches.main !== null || target.currentBranch !== 'main') throw new MetadataError('relink-unavailable');
+      const [sourceFingerprint, source] = sourceEntry;
+      const head = source.revisions.find(item => item.id === source.branches[source.currentBranch]);
+      if (!head || head.contentHash !== sourceHash) throw new MetadataError('relink-source-changed');
+      try {
+        const bytes = await fs.readFile(path.join(directory, 'revisions', source.id, `${head.id}.json`), 'utf8');
+        verifyRecord(head, bytes);
+      } catch { throw new MetadataError('revision-corrupt'); }
+      await verifyFcpXmlSource(filePath, sourceHash);
+      delete metadata.projects[sourceFingerprint];
+      metadata.projects[targetFingerprint] = source;
+      await writeMetadata(directory, metadata);
+      return { id: source.id, currentBranch: source.currentBranch };
+    });
+  }
+
   function createBranch(projectId, name, expectedHeadId = null) {
     return transact(async metadata => {
       if (typeof name !== 'string' || !branchNamePattern.test(name)) throw new MetadataError('branch-name-invalid');
@@ -314,7 +381,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  return { getProjectId, listRevisions, getBranchState, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
+  return { getProjectId, listRevisions, getBranchState, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
-const { scanFcpXml } = require('./fcpxml-adapter');
+const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 
 let projectSession;
@@ -35,7 +35,7 @@ function createWindow() {
 }
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
-  projectSession = createProjectSession(scanFcpXml, createLocalMetadataStore(app.getPath('userData')));
+  projectSession = createProjectSession(fcpxmlProjectAdapter, createLocalMetadataStore(app.getPath('userData')));
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:choose', async () => {
@@ -77,6 +77,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('project:open-revision', async (_event, revisionId) => projectSession.openRevision(revisionId));
   ipcMain.handle('project:create-branch', async (_event, name) => projectSession.createBranch(name));
   ipcMain.handle('project:switch-branch', async (_event, name) => projectSession.switchBranch(name));
+  ipcMain.handle('project:relink', async (_event, projectId) => projectSession.relinkProject(projectId));
   ipcMain.handle('project:export-revisions', async () => {
     try {
       const bundle = await projectSession.exportRevisions();

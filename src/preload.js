@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('desktop', {
   openRevision: revisionId => ipcRenderer.invoke('project:open-revision', revisionId),
   createBranch: name => ipcRenderer.invoke('project:create-branch', name),
   switchBranch: name => ipcRenderer.invoke('project:switch-branch', name),
+  relinkProject: projectId => ipcRenderer.invoke('project:relink', projectId),
   exportRevisions: () => ipcRenderer.invoke('project:export-revisions'),
   importRevisions: () => ipcRenderer.invoke('project:import-revisions')
 });

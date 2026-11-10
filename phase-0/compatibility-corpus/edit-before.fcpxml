@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="f" frameDuration="1/24s"/>
+    <asset id="a" name="opening.mov"/>
+    <asset id="b" name="removed.mov"/>
+    <asset id="c" name="ending.mov"/>
+    <asset id="d" name="inserted.mov"/>
+  </resources>
+  <library><event><project name="Edit before"><sequence format="f" duration="6s"><spine>
+    <asset-clip ref="a" name="Opening" offset="0s" duration="2s"/>
+    <asset-clip ref="b" name="Removed later" offset="2s" duration="2s"/>
+    <asset-clip ref="c" name="Ending" offset="4s" duration="2s"/>
+  </spine></sequence></project></event></library>
+</fcpxml>

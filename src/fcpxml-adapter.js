@@ -45,6 +45,7 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
   const document = parser.parse(xml);
   const root = document.fcpxml;
   if (!root || !root.resources || !root.library) throw new ScanError('unsupported-structure');
+  if (String(root.version) !== '1.10') throw new ScanError('unsupported-fcpxml-version');
 
   const resources = new Map();
   for (const [kind, nodes] of Object.entries(root.resources)) {
@@ -69,6 +70,13 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
     if (!['asset-clip', 'video'].includes(kind)) {
       warnings.add(`Unsupported timeline element: ${kind}`);
       continue;
+    }
+    if (node.lane !== undefined && Number(node.lane) !== 0) {
+      warnings.add('Connected audio or video lanes are not scanned');
+      continue;
+    }
+    if (Object.values(node).some(value => value !== null && typeof value === 'object')) {
+      warnings.add('Nested clip content, including audio and effects, is not scanned');
     }
     const asset = resources.get(String(node.ref));
     if (!asset || asset.kind !== 'asset') {

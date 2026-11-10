@@ -37,7 +37,7 @@ test('checks local, missing, external, and unspecified sources without exposing 
     const sources = [pathToFileURL(localPath).href, pathToFileURL(path.join(dir, 'missing.mov')).href, 'https://example.invalid/remote.mov', null];
     const assets = sources.map((source, index) => `<asset id="a${index}" name="clip-${index}.mov"${source ? ` src="${source}"` : ''}/>`).join('');
     const clips = sources.map((_, index) => `<asset-clip ref="a${index}" offset="${index}s" duration="1s"/>`).join('');
-    const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/>${assets}</resources><library><event><project><sequence format="f" duration="4s"><spine>${clips}</spine></sequence></project></event></library></fcpxml>`;
+    const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/>${assets}</resources><library><event><project><sequence format="f" duration="4s"><spine>${clips}</spine></sequence></project></event></library></fcpxml>`;
     const xmlPath = path.join(dir, 'cut.fcpxml');
     await fs.writeFile(xmlPath, xml);
     const scan = await scanFcpXml(xmlPath);
@@ -49,7 +49,7 @@ test('checks local, missing, external, and unspecified sources without exposing 
 });
 
 test('reports unsupported timeline elements without inventing clips', () => {
-  const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project name="Test"><sequence format="f" duration="2s"><spine><asset-clip ref="a" offset="0s" duration="1s"/><transition offset="1s" duration="1s"/></spine></sequence></project></event></library></fcpxml>`;
+  const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project name="Test"><sequence format="f" duration="2s"><spine><asset-clip ref="a" offset="0s" duration="1s"/><transition offset="1s" duration="1s"/></spine></sequence></project></event></library></fcpxml>`;
   const scan = scanXml(xml);
   assert.equal(scan.clips.length, 1);
   assert.deepEqual(scan.warnings, ['Unsupported timeline element: transition']);
@@ -57,8 +57,9 @@ test('reports unsupported timeline elements without inventing clips', () => {
 
 test('rejects malformed XML and non-frame-aligned timing', () => {
   assert.throws(() => scanXml('<fcpxml>'), { code: 'malformed-xml' });
-  const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project><sequence format="f" duration="1s"><spine><asset-clip ref="a" offset="0s" duration="1/25s"/></spine></sequence></project></event></library></fcpxml>`;
+  const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project><sequence format="f" duration="1s"><spine><asset-clip ref="a" offset="0s" duration="1/25s"/></spine></sequence></project></event></library></fcpxml>`;
   assert.throws(() => scanXml(xml), { code: 'unsupported-timing' });
+  assert.throws(() => scanXml(xml.replace('version="1.10"', 'version="1.11"')), { code: 'unsupported-fcpxml-version' });
 });
 
 test('rejects absent bundle content and unsupported files', async () => {

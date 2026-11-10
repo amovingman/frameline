@@ -8,9 +8,11 @@ from resolve_api_identity import capture, capture_to, compare
 
 
 class FakeItem:
-    def __init__(self, item_id, start):
+    def __init__(self, item_id, start, linked=(), effects=None):
         self.item_id = item_id
         self.start = start
+        self.linked = linked
+        self.effects = effects or {}
 
     def GetUniqueId(self): return self.item_id
     def GetMediaPoolItem(self): return None
@@ -18,13 +20,19 @@ class FakeItem:
     def GetStart(self): return self.start
     def GetEnd(self): return self.start + 24
     def GetSourceStartFrame(self): return 0
+    def GetSourceEndFrame(self): return 24
+    def GetType(self): return "video"
+    def GetLinkedItems(self): return [FakeItem(item_id, 0) for item_id in self.linked]
+    def GetEffects(self, category): return self.effects.get(category, [])
 
 
 class FakeTimeline:
     def __init__(self, items): self.items = items
     def GetUniqueId(self): return "timeline-1"
     def GetName(self): return "Identity test"
+    def GetStartFrame(self): return 0
     def GetTrackCount(self, kind): return 1 if kind == "video" else 0
+    def GetTrackName(self, kind, index): return "V1"
     def GetItemListInTrack(self, kind, index): return self.items
 
 
@@ -57,6 +65,14 @@ class ResolveApiIdentityTests(unittest.TestCase):
                 capture(FakeResolve([FakeItem(item_id, index * 24)
                                      for index, item_id in enumerate(ids)]))
 
+    def test_capture_enumerates_track_links_and_effect_counts(self):
+        snapshot = capture(FakeResolve([FakeItem("a", 0, linked=("b",), effects={"ofx": [object()]})]))
+        timeline = snapshot["timelines"][0]
+        self.assertEqual(snapshot["schema_version"], 3)
+        self.assertEqual(timeline["tracks"], [{"type": "video", "index": 1, "name": "V1"}])
+        self.assertEqual(timeline["items"][0]["linked_item_ids"], ["b"])
+        self.assertEqual(timeline["items"][0]["effect_counts"], {"fusion": 0, "ofx": 1, "audio": 0})
+
     def test_snapshots_do_not_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "snapshot.json"
@@ -69,6 +85,18 @@ class ResolveApiIdentityTests(unittest.TestCase):
         after = capture(FakeResolve([FakeItem("a", 0)]))
         after["project_id"] = "different-project"
         with self.assertRaises(ValueError):
+            compare(before, after)
+
+    def test_duplicate_ids_in_loaded_snapshot_stop_comparison(self):
+        before = capture(FakeResolve([FakeItem("a", 0), FakeItem("b", 24)]))
+        after = capture(FakeResolve([FakeItem("a", 0)]))
+        before["timelines"][0]["items"][1]["id"] = "a"
+        with self.assertRaisesRegex(ValueError, "duplicate item IDs"):
+            compare(before, after)
+
+        before = capture(FakeResolve([FakeItem("a", 0)]))
+        before["timelines"].append(before["timelines"][0].copy())
+        with self.assertRaisesRegex(ValueError, "duplicate timeline IDs"):
             compare(before, after)
 
 

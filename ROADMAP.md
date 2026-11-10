@@ -32,25 +32,26 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Research Free Resolve 21.1.2 timeline exchange feasibility: FCPXML timeline import/export is available in the installed build; edition-specific availability still needs confirmation.
 - [ ] Confirm Free vs Studio availability of the proven exchange path; do not infer it from scripting announcements alone.
 - [x] Resolve 21.1.2 (build 21.1.20010) imported a disposable three-clip FCPXML fixture, exported it, and reimported a modified copy. See `phase-0/resolve-xml-proof/README.md`.
-- [ ] Compare project-format documentation, scripting/plugin APIs, licensing, and test-project availability.
+- [x] Compare FCPXML, Resolve scripting, and native project paths, licensing, and available fixtures in `phase-0/INTEGRATION_ASSESSMENT.md`; the final choice remains open.
 - [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video.
-- [ ] Confirm whether it can write edits through a supported API or a documented, stable file format.
-- [ ] Document unsupported constructs and minimum supported editor versions.
+- [x] Confirm a supported API write path for limited clip edits: live Free-edition duplicate-timeline move, trim, and deletion plus documented methods; app-level safe apply remains unproven.
+- [x] Document the experimental FCPXML 1.10/Resolve 21.1.2 boundary and unsupported constructs in `phase-0/SUPPORT_MATRIX.md`; no release-supported minimum is declared yet.
 - [x] Record the candidate and current evidence in `PRODUCT.md` and `SYSTEM_DESIGN.md`; keep the final format choice open pending stable identity and broader timeline coverage.
 
 ### 0.2 Build a representative compatibility corpus
-- [ ] Create consented or synthetic projects covering common timeline structures.
-- [ ] Include trims, moves, insertions, deletions, linked clips, transitions, effects, nested sequences, and audio.
-- [ ] Keep untouched originals and expected parsed manifests under a fixture policy.
+- [x] Create synthetic FCPXML fixtures covering common timeline structures in `phase-0/compatibility-corpus/`; editor-backed projects remain open.
+- [x] Include synthetic trims, moves, insertions, deletions, connected audio, transitions, effects, and nested-clip placeholders; Resolve-backed coverage remains open.
+- [x] Keep untouched synthetic originals and expected parsed manifests under a fixture policy; Resolve exports and broader structures remain to be added.
 - [ ] Add projects saved from every editor version in the declared support range.
 
 ### 0.3 Prove safe read and write access
 - [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>` and Resolve-exported `<video>` elements.
 - [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. The repeated-media Resolve import/export proof shows resource refs and clip names are unstable; a sidecar mapping or supported API identity is still required.
 - [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained all five IDs through save/reopen and a full Resolve restart. IDs also survived rename, move, and trim on duplicate timelines; deletion removed only the deleted occurrence's ID. FCPXML exports still omit those IDs and leave repeated-media mapping ambiguous. Relink and safe API-to-export mapping remain open; this does not close the stable-ID gate.
+- [x] Add a read-only API snapshot ↔ flat FCPXML timing matcher that returns candidates and rejects ambiguity; it always refuses to authorize apply and does not establish persistent IDs.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
-- [ ] Measure scan, write, and reopen behavior on realistically sized projects.
+- [ ] Measure scan, write, and reopen behavior on realistically sized projects. A synthetic 1k–10k-clip scanner baseline is recorded in `phase-0/SCAN_BENCHMARK.md`; real projects and write/reopen remain open.
 - [ ] Stop or revisit editor choice if stable IDs and safe validation are not achievable.
 
 **Exit:** A repeatable test demonstrates scan → normalized manifest → one edit to a copy → editor reopen, with no collateral changes.
@@ -67,7 +68,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 ### 1.2 Project adapter and normalized manifest
 - [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
 - [ ] Preserve editor-specific fields required for lossless round-trip writing.
-- [ ] Build an adapter interface for scan, stable-ID mapping, apply, save, and validate.
+- [x] Define and use an adapter contract for scan, source verification, stable-ID mapping, apply, save, and editor validation; the FCPXML adapter explicitly refuses unproven operations.
 - [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
 - [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.
 - [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
@@ -79,8 +80,8 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 ### 1.3 Local revisions and branches
 - [x] Assign durable local project IDs for exports selected at the same path, without storing or exposing that path.
 - [x] Store immutable local scan revision records for exports selected at the same path.
-- [ ] Add an explicit ID relink workflow before treating moved exports as the same project.
-- [ ] Store parent revision, author, timestamp, message, editor version, manifest version, and content hash.
+- [x] Add an explicit ID relink workflow for a moved export whose content matches a verified saved branch head; refuse destinations with existing history and changed source files.
+- [x] Store parent revision, author label, timestamp, message, editor version as explicitly unknown, manifest version, and content hash.
 - [x] Implement local branch creation, naming, switching, and branch-head updates for read-only scan revisions.
 - [x] Add a revision message and save flow for the current read-only scan; reject it if the FCPXML source changed since scanning.
 - [x] Detect concurrent local writes and prevent silent branch-head replacement.
@@ -95,7 +96,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Present sequence, track, clip, timecode, property, and before/after values.
 - [ ] Filter and group changes by sequence, track, status, and change type.
 - [ ] Add tests for no-op, same change on both sides, independent edits, rename, and reorder.
-- [ ] Keep media inventory and edit-decision changes distinct.
+- [x] Show read-only sequence and media-inventory differences between a revision and its verified parent, while keeping clip-level edit decisions explicitly unavailable.
 
 **Exit:** A real project can be scanned repeatedly; local commits are immutable and a useful diff can be inspected without writing to the project.
 
@@ -272,4 +273,4 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic revision review. File selection, a read-only FCPXML timeline manifest, and local media availability checks work for a narrow top-level picture sequence. Stable clip mapping, durable history, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap places safe editor identity and write validation before those features.
+The repository contains an Electron UI prototype with synthetic revision review. File selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and an explicit matching-export ID relink work for a narrow top-level picture sequence. A synthetic compatibility corpus records expected scans and warns about unsupported nested content and connected lanes. Stable clip mapping, clip-level revision comparison, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap places safe editor identity and write validation before those features.
