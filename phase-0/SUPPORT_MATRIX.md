@@ -7,10 +7,10 @@ The desktop scanner now accepts **FCPXML 1.10** only. The selected `.fcpxml` fil
 | Construct | Current read-only behavior |
 |---|---|
 | First sequence's top-level picture `<asset-clip>` and Resolve `<video>` | Scans order by frame offset, duration, source-in, enabled state, and media display name. IDs remain unresolved. |
-| Additional sequences and video tracks | Not represented; warns for additional projects. Connected lanes are skipped with a warning. |
+| Additional sequences and video tracks | Not represented; warns for additional projects. Connected lanes are skipped with a warning, including lanes attached inside a gap in the live Resolve fixture. |
 | Transitions, nested sequences, titles, generators, multicam, compound/sync clips | Not represented; unknown spine element is named in a warning. |
 | Audio attached inside a picture clip and effects/adjustments | Picture clip is counted, but nested content is not represented; warns. |
 | Media references | `file:` existence is checked without loading contents; external, absent, and inaccessible sources stay unresolved. Media paths remain in the main process. |
 | Round-trip editing | No app write or pull path. The disposable FCPXML copy edit and Resolve reimport prove only one isolated still-image duration change. |
 
-The compatibility corpus includes synthetic edit pairs and one narrow Resolve-backed still-image proof. To declare a release minimum, validate Free and Studio behavior, moving footage, audio, linked items, transitions, effects, nested timelines, and multiple tracks on copies created by each proposed supported version.
+The compatibility corpus includes synthetic edit pairs, a narrow Resolve-backed still-image proof, and a Free 21.1.2 moving-media structure fixture with linked audio, multiple tracks, a transition, an OFX effect, and a compound clip. The live export shows that the scanner sees only the primary picture clip and warns about omitted nested and gap-attached content. To declare a release minimum, validate intended-user projects and Studio behavior on copies created by each proposed supported version.

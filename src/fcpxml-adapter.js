@@ -66,7 +66,12 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
   const referencedAssets = new Map();
   const warnings = new Set();
   for (const { kind, node } of entries) {
-    if (kind === 'gap') continue;
+    if (kind === 'gap') {
+      if (Object.values(node).some(value => value !== null && typeof value === 'object')) {
+        warnings.add('Content attached to a gap, including additional tracks, is not scanned');
+      }
+      continue;
+    }
     if (!['asset-clip', 'video'].includes(kind)) {
       warnings.add(`Unsupported timeline element: ${kind}`);
       continue;

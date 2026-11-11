@@ -19,3 +19,6 @@ out/
 # Generated design review captures
 .taste-skill/unslop-review/
 .impeccable/hook.cache.json
+
+# Regenerable Resolve compatibility media
+/phase-0/compatibility-corpus/moving-bars-with-audio.mov

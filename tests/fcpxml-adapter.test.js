@@ -29,6 +29,18 @@ test('scans a Resolve bundle and never sends source paths to the renderer', asyn
   assert.doesNotMatch(JSON.stringify(scan), /file:\/\/|Users\/user|Downloads/);
 });
 
+test('warns when a live Resolve export hides extra tracks inside a gap', async () => {
+  const live = path.join(__dirname, '..', 'phase-0', 'compatibility-corpus', 'resolve-structure-live.fcpxmld');
+  const scan = await scanFcpXml(live);
+  assert.equal(scan.sequence.durationFrames, 241);
+  assert.equal(scan.clips.length, 1);
+  assert.deepEqual(scan.warnings, [
+    'Nested clip content, including audio and effects, is not scanned',
+    'Content attached to a gap, including additional tracks, is not scanned'
+  ]);
+  assert.doesNotMatch(JSON.stringify(scan), /file:\/\/|Users\/user|Downloads/);
+});
+
 test('checks local, missing, external, and unspecified sources without exposing paths', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-media-'));
   try {
