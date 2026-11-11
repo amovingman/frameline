@@ -1,6 +1,6 @@
 # Frameline product roadmap
 
-A dependency-first roadmap from the current Electron prototype to a safe, collaborative version-control workflow for video projects. The first product release should support **one editor and one project format**. Choose that editor before building a parser or promising round-trip editing; those capabilities depend on its documented project format, scripting API, or plugin API.
+A dependency-first roadmap from the current Electron prototype to a safe, collaborative version-control workflow for video projects. The initial integration target is **DaVinci Resolve Free 21.1.2 on macOS with FCPXML 1.10**. Release support remains gated by complete read coverage, stable identity, and a recoverable write transaction.
 
 ## Product outcome
 
@@ -29,14 +29,14 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 0.1 Select the initial editor and format
 - [ ] List likely first users and the editor/version they use most.
-- [x] Research Free Resolve 21.1.2 timeline exchange feasibility: FCPXML timeline import/export is available in the installed build; edition-specific availability still needs confirmation.
-- [ ] Confirm Free vs Studio availability of the proven exchange path; do not infer it from scripting announcements alone.
+- [x] Research Free Resolve 21.1.2 timeline exchange feasibility: FCPXML timeline import/export is available in the installed build.
+- [x] Narrow the initial integration target to the tested Free 21.1.2 build on macOS. Studio and other versions are outside this target.
 - [x] Resolve 21.1.2 (build 21.1.20010) imported a disposable three-clip FCPXML fixture, exported it, and reimported a modified copy. See `phase-0/resolve-xml-proof/README.md`.
 - [x] Compare FCPXML, Resolve scripting, and native project paths, licensing, and available fixtures in `phase-0/INTEGRATION_ASSESSMENT.md`; the final choice remains open.
 - [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video.
 - [x] Confirm a supported API write path for limited clip edits: live Free-edition duplicate-timeline move, trim, and deletion plus documented methods; app-level safe apply remains unproven.
-- [x] Document the experimental FCPXML 1.10/Resolve 21.1.2 boundary and unsupported constructs in `phase-0/SUPPORT_MATRIX.md`; no release-supported minimum is declared yet.
-- [x] Record the candidate and current evidence in `PRODUCT.md` and `SYSTEM_DESIGN.md`; keep the final format choice open pending stable identity and broader timeline coverage.
+- [x] Document the experimental FCPXML 1.10/Resolve Free 21.1.2 boundary and unsupported constructs in `phase-0/SUPPORT_MATRIX.md`; no release-supported minimum is declared yet.
+- [x] Record the initial Free/FCPXML target and current evidence in `PRODUCT.md` and `SYSTEM_DESIGN.md`; the write path remains open pending stable identity and broader timeline coverage.
 
 ### 0.2 Build a representative compatibility corpus
 - [x] Create synthetic FCPXML fixtures covering common timeline structures in `phase-0/compatibility-corpus/`; editor-backed projects remain open.
@@ -45,7 +45,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Add projects saved from every editor version in the declared support range.
 
 ### 0.3 Prove safe read and write access
-- [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>` and Resolve-exported `<video>` elements.
+- [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>`, Resolve-exported `<video>`, and single-picture-source `<clip>` wrappers. The Free editor-backed thousand-clip export yields 1,001 primary picture clips; audio, effects, and additional tracks remain omitted with warnings.
 - [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. The repeated-media Resolve import/export proof shows resource refs and clip names are unstable; a sidecar mapping or supported API identity is still required.
 - [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained all five IDs through save/reopen and a full Resolve restart. IDs also survived rename, move, and trim on duplicate timelines; deletion removed only the deleted occurrence's ID. FCPXML exports still omit those IDs and leave repeated-media mapping ambiguous. Relink and safe API-to-export mapping remain open; this does not close the stable-ID gate.
 - [x] Add a read-only API snapshot ↔ flat FCPXML timing matcher that returns candidates and rejects ambiguity; it always refuses to authorize apply and does not establish persistent IDs.

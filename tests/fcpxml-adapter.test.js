@@ -67,6 +67,18 @@ test('reports unsupported timeline elements without inventing clips', () => {
   assert.deepEqual(scan.warnings, ['Unsupported timeline element: transition']);
 });
 
+test('scans Resolve picture clip wrappers using wrapper timing and a single video source', () => {
+  const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="source.mov"/></resources><library><event><project name="Test"><sequence format="f" duration="4s"><spine><clip name="Trimmed" offset="1s" start="2s" duration="1s" enabled="0"><adjust-transform/><video ref="a" offset="0s" start="0s" duration="4s"/></clip><clip offset="2s" start="0s" duration="1s"><audio ref="a"/></clip><clip offset="3s" start="0s" duration="1s"><video ref="a"/><video ref="a"/></clip></spine></sequence></project></event></library></fcpxml>`;
+  const scan = scanXml(xml);
+  assert.deepEqual(scan.clips.map(({ name, offsetFrames, sourceInFrames, durationFrames, enabled }) => ({ name, offsetFrames, sourceInFrames, durationFrames, enabled })), [
+    { name: 'Trimmed', offsetFrames: 24, sourceInFrames: 48, durationFrames: 24, enabled: false }
+  ]);
+  assert.deepEqual(scan.warnings, [
+    'Nested clip content, including audio and effects, is not scanned',
+    'A clip has no single picture source and is not scanned'
+  ]);
+});
+
 test('rejects malformed XML and non-frame-aligned timing', () => {
   assert.throws(() => scanXml('<fcpxml>'), { code: 'malformed-xml' });
   const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project><sequence format="f" duration="1s"><spine><asset-clip ref="a" offset="0s" duration="1/25s"/></spine></sequence></project></event></library></fcpxml>`;

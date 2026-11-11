@@ -19,7 +19,7 @@ For the initial release, target a local desktop project with cloud history and s
 
 ### Current integration evidence (2026-11-03)
 
-DaVinci Resolve 21.1.2 (build 21.1.20010) is the initial editor candidate. A synthetic FCPXML 1.10 timeline with three still-image clips imported successfully; Resolve exported it as an FCPXML bundle, and a separate copy with one clip extended by one second reimported as a 10-second timeline. The detailed procedure and artifacts are in `phase-0/resolve-xml-proof/README.md`.
+DaVinci Resolve Free 21.1.2 (build 21.1.20010) on macOS is the initial editor target. A synthetic FCPXML 1.10 timeline with three still-image clips imported successfully; Resolve exported it as an FCPXML bundle, and a separate copy with one clip extended by one second reimported as a 10-second timeline. A later Free editor-backed export contains 1,001 primary picture clips that the read-only scanner enumerates. The detailed procedure and artifacts are in `phase-0/resolve-xml-proof/README.md` and `phase-0/SCAN_BENCHMARK.md`.
 
 This only proves basic still-image timeline exchange. Resolve's export converted `<asset-clip>` elements to generic `<video>` elements and omitted the fixture's clip IDs. A repeated-media reorder test also showed that Resolve reassigns FCPXML resource references by position and discards a custom clip name. Neither field can serve as a stable clip ID. Before committing to FCPXML as the write format, the spike must prove a reliable sidecar mapping or supported API identity across moves, trims, deletions, and relinks, then cover moving footage, audio, and track layout. Do not treat FCPXML interchange as native Resolve project-file support.
 

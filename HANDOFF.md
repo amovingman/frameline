@@ -1,5 +1,9 @@
 # Work handoff — 2026-11-09
 
+## Continuation — 2026-11-11
+
+The five original handoff items were pursued in order using only named Frameline test projects. Live Free schema-3 capture, before/after mapping, moving-media structure coverage, and an editor-backed thousand-clip scan/export/reopen copy are recorded in the phase-0 evidence files. The user narrowed the initial integration to Resolve **Free 21.1.2 on macOS**; Studio and other versions are outside this target. The next dependency-first scanner update recognizes single-picture-source `<clip>` wrappers, so the Free thousand-clip export now yields all 1,001 primary picture clips. Added tracks, linked audio, effects, stable API-to-export identity, and a recoverable apply transaction remain open. The original checklist below is retained as the dated handoff record.
+
 ## Current state
 
 Work is on `codex/revision-backups`. The local commits through `009a683` add a read-only FCPXML revision workflow, synthetic compatibility corpus, conservative API/export matching experiment, parent-revision sequence/media inventory comparison, verified relink for a moved export, explicit adapter capability refusals, version gating, and local history graph validation. The handoff commit strengthens the Resolve snapshot probe against duplicate IDs. See `ROADMAP.md` for checked items and `phase-0/INTEGRATION_ASSESSMENT.md` for the integration evidence.

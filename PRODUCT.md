@@ -18,7 +18,7 @@ Version editing decisions, compare project revisions, and pull clip-level change
 
 ## Operating Context
 
-DaVinci Resolve 21.1.2 is the first integration candidate, using FCPXML for timeline exchange. A local synthetic proof has confirmed import, export, and a changed-copy reimport for a simple three-still timeline. This does not yet establish support for native Resolve project files or complex timeline constructs. Project files and media are local during the first prototype; cloud history and sharing are later parts of the system design.
+DaVinci Resolve Free 21.1.2 on macOS is the initial integration target, using FCPXML 1.10 for read-only timeline exchange while safe write access is researched. A local synthetic proof has confirmed import, export, and a changed-copy reimport for a simple three-still timeline. A Free editor-backed thousand-clip export can now be scanned for its primary picture clips. This does not yet establish release support for native Resolve project files or complex timeline constructs. Project files and media are local during the first prototype; cloud history and sharing are later parts of the system design.
 
 ## Capabilities and Constraints
 
