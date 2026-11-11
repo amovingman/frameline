@@ -1,0 +1,535 @@
+{
+  "schema_version": 3,
+  "resolve_version": "21.1.2.10",
+  "project_id": "f9d4820a-47a6-42ba-b097-86a7fc23cfaf",
+  "project_name": "Frameline API Relink Test",
+  "timelines": [
+    {
+      "id": "4c13ad60-035c-4c9e-9abf-73ea3201992f",
+      "name": "Frameline Resolve Test",
+      "start_frame": 0,
+      "tracks": [
+        {
+          "type": "video",
+          "index": 1,
+          "name": "Video 1"
+        },
+        {
+          "type": "audio",
+          "index": 1,
+          "name": "Audio 1"
+        }
+      ],
+      "items": [
+        {
+          "id": "84f5ca3b-6eeb-4075-b0c6-e04a96fe406a",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 0,
+          "end_frame": 72,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "d9132c25-e5cc-4b75-871a-0a5df9900cec",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-greenland.jpg",
+          "start_frame": 72,
+          "end_frame": 144,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "b11195f8-a452-4499-9bb1-ef85937c7265",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "45c9f095-a719-440f-a491-278f9d2b6369",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-summit.jpg",
+          "start_frame": 144,
+          "end_frame": 216,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "25c6a3ac-7f46-4605-818e-3b3ffe39d4ec",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "c00eed3b-fff9-413e-ada9-cce165ba7772",
+      "name": "Frameline Modified Test",
+      "start_frame": 0,
+      "tracks": [
+        {
+          "type": "video",
+          "index": 1,
+          "name": "Video 1"
+        },
+        {
+          "type": "audio",
+          "index": 1,
+          "name": "Audio 1"
+        }
+      ],
+      "items": [
+        {
+          "id": "56d60d37-2cae-479f-b5b9-469208db96f0",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 0,
+          "end_frame": 72,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "e11fa563-9dab-4016-8cbb-80fd2565bb7a",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-greenland.jpg",
+          "start_frame": 72,
+          "end_frame": 168,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "b11195f8-a452-4499-9bb1-ef85937c7265",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "c967158b-a9bf-4f63-8a30-99c7f840e322",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-summit.jpg",
+          "start_frame": 168,
+          "end_frame": 240,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "25c6a3ac-7f46-4605-818e-3b3ffe39d4ec",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "4c57cbc6-8cf0-420f-8ea0-e66992ab10c2",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 240,
+          "end_frame": 360,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "30319a80-6d5d-4b2f-aa4d-9c90ab90bd38",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 360,
+          "end_frame": 457,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "7a8e5968-a5b5-4bb4-be5b-f7c1b0f15356",
+      "name": "Identity Reimport",
+      "start_frame": 0,
+      "tracks": [
+        {
+          "type": "video",
+          "index": 1,
+          "name": "Video 1"
+        },
+        {
+          "type": "audio",
+          "index": 1,
+          "name": "Audio 1"
+        }
+      ],
+      "items": [
+        {
+          "id": "bcb7361d-50da-4b94-85f0-158d4728d7de",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 0,
+          "end_frame": 72,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "da3e1933-7a66-4457-b286-caab0183ee50",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-greenland.jpg",
+          "start_frame": 72,
+          "end_frame": 168,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "b11195f8-a452-4499-9bb1-ef85937c7265",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "15c47e23-b719-402e-ae83-a5e3482757dd",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-summit.jpg",
+          "start_frame": 168,
+          "end_frame": 240,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "25c6a3ac-7f46-4605-818e-3b3ffe39d4ec",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "d8785b90-eaad-4c95-b514-da0eb77353af",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 240,
+          "end_frame": 360,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "906210aa-2790-4623-8bb6-44e1ad96a06a",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 360,
+          "end_frame": 457,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "f1bd9091-1347-4cb7-a694-275cf4e80cdc",
+      "name": "Identity Reorder Import",
+      "start_frame": 0,
+      "tracks": [
+        {
+          "type": "video",
+          "index": 1,
+          "name": "Video 1"
+        },
+        {
+          "type": "audio",
+          "index": 1,
+          "name": "Audio 1"
+        }
+      ],
+      "items": [
+        {
+          "id": "401238dc-65d2-455f-b0db-4eadc86e62b8",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 0,
+          "end_frame": 72,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "3236735d-6575-4223-8a6a-af83aef14887",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-greenland.jpg",
+          "start_frame": 72,
+          "end_frame": 168,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "b11195f8-a452-4499-9bb1-ef85937c7265",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "a2d7e531-8679-4c32-81a5-4cb37ebad260",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-summit.jpg",
+          "start_frame": 168,
+          "end_frame": 240,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "25c6a3ac-7f46-4605-818e-3b3ffe39d4ec",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "f7c12977-92df-42b9-aabe-892dd2e7ccdd",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 240,
+          "end_frame": 337,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "14995643-2518-4e28-ade3-748db76db702",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 337,
+          "end_frame": 457,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "322baac7-ae2b-40b9-905d-086e1bd68dfa",
+      "name": "Frameline API Identity Test",
+      "start_frame": 0,
+      "tracks": [
+        {
+          "type": "video",
+          "index": 1,
+          "name": "Video 1"
+        },
+        {
+          "type": "audio",
+          "index": 1,
+          "name": "Audio 1"
+        }
+      ],
+      "items": [
+        {
+          "id": "13fca179-7886-46a1-bef6-972f0aa75edb",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 0,
+          "end_frame": 72,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "1cec2300-0a6e-42e6-b0a0-1261b2765d5b",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-greenland.jpg",
+          "start_frame": 72,
+          "end_frame": 168,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "b11195f8-a452-4499-9bb1-ef85937c7265",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "a38c0eba-d8cf-46c7-8c0a-a2b712d2c8f3",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-summit.jpg",
+          "start_frame": 168,
+          "end_frame": 240,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "25c6a3ac-7f46-4605-818e-3b3ffe39d4ec",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "24ef0c88-d91c-4de9-9656-a5fa93a924e2",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "mountain-alps.jpg",
+          "start_frame": 337,
+          "end_frame": 457,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        },
+        {
+          "id": "17ad6148-ea3b-4d77-9a55-e85bd874b9a9",
+          "track_type": "video",
+          "track_index": 1,
+          "type": "video",
+          "name": "Alps API rename",
+          "start_frame": 457,
+          "end_frame": 554,
+          "source_start_frame": 0,
+          "source_end_frame": 0,
+          "media_pool_id": "5d24a38a-a272-4fd9-be26-c31790e080dd",
+          "linked_item_ids": [],
+          "effect_counts": {
+            "fusion": 0,
+            "ofx": 0,
+            "audio": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "ca8ce729-ffeb-486b-92f5-1190c32f6890",
+      "name": "Frameline API Trim Delete Test",
+      "start_frame": 0,
+      "tracks": [
+        {
+          "type": "video",
+          "index": 1,
+          "name": "Video 1"
+        },
+        {
+          "type": "audio",
+          "index": 1,
+          "name": "Audio 1"
+        }
+      ],
+      "items": []
+    }
+  ]
+}
