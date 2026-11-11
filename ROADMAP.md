@@ -35,6 +35,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Compare FCPXML, Resolve scripting, and native project paths, licensing, and available fixtures in `phase-0/INTEGRATION_ASSESSMENT.md`; the final choice remains open.
 - [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video.
 - [x] Add a Free-only, read-only FCPXML diagnostic for serialized sequences, lanes/gaps, explicit audio, transitions, and effects. It preserves unresolved timing and link semantics and does not close the complete-enumeration gate. See `phase-0/READ_ONLY_INVENTORY.md`.
+- [x] Reconcile the paired Free API observation with its untouched XML export by construct counts, without guessing item IDs or track mappings. The report confirms missing explicit audio and unobservable effect/link semantics; complete enumeration remains open.
 - [x] Confirm a supported API write path for limited clip edits: live Free-edition duplicate-timeline move, trim, and deletion plus documented methods; app-level safe apply remains unproven.
 - [x] Document the experimental FCPXML 1.10/Resolve Free 21.1.2 boundary and unsupported constructs in `phase-0/SUPPORT_MATRIX.md`; no release-supported minimum is declared yet.
 - [x] Record the initial Free/FCPXML target and current evidence in `PRODUCT.md` and `SYSTEM_DESIGN.md`; the write path remains open pending stable identity and broader timeline coverage.
