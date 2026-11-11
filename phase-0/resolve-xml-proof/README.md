@@ -57,6 +57,12 @@ The installed Resolve 21.1.2 scripting reference (`Developer/Scripting/DaVinciRe
 
 This JSON was **transcribed from live Lua-console API output**, then checked for valid JSON and unique IDs. Resolve Free's external Python connection was unavailable, and the Lua console did not expose file I/O or `dofile`; this was not produced by the Python `capture_to` function. It is evidence for these specific API fields in this disposable copy, not a general enumeration claim for linked audio, transitions, effects, or nested sequences.
 
+### Same-project API/export mapping on a copied timeline (2026-11-10)
+
+Inside `Frameline API Relink Test`, the five-clip `Frameline API Identity Test` timeline was duplicated as `Frameline API Mapping Edit Copy` (ID `a00c8594-ea28-480e-bfd9-4d3ed64d62ee`). Its [before API readout](live-mapping-before-schema3.json) and [before FCPXML export](live-mapping-before.fcpxmld/Info.fcpxml) were captured. On that copy only, `SetPosition({startFrame=600})` moved the final Alps occurrence from frames 457–554 to 600–697. Its API item ID `8543c72f-9c48-4744-81b5-ccc620e7c9bb` persisted. The [after API readout](live-mapping-after-schema3.json) and [after export](live-mapping-after.fcpxmld/Info.fcpxml) show the same five IDs and an inserted 143-frame XML gap. The disposable project was saved after the edit; a restart/reopen check was not part of this pair.
+
+Both readouts were transcribed from the live Lua console; Resolve's API produced both FCPXML exports directly. `api_export_mapping.py` returned five unique timing candidates before and after, with the moved occurrence at XML spine index 5 before and 6 after. It returned `safe_to_apply: false` for both. The exports still omit API item IDs, and the matching depends on exact timing in a known same-project pair. This does not establish persistent API-to-FCPXML identity for stale exports, collisions, or more complex timelines.
+
 `api_export_mapping.py` compares one schema-3 API snapshot to a flat FCPXML 1.10 picture sequence using exact timeline offset, source-in, and duration frames. It reports unique timing matches as **candidates only**, rejects unsupported structures, and leaves collisions or mismatches unresolved. Its output includes the export SHA-256 and always sets `safe_to_apply` to false. It cannot prove that the API snapshot and export came from the same state, and it cannot turn timing into persistent clip IDs. Run it only as a read-only experiment:
 
 ```sh

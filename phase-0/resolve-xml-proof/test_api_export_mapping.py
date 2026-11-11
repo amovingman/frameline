@@ -1,11 +1,12 @@
 """Candidate mapping rejects ambiguous and unsupported flat-timeline cases."""
 
 from copy import deepcopy
+import json
 from pathlib import Path
 import unittest
 
 from api_export_mapping import map_snapshot
-from resolve_api_identity import capture
+from resolve_api_identity import capture, compare
 from test_resolve_api_identity import FakeItem, FakeResolve
 
 
@@ -73,6 +74,28 @@ class ApiExportMappingTests(unittest.TestCase):
         xml = FIXTURE.read_bytes().replace(b'version="1.10"', b'version="1.11"', 1)
         with self.assertRaisesRegex(ValueError, "FCPXML 1.10"):
             map_snapshot(self.snapshot(), xml, "timeline-1")
+
+    def test_live_copied_timeline_move_keeps_candidate_only_mapping(self):
+        root = Path(__file__).parent
+        timeline_id = "a00c8594-ea28-480e-bfd9-4d3ed64d62ee"
+        snapshots = {}
+        results = {}
+        for phase in ("before", "after"):
+            snapshots[phase] = json.loads((root / f"live-mapping-{phase}-schema3.json").read_text())
+            xml = (root / f"live-mapping-{phase}.fcpxmld" / "Info.fcpxml").read_bytes()
+            results[phase] = map_snapshot(snapshots[phase], xml, timeline_id)
+            self.assertEqual(results[phase]["status"], "candidates-only")
+            self.assertEqual(len(results[phase]["matches"]), 5)
+            self.assertFalse(results[phase]["safe_to_apply"])
+        change = compare(snapshots["before"], snapshots["after"])["matched_timelines"][0]
+        self.assertEqual(change["added_ids"], [])
+        self.assertEqual(change["removed_ids"], [])
+        self.assertEqual(len(change["changed"]), 1)
+        moved_id = "8543c72f-9c48-4744-81b5-ccc620e7c9bb"
+        self.assertEqual(change["changed"][0]["id"], moved_id)
+        self.assertEqual(change["changed"][0]["after"]["start_frame"], 600)
+        self.assertEqual(next(m["xml_spine_index"] for m in results["before"]["matches"] if m["api_item_id"] == moved_id), 5)
+        self.assertEqual(next(m["xml_spine_index"] for m in results["after"]["matches"] if m["api_item_id"] == moved_id), 6)
 
 
 if __name__ == "__main__":
