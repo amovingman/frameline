@@ -106,6 +106,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 ## Phase 2 — Safe pull MVP
 
 ### 2.1 Three-way pull planning
+- [x] Add a Free-only, read-only three-way API snapshot preview: hash binding, ID-based field classification, conservative warnings, deterministic in-memory assembly, and a CLI with stale-source verification. It does not record a synced base or enable apply. See `phase-0/THREE_WAY_PREVIEW.md`.
 - [ ] Record the last synced base manifest for each local branch.
 - [ ] Compare common base, current local state, and incoming revision.
 - [ ] Classify each change as incoming-only, local-only, already applied, or conflicting.
