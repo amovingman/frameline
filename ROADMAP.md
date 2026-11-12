@@ -114,24 +114,25 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Strengthen the Free snapshot preview with addition/deletion and concurrent-edit classification coverage, deterministic proposed changes and conflicts, unknown media requirements, and verification of saved preview contents against matching source bytes. This remains a read-only diagnostic.
 - [x] Add explicit stale-source refresh and immutable, content-addressed local preview recovery for the Free snapshot diagnostic. These do not implement an editor apply transaction.
 - [x] Add read-only observed-field and entity conflict guidance, including deletion versus edit and canonical review order for concurrent additions and moves. No field has a proven safe app-level apply rule or automatic timeline placement.
-- [x] Add conservative read-only risk gates for ripple/timing, linked clips, transitions, and nested/unknown constructs; conflict choices with context, completeness checks, and a source-bound audit record; plus a standalone source-hash preflight and verified restore-point copy. These ten safety foundations do not enable apply. See `phase-0/THREE_WAY_PREVIEW.md`.
+- [x] Add conservative read-only risk gates for ripple/timing, linked clips, transitions, and nested/unknown constructs; conflict choices with context, completeness checks, and a source-bound audit record; plus standalone source-hash preflight and verified restore-point copy. These safety foundations do not enable apply. See `phase-0/THREE_WAY_PREVIEW.md`.
+- [x] Ship a Resolve preview tab that accepts three schema-3 API snapshot files (base, local, incoming), classifies observed field changes, presents conflicts and warnings, and lets the user record conflict review choices. Refresh re-reads sources and clears choices when bytes change. Save/recover is content-addressed and requires matching source bytes; saved previews omit decisions. The completed-conflict audit records review intent only. This UI preview does not record a synced base or enable apply.
 - [ ] Record the last synced base manifest for each local branch.
-- [ ] Compare common base, current local state, and incoming revision.
-- [ ] Classify each change as incoming-only, local-only, already applied, or conflicting.
-- [ ] Produce a deterministic pull plan with changes, conflicts, media requirements, and validation warnings.
+- [ ] Compare the recorded common base, current local project state, and an incoming revision. The Resolve preview compares three user-selected API snapshot files only.
+- [ ] Classify each project change as incoming-only, local-only, already applied, or conflicting. The preview classifies observed snapshot fields; it is not an integrated project diff.
+- [ ] Produce a deterministic executable pull plan with changes, media requirements, and validation warnings. The preview assembles a read-only proposal and warnings, not an executable plan.
 - [ ] Bind each plan to hashes of the local project and incoming revision.
 - [ ] Recalculate a stale plan if the project changes before apply.
 - [ ] Persist enough plan state to recover from application interruption.
 
 ### 2.2 Conflict rules and resolution
-- [ ] Implement field-level conflicts for properties proven safe by the editor spike.
+- [ ] Implement field-level conflicts with safe app-level apply rules for properties proven safe by the editor spike. The preview can review observed-field conflicts but cannot apply their choices.
 - [ ] Treat local edit vs incoming deletion as a conflict.
 - [ ] Define ordering rules for concurrent clip additions and timeline moves.
 - [ ] Treat ripple edits, linked clips, transitions, nested sequences, and timing interactions conservatively until proven.
-- [ ] Offer explicit choices: keep local, take incoming, or manually choose supported field values.
+- [x] Offer conflict review choices in the Resolve preview, with affected values/context. These are review decisions only; supported manual field edits and apply are not implemented.
 - [ ] Show the affected clip in context, field values, and the consequence of each choice.
-- [ ] Require a decision for every unresolved conflict before enabling apply.
-- [ ] Preserve the user's conflict decisions in the resulting revision/audit record.
+- [x] Require a review choice for every conflict before showing the preview audit. Apply remains disabled.
+- [ ] Preserve the user's conflict decisions in the resulting revision/audit record. The preview's source-bound audit is transient review intent; saved/recovered previews do not persist decisions.
 
 ### 2.3 Backup, apply, and recover
 - [x] Add a standalone main-process preflight that checks plan/audit/source/restore-point/adapter gates and always refuses apply while project-to-plan identity is unproven. See `phase-0/SAFE_PULL_PREFLIGHT.md`.
@@ -288,4 +289,4 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic revision review. File selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and an explicit matching-export ID relink work for a narrow top-level picture sequence. A synthetic compatibility corpus records expected scans and warns about unsupported nested content and connected lanes. Stable clip mapping, clip-level revision comparison, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap places safe editor identity and write validation before those features.
+The repository contains an Electron UI prototype with synthetic local revision review and a Resolve preview tab for three schema-3 API snapshots. The preview classifies observed field changes, presents conflicts and warnings, captures per-conflict review choices, refreshes changed sources, and saves/recovers source-bound preview data. Its audit is review intent only; decisions are not persisted, and apply is disabled. Separately, file selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and matching-export ID relink work for a narrow top-level picture sequence. Stable API-ID to project mapping, integrated clip-level revision comparison, collaboration, media sync, and a safe pull transaction remain unimplemented. Standalone diagnostic risk gates and preflight utilities do not close those product gates.
