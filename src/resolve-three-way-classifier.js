@@ -47,6 +47,10 @@ function classifyResolveThreeWay(base, local, incoming) {
   decisions.sort((a,b) => cmp(a.timelineId,b.timelineId) || cmp(a.itemId || '',b.itemId || '') || cmp(a.field,b.field));
   return JSON.parse(JSON.stringify({schemaVersion:1,readOnly:true,safeToApply:false,
     projectId:base.projectId,resolveVersion:base.resolveVersion,trackIdentityStatus:'index-only',
-    warnings:['Track identities are index-only; track changes do not establish persistent track identity.'],decisions}));
+    warnings:[
+      'Track identities are index-only; track changes do not establish persistent track identity.',
+      'Classification compares observed fields only; already-applied does not establish equivalence of complete Resolve entities.',
+      'Equal effect counts do not establish equal effect settings; null observations represent unknown values, not verified absence.'
+    ],decisions}));
 }
 module.exports = { classifyResolveThreeWay };
