@@ -14,6 +14,51 @@ function invalid() {
   throw error;
 }
 
+// Canonical copies keep plan ordering stable and prevent callers mutating its inputs.
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort()
+    .map(key => [key, canonical(value[key])]));
+  return value;
+}
+const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+const decisionOrder = (a, b) => compare(a.timelineId, b.timelineId)
+  || compare(a.itemId || '', b.itemId || '') || compare(a.field, b.field)
+  || compare(JSON.stringify(a), JSON.stringify(b));
+
+function assembleDetails(decisions) {
+  const ordered = decisions.map(canonical).sort(decisionOrder);
+  const changes = ordered.filter(value => value.status === 'incoming-only').map(value => ({
+    ...value,
+    operation: value.field === 'existence' ? (value.incoming === null ? 'remove' : 'add') : 'update'
+  }));
+  const conflicts = ordered.filter(value => value.status === 'conflict');
+  const requirements = new Map();
+  function requireMedia(timelineId, itemId, mediaPoolId, status) {
+    const requirement = { timelineId, itemId, mediaPoolId: typeof mediaPoolId === 'string' ? mediaPoolId : null,
+      availability: 'unknown', identity: typeof mediaPoolId === 'string' ? 'resolve-media-pool-id' : 'unknown',
+      pendingConflictResolution: status === 'conflict' };
+    requirements.set(JSON.stringify(requirement), requirement);
+  }
+  for (const value of ordered) {
+    if (!['incoming-only', 'conflict'].includes(value.status)) continue;
+    if (value.field === 'existence') {
+      if (value.incoming === null) continue;
+      const items = value.itemId === null ? value.incoming.items : [value.incoming];
+      if (Array.isArray(items)) for (const item of items) {
+        requireMedia(value.timelineId, item.id || value.itemId, item.mediaPoolId, value.status);
+      }
+    } else if (value.itemId !== null && (value.field === 'mediaPoolId' || TIMING_FIELDS.has(value.field)
+      || value.field === 'type')) {
+      // A field-only classifier cannot establish the item's current media identity.
+      requireMedia(value.timelineId, value.itemId, value.field === 'mediaPoolId' ? value.incoming : null, value.status);
+    }
+  }
+  return { changes, conflicts, mediaRequirements: [...requirements.values()].sort((a, b) =>
+    compare(a.timelineId, b.timelineId) || compare(a.itemId || '', b.itemId || '')
+    || compare(JSON.stringify(a), JSON.stringify(b))) };
+}
+
 function assessResolvePlan(classification) {
   if (!classification || classification.schemaVersion !== 1 || classification.readOnly !== true
     || classification.safeToApply !== false || !Array.isArray(classification.decisions)) invalid();
@@ -59,7 +104,9 @@ function assessResolvePlan(classification) {
     .map(code => ({ code, count: countsByCode.get(code) }));
   return {
     schemaVersion: 1, readOnly: true, safeToApply: false,
+    ...assembleDetails(classification.decisions),
     warnings,
+    validationWarnings: warnings.map(warning => ({ ...warning })),
     counts: {
       decisions: classification.decisions.length,
       conflicts,
