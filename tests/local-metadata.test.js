@@ -21,7 +21,7 @@ test('project IDs survive restart and metadata stores no project paths', async (
   assert.equal(first.recovered, false);
   const saved = await fs.readFile(path.join(directory, 'metadata.json'), 'utf8');
   assert.doesNotMatch(saved, /private|editing|client-cut|fcpxml/);
-  assert.deepEqual(JSON.parse(saved).schemaVersion, 3);
+  assert.deepEqual(JSON.parse(saved).schemaVersion, 4);
   assert.equal(await fs.readFile(path.join(directory, 'metadata.json.bak'), 'utf8'), saved);
 }));
 
@@ -39,7 +39,7 @@ test('restores a damaged primary from backup and preserves the damaged file', as
 
 test('rejects a future schema version without overwriting it', async () => withStore(async directory => {
   const filePath = path.join(directory, 'metadata.json');
-  const newer = '{"schemaVersion":4,"projects":{}}';
+  const newer = '{"schemaVersion":5,"projects":{}}';
   await fs.writeFile(filePath, newer);
   await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-newer-version' });
   assert.equal(await fs.readFile(filePath, 'utf8'), newer);
@@ -75,7 +75,7 @@ test('migrates v1 project IDs before storing immutable linked revisions', async 
   await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify({ schemaVersion: 1, projects: { [fingerprint]: projectId } }));
   const store = createLocalMetadataStore(directory);
   assert.equal((await store.getProjectId(filePath)).id, projectId);
-  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 3);
+  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 4);
 
   const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
   const first = await store.saveRevision(projectId, manifest, 'First cut', null);
@@ -241,4 +241,44 @@ test('relink refuses changed files and a destination with its own history', asyn
   assert.equal((await store.getProjectId(moved)).id, movedId);
   await store.saveRevision(movedId, await scanFcpXml(moved), 'Separate history');
   await assert.rejects(store.relinkProject(moved, movedId, originalId, manifest.sourceHash), { code: 'relink-unavailable' });
+}));
+
+
+test('sync bases persist per branch, inherit at creation, and reject stale or unrelated revisions', async () => withStore(async directory => {
+  const store = createLocalMetadataStore(directory);
+  const projectId = (await store.getProjectId('/private/cut.fcpxml')).id;
+  const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
+  assert.equal(await store.getSyncBase(projectId, 'main'), null);
+  const base = await store.saveRevision(projectId, manifest, 'Base');
+  await store.recordSyncBase(projectId, 'main', base.id, base.id);
+  await store.createBranch(projectId, 'alternate', base.id);
+  const alternate = await store.saveRevision(projectId, manifest, 'Alternate', base.id, 'alternate');
+  assert.equal(await createLocalMetadataStore(directory).getSyncBase(projectId, 'alternate'), base.id);
+  await store.recordSyncBase(projectId, 'alternate', alternate.id, alternate.id);
+  await store.switchBranch(projectId, 'main');
+  const main = await store.saveRevision(projectId, manifest, 'Main', base.id, 'main');
+  await assert.rejects(store.recordSyncBase(projectId, 'main', main.id, base.id), { code: 'revision-head-changed' });
+  await assert.rejects(store.recordSyncBase(projectId, 'main', alternate.id, main.id), { code: 'sync-base-invalid' });
+  assert.equal(await store.getSyncBase(projectId, 'main'), base.id);
+  const bundle = await store.exportRevisions(projectId);
+  const imported = await store.importRevisions(projectId, bundle);
+  assert.equal(await store.getSyncBase(projectId, imported.branches[0]), null);
+  await store.recordSyncBase(projectId, 'main', null, main.id);
+  assert.equal(await store.getSyncBase(projectId, 'main'), null);
+}));
+
+test('migrates v3 branches with unknown sync bases and rejects invalid v4 bases', async () => withStore(async directory => {
+  const filePath = '/private/cut.fcpxml';
+  const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
+  const projectId = '11111111-1111-4111-8111-111111111111';
+  const project = { id: projectId, revisions: [], branches: { main: null, other: null }, currentBranch: 'main' };
+  await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify({ schemaVersion: 3, projects: { [fingerprint]: project } }));
+  const store = createLocalMetadataStore(directory);
+  assert.equal(await store.getSyncBase(projectId, 'other'), null);
+  const migrated = JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8'));
+  assert.deepEqual(migrated.projects[fingerprint].syncBases, { main: null, other: null });
+  migrated.projects[fingerprint].syncBases.other = '22222222-2222-4222-8222-222222222222';
+  await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify(migrated));
+  await fs.rm(path.join(directory, 'metadata.json.bak'));
+  await assert.rejects(store.getSyncBase(projectId, 'main'), { code: 'metadata-invalid' });
 }));
