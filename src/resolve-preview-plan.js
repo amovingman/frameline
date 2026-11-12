@@ -3,6 +3,7 @@ const { bindSnapshotSources, verifySnapshotSources } = require('./resolve-snapsh
 const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
 const { classifyResolveThreeWay } = require('./resolve-three-way-classifier');
 const { assessResolvePlan } = require('./resolve-plan-policy');
+const { isDeepStrictEqual } = require('node:util');
 
 const MAX_SNAPSHOT_BYTES = 20 * 1024 * 1024;
 const ROLES = ['base', 'local', 'incoming'];
@@ -41,7 +42,9 @@ function verifyResolvePreviewPlan(plan, sources) {
   try {
     if (!plan || plan.schemaVersion !== 1 || plan.readOnly !== true || plan.safeToApply !== false
       || !plan.binding || !plan.classification || !plan.assessment) invalid();
-    return verifySnapshotSources(plan.binding, sources);
+    const verification = verifySnapshotSources(plan.binding, sources);
+    if (verification.valid && !isDeepStrictEqual(plan, createResolvePreviewPlan(sources))) invalid();
+    return verification;
   } catch {
     invalid();
   }

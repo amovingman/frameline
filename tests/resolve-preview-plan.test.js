@@ -41,3 +41,14 @@ test('classifies a same-field disagreement as conflict and rejects unsafe source
   assert.throws(() => createResolvePreviewPlan({ ...input, extra: 'x' }), { code: 'invalid-resolve-preview' });
   assert.throws(() => createResolvePreviewPlan({ ...input, local: Buffer.from('{') }), { code: 'invalid-resolve-preview' });
 });
+
+test('verification rejects a modified preview even when source hashes still match', () => {
+  const input = sources();
+  const plan = createResolvePreviewPlan(input);
+  const changed = structuredClone(plan);
+  changed.classification.decisions[0].status = 'already-applied';
+  assert.throws(() => verifyResolvePreviewPlan(changed, input), { code: 'invalid-resolve-preview' });
+  const changedAssessment = structuredClone(plan);
+  changedAssessment.assessment.counts.conflicts = 10;
+  assert.throws(() => verifyResolvePreviewPlan(changedAssessment, input), { code: 'invalid-resolve-preview' });
+});
