@@ -21,3 +21,13 @@ node phase-0/reconcile-free-coverage.js phase-0/compatibility-corpus/live-struct
 ```
 
 The count report observes four API video items versus three XML picture entries plus one compound reference whose type is unresolved in XML; one transition on each side; and **two API audio items versus one explicit XML audio entry**. The API reports two items with linked partners and one OFX occurrence, while the XML report has no candidate link and cannot assess effects absent from XML. Counts agreeing do not establish object identity. The report always sets `completeEnumeration` and `safeToApply` to `false`, omits API IDs and media paths, and keeps FCPXML lane numbers separate from API track numbers.
+
+## Normalized snapshot coverage matrix
+
+`coverage-free-snapshot.js` compares a validated schema-3 snapshot with an FCPXML export at aggregate level:
+
+```sh
+node phase-0/coverage-free-snapshot.js snapshot.json timeline.fcpxmld
+```
+
+When either source has multiple timelines or sequences, pass the API timeline ID and XML `sequence-N` ID explicitly. The report includes exact SHA-256 hashes of both input files, counts for video, audio, transitions, links, effects, and occupied lanes, and lists omitted or unobservable constructs. A selected pair is only a comparison scope; it does not authenticate that the observations describe the same timeline. API IDs are never matched to XML entries, XML lanes are never treated as Resolve tracks, and `completeEnumeration` and `safeToApply` remain false.
