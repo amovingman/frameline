@@ -103,6 +103,8 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Filter and group changes by sequence, track, status, and change type.
 - [ ] Add tests for no-op, same change on both sides, independent edits, rename, and reorder.
 - [x] Show read-only sequence and media-inventory differences between a revision and its verified parent, while keeping clip-level edit decisions explicitly unavailable.
+- [x] Add a read-only JavaScript schema-3 Resolve snapshot ↔ selected FCPXML matcher for flat picture content. It reports exact source hashes, candidates, collisions, and unmatched items; supports the specified Resolve wrapper and fails closed on complex content. Candidate matching does not prove persistent identity or authorize apply.
+- [x] Add optional desktop FCPXML comparison and refresh UI for those candidate results. It remains read-only and does not enable clip-level revision comparison or apply.
 
 **Exit:** A real project can be scanned repeatedly; local commits are immutable and a useful diff can be inspected without writing to the project.
 
@@ -150,7 +152,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 2.4 Review-copy mode
 - [x] Add a bounded, byte-verified preparation copy for a regular FCPXML file in a selected destination, with noncolliding names and failed-copy cleanup. No pull plan is applied to this copy.
-- [ ] Let the user choose a destination and a non-colliding filename.
+- [x] Let the user choose a destination and filename in the desktop copy workflow; enforce noncollision and verify the copy by rescan, hash, and source checks. The result is sanitized for display.
 - [ ] Copy required project metadata and apply the same resolved pull plan to the copy.
 - [ ] Leave the original and its sync base unchanged.
 - [ ] Decide how referenced media paths remain valid; offer explicit media collection when needed.
@@ -291,4 +293,4 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic local revision review and a Resolve preview tab for three schema-3 API snapshots. The preview classifies observed field changes, presents conflicts and warnings, captures per-conflict review choices, reports source hashes and changed roles, and supports timeline/field filtering and unresolved-conflict navigation. Its source-bound preview and review artifacts can be recovered against the exact source bytes; review choices persist, while the audit remains review intent and apply is disabled. The app also supports file selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and matching-export ID relink for a narrow top-level picture sequence. Stable API-ID to project mapping, integrated clip-level revision comparison, collaboration, media sync, and a safe pull transaction remain unimplemented. Standalone diagnostic risk gates and preflight utilities do not close those product gates.
+The repository contains an Electron UI prototype with synthetic local revision review and a Resolve preview tab for three schema-3 API snapshots. The preview classifies observed field changes, presents conflicts and warnings, captures per-conflict review choices, reports source hashes and changed roles, and supports timeline/field filtering and unresolved-conflict navigation. Its source-bound preview and review artifacts can be recovered against the exact source bytes; review choices persist, while the audit remains review intent and apply is disabled. The desktop app also offers optional read-only comparison of a schema-3 local snapshot with a selected FCPXML file using candidate matching, plus a separate verified unchanged FCPXML review-copy workflow. The matcher reports hashes, collisions, and unmatched items and fails closed on complex content; it does not establish persistent identity or enable apply. Copy preparation verifies the destination artifact and reports a sanitized result, but applies no pull plan. The app also supports file selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and matching-export ID relink for a narrow top-level picture sequence. Stable API-ID to project mapping, integrated clip-level revision comparison, collaboration, media sync, and a safe pull transaction remain unimplemented. Standalone diagnostic risk gates and preflight utilities do not close those product gates.

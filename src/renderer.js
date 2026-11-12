@@ -3,6 +3,8 @@ const changes = new Map(sample.changes.map(change => [change.id, change]));
 let selectedChangeId = 'trim';
 let currentAppState = null;
 let branchBusy = false;
+let reviewCopyBusy = false;
+let reviewCopySource = null;
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -39,6 +41,12 @@ function renderAppState(state) {
   currentAppState = state;
   const projectName = state?.selectedProject?.name;
   const scan = state?.scan;
+  const copySource = projectName && scan?.sourceHash ? `${projectName}:${scan.sourceHash}` : null;
+  if (copySource !== reviewCopySource) document.getElementById('review-copy-result').textContent = '';
+  reviewCopySource = copySource;
+  const canCopy = !state?.error && state?.scanStatus === 'ready' && !!scan && state?.selectedProject?.format === 'FCPXML' && /\.fcpxml$/i.test(projectName || '');
+  document.getElementById('review-copy-panel').hidden = !canCopy;
+  document.getElementById('prepare-review-copy').disabled = reviewCopyBusy || !canCopy;
   document.getElementById('rescan-project').hidden = !projectName;
   document.querySelector('.branch-label').textContent = `${state?.currentBranch || 'main'} · ${projectName ? 'Local project' : 'Sample project'}`;
   document.getElementById('file-name').textContent = projectName
@@ -586,6 +594,7 @@ function renderResolveState(state) {
     row.append(make('strong', '', label), make('code', '', state?.sourceHashes?.[role]?.slice(0, 12) || 'No source'), make('span', '', stale ? 'Changed on refresh · choices reset' : state?.sourceHashes?.[role] ? 'Source fingerprint' : 'Choose snapshots'));
     sourcePanel.append(row);
   }
+  renderResolveExport(state, ready);
   renderResolveInspection();
   const filter = document.getElementById('resolve-filter').value;
   const visible = items.filter(item => {
@@ -700,6 +709,8 @@ async function resolveAction(method, ...args) {
     resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the snapshots again to retry.' } };
   } finally { resolveBusy = false; renderResolveState(resolveState); }
 }
+document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
+document.getElementById('resolve-export-refresh').addEventListener('click', () => resolveAction('refreshResolveExport'));
 document.getElementById('resolve-choose').addEventListener('click', () => resolveAction('chooseResolveSnapshots'));
 document.getElementById('resolve-refresh').addEventListener('click', () => resolveAction('refreshResolvePreview'));
 document.getElementById('resolve-save').addEventListener('click', () => resolveAction('saveResolvePreview'));
@@ -714,3 +725,80 @@ document.addEventListener('keydown', event => {
 });
 renderResolveState(null);
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
+
+async function prepareReviewCopy() {
+  if (reviewCopyBusy || document.getElementById('review-copy-panel').hidden) return;
+  reviewCopyBusy = true;
+  const button = document.getElementById('prepare-review-copy');
+  const result = document.getElementById('review-copy-result');
+  const sourceKey = reviewCopySource;
+  button.disabled = true;
+  button.textContent = 'Verifying and saving…';
+  result.textContent = 'Checking source bytes and the saved copy.';
+  try {
+    if (!window.desktop?.prepareReviewCopy) throw new Error('desktop-unavailable');
+    const response = await window.desktop.prepareReviewCopy();
+    if (sourceKey !== reviewCopySource) { result.textContent = ''; return; }
+    if (response?.error || response?.status === 'error') {
+      result.textContent = response?.error?.message || 'The review copy could not be verified and saved. Rescan the source and try a new destination.';
+    } else if (response?.status === 'cancelled' || response?.status === 'canceled') {
+      result.textContent = 'Save cancelled. No review copy was prepared.';
+    } else if (response?.copyName && response?.sourceHash) {
+      result.textContent = `${response.copyName} saved in the selected folder and verified unchanged · source ${response.sourceHash.slice(0, 12)}. No edits were merged. The source export was not changed.`;
+    } else {
+      result.textContent = 'The review copy could not be verified. Rescan the source and try again.';
+    }
+  } catch {
+    result.textContent = 'Could not save the review copy. Use the desktop app, rescan the source, and try again.';
+  } finally {
+    reviewCopyBusy = false;
+    button.textContent = 'Save unchanged copy';
+    renderAppState(currentAppState);
+  }
+}
+document.getElementById('prepare-review-copy').addEventListener('click', prepareReviewCopy);
+
+function renderResolveExport(state, ready) {
+  const report = state?.exportComparison;
+  const panel = document.getElementById('resolve-export-report');
+  panel.replaceChildren();
+  document.getElementById('resolve-export-choose').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-export-refresh').disabled = resolveBusy || !ready || !report;
+  document.getElementById('resolve-export-notice').textContent = state?.exportError?.message || ((state?.exportError?.code || state?.exportError) === 'select-timeline' ? 'Choose a timeline in the Timeline filter, then choose its FCPXML export.' : state?.exportError ? 'The export comparison failed. Choose a supported FCPXML export or refresh to retry.' : report ? 'Read-only candidate comparison. No mapping is approved and no edits can be applied.' : ready ? 'Choose an FCPXML file or bundle exported from the local timeline.' : 'Choose the three snapshots first.');
+  if (!report) return;
+  const facts = make('dl', 'export-facts');
+  const groups = Array.isArray(report.unresolved) ? report.unresolved : [];
+  const matches = Array.isArray(report.matches) ? report.matches : [];
+  const unmatchedSnapshot = groups.filter(group => !group.xmlSpineIndices?.length).reduce((total, group) => total + (group.apiItemIds?.length || 0), 0);
+  const unmatchedExport = groups.filter(group => !group.apiItemIds?.length).reduce((total, group) => total + (group.xmlSpineIndices?.length || 0), 0);
+  const collisions = groups.filter(group => group.apiItemIds?.length && group.xmlSpineIndices?.length);
+  for (const [label, value] of [['Candidate matches', matches.length], ['Unmatched snapshot items', unmatchedSnapshot], ['Unmatched export clips', unmatchedExport], ['Collision groups', collisions.length]]) {
+    facts.append(make('dt', '', label), make('dd', '', String(value)));
+  }
+  if (report.exportSha256) panel.append(make('p', '', `Export fingerprint ${report.exportSha256.slice(0, 12)} · local snapshot ${report.snapshotSha256?.slice(0, 12) || 'unavailable'}`));
+  panel.append(facts);
+  const candidates = report.candidates || report.matches || report.candidateMatches;
+  if (Array.isArray(candidates) && candidates.length) {
+    const details = make('details');
+    details.append(make('summary', '', `Inspect ${candidates.length} candidate matches`));
+    for (const candidate of candidates.slice(0, 100)) {
+      const row = make('div', 'resolve-inspection-row');
+      row.append(make('strong', '', candidate.name || candidate.clipName || candidate.itemId || candidate.snapshotItemId || candidate.apiItemId || 'Clip candidate'), make('span', '', candidate.reason || candidate.status || `Spine position ${candidate.xmlSpineIndex ?? '?'} · candidate only; identity unverified`));
+      details.append(row);
+    }
+    if (candidates.length > 100) details.append(make('p', '', 'Showing the first 100 candidates. Counts cover the full comparison.'));
+    panel.append(details);
+  }
+  if (groups.length) {
+    const details = make('details');
+    details.append(make('summary', '', `Inspect ${groups.length} unmatched or collision groups`));
+    for (const group of groups.slice(0, 100)) {
+      const row = make('div', 'resolve-inspection-row');
+      row.append(make('strong', '', `Frames ${(group.frames || []).join(' / ')}`), make('span', '', `${group.apiItemIds?.length || 0} snapshot items · ${group.xmlSpineIndices?.length || 0} export clips`));
+      details.append(row);
+    }
+    if (groups.length > 100) details.append(make('p', '', 'Showing the first 100 groups. Counts cover the full comparison.'));
+    panel.append(details);
+  }
+  for (const warning of report.warnings || []) panel.append(make('p', '', typeof warning === 'string' ? warning : warning.message || warning.code || 'Comparison warning'));
+}

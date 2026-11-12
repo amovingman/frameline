@@ -7,12 +7,41 @@ const { createLocalMetadataStore } = require('./local-metadata');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
+const { prepareReviewCopySession } = require('./review-copy-session');
+const { compareResolveSnapshotToExport } = require('./resolve-export-candidates');
 
 let projectSession;
 let resolveReviewSession;
 let resolveSourcePaths = null;
 let resolveBusy = false;
+let selectedProjectPath = null;
+let reviewCopyBusy = false;
+let resolveExportPath = null;
+let resolveExportTimelineId = null;
+let resolveExportComparison = null;
+let resolveExportError = null;
+let resolveExportLocalHash = null;
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
+
+function getResolveState(state = resolveReviewSession.getState()) {
+  if (resolveExportLocalHash && state.sourceHashes?.local !== resolveExportLocalHash) {
+    resolveExportComparison = null;
+    resolveExportError = null;
+    resolveExportLocalHash = null;
+  }
+  return { ...state, exportComparison: resolveExportComparison, exportError: resolveExportError };
+}
+
+async function readResolveExport(selectedPath) {
+  const extension = path.extname(selectedPath).toLowerCase();
+  if (!['.fcpxml', '.fcpxmld'].includes(extension)) throw Object.assign(new Error('Unsupported export.'), { code: 'resolve-export-invalid' });
+  const filename = extension === '.fcpxmld' ? path.join(selectedPath, 'Info.fcpxml') : selectedPath;
+  const stat = await fs.stat(filename);
+  if (!stat.isFile() || stat.size <= 0 || stat.size > RESOLVE_SOURCE_LIMIT) throw Object.assign(new Error('Invalid export size.'), { code: 'resolve-export-invalid' });
+  const bytes = await fs.readFile(filename);
+  if (bytes.length !== stat.size) throw Object.assign(new Error('Export changed during read.'), { code: 'resolve-export-invalid' });
+  return bytes;
+}
 
 async function readResolveSources(paths) {
   const sources = {};
@@ -34,12 +63,12 @@ async function readResolveSources(paths) {
 }
 
 async function runResolveAction(action) {
-  if (resolveBusy) return { ...resolveReviewSession.getState(), error: { code: 'resolve-review-busy', message: 'A Resolve review action is already running.' } };
+  if (resolveBusy) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-review-busy', message: 'A Resolve review action is already running.' } });
   resolveBusy = true;
-  try { return await action(); }
+  try { return getResolveState(await action()); }
   catch (error) {
     logger.warn('resolve.review-failed', { code: error.code || 'resolve-review-error' });
-    return { ...resolveReviewSession.getState(), error: { code: error.code || 'resolve-review-error', message: 'Could not complete the Resolve review action.' } };
+    return getResolveState({ ...resolveReviewSession.getState(), error: { code: error.code || 'resolve-review-error', message: 'Could not complete the Resolve review action.' } });
   } finally { resolveBusy = false; }
 }
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -74,7 +103,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
-  ipcMain.handle('resolve:get-review-state', () => resolveReviewSession.getState());
+  ipcMain.handle('resolve:get-review-state', () => getResolveState());
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
     const paths = {};
     for (const role of ['base', 'local', 'incoming']) {
@@ -121,6 +150,60 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   }));
   ipcMain.handle('resolve:set-decision', (_event, conflictId, choice) => runResolveAction(
     () => resolveReviewSession.setDecision(conflictId, choice)));
+  ipcMain.handle('resolve:choose-export', (_event, requestedTimelineId) => runResolveAction(async () => {
+    if (!resolveSourcePaths) {
+      resolveExportError = { code: 'resolve-export-unavailable', message: 'Choose the three Resolve snapshots before matching an export.' };
+      return resolveReviewSession.getState();
+    }
+    const sources = await readResolveSources(resolveSourcePaths);
+    const state = resolveReviewSession.refresh(sources);
+    if (state.status !== 'ready') return state;
+    const timelines = JSON.parse(sources.local.toString('utf8')).timelines;
+    const timelineId = typeof requestedTimelineId === 'string' && requestedTimelineId !== 'all'
+      ? requestedTimelineId : timelines.length === 1 ? timelines[0].id : null;
+    if (!timelineId || !timelines.some(item => item.id === timelineId)) {
+      resolveExportError = { code: 'resolve-export-select-timeline', message: 'Select one local timeline before matching an FCPXML export.' };
+      return state;
+    }
+    const result = await dialog.showOpenDialog({
+      title: 'Choose an FCPXML export for candidate matching',
+      properties: ['openFile', 'treatPackageAsDirectory'],
+      filters: [{ name: 'Resolve FCPXML export', extensions: ['fcpxml', 'fcpxmld'] }]
+    });
+    if (result.canceled || !result.filePaths.length) return state;
+    try {
+      const exportBytes = await readResolveExport(result.filePaths[0]);
+      resolveExportComparison = compareResolveSnapshotToExport(sources.local, exportBytes, timelineId);
+      resolveExportPath = result.filePaths[0];
+      resolveExportTimelineId = timelineId;
+      resolveExportLocalHash = state.sourceHashes.local;
+      resolveExportError = null;
+    } catch (error) {
+      resolveExportComparison = null;
+      resolveExportError = { code: error.code || 'resolve-export-invalid', message: 'This export cannot be matched to the selected flat picture timeline.' };
+    }
+    return state;
+  }));
+  ipcMain.handle('resolve:refresh-export', () => runResolveAction(async () => {
+    if (!resolveSourcePaths || !resolveExportPath || !resolveExportTimelineId) {
+      resolveExportError = { code: 'resolve-export-unavailable', message: 'Choose an FCPXML export before refreshing its candidates.' };
+      return resolveReviewSession.getState();
+    }
+    const sources = await readResolveSources(resolveSourcePaths);
+    const state = resolveReviewSession.refresh(sources);
+    if (state.status !== 'ready') return state;
+    try {
+      resolveExportComparison = compareResolveSnapshotToExport(sources.local,
+        await readResolveExport(resolveExportPath), resolveExportTimelineId);
+      resolveExportLocalHash = state.sourceHashes.local;
+      resolveExportError = null;
+    } catch (error) {
+      resolveExportComparison = null;
+      resolveExportLocalHash = null;
+      resolveExportError = { code: error.code || 'resolve-export-invalid', message: 'The export or local snapshot changed. Choose a valid flat picture export again.' };
+    }
+    return state;
+  }));
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a DaVinci Resolve timeline',
@@ -133,6 +216,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
     const selectedPath = result.filePaths[0];
     const state = await projectSession.select(selectedPath);
+    selectedProjectPath = state.error === 'unsupported-format' ? null : selectedPath;
     if (state.error === 'unsupported-format') {
       logger.warn('project.selection-rejected', { filePath: selectedPath });
     } else {
@@ -150,6 +234,39 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     if (state.scanStatus === 'ready') logger.info('project.rescan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
     return state;
+  });
+  ipcMain.handle('project:prepare-review-copy', async () => {
+    if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
+    const state = projectSession.getState();
+    if (!selectedProjectPath || state.scanStatus !== 'ready' || state.selectedProject?.format !== 'FCPXML'
+      || !state.scan?.sourceHash || state.error) {
+      return { status: 'error', error: { code: 'review-copy-unavailable', message: 'Choose and scan a regular FCPXML export before making a review copy.' } };
+    }
+    reviewCopyBusy = true;
+    try {
+      const sourcePath = selectedProjectPath;
+      const extension = path.extname(sourcePath);
+      const base = path.basename(sourcePath, extension);
+      const result = await dialog.showSaveDialog({
+        title: 'Choose a location for a verified review copy',
+        defaultPath: `${base}-review.fcpxml`,
+        filters: [{ name: 'FCPXML review copy', extensions: ['fcpxml'] }]
+      });
+      if (result.canceled || !result.filePath) return { status: 'canceled' };
+      if (selectedProjectPath !== sourcePath
+        || state.selectedProject.id !== projectSession.getState().selectedProject?.id) {
+        return { status: 'error', error: { code: 'review-copy-unavailable', message: 'Project selection changed. Choose the current export and try again.' } };
+      }
+      return await prepareReviewCopySession({
+        sourcePath,
+        expectedSha256: state.scan.sourceHash,
+        destinationDirectory: path.dirname(result.filePath),
+        preferredFilename: path.basename(result.filePath)
+      });
+    } catch (error) {
+      logger.warn('review-copy.failed', { code: error.code || 'review-copy-failed' });
+      return { status: 'error', error: { code: 'review-copy-failed', message: 'Unable to prepare a verified review copy.' } };
+    } finally { reviewCopyBusy = false; }
   });
   ipcMain.handle('project:save-revision', async (_event, message) => {
     const state = await projectSession.saveRevision(message);
