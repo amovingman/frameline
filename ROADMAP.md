@@ -131,6 +131,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Preserve the user's conflict decisions in the resulting revision/audit record.
 
 ### 2.3 Backup, apply, and recover
+- [x] Add a standalone main-process preflight that checks plan/audit/source/restore-point/adapter gates and always refuses apply while project-to-plan identity is unproven. See `phase-0/SAFE_PULL_PREFLIGHT.md`.
 - [ ] Build a transactional apply service outside the renderer.
 - [ ] Create and verify a timestamped restore point before in-place changes.
 - [ ] Check that the file still matches the plan's source hash before writing.
@@ -142,6 +143,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Record success, failure, chosen resolutions, and resulting revision.
 
 ### 2.4 Review-copy mode
+- [x] Add a bounded, byte-verified preparation copy for a regular FCPXML file in a selected destination, with noncolliding names and failed-copy cleanup. No pull plan is applied to this copy.
 - [ ] Let the user choose a destination and a non-colliding filename.
 - [ ] Copy required project metadata and apply the same resolved pull plan to the copy.
 - [ ] Leave the original and its sync base unchanged.
@@ -151,6 +153,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 2.5 Local media inventory and relinking
 - [x] Check referenced `file:` media paths for local availability in the read-only FCPXML scan, without loading media contents or exposing paths to the renderer; relinking and richer asset states remain open.
+- [x] Add standalone streamed media fingerprints, evidence-based availability, bounded selected-folder search, size/hash candidate verification, and path-free readiness reporting. This does not relink a project or establish media requirements for an executable pull.
 - [ ] Scan referenced asset paths without reading large media fully into memory.
 - [ ] Show available, missing, offline-volume, proxy-only, and excluded states.
 - [ ] Resolve moved files by user-selected folder and metadata hints.
