@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="f1" frameDuration="1/24s"/>
+    <asset id="a1" name="wide.mov" start="0s" duration="20s"/>
+    <asset id="a2" name="detail.mov" start="0s" duration="20s"/>
+  </resources>
+  <library><event><project name="Basic edits"><sequence format="f1" duration="12s"><spine>
+    <asset-clip ref="a1" name="Opening trim" offset="0s" start="1s" duration="3s"/>
+    <gap offset="3s" duration="1s"/>
+    <asset-clip ref="a2" name="Moved detail" offset="4s" start="2s" duration="2s"/>
+    <asset-clip ref="a1" name="Wide again" offset="6s" start="8s" duration="4s"/>
+  </spine></sequence></project></event></library>
+</fcpxml>

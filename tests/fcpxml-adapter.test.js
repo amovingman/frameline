@@ -29,6 +29,18 @@ test('scans a Resolve bundle and never sends source paths to the renderer', asyn
   assert.doesNotMatch(JSON.stringify(scan), /file:\/\/|Users\/user|Downloads/);
 });
 
+test('warns when a live Resolve export hides extra tracks inside a gap', async () => {
+  const live = path.join(__dirname, '..', 'phase-0', 'compatibility-corpus', 'resolve-structure-live.fcpxmld');
+  const scan = await scanFcpXml(live);
+  assert.equal(scan.sequence.durationFrames, 241);
+  assert.equal(scan.clips.length, 1);
+  assert.deepEqual(scan.warnings, [
+    'Nested clip content, including audio and effects, is not scanned',
+    'Content attached to a gap, including additional tracks, is not scanned'
+  ]);
+  assert.doesNotMatch(JSON.stringify(scan), /file:\/\/|Users\/user|Downloads/);
+});
+
 test('checks local, missing, external, and unspecified sources without exposing paths', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-media-'));
   try {
@@ -37,7 +49,7 @@ test('checks local, missing, external, and unspecified sources without exposing 
     const sources = [pathToFileURL(localPath).href, pathToFileURL(path.join(dir, 'missing.mov')).href, 'https://example.invalid/remote.mov', null];
     const assets = sources.map((source, index) => `<asset id="a${index}" name="clip-${index}.mov"${source ? ` src="${source}"` : ''}/>`).join('');
     const clips = sources.map((_, index) => `<asset-clip ref="a${index}" offset="${index}s" duration="1s"/>`).join('');
-    const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/>${assets}</resources><library><event><project><sequence format="f" duration="4s"><spine>${clips}</spine></sequence></project></event></library></fcpxml>`;
+    const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/>${assets}</resources><library><event><project><sequence format="f" duration="4s"><spine>${clips}</spine></sequence></project></event></library></fcpxml>`;
     const xmlPath = path.join(dir, 'cut.fcpxml');
     await fs.writeFile(xmlPath, xml);
     const scan = await scanFcpXml(xmlPath);
@@ -49,16 +61,29 @@ test('checks local, missing, external, and unspecified sources without exposing 
 });
 
 test('reports unsupported timeline elements without inventing clips', () => {
-  const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project name="Test"><sequence format="f" duration="2s"><spine><asset-clip ref="a" offset="0s" duration="1s"/><transition offset="1s" duration="1s"/></spine></sequence></project></event></library></fcpxml>`;
+  const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project name="Test"><sequence format="f" duration="2s"><spine><asset-clip ref="a" offset="0s" duration="1s"/><transition offset="1s" duration="1s"/></spine></sequence></project></event></library></fcpxml>`;
   const scan = scanXml(xml);
   assert.equal(scan.clips.length, 1);
   assert.deepEqual(scan.warnings, ['Unsupported timeline element: transition']);
 });
 
+test('scans Resolve picture clip wrappers using wrapper timing and a single video source', () => {
+  const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="source.mov"/></resources><library><event><project name="Test"><sequence format="f" duration="4s"><spine><clip name="Trimmed" offset="1s" start="2s" duration="1s" enabled="0"><adjust-transform/><video ref="a" offset="0s" start="0s" duration="4s"/></clip><clip offset="2s" start="0s" duration="1s"><audio ref="a"/></clip><clip offset="3s" start="0s" duration="1s"><video ref="a"/><video ref="a"/></clip></spine></sequence></project></event></library></fcpxml>`;
+  const scan = scanXml(xml);
+  assert.deepEqual(scan.clips.map(({ name, offsetFrames, sourceInFrames, durationFrames, enabled }) => ({ name, offsetFrames, sourceInFrames, durationFrames, enabled })), [
+    { name: 'Trimmed', offsetFrames: 24, sourceInFrames: 48, durationFrames: 24, enabled: false }
+  ]);
+  assert.deepEqual(scan.warnings, [
+    'Nested clip content, including audio and effects, is not scanned',
+    'A clip has no single picture source and is not scanned'
+  ]);
+});
+
 test('rejects malformed XML and non-frame-aligned timing', () => {
   assert.throws(() => scanXml('<fcpxml>'), { code: 'malformed-xml' });
-  const xml = `<?xml version="1.0"?><fcpxml><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project><sequence format="f" duration="1s"><spine><asset-clip ref="a" offset="0s" duration="1/25s"/></spine></sequence></project></event></library></fcpxml>`;
+  const xml = `<?xml version="1.0"?><fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/><asset id="a" name="a.mov"/></resources><library><event><project><sequence format="f" duration="1s"><spine><asset-clip ref="a" offset="0s" duration="1/25s"/></spine></sequence></project></event></library></fcpxml>`;
   assert.throws(() => scanXml(xml), { code: 'unsupported-timing' });
+  assert.throws(() => scanXml(xml.replace('version="1.10"', 'version="1.11"')), { code: 'unsupported-fcpxml-version' });
 });
 
 test('rejects absent bundle content and unsupported files', async () => {

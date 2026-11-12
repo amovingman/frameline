@@ -140,3 +140,51 @@ test('revisions persist across sessions and require a fresh scan after source ch
     assert.equal(main.revisions[0].message, 'Changed cut');
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });
+
+test('opening a revision compares safe inventory fields with its verified parent', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-comparison-'));
+  try {
+    const projectPath = path.join(directory, 'cut.fcpxml');
+    const fixtures = path.join(__dirname, '..', 'phase-0', 'compatibility-corpus');
+    await fs.copyFile(path.join(fixtures, 'edit-before.fcpxml'), projectPath);
+    const session = createProjectSession(scanFcpXml, createLocalMetadataStore(path.join(directory, 'app-data')));
+    await session.select(projectPath);
+    const first = await session.saveRevision('Before edit');
+    await fs.copyFile(path.join(fixtures, 'edit-after.fcpxml'), projectPath);
+    await session.rescan();
+    const second = await session.saveRevision('After edit');
+    const state = await session.openRevision(second.revisions[0].id);
+    assert.equal(state.comparisonError, null);
+    assert.equal(state.selectedComparison.changes.length, 4);
+    assert.equal(state.selectedComparison.clipChangesAvailable, false);
+    assert.equal(state.selectedComparison.beforeClipCount, 3);
+    assert.equal(state.selectedComparison.afterClipCount, 3);
+    const parent = await session.openRevision(first.revisions[0].id);
+    assert.equal(parent.selectedComparison, null);
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});
+
+test('session offers an explicit matching history and restores it after relink', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-relink-'));
+  try {
+    const original = path.join(directory, 'original.fcpxml');
+    const moved = path.join(directory, 'moved.fcpxml');
+    const fixture = path.join(__dirname, '..', 'phase-0', 'compatibility-corpus', 'edit-before.fcpxml');
+    await fs.copyFile(fixture, original);
+    await fs.copyFile(fixture, moved);
+    const store = createLocalMetadataStore(path.join(directory, 'app-data'));
+    const session = createProjectSession(scanFcpXml, store);
+    await session.select(original);
+    const saved = await session.saveRevision('Before move');
+    const oldId = saved.selectedProject.id;
+    const selected = await session.select(moved);
+    assert.notEqual(selected.selectedProject.id, oldId);
+    assert.deepEqual(selected.relinkCandidates.map(item => item.projectId), [oldId]);
+    assert.doesNotMatch(JSON.stringify(selected), /original\.fcpxml/);
+    const relinked = await session.relinkProject(oldId);
+    assert.equal(relinked.selectedProject.id, oldId);
+    assert.equal(relinked.relinkError, null);
+    assert.equal(relinked.revisions[0].message, 'Before move');
+    assert.deepEqual(relinked.relinkCandidates, []);
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});

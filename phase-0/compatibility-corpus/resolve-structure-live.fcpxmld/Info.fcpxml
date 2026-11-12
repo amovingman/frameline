@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+    <resources>
+        <format frameDuration="1/24s" name="FFVideoFormat1080p24" width="1920" height="1080" id="r0"/>
+        <format frameDuration="1/24s" name="FFVideoFormatRateUndefined" width="320" height="180" id="r1"/>
+        <effect name="Cross Dissolve" uid="FxPlug:4731E73A-8DAC-4113-9A30-AE85B1761265" id="r4"/>
+        <media name="Frameline Nested Moving Bars 00" id="r8">
+            <sequence tcFormat="NDF" duration="71/24s" tcStart="0/1s" format="r0">
+                <spine>
+                    <clip name="moving-bars-with-audio.mov" start="0/1s" tcFormat="NDF" duration="35/24s" offset="0/1s" format="r1" enabled="1">
+                        <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        <video start="0/1s" duration="3/1s" offset="0/1s" ref="r6"/>
+                    </clip>
+                    <gap name="Gap" start="3600/1s" duration="1/24s" offset="35/24s"/>
+                    <clip name="moving-bars-with-audio.mov" start="3/2s" tcFormat="NDF" duration="35/24s" offset="3/2s" format="r1" enabled="1">
+                        <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        <video start="0/1s" duration="3/1s" offset="0/1s" ref="r7"/>
+                    </clip>
+                </spine>
+            </sequence>
+        </media>
+        <asset hasVideo="1" audioSources="1" name="moving-bars-with-audio.mov" start="0/1s" hasAudio="1" audioChannels="1" duration="3/1s" format="r1" id="r2">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/phase-0/compatibility-corpus/moving-bars-with-audio.mov" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" audioSources="1" name="moving-bars-with-audio.mov" start="0/1s" hasAudio="1" audioChannels="1" duration="3/1s" format="r1" id="r3">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/phase-0/compatibility-corpus/moving-bars-with-audio.mov" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" audioSources="1" name="moving-bars-with-audio.mov" start="0/1s" hasAudio="1" audioChannels="1" duration="3/1s" format="r1" id="r5">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/phase-0/compatibility-corpus/moving-bars-with-audio.mov" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" audioSources="1" name="moving-bars-with-audio.mov" start="0/1s" hasAudio="1" audioChannels="1" duration="3/1s" format="r1" id="r6">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/phase-0/compatibility-corpus/moving-bars-with-audio.mov" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" audioSources="1" name="moving-bars-with-audio.mov" start="0/1s" hasAudio="1" audioChannels="1" duration="3/1s" format="r1" id="r7">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/phase-0/compatibility-corpus/moving-bars-with-audio.mov" kind="original-media"/>
+        </asset>
+        <asset audioSources="1" name="moving-bars-with-audio.mov" start="0/1s" hasAudio="1" audioChannels="1" duration="3/1s" id="r9">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/phase-0/compatibility-corpus/moving-bars-with-audio.mov" kind="original-media"/>
+        </asset>
+    </resources>
+    <library>
+        <event name="Frameline Structure Coverage 00 Copy (Resolve)">
+            <project name="Frameline Structure Coverage 00 Copy (Resolve)">
+                <sequence tcFormat="NDF" duration="241/24s" tcStart="0/1s" format="r0">
+                    <spine>
+                        <asset-clip name="moving-bars-with-audio.mov" start="0/1s" tcFormat="NDF" duration="3/1s" offset="0/1s" format="r1" ref="r2" enabled="1">
+                            <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        </asset-clip>
+                        <gap name="Gap" start="3600/1s" duration="169/24s" offset="3/1s">
+                            <spine lane="1" offset="10801/3s">
+                                <clip name="moving-bars-with-audio.mov" start="0/1s" tcFormat="NDF" duration="3/2s" offset="0/1s" format="r1" enabled="1">
+                                    <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                                    <video start="0/1s" duration="3/1s" offset="0/1s" ref="r3"/>
+                                </clip>
+                                <transition name="Cross Dissolve" duration="1/12s" offset="17/12s">
+                                    <filter-video name="Transition" ref="r4">
+                                        <param value="-1" name="ease" key="50"/>
+                                    </filter-video>
+                                </transition>
+                            </spine>
+                            <clip lane="1" name="moving-bars-with-audio.mov" start="3/2s" tcFormat="NDF" duration="35/24s" offset="21611/6s" format="r1" enabled="1">
+                                <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                                <video start="0/1s" duration="3/1s" offset="0/1s" ref="r5"/>
+                            </clip>
+                            <ref-clip lane="2" name="Frameline Nested Moving Bars 00" start="0/1s" duration="71/24s" offset="43249/12s" srcEnable="video" ref="r8">
+                                <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                            </ref-clip>
+                            <clip lane="4" name="moving-bars-with-audio.mov" start="0/1s" duration="35/24s" offset="10801/3s" enabled="1">
+                                <audio srcCh="1" start="0/1s" duration="3/1s" offset="0/1s" ref="r9"/>
+                            </clip>
+                        </gap>
+                    </spine>
+                </sequence>
+            </project>
+        </event>
+    </library>
+</fcpxml>

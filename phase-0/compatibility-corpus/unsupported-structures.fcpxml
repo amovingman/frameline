@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="f1" frameDuration="1/24s"/>
+    <asset id="a1" name="picture.mov"/>
+    <asset id="a2" name="voice.wav"/>
+  </resources>
+  <library><event><project name="Unsupported structures"><sequence format="f1" duration="5s"><spine>
+    <asset-clip ref="a1" name="Picture" offset="0s" duration="3s">
+      <filter-video ref="color-effect"/>
+      <audio ref="a2" lane="-1" offset="0s" duration="3s"/>
+    </asset-clip>
+    <transition offset="3s" duration="1s"/>
+    <asset-clip ref="a2" name="Voice" lane="-1" offset="3s" duration="1s"/>
+    <ref-clip ref="nested-sequence" offset="4s" duration="1s"/>
+  </spine></sequence></project></event></library>
+</fcpxml>

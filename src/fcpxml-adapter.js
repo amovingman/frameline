@@ -45,6 +45,7 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
   const document = parser.parse(xml);
   const root = document.fcpxml;
   if (!root || !root.resources || !root.library) throw new ScanError('unsupported-structure');
+  if (String(root.version) !== '1.10') throw new ScanError('unsupported-fcpxml-version');
 
   const resources = new Map();
   for (const [kind, nodes] of Object.entries(root.resources)) {
@@ -65,12 +66,32 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
   const referencedAssets = new Map();
   const warnings = new Set();
   for (const { kind, node } of entries) {
-    if (kind === 'gap') continue;
-    if (!['asset-clip', 'video'].includes(kind)) {
+    if (kind === 'gap') {
+      if (Object.values(node).some(value => value !== null && typeof value === 'object')) {
+        warnings.add('Content attached to a gap, including additional tracks, is not scanned');
+      }
+      continue;
+    }
+    if (!['asset-clip', 'video', 'clip'].includes(kind)) {
       warnings.add(`Unsupported timeline element: ${kind}`);
       continue;
     }
-    const asset = resources.get(String(node.ref));
+    if (node.lane !== undefined && Number(node.lane) !== 0) {
+      warnings.add('Connected audio or video lanes are not scanned');
+      continue;
+    }
+    if (Object.values(node).some(value => value !== null && typeof value === 'object')) {
+      warnings.add('Nested clip content, including audio and effects, is not scanned');
+    }
+    // Resolve wraps ordinary picture edits in <clip><video ref="asset"/></clip>.
+    // The wrapper owns timeline timing; its child only identifies the source.
+    const videos = kind === 'clip' ? asArray(node.video) : [];
+    if (kind === 'clip' && (videos.length !== 1 || !videos[0]?.ref)) {
+      warnings.add('A clip has no single picture source and is not scanned');
+      continue;
+    }
+    const assetRef = kind === 'clip' ? videos[0].ref : node.ref;
+    const asset = resources.get(String(assetRef));
     if (!asset || asset.kind !== 'asset') {
       warnings.add('A clip references an unavailable asset');
       continue;
@@ -80,7 +101,7 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
     const sourceInFrames = frames(node.start ?? '0s', frameDuration);
     const mediaRep = asArray(asset['media-rep']).find(rep => rep.kind === 'original-media') || asArray(asset['media-rep'])[0];
     const source = mediaRep?.src || asset.src || null;
-    const mediaKey = source || `resource:${node.ref}`;
+    const mediaKey = source || `resource:${assetRef}`;
     if (!referencedAssets.has(mediaKey)) referencedAssets.set(mediaKey, { name: displayName(asset.name || 'Unnamed asset'), source });
     clips.push({
       scanKey: `position-${clips.length + 1}`,

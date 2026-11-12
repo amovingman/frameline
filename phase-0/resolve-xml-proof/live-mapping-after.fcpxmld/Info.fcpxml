@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+    <resources>
+        <format frameDuration="1/24s" name="FFVideoFormat1080p24" width="1920" height="1080" id="r0"/>
+        <format name="FFVideoFormatRateUndefined" width="1200" height="801" id="r1"/>
+        <format name="FFVideoFormatRateUndefined" width="1200" height="900" id="r3"/>
+        <format name="FFVideoFormatRateUndefined" width="1200" height="1800" id="r5"/>
+        <asset hasVideo="1" name="mountain-alps.jpg" start="0/1s" duration="0/1s" format="r1" id="r2">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" name="mountain-greenland.jpg" start="0/1s" duration="0/1s" format="r3" id="r4">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-greenland.jpg" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" name="mountain-summit.jpg" start="0/1s" duration="0/1s" format="r5" id="r6">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-summit.jpg" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" name="mountain-alps.jpg" start="0/1s" duration="0/1s" format="r1" id="r7">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg" kind="original-media"/>
+        </asset>
+        <asset hasVideo="1" name="mountain-alps.jpg" start="0/1s" duration="0/1s" format="r1" id="r8">
+            <media-rep src="file:///Users/user/Downloads/Work%20Projects/Git%20for%20Video%20Editing/src/assets/visuals/mountain-alps.jpg" kind="original-media"/>
+        </asset>
+    </resources>
+    <library>
+        <event name="Frameline API Mapping Edit Copy (Resolve)">
+            <project name="Frameline API Mapping Edit Copy (Resolve)">
+                <sequence tcFormat="NDF" duration="697/24s" tcStart="0/1s" format="r0">
+                    <spine>
+                        <video name="mountain-alps.jpg" start="0/1s" duration="3/1s" offset="0/1s" ref="r2" enabled="1">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        </video>
+                        <video name="mountain-greenland.jpg" start="0/1s" duration="4/1s" offset="3/1s" ref="r4" enabled="1">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        </video>
+                        <video name="mountain-summit.jpg" start="0/1s" duration="3/1s" offset="7/1s" ref="r6" enabled="1">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        </video>
+                        <gap name="Gap" start="3600/1s" duration="97/24s" offset="10/1s"/>
+                        <video name="mountain-alps.jpg" start="0/1s" duration="5/1s" offset="337/24s" ref="r7" enabled="1">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        </video>
+                        <gap name="Gap" start="3600/1s" duration="143/24s" offset="457/24s"/>
+                        <video name="Alps API rename" start="0/1s" duration="97/24s" offset="25/1s" ref="r8" enabled="1">
+                            <adjust-conform type="fit"/>
+                            <adjust-transform position="0 0" anchor="0 0" scale="1 1"/>
+                        </video>
+                    </spine>
+                </sequence>
+            </project>
+        </event>
+    </library>
+</fcpxml>

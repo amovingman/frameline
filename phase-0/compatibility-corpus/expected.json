@@ -1,0 +1,58 @@
+{
+  "basic-edits.fcpxml": {
+    "sequence": { "name": "Basic edits", "frameDuration": "1/24s", "durationFrames": 288 },
+    "clips": [
+      { "scanKey": "position-1", "name": "Opening trim", "mediaName": "wide.mov", "offsetFrames": 0, "durationFrames": 72, "sourceInFrames": 24, "enabled": true, "identityStatus": "unresolved" },
+      { "scanKey": "position-2", "name": "Moved detail", "mediaName": "detail.mov", "offsetFrames": 96, "durationFrames": 48, "sourceInFrames": 48, "enabled": true, "identityStatus": "unresolved" },
+      { "scanKey": "position-3", "name": "Wide again", "mediaName": "wide.mov", "offsetFrames": 144, "durationFrames": 96, "sourceInFrames": 192, "enabled": true, "identityStatus": "unresolved" }
+    ],
+    "media": [
+      { "name": "wide.mov", "availability": "unknown" },
+      { "name": "detail.mov", "availability": "unknown" }
+    ],
+    "warnings": []
+  },
+  "edit-before.fcpxml": {
+    "sequence": { "name": "Edit before", "frameDuration": "1/24s", "durationFrames": 144 },
+    "clips": [
+      { "scanKey": "position-1", "name": "Opening", "mediaName": "opening.mov", "offsetFrames": 0, "durationFrames": 48, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" },
+      { "scanKey": "position-2", "name": "Removed later", "mediaName": "removed.mov", "offsetFrames": 48, "durationFrames": 48, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" },
+      { "scanKey": "position-3", "name": "Ending", "mediaName": "ending.mov", "offsetFrames": 96, "durationFrames": 48, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" }
+    ],
+    "media": [
+      { "name": "opening.mov", "availability": "unknown" },
+      { "name": "removed.mov", "availability": "unknown" },
+      { "name": "ending.mov", "availability": "unknown" }
+    ],
+    "warnings": []
+  },
+  "edit-after.fcpxml": {
+    "sequence": { "name": "Edit after", "frameDuration": "1/24s", "durationFrames": 120 },
+    "clips": [
+      { "scanKey": "position-1", "name": "Opening", "mediaName": "opening.mov", "offsetFrames": 0, "durationFrames": 48, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" },
+      { "scanKey": "position-2", "name": "Inserted", "mediaName": "inserted.mov", "offsetFrames": 48, "durationFrames": 24, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" },
+      { "scanKey": "position-3", "name": "Ending", "mediaName": "ending.mov", "offsetFrames": 72, "durationFrames": 48, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" }
+    ],
+    "media": [
+      { "name": "opening.mov", "availability": "unknown" },
+      { "name": "inserted.mov", "availability": "unknown" },
+      { "name": "ending.mov", "availability": "unknown" }
+    ],
+    "warnings": []
+  },
+  "unsupported-structures.fcpxml": {
+    "sequence": { "name": "Unsupported structures", "frameDuration": "1/24s", "durationFrames": 120 },
+    "clips": [
+      { "scanKey": "position-1", "name": "Picture", "mediaName": "picture.mov", "offsetFrames": 0, "durationFrames": 72, "sourceInFrames": 0, "enabled": true, "identityStatus": "unresolved" }
+    ],
+    "media": [
+      { "name": "picture.mov", "availability": "unknown" }
+    ],
+    "warnings": [
+      "Nested clip content, including audio and effects, is not scanned",
+      "Connected audio or video lanes are not scanned",
+      "Unsupported timeline element: transition",
+      "Unsupported timeline element: ref-clip"
+    ]
+  }
+}

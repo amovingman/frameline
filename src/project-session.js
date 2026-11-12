@@ -1,7 +1,14 @@
 const { createAppState, selectProject } = require('./project-state');
 const { scanFcpXml, verifyFcpXmlSource } = require('./fcpxml-adapter');
+const { compareScanRevisions } = require('./revision-comparison');
+const { requireProjectAdapter } = require('./project-adapter');
 
 function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySource = verifyFcpXmlSource) {
+  if (typeof scan !== 'function') {
+    const adapter = requireProjectAdapter(scan);
+    scan = adapter.scan;
+    verifySource = adapter.verifySource;
+  }
   let state = createAppState();
   let selectedPath = null;
   let generation = 0;
@@ -11,7 +18,15 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
   async function runScan(filePath, currentGeneration) {
     try {
       const result = await scan(filePath);
-      if (currentGeneration === generation) state = { ...state, scan: result, scanStatus: 'ready', error: null };
+      if (currentGeneration === generation) state = { ...state, scan: result, scanStatus: 'ready', error: null, relinkCandidates: [], relinkError: null };
+      if (currentGeneration === generation && state.selectedProject?.id && metadataStore?.listRelinkCandidates) {
+        try {
+          const candidates = await metadataStore.listRelinkCandidates(state.selectedProject.id, result.sourceHash);
+          if (currentGeneration === generation) state = { ...state, relinkCandidates: candidates };
+        } catch (error) {
+          if (currentGeneration === generation) state = { ...state, relinkError: error.code || 'metadata-unavailable' };
+        }
+      }
     } catch (error) {
       if (currentGeneration === generation) state = { ...state, scan: null, scanStatus: 'error', error: error.code || 'scan-failed' };
     }
@@ -82,23 +97,48 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
         await verifySource(selectedPath, manifest.sourceHash);
         if (currentGeneration !== generation) return getState();
         const revision = await metadataStore.saveRevision(projectId, manifest, cleanMessage, headId, branchName);
-        if (currentGeneration === generation) state = { ...state, revisions: [revision, ...state.revisions], revisionStatus: 'idle', revisionError: null };
+        if (currentGeneration === generation) state = { ...state, revisions: [revision, ...state.revisions], revisionStatus: 'idle', revisionError: null, selectedRevision: null, revisionDetailError: null, selectedComparison: null, comparisonError: null };
       } catch (error) {
         if (currentGeneration === generation) state = { ...state, revisionStatus: 'idle', revisionError: error.code || 'metadata-unavailable' };
       }
       return getState();
     },
+    async relinkProject(sourceProjectId) {
+      const candidate = state.relinkCandidates.find(item => item.projectId === sourceProjectId);
+      if (!candidate || !selectedPath || !state.selectedProject?.id || state.scanStatus !== 'ready' || !metadataStore?.relinkProject) {
+        state = { ...state, relinkError: 'relink-unavailable' };
+        return getState();
+      }
+      const currentGeneration = generation;
+      try {
+        const result = await metadataStore.relinkProject(selectedPath, state.selectedProject.id, sourceProjectId, state.scan.sourceHash);
+        const branchState = await metadataStore.getBranchState(result.id);
+        const revisions = await metadataStore.listRevisions(result.id, branchState.currentBranch);
+        if (currentGeneration === generation) state = { ...state, selectedProject: { ...state.selectedProject, id: result.id }, ...branchState, revisions, relinkCandidates: [], relinkError: null, selectedRevision: null, revisionDetailError: null, selectedComparison: null, comparisonError: null };
+      } catch (error) {
+        if (currentGeneration === generation) state = { ...state, relinkError: error.code || 'metadata-unavailable' };
+      }
+      return getState();
+    },
     async openRevision(revisionId) {
       if (!state.selectedProject?.id || !metadataStore?.getRevision || typeof revisionId !== 'string') {
-        state = { ...state, selectedRevision: null, revisionDetailError: 'revision-not-found' };
+        state = { ...state, selectedRevision: null, revisionDetailError: 'revision-not-found', selectedComparison: null, comparisonError: null };
         return getState();
       }
       const currentGeneration = generation;
       try {
         const revision = await metadataStore.getRevision(state.selectedProject.id, revisionId);
-        if (currentGeneration === generation) state = { ...state, selectedRevision: revision, revisionDetailError: null };
+        let comparison = null;
+        let comparisonError = null;
+        if (revision.parentRevisionId) {
+          try {
+            const parent = await metadataStore.getRevision(state.selectedProject.id, revision.parentRevisionId);
+            comparison = compareScanRevisions(parent.manifest, revision.manifest);
+          } catch (error) { comparisonError = error.code || 'revision-corrupt'; }
+        }
+        if (currentGeneration === generation) state = { ...state, selectedRevision: revision, revisionDetailError: null, selectedComparison: comparison, comparisonError };
       } catch (error) {
-        if (currentGeneration === generation) state = { ...state, selectedRevision: null, revisionDetailError: error.code || 'revision-corrupt' };
+        if (currentGeneration === generation) state = { ...state, selectedRevision: null, revisionDetailError: error.code || 'revision-corrupt', selectedComparison: null, comparisonError: null };
       }
       return getState();
     },
@@ -111,7 +151,7 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
       try {
         const branchState = await metadataStore.createBranch(state.selectedProject.id, name, state.revisions[0]?.id || null);
         const revisions = await metadataStore.listRevisions(state.selectedProject.id, branchState.currentBranch);
-        if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, branchError: null };
+        if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, selectedComparison: null, comparisonError: null, branchError: null };
       } catch (error) {
         if (currentGeneration === generation) state = { ...state, branchError: error.code || 'metadata-unavailable' };
       }
@@ -126,7 +166,7 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
       try {
         const branchState = await metadataStore.switchBranch(state.selectedProject.id, name);
         const revisions = await metadataStore.listRevisions(state.selectedProject.id, branchState.currentBranch);
-        if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, branchError: null };
+        if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, selectedComparison: null, comparisonError: null, branchError: null };
       } catch (error) {
         if (currentGeneration === generation) state = { ...state, branchError: error.code || 'metadata-unavailable' };
       }
@@ -143,7 +183,7 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
       const result = await metadataStore.importRevisions(projectId, bundle);
       const branchState = await metadataStore.getBranchState(projectId);
       const revisions = await metadataStore.listRevisions(projectId, branchState.currentBranch);
-      if (currentGeneration === generation) state = { ...state, ...branchState, revisions };
+      if (currentGeneration === generation) state = { ...state, ...branchState, revisions, selectedRevision: null, revisionDetailError: null, selectedComparison: null, comparisonError: null };
       return { state: getState(), result };
     }
   };

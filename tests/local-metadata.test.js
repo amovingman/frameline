@@ -50,6 +50,24 @@ test('reports damage when no valid backup exists', async () => withStore(async d
   await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-invalid' });
 }));
 
+test('rejects duplicate project IDs and cyclic revision parents in metadata', async () => withStore(async directory => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const first = '22222222-2222-4222-8222-222222222222';
+  const second = '33333333-3333-4333-8333-333333333333';
+  const fingerprintA = 'a'.repeat(64);
+  const fingerprintB = 'b'.repeat(64);
+  const empty = { id, revisions: [], branches: { main: null }, currentBranch: 'main' };
+  const metadataPath = path.join(directory, 'metadata.json');
+  await fs.writeFile(metadataPath, JSON.stringify({ schemaVersion: 3, projects: { [fingerprintA]: empty, [fingerprintB]: empty } }));
+  await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-invalid' });
+  const revisions = [
+    { id: first, projectId: id, parentRevisionId: second, message: 'First', contentHash: 'a'.repeat(64) },
+    { id: second, projectId: id, parentRevisionId: first, message: 'Second', contentHash: 'b'.repeat(64) }
+  ];
+  await fs.writeFile(metadataPath, JSON.stringify({ schemaVersion: 3, projects: { [fingerprintA]: { id, revisions, branches: { main: second }, currentBranch: 'main' } } }));
+  await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-invalid' });
+}));
+
 test('migrates v1 project IDs before storing immutable linked revisions', async () => withStore(async directory => {
   const filePath = '/private/editing/client-cut.fcpxml';
   const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
@@ -183,4 +201,44 @@ test('rejects damaged transfer packages before changing target history', async (
   await assert.rejects(store.importRevisions(projectId, bundle), { code: 'revision-transfer-invalid' });
   assert.deepEqual((await store.getBranchState(projectId)).branches, ['main']);
   assert.equal((await store.listRevisions(projectId)).length, 1);
+}));
+
+test('explicit relink moves verified history to an identical export at a new path', async () => withStore(async directory => {
+  const store = createLocalMetadataStore(path.join(directory, 'app-data'));
+  const original = path.join(directory, 'original.fcpxml');
+  const moved = path.join(directory, 'moved.fcpxml');
+  const fixture = path.join(__dirname, '..', 'phase-0', 'compatibility-corpus', 'edit-before.fcpxml');
+  await fs.copyFile(fixture, original);
+  await fs.copyFile(fixture, moved);
+  const originalId = (await store.getProjectId(original)).id;
+  const manifest = await scanFcpXml(original);
+  const head = await store.saveRevision(originalId, manifest, 'Before move');
+  const newId = (await store.getProjectId(moved)).id;
+  const candidates = await store.listRelinkCandidates(newId, manifest.sourceHash);
+  assert.deepEqual(candidates.map(item => item.projectId), [originalId]);
+  assert.doesNotMatch(JSON.stringify(candidates), /original\.fcpxml|moved\.fcpxml/);
+  const relinked = await store.relinkProject(moved, newId, originalId, manifest.sourceHash);
+  assert.equal(relinked.id, originalId);
+  assert.equal((await store.getProjectId(moved)).id, originalId);
+  assert.equal((await store.listRevisions(originalId))[0].id, head.id);
+  assert.notEqual((await store.getProjectId(original)).id, originalId);
+  assert.deepEqual(await store.listRelinkCandidates(originalId, manifest.sourceHash), []);
+}));
+
+test('relink refuses changed files and a destination with its own history', async () => withStore(async directory => {
+  const store = createLocalMetadataStore(path.join(directory, 'app-data'));
+  const original = path.join(directory, 'original.fcpxml');
+  const moved = path.join(directory, 'moved.fcpxml');
+  const fixture = path.join(__dirname, '..', 'phase-0', 'compatibility-corpus', 'edit-before.fcpxml');
+  await fs.copyFile(fixture, original);
+  await fs.copyFile(fixture, moved);
+  const originalId = (await store.getProjectId(original)).id;
+  const movedId = (await store.getProjectId(moved)).id;
+  const manifest = await scanFcpXml(original);
+  await store.saveRevision(originalId, manifest, 'Before move');
+  await fs.appendFile(moved, '\n');
+  await assert.rejects(store.relinkProject(moved, movedId, originalId, manifest.sourceHash), { code: 'revision-source-changed' });
+  assert.equal((await store.getProjectId(moved)).id, movedId);
+  await store.saveRevision(movedId, await scanFcpXml(moved), 'Separate history');
+  await assert.rejects(store.relinkProject(moved, movedId, originalId, manifest.sourceHash), { code: 'relink-unavailable' });
 }));

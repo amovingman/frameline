@@ -15,8 +15,9 @@ import json
 from pathlib import Path
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 TRACK_TYPES = ("video", "audio", "subtitle")
+EFFECT_CATEGORIES = ("fusion", "ofx", "audio")
 
 
 def capture(resolve):
@@ -25,34 +26,55 @@ def capture(resolve):
         raise RuntimeError("Open a disposable Resolve project before capturing")
 
     timelines = []
+    seen_timeline_ids = set()
     for timeline_index in range(1, project.GetTimelineCount() + 1):
         timeline = project.GetTimelineByIndex(timeline_index)
         if timeline is None:
             raise RuntimeError(f"Timeline {timeline_index} could not be read")
         timeline_id = timeline.GetUniqueId()
-        if not timeline_id:
-            raise RuntimeError(f"Timeline {timeline_index} has no API unique ID")
+        if not timeline_id or timeline_id in seen_timeline_ids:
+            raise RuntimeError(f"Timeline {timeline_index} has a missing or duplicate API unique ID")
+        seen_timeline_ids.add(timeline_id)
         items = []
+        tracks = []
         seen_ids = set()
         for track_type in TRACK_TYPES:
             for track_index in range(1, timeline.GetTrackCount(track_type) + 1):
+                tracks.append({
+                    "type": track_type,
+                    "index": track_index,
+                    "name": timeline.GetTrackName(track_type, track_index),
+                })
                 for item in timeline.GetItemListInTrack(track_type, track_index) or []:
                     item_id = item.GetUniqueId()
                     if not item_id or item_id in seen_ids:
                         raise RuntimeError(f"Missing or duplicate item ID in timeline {timeline_index}")
                     seen_ids.add(item_id)
                     media = item.GetMediaPoolItem()
+                    linked_ids = sorted(link.GetUniqueId() for link in item.GetLinkedItems() or [])
+                    if any(not link_id for link_id in linked_ids):
+                        raise RuntimeError(f"Linked item has no ID in timeline {timeline_index}")
                     items.append({
                         "id": item_id,
                         "track_type": track_type,
                         "track_index": track_index,
+                        "type": item.GetType(),
                         "name": item.GetName(),
                         "start_frame": item.GetStart(),
                         "end_frame": item.GetEnd(),
                         "source_start_frame": item.GetSourceStartFrame(),
+                        "source_end_frame": item.GetSourceEndFrame(),
                         "media_pool_id": media.GetUniqueId() if media else None,
+                        "linked_item_ids": linked_ids,
+                        "effect_counts": {category: len(item.GetEffects(category) or []) for category in EFFECT_CATEGORIES},
                     })
-        timelines.append({"id": timeline_id, "name": timeline.GetName(), "items": items})
+        timelines.append({
+            "id": timeline_id,
+            "name": timeline.GetName(),
+            "start_frame": timeline.GetStartFrame(),
+            "tracks": tracks,
+            "items": items,
+        })
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -77,6 +99,15 @@ def compare(before, after):
         raise ValueError("Unsupported snapshot schema")
     if not before.get("project_id") or before["project_id"] != after.get("project_id"):
         raise ValueError("Snapshots come from different or unidentified projects")
+
+    for label, snapshot in (("before", before), ("after", after)):
+        timeline_ids = [timeline.get("id") for timeline in snapshot.get("timelines", [])]
+        if any(not isinstance(timeline_id, str) or not timeline_id for timeline_id in timeline_ids) or len(timeline_ids) != len(set(timeline_ids)):
+            raise ValueError(f"{label} snapshot has missing or duplicate timeline IDs")
+        for timeline in snapshot["timelines"]:
+            item_ids = [item.get("id") for item in timeline.get("items", [])]
+            if any(not isinstance(item_id, str) or not item_id for item_id in item_ids) or len(item_ids) != len(set(item_ids)):
+                raise ValueError(f"{label} snapshot has missing or duplicate item IDs")
 
     old_timelines = {timeline["id"]: timeline for timeline in before["timelines"]}
     new_timelines = {timeline["id"]: timeline for timeline in after["timelines"]}

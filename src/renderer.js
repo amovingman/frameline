@@ -12,6 +12,7 @@ const scanRecovery = {
   'file-too-large': 'This export exceeds the 20 MB scan limit. Export a smaller timeline or sequence, then choose that file.',
   'malformed-xml': 'The export contains malformed XML. Export the timeline again from Resolve, then choose the new file.',
   'unsupported-structure': 'No supported top-level picture sequence was found. Export a timeline with a primary picture track from Resolve, then choose the new file.',
+  'unsupported-fcpxml-version': 'This export is not FCPXML 1.10. Export the timeline from the tested Resolve 21.1.2 build, then choose the new file.',
   'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.',
   'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.',
   'metadata-unavailable': 'Frameline could not save local project metadata. Check free disk space and folder permissions, then rescan. The export was not changed.',
@@ -29,7 +30,9 @@ const scanRecovery = {
   'branch-not-found': 'That branch is no longer available. Choose the project again to refresh the branch list.',
   'branch-project-required': 'Choose an FCPXML export before managing branches.',
   'revision-transfer-invalid': 'This backup is damaged or is not a supported Frameline revision backup. No revisions were imported.',
-  'revision-transfer-too-large': 'This backup exceeds the 50 MB import limit.'
+  'revision-transfer-too-large': 'This backup exceeds the 50 MB import limit.',
+  'relink-unavailable': 'This history can no longer be relinked. Rescan the export and try again.',
+  'relink-source-changed': 'The export or matching revision changed. Rescan and choose its history again.'
 };
 
 function renderAppState(state) {
@@ -51,7 +54,7 @@ function renderAppState(state) {
     document.querySelector('.revision-jump').hidden = true;
     document.getElementById('audio-track').hidden = true;
     document.querySelector('.nav-count').textContent = '';
-    document.querySelector('#view-history .secondary-hero p').textContent = `${state.revisions?.length || 0} revision${state.revisions?.length === 1 ? '' : 's'} on ${state.currentBranch}. Clip identity is unresolved, so comparison and pull remain unavailable.`;
+    document.querySelector('#view-history .secondary-hero p').textContent = `${state.revisions?.length || 0} revision${state.revisions?.length === 1 ? '' : 's'} on ${state.currentBranch}. Open a revision to compare its sequence and media inventory with its parent.`;
     document.getElementById('branch-controls').hidden = false;
     const branchSelect = document.getElementById('branch-switch');
     branchSelect.replaceChildren();
@@ -62,10 +65,19 @@ function renderAppState(state) {
     });
     branchSelect.value = state.currentBranch;
     document.getElementById('revision-form').hidden = false;
+    const relinkPanel = document.getElementById('relink-panel');
+    const relinkSelect = document.getElementById('relink-source');
+    relinkSelect.replaceChildren();
+    for (const candidate of state.relinkCandidates || []) {
+      const option = make('option', '', `${candidate.message} · ${candidate.branch} · ${candidate.projectId.slice(0, 8)}`);
+      option.value = candidate.projectId;
+      relinkSelect.append(option);
+    }
+    relinkPanel.hidden = !state.relinkCandidates?.length;
     document.getElementById('save-revision').disabled = state.scanStatus !== 'ready' || state.revisionStatus === 'saving';
     renderRealHistory(state.revisions || [], state.selectedRevision?.id);
-    renderRevisionDetail(state.selectedRevision, state.revisionDetailError);
-    document.querySelector('#view-history .view-footnote').textContent = 'History follows the selected branch. These are local scan snapshots; comparison and pull are not available yet.';
+    renderRevisionDetail(state.selectedRevision, state.revisionDetailError, state.selectedComparison, state.comparisonError);
+    document.querySelector('#view-history .view-footnote').textContent = 'History follows the selected branch. Clip-level comparison and pull remain unavailable until stable IDs are proven.';
     document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media assets · ${scan.media.filter(item => item.availability === 'local').length} available locally · ${scan.media.filter(item => item.availability === 'missing').length} missing` : 'Media could not be scanned.';
     document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
     document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
@@ -233,7 +245,7 @@ function renderRealHistory(revisions, selectedId) {
   });
 }
 
-function renderRevisionDetail(revision, error) {
+function renderRevisionDetail(revision, error, comparison = null, comparisonError = null) {
   const section = document.getElementById('revision-detail');
   const title = document.getElementById('revision-detail-title');
   const body = document.getElementById('revision-detail-body');
@@ -247,6 +259,27 @@ function renderRevisionDetail(revision, error) {
   if (!revision) return;
   title.textContent = revision.message;
   const manifest = revision.manifest;
+  if (revision.parentRevisionId) {
+    body.append(make('h4', '', 'Compared with parent'));
+    if (comparisonError) body.append(make('p', 'revision-detail-note', scanRecovery[comparisonError] || 'The parent revision could not be compared.'));
+    else if (comparison) {
+      if (!comparison.changes.length) body.append(make('p', 'revision-detail-note', 'No observable sequence or media-label changes found.'));
+      else {
+        const list = make('ul', 'revision-comparison-list');
+        const sequenceLabels = { name: 'Sequence name', frameDuration: 'Frame duration', durationFrames: 'Sequence length' };
+        comparison.changes.forEach(change => {
+          const label = change.kind === 'sequence' ? sequenceLabels[change.name] : `Media label · ${change.name}`;
+          const formatValue = value => value === null ? 'Not referenced'
+            : change.name === 'durationFrames' ? `${value} frames` : String(value);
+          list.append(make('li', '', `${label}: ${formatValue(change.before)} → ${formatValue(change.after)}`));
+        });
+        body.append(list);
+      }
+      if (comparison.mediaNamesAmbiguous) body.append(make('p', 'revision-detail-note', 'Some media names repeat, so asset-level changes were not matched.'));
+      body.append(make('p', 'revision-detail-note', 'Media is compared by display name and availability. A different asset with the same name may not appear here.'));
+      body.append(make('p', 'revision-detail-note', `Picture clip counts: ${comparison.beforeClipCount} → ${comparison.afterClipCount}. Clip identities and edits are not compared.`));
+    }
+  }
   const details = make('dl', 'revision-facts');
   const facts = [
     ['Saved', new Date(revision.createdAt).toLocaleString()],
@@ -266,7 +299,7 @@ function renderRevisionDetail(revision, error) {
   manifest.media.forEach(item => media.append(make('li', '', `${item.name} · ${item.availability}`)));
   body.append(media);
   if (manifest.warnings.length) body.append(make('p', 'revision-detail-warnings', `Scan warnings: ${manifest.warnings.join(' · ')}`));
-  body.append(make('p', 'revision-detail-note', 'Clip identity is unresolved. This snapshot cannot be used for comparison or pull yet.'));
+  body.append(make('p', 'revision-detail-note', 'Clip identity is unresolved. This snapshot cannot be used for pull.'));
 }
 
 async function openRevision(revisionId) {
@@ -470,6 +503,20 @@ document.getElementById('branch-form').addEventListener('submit', event => {
 document.getElementById('branch-switch').addEventListener('change', event => changeBranch(event.target.value, false));
 document.getElementById('export-revisions').addEventListener('click', () => transferRevisions(false));
 document.getElementById('import-revisions').addEventListener('click', () => transferRevisions(true));
+document.getElementById('relink-action').addEventListener('click', async () => {
+  const button = document.getElementById('relink-action');
+  const notice = document.getElementById('file-notice');
+  button.disabled = true;
+  try {
+    const state = await window.desktop.relinkProject(document.getElementById('relink-source').value);
+    renderAppState(state);
+    notice.hidden = false;
+    notice.textContent = state.relinkError ? scanRecovery[state.relinkError] || 'Could not relink history.' : 'History relinked to this export. Its local project ID and branches are restored.';
+  } catch {
+    notice.hidden = false;
+    notice.textContent = 'Could not relink history. Rescan the export and retry.';
+  } finally { button.disabled = false; }
+});
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {

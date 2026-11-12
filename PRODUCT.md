@@ -18,11 +18,11 @@ Version editing decisions, compare project revisions, and pull clip-level change
 
 ## Operating Context
 
-DaVinci Resolve 21.1.2 is the first integration candidate, using FCPXML for timeline exchange. A local synthetic proof has confirmed import, export, and a changed-copy reimport for a simple three-still timeline. This does not yet establish support for native Resolve project files or complex timeline constructs. Project files and media are local during the first prototype; cloud history and sharing are later parts of the system design.
+DaVinci Resolve Free 21.1.2 on macOS is the initial integration target, using FCPXML 1.10 for read-only timeline exchange while safe write access is researched. A local synthetic proof has confirmed import, export, and a changed-copy reimport for a simple three-still timeline. A Free editor-backed thousand-clip export can now be scanned for its primary picture clips. This does not yet establish release support for native Resolve project files or complex timeline constructs. Project files and media are local during the first prototype; cloud history and sharing are later parts of the system design.
 
 ## Capabilities and Constraints
 
-The current app is an Electron UI prototype. It can scan and rescan the first top-level picture sequence in an FCPXML file or bundle read only, show exact frame counts, and check referenced local media files for availability without exposing their paths to the renderer. It can save immutable local scan revisions on named branches after verifying the export has not changed since scanning. History follows the selected branch and opens validated revision details for selected files; the review examples remain synthetic and labeled as such. Stable clip mapping, revision comparison, merging, and pulling are not implemented, so the pull action stays disabled.
+The current app is an Electron UI prototype. It can scan and rescan the first top-level picture sequence in an FCPXML file or bundle read only, show exact frame counts, and check referenced local media files for availability without exposing their paths to the renderer. It can save immutable local scan revisions on named branches after verifying the export has not changed since scanning. History follows the selected branch, opens validated revision details, and compares sequence and media inventory with a revision's verified parent; the review examples remain synthetic and labeled as such. Stable clip mapping, clip-level comparison, merging, and pulling are not implemented, so the pull action stays disabled.
 
 ## Evidence on Hand
 

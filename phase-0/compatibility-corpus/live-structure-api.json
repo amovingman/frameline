@@ -1,0 +1,46 @@
+{
+  "provenance": "DaVinci Resolve Free 21.1.2.10 Lua console, Frameline API Relink Test / Frameline Structure Coverage 00 Copy",
+  "project_id": "f9d4820a-47a6-42ba-b097-86a7fc23cfaf",
+  "timeline_id": "9179f1db-5f8e-4f8d-90e4-72193c67ddd1",
+  "start_frame": 0,
+  "end_frame": 241,
+  "tracks": [
+    {
+      "type": "video",
+      "index": 1,
+      "items": [
+        { "type": "video", "id": "5e1e6390-a410-4cb9-94b8-ae8f0c8fbbef", "name": "moving-bars-with-audio.mov", "start": 0, "end": 72, "linked_items": 1, "ofx_effects": 1 }
+      ]
+    },
+    {
+      "type": "video",
+      "index": 2,
+      "items": [
+        { "type": "video", "id": "70d067df-64cd-4729-a93d-d533a9cb1880", "name": "moving-bars-with-audio.mov", "start": 80, "end": 115, "linked_items": 0, "ofx_effects": 0 },
+        { "type": "transition", "id": "c0fef6a4-96c1-4ade-88be-8517596b814d", "name": "Cross Dissolve", "start": 114, "end": 116, "linked_items": 0, "ofx_effects": 0 },
+        { "type": "video", "id": "cd5e87c7-398e-4b22-bce6-59e81d9ca9f3", "name": "moving-bars-with-audio.mov", "start": 116, "end": 151, "linked_items": 0, "ofx_effects": 0 }
+      ]
+    },
+    {
+      "type": "video",
+      "index": 3,
+      "items": [
+        { "type": "video", "id": "a3b297af-45c7-4409-9e5f-87a587609574", "name": "Frameline Nested Moving Bars 00", "start": 170, "end": 241, "linked_items": 0, "ofx_effects": 0 }
+      ]
+    },
+    {
+      "type": "audio",
+      "index": 1,
+      "items": [
+        { "type": "audio", "id": "a3ac82f3-f8d3-4c62-ab7d-4056b9750820", "name": "moving-bars-with-audio.mov", "start": 0, "end": 72, "linked_items": 1, "ofx_effects": 0 }
+      ]
+    },
+    {
+      "type": "audio",
+      "index": 2,
+      "items": [
+        { "type": "audio", "id": "77ea8bc4-d8b7-4756-9435-44c719bd9e13", "name": "moving-bars-with-audio.mov", "start": 80, "end": 115, "linked_items": 0, "ofx_effects": 0 }
+      ]
+    }
+  ]
+}
