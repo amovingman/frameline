@@ -348,7 +348,7 @@ function renderMedia() {
 }
 
 function showView(name) {
-  document.getElementById('view-label').textContent = {workspace: document.getElementById('sample-review').hidden ? 'Timeline scan' : 'Review changes', history: 'Revision history', media: 'Project media'}[name];
+  document.getElementById('view-label').textContent = {workspace: document.getElementById('sample-review').hidden ? 'Timeline scan' : 'Review changes', history: 'Revision history', media: 'Project media', resolve: 'Resolve preview'}[name];
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   document.querySelectorAll('[data-view]').forEach(button => {
     const active = button.dataset.view === name;
@@ -524,3 +524,127 @@ document.addEventListener('keydown', event => {
     showView(['workspace', 'history', 'media'][Number(event.key) - 1]);
   }
 });
+
+let resolveState = null;
+let resolveSelected = null;
+let resolveBusy = false;
+let resolveActionNotice = '';
+const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
+function resolveValue(value) {
+  if (value === undefined || value === null) return 'Not present';
+  return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+}
+function resolveChanges() {
+  return resolveState?.plan?.classification?.decisions || [];
+}
+function resolveConflict(change) {
+  return resolveState?.review?.conflicts?.find(item => item.timelineId === change.timelineId && item.itemId === change.itemId && item.field === change.field);
+}
+function resolveChoice(conflict) {
+  return resolveState?.decisions?.find(item => item.conflictId === conflict?.id)?.choice;
+}
+function renderResolveState(state) {
+  resolveState = state;
+  const items = resolveChanges();
+  const ready = state?.status === 'ready' && !!state.plan;
+  document.getElementById('resolve-refresh').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-save').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-choose').disabled = resolveBusy;
+  document.getElementById('resolve-recover').disabled = resolveBusy;
+  document.getElementById('resolve-notice').textContent = state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Decisions are held for this session; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
+  const sources = document.getElementById('resolve-sources');
+  sources.replaceChildren();
+  const counts = items.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
+  for (const [key, label] of Object.entries(resolveLabels)) {
+    const row = make('div', 'resolve-classification');
+    row.append(make('strong', '', String(counts[key] || 0)), make('span', '', label));
+    sources.append(row);
+  }
+  const filter = document.getElementById('resolve-filter').value;
+  const visible = items.filter(item => {
+    if (filter === 'all') return true;
+    if (filter === 'resolved') return !!resolveChoice(resolveConflict(item));
+    if (filter === 'conflict') return item.status === 'conflict';
+    return item.status === filter;
+  });
+  document.getElementById('resolve-count').textContent = `${visible.length} of ${items.length}`;
+  if (!visible.includes(resolveSelected)) resolveSelected = visible[0] || null;
+  const queue = document.getElementById('resolve-queue');
+  queue.replaceChildren();
+  if (!visible.length) queue.append(make('p', 'history-empty', ready ? 'No changes match this filter.' : 'No snapshots selected.'));
+  visible.forEach(item => {
+    const choice = resolveChoice(resolveConflict(item));
+    const button = make('button', `queue-item${item === resolveSelected ? ' selected' : ''}`);
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(item === resolveSelected));
+    button.append(make('strong', '', item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', item.timelineId || ''), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
+    button.addEventListener('click', () => { resolveSelected = item; renderResolveState(resolveState); });
+    queue.append(button);
+  });
+  renderResolveDetail();
+  const audit = document.getElementById('resolve-audit');
+  const auditHash = state?.audit?.auditHash || state?.audit?.hash || state?.audit?.id;
+  const auditSummary = state?.audit ? `Audit ${auditHash ? String(auditHash).slice(0, 20) : 'available'} · ${state.decisions?.length || 0} recorded choice(s)` : 'Audit pending: decide every conflict.';
+  audit.textContent = state?.artifactId ? `Saved preview: ${state.artifactId} · ${auditSummary}` : ready ? auditSummary : 'No saved preview loaded.';
+  if (state?.artifactId) document.getElementById('resolve-artifact').value = state.artifactId;
+}
+function renderResolveDetail() {
+  const detail = document.getElementById('resolve-detail');
+  detail.replaceChildren();
+  const item = resolveSelected;
+  detail.append(make('h2', '', item ? `${item.field} comparison` : 'Source comparison'));
+  if (!item) { detail.append(make('p', '', 'Select a change to inspect base, local, and incoming source values.')); return; }
+  detail.append(make('p', 'resolve-context', `Timeline ${item.timelineId || 'unspecified'} · Item ${item.itemId || 'timeline'} · ${resolveLabels[item.status] || item.status}`));
+  const values = make('div', 'resolve-values');
+  for (const [key, label] of [['base', 'Common base'], ['local', 'Your local cut'], ['incoming', 'Incoming cut']]) {
+    const column = make('div', key === 'incoming' ? 'incoming-value' : '');
+    column.append(make('h3', '', label), make('pre', '', resolveValue(item[key])));
+    values.append(column);
+  }
+  detail.append(values);
+  const conflict = resolveConflict(item);
+  if (conflict) {
+    detail.append(make('p', 'resolve-context', 'Both cuts changed this field from the common base. Choose the value to record in this review.'));
+    const controls = make('div', 'resolve-decisions');
+    const selected = resolveChoice(conflict);
+    for (const choice of conflict.options || ['keep-local', 'take-incoming']) {
+      const button = make('button', selected === choice ? 'selected' : '', choice === 'keep-local' ? 'Keep local' : 'Take incoming');
+      button.type = 'button'; button.disabled = resolveBusy;
+      button.setAttribute('aria-pressed', String(selected === choice));
+      button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
+      controls.append(button);
+    }
+    detail.append(controls);
+  }
+  const assessment = resolveState?.plan?.assessment;
+  if (assessment?.warnings?.length) {
+    detail.append(make('h3', 'resolve-subheading', 'Preview warnings'));
+    const list = make('ul', 'revision-detail-list');
+    assessment.warnings.forEach(warning => list.append(make('li', '', resolveValue(warning)))); detail.append(list);
+  }
+  if (assessment?.mediaRequirements?.length) detail.append(make('p', 'resolve-context', `${assessment.mediaRequirements.length} media requirement(s) need verification before any future apply.`));
+}
+async function resolveAction(method, ...args) {
+  if (resolveBusy) return;
+  resolveBusy = true;
+  resolveActionNotice = '';
+  renderResolveState(resolveState);
+  document.getElementById('resolve-notice').textContent = 'Reading and verifying preview…';
+  try {
+    if (!window.desktop?.[method]) throw new Error('Resolve preview is available in the desktop app.');
+    const state = await window.desktop[method](...args);
+    if (state) resolveState = state;
+    if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = 'Snapshots verified and preview refreshed. Review the current conflict decisions.';
+    if (method === 'saveResolvePreview' && !state?.error) resolveActionNotice = 'Preview saved. Session decisions are not restored by recovery.';
+    if (method === 'recoverResolvePreview' && !state?.error) resolveActionNotice = 'Saved preview recovered. Review conflict decisions again.';
+  } catch (error) {
+    resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the snapshots again to retry.' } };
+  } finally { resolveBusy = false; renderResolveState(resolveState); }
+}
+document.getElementById('resolve-choose').addEventListener('click', () => resolveAction('chooseResolveSnapshots'));
+document.getElementById('resolve-refresh').addEventListener('click', () => resolveAction('refreshResolvePreview'));
+document.getElementById('resolve-save').addEventListener('click', () => resolveAction('saveResolvePreview'));
+document.getElementById('resolve-filter').addEventListener('change', () => renderResolveState(resolveState));
+document.getElementById('resolve-recover-form').addEventListener('submit', event => { event.preventDefault(); resolveAction('recoverResolvePreview', document.getElementById('resolve-artifact').value.trim()); });
+renderResolveState(null);
+window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});

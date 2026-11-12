@@ -6,8 +6,42 @@ const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
+const { createResolveReviewSession } = require('./resolve-review-session');
 
 let projectSession;
+let resolveReviewSession;
+let resolveSourcePaths = null;
+let resolveBusy = false;
+const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
+
+async function readResolveSources(paths) {
+  const sources = {};
+  for (const role of ['base', 'local', 'incoming']) {
+    const stat = await fs.stat(paths[role]);
+    if (!stat.isFile() || stat.size <= 0 || stat.size > RESOLVE_SOURCE_LIMIT) {
+      const error = new Error('Invalid Resolve snapshot size.');
+      error.code = 'invalid-resolve-preview';
+      throw error;
+    }
+    sources[role] = await fs.readFile(paths[role]);
+    if (sources[role].length !== stat.size) {
+      const error = new Error('Resolve snapshot changed while reading.');
+      error.code = 'invalid-resolve-preview';
+      throw error;
+    }
+  }
+  return sources;
+}
+
+async function runResolveAction(action) {
+  if (resolveBusy) return { ...resolveReviewSession.getState(), error: { code: 'resolve-review-busy', message: 'A Resolve review action is already running.' } };
+  resolveBusy = true;
+  try { return await action(); }
+  catch (error) {
+    logger.warn('resolve.review-failed', { code: error.code || 'resolve-review-error' });
+    return { ...resolveReviewSession.getState(), error: { code: error.code || 'resolve-review-error', message: 'Could not complete the Resolve review action.' } };
+  } finally { resolveBusy = false; }
+}
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 else app.on('second-instance', () => {
@@ -36,8 +70,41 @@ function createWindow() {
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   projectSession = createProjectSession(fcpxmlProjectAdapter, createLocalMetadataStore(app.getPath('userData')));
+  const resolveArtifactDirectory = path.join(app.getPath('userData'), 'resolve-previews');
+  resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
+  ipcMain.handle('resolve:get-review-state', () => resolveReviewSession.getState());
+  ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
+    const paths = {};
+    for (const role of ['base', 'local', 'incoming']) {
+      const result = await dialog.showOpenDialog({
+        title: `Choose ${role} Resolve snapshot`,
+        properties: ['openFile'],
+        filters: [{ name: 'Resolve API snapshot', extensions: ['json'] }]
+      });
+      if (result.canceled || !result.filePaths.length) return resolveReviewSession.getState();
+      paths[role] = result.filePaths[0];
+    }
+    const sources = await readResolveSources(paths);
+    const state = resolveReviewSession.load(sources);
+    if (state.status === 'ready') resolveSourcePaths = paths;
+    return state;
+  }));
+  ipcMain.handle('resolve:refresh-preview', () => runResolveAction(async () => {
+    if (!resolveSourcePaths) return resolveReviewSession.getState();
+    return resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
+  }));
+  ipcMain.handle('resolve:save-preview', () => runResolveAction(async () => {
+    await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
+    return resolveReviewSession.save();
+  }));
+  ipcMain.handle('resolve:recover-preview', (_event, artifactId) => runResolveAction(async () => {
+    if (!resolveSourcePaths) return resolveReviewSession.getState();
+    return resolveReviewSession.recover(artifactId, await readResolveSources(resolveSourcePaths));
+  }));
+  ipcMain.handle('resolve:set-decision', (_event, conflictId, choice) => runResolveAction(
+    () => resolveReviewSession.setDecision(conflictId, choice)));
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a DaVinci Resolve timeline',

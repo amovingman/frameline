@@ -1,0 +1,71 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createResolveReviewSession } = require('../src/resolve-review-session');
+function fixture() {
+  const base = fs.readFileSync(path.join(__dirname, '../phase-0/resolve-xml-proof/live-mapping-before-schema3.json'), 'utf8');
+  const local = JSON.parse(base), incoming = JSON.parse(base);
+  local.timelines[0].items[0].start_frame = 10;
+  incoming.timelines[0].items[0].start_frame = 20;
+  return { base, local: JSON.stringify(local), incoming: JSON.stringify(incoming) };
+}
+function session(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resolve-session-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return createResolveReviewSession({ artifactDirectory: dir });
+}
+test('reviews, audits, saves and recovers without exposing sources or bindings', t => {
+  const s = session(t), sources = fixture();
+  assert.equal(s.getState().status, 'empty');
+  let state = s.load(sources);
+  assert.equal(state.status, 'ready');
+  assert.equal(state.plan.safeToApply, false);
+  assert.equal(state.review.conflicts.length, 1);
+  assert.equal(state.audit, null);
+  assert.equal('binding' in state.plan, false);
+  assert.equal('binding' in state.review, false);
+  state = s.setDecision(state.review.conflicts[0].id, 'take-incoming');
+  assert.equal(state.audit.safeToApply, false);
+  assert.equal('binding' in state.audit, false);
+  state = s.save();
+  assert.match(state.artifactId, /^[a-f0-9]{64}$/);
+  const id = state.artifactId;
+  state.plan.safeToApply = true;
+  assert.equal(s.getState().plan.safeToApply, false);
+  state = s.recover(id, sources);
+  assert.equal(state.artifactId, id);
+  assert.deepEqual(state.decisions, []);
+  assert.equal(state.audit, null);
+  assert.equal(JSON.stringify(state).includes(sources.base), false);
+});
+test('refresh preserves decisions only for exact unchanged sources', t => {
+  const s = session(t), sources = fixture();
+  let state = s.load(sources);
+  state = s.setDecision(state.review.conflicts[0].id, 'keep-local');
+  state = s.save();
+  const id = state.artifactId;
+  state = s.refresh(sources);
+  assert.equal(state.artifactId, id);
+  assert.equal(state.decisions.length, 1);
+  state = s.refresh({ ...sources, base: sources.base + '\n' });
+  assert.equal(state.artifactId, null);
+  assert.deepEqual(state.decisions, []);
+  assert.equal(state.audit, null);
+});
+test('invalid choices are rejected and invalid sources or artifacts clear stale review', t => {
+  const s = session(t), sources = fixture();
+  let state = s.load(sources);
+  state = s.setDecision(state.review.conflicts[0].id, 'manual');
+  assert.equal(state.error.code, 'invalid-resolve-review-decisions');
+  assert.deepEqual(state.decisions, []);
+  state = s.recover('../secret', sources);
+  assert.equal(state.status, 'error');
+  assert.equal(state.plan, null);
+  assert.equal(state.error.code, 'invalid-resolve-preview-artifact');
+  state = s.load({ ...sources, base: '{' });
+  assert.equal(state.status, 'error');
+  assert.equal(state.plan, null);
+});

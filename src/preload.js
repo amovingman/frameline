@@ -12,5 +12,11 @@ contextBridge.exposeInMainWorld('desktop', {
   switchBranch: name => ipcRenderer.invoke('project:switch-branch', name),
   relinkProject: projectId => ipcRenderer.invoke('project:relink', projectId),
   exportRevisions: () => ipcRenderer.invoke('project:export-revisions'),
-  importRevisions: () => ipcRenderer.invoke('project:import-revisions')
+  importRevisions: () => ipcRenderer.invoke('project:import-revisions'),
+  getResolveReviewState: () => ipcRenderer.invoke('resolve:get-review-state'),
+  chooseResolveSnapshots: () => ipcRenderer.invoke('resolve:choose-snapshots'),
+  refreshResolvePreview: () => ipcRenderer.invoke('resolve:refresh-preview'),
+  saveResolvePreview: () => ipcRenderer.invoke('resolve:save-preview'),
+  recoverResolvePreview: artifactId => ipcRenderer.invoke('resolve:recover-preview', artifactId),
+  setResolveDecision: (conflictId, choice) => ipcRenderer.invoke('resolve:set-decision', conflictId, choice)
 });
