@@ -29,4 +29,23 @@ The preview compares API item IDs within the same Resolve project and Free build
 
 The preview also supplies observed-field conflict guidance. Deletion versus edit is an entity conflict. Concurrent additions have a stable review order based on IDs, but no automatic timeline placement; timing and move interactions require manual review. No field is currently proven safe for app-level apply.
 
+The separate review command exposes risk gates, choices, and an audit record. It verifies the saved preview against all three source snapshots each time:
+
+```sh
+node phase-0/review-free-merge.js risk base.json local.json incoming.json
+node phase-0/review-free-merge.js review preview.json base.json local.json incoming.json
+node phase-0/review-free-merge.js audit preview.json decisions.json base.json local.json incoming.json
+node phase-0/review-free-merge.js verify-audit audit.json preview.json base.json local.json incoming.json
+```
+
+`decisions.json` is an array of `{ "conflictId": "...", "choice": "keep-local" }` or `"take-incoming"` entries, one for every listed conflict. The audit records selected *observed* values and remains review-only. Manual values are unavailable because no field has a proven safe app-level write rule.
+
+A standalone preflight can make a verified restore-point copy of a regular file in an existing caller-owned directory:
+
+```sh
+node phase-0/create-restore-point.js source.fcpxml restore-points EXPECTED_SHA256
+```
+
+It checks the source hash, streams a noncolliding copy, verifies its bytes, and leaves the source unchanged. It is not connected to a Resolve apply transaction.
+
 This is a diagnostic, not an executable pull plan. FCPXML exports lack API item IDs; track IDs and full linked/effect behavior are not proven; media availability remains unknown. A recovered artifact holds the preview, not the source snapshots or a recoverable editor write transaction. Every result reports `safeToApply: false` and cannot modify Resolve, a project, or a snapshot. The app's pull control remains disabled.

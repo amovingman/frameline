@@ -111,6 +111,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Strengthen the Free snapshot preview with addition/deletion and concurrent-edit classification coverage, deterministic proposed changes and conflicts, unknown media requirements, and verification of saved preview contents against matching source bytes. This remains a read-only diagnostic.
 - [x] Add explicit stale-source refresh and immutable, content-addressed local preview recovery for the Free snapshot diagnostic. These do not implement an editor apply transaction.
 - [x] Add read-only observed-field and entity conflict guidance, including deletion versus edit and canonical review order for concurrent additions and moves. No field has a proven safe app-level apply rule or automatic timeline placement.
+- [x] Add conservative read-only risk gates for ripple/timing, linked clips, transitions, and nested/unknown constructs; conflict choices with context, completeness checks, and a source-bound audit record; plus a standalone source-hash preflight and verified restore-point copy. These ten safety foundations do not enable apply. See `phase-0/THREE_WAY_PREVIEW.md`.
 - [ ] Record the last synced base manifest for each local branch.
 - [ ] Compare common base, current local state, and incoming revision.
 - [ ] Classify each change as incoming-only, local-only, already applied, or conflicting.
