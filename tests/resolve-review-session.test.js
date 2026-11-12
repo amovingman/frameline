@@ -69,3 +69,27 @@ test('invalid choices are rejected and invalid sources or artifacts clear stale 
   assert.equal(state.status, 'error');
   assert.equal(state.plan, null);
 });
+test('review artifacts restore decisions and invalidate on edits or changed sources', t => {
+  const s = session(t), sources = fixture();
+  let state = s.load(sources);
+  assert.deepEqual(state.sourceVerification, { changed: false, staleRoles: [] });
+  assert.match(state.sourceHashes.base, /^[a-f0-9]{64}$/);
+  state = s.saveReview();
+  const partial = state.reviewArtifactId;
+  assert.match(partial, /^[a-f0-9]{64}$/);
+  state = s.setDecision(state.review.conflicts[0].id, 'keep-local');
+  assert.equal(state.reviewArtifactId, null);
+  state = s.saveReview();
+  const complete = state.reviewArtifactId;
+  state = s.recoverReview(partial, sources);
+  assert.deepEqual(state.decisions, []);
+  state = s.recoverReview(complete, sources);
+  assert.equal(state.decisions.length, 1);
+  assert.ok(state.audit);
+  state = s.refresh({ ...sources, local: sources.local + ' ' });
+  assert.deepEqual(state.sourceVerification, { changed: true, staleRoles: ['local'] });
+  assert.equal(state.reviewArtifactId, null);
+  state = s.recoverReview(complete, { ...sources, local: sources.local + ' ' });
+  assert.equal(state.error.code, 'invalid-resolve-review-artifact');
+  assert.equal(state.plan, null);
+});

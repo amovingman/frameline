@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('desktop', {
   chooseResolveSnapshots: () => ipcRenderer.invoke('resolve:choose-snapshots'),
   refreshResolvePreview: () => ipcRenderer.invoke('resolve:refresh-preview'),
   saveResolvePreview: () => ipcRenderer.invoke('resolve:save-preview'),
+  saveResolveReview: () => ipcRenderer.invoke('resolve:save-review'),
   recoverResolvePreview: artifactId => ipcRenderer.invoke('resolve:recover-preview', artifactId),
+  recoverResolveReview: artifactId => ipcRenderer.invoke('resolve:recover-review', artifactId),
   setResolveDecision: (conflictId, choice) => ipcRenderer.invoke('resolve:set-decision', conflictId, choice)
 });

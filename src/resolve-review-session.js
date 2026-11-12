@@ -2,13 +2,14 @@
 
 const { createResolvePreviewPlan, refreshResolvePreviewPlan } = require('./resolve-preview-plan');
 const { saveResolvePreview, loadResolvePreview } = require('./resolve-preview-store');
+const { saveResolveReview, loadResolveReview } = require('./resolve-review-store');
 const { createResolveConflictReview, createResolveDecisionAudit } = require('./resolve-review-decisions');
 
 // Source bytes and bindings stay in the main process. The public state is a
 // detached JSON value and never grants permission to apply a change.
 function createResolveReviewSession({ artifactDirectory }) {
   let plan = null, review = null, sources = null, decisions = [], audit = null, artifactId = null;
-  let status = 'empty', error = null;
+  let status = 'empty', error = null, reviewArtifactId = null, sourceVerification = null;
   const clone = value => value === null ? null : JSON.parse(JSON.stringify(value));
   function publicValue(value) {
     if (!value) return null;
@@ -18,10 +19,11 @@ function createResolveReviewSession({ artifactDirectory }) {
   }
   function getState() {
     return { status, plan: publicValue(plan), review: publicValue(review), decisions: clone(decisions),
-      audit: publicValue(audit), artifactId, error: clone(error) };
+      audit: publicValue(audit), artifactId, reviewArtifactId, sourceHashes: plan ? clone(plan.binding.hashes) : null,
+      sourceVerification: clone(sourceVerification), error: clone(error) };
   }
   function failure(code, message, clear = false) {
-    if (clear) { plan = review = sources = audit = artifactId = null; decisions = []; }
+    if (clear) { plan = review = sources = audit = artifactId = reviewArtifactId = sourceVerification = null; decisions = []; }
     status = clear || !plan ? 'error' : 'ready';
     error = { code, message };
     return getState();
@@ -38,7 +40,8 @@ function createResolveReviewSession({ artifactDirectory }) {
     const nextAudit = nextDecisions.length === nextReview.conflicts.length
       ? createResolveDecisionAudit(nextPlan, nextSources, nextDecisions) : null;
     plan = nextPlan; sources = nextSources; review = nextReview; decisions = nextDecisions; audit = nextAudit;
-    if (!keep) artifactId = null;
+    if (!keep) artifactId = reviewArtifactId = null;
+    sourceVerification = { changed: false, staleRoles: [] };
     status = 'ready'; error = null;
     return getState();
   }
@@ -50,7 +53,9 @@ function createResolveReviewSession({ artifactDirectory }) {
     try {
       if (!plan) return load(input);
       const result = refreshResolvePreviewPlan(plan, input);
-      return install(result.plan, input, !result.refreshed);
+      install(result.plan, input, !result.refreshed);
+      sourceVerification = { changed: result.refreshed, staleRoles: result.verification.staleRoles };
+      return getState();
     } catch { return failure('invalid-resolve-preview', 'Unable to refresh Resolve review sources.', true); }
   }
   function save() {
@@ -69,6 +74,21 @@ function createResolveReviewSession({ artifactDirectory }) {
       return getState();
     } catch { return failure('invalid-resolve-preview-artifact', 'Unable to recover Resolve review preview.', true); }
   }
+  function saveReview() {
+    try {
+      if (!plan || !sources) throw new Error();
+      reviewArtifactId = saveResolveReview(artifactDirectory, sources, decisions);
+      error = null; status = 'ready'; return getState();
+    } catch { return failure('invalid-resolve-review-artifact', 'Unable to save Resolve review choices.'); }
+  }
+  function recoverReview(id, input) {
+    try {
+      const loaded = loadResolveReview(artifactDirectory, id, input);
+      install(loaded.plan, input, false);
+      decisions = loaded.decisions; audit = loaded.audit; reviewArtifactId = id;
+      return getState();
+    } catch { return failure('invalid-resolve-review-artifact', 'Unable to recover Resolve review choices.', true); }
+  }
   function setDecision(conflictId, choice) {
     try {
       if (!review || typeof conflictId !== 'string' || !review.conflicts.some(conflict => conflict.id === conflictId)
@@ -77,10 +97,11 @@ function createResolveReviewSession({ artifactDirectory }) {
       next.push({ conflictId, choice });
       next.sort((a, b) => a.conflictId.localeCompare(b.conflictId, 'en'));
       const nextAudit = next.length === review.conflicts.length ? createResolveDecisionAudit(plan, sources, next) : null;
+      if (JSON.stringify(next) !== JSON.stringify(decisions)) reviewArtifactId = null;
       decisions = next; audit = nextAudit; status = 'ready'; error = null;
       return getState();
     } catch { return failure('invalid-resolve-review-decisions', 'Unable to record Resolve review decision.'); }
   }
-  return { load, refresh, save, recover, setDecision, getState };
+  return { load, refresh, save, recover, saveReview, recoverReview, setDecision, getState };
 }
 module.exports = { createResolveReviewSession };

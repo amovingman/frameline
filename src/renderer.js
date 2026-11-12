@@ -348,6 +348,10 @@ function renderMedia() {
 }
 
 function showView(name) {
+  const resolveMode = name === 'resolve';
+  document.body.classList.toggle('resolve-mode', resolveMode);
+  document.querySelector('.project-context strong').textContent = resolveMode ? 'Resolve review' : (currentAppState?.selectedProject?.name || 'Launch film');
+  document.querySelector('.workspace-bar > span:first-child').firstChild.textContent = resolveMode ? 'Resolve snapshots ' : `${currentAppState?.selectedProject?.name || 'Launch film'} `;
   document.getElementById('view-label').textContent = {workspace: document.getElementById('sample-review').hidden ? 'Timeline scan' : 'Review changes', history: 'Revision history', media: 'Project media', resolve: 'Resolve preview'}[name];
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   document.querySelectorAll('[data-view]').forEach(button => {
@@ -551,7 +555,7 @@ function renderResolveState(state) {
   document.getElementById('resolve-save').disabled = resolveBusy || !ready;
   document.getElementById('resolve-choose').disabled = resolveBusy;
   document.getElementById('resolve-recover').disabled = resolveBusy;
-  document.getElementById('resolve-notice').textContent = state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Decisions are held for this session; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
+  document.getElementById('resolve-notice').textContent = state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
   const sources = document.getElementById('resolve-sources');
   sources.replaceChildren();
   const counts = items.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
@@ -560,15 +564,41 @@ function renderResolveState(state) {
     row.append(make('strong', '', String(counts[key] || 0)), make('span', '', label));
     sources.append(row);
   }
+  for (const [id, key, label] of [['resolve-timeline', 'timelineId', 'All timelines'], ['resolve-field', 'field', 'All fields']]) {
+    const select = document.getElementById(id);
+    const previous = select.value;
+    select.replaceChildren();
+    for (const value of ['all', ...new Set(items.map(item => item[key]).filter(Boolean).sort())]) {
+      const option = make('option', '', value === 'all' ? label : value);
+      option.value = value; select.append(option);
+    }
+    select.value = [...select.options].some(option => option.value === previous) ? previous : 'all';
+  }
+  const unresolved = items.filter(item => item.status === 'conflict' && !resolveChoice(resolveConflict(item)));
+  document.getElementById('resolve-next').disabled = resolveBusy || !unresolved.length;
+  document.getElementById('resolve-save-review').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-review-recover').disabled = resolveBusy;
+  const sourcePanel = document.getElementById('resolve-source-hashes');
+  sourcePanel.replaceChildren();
+  for (const [role, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming']]) {
+    const stale = state?.sourceVerification?.staleRoles?.includes(role);
+    const row = make('div', stale ? 'source-stale' : '');
+    row.append(make('strong', '', label), make('code', '', state?.sourceHashes?.[role]?.slice(0, 12) || 'No source'), make('span', '', stale ? 'Changed on refresh · choices reset' : state?.sourceHashes?.[role] ? 'Source fingerprint' : 'Choose snapshots'));
+    sourcePanel.append(row);
+  }
+  renderResolveInspection();
   const filter = document.getElementById('resolve-filter').value;
   const visible = items.filter(item => {
+    if (document.getElementById('resolve-timeline').value !== 'all' && item.timelineId !== document.getElementById('resolve-timeline').value) return false;
+    if (document.getElementById('resolve-field').value !== 'all' && item.field !== document.getElementById('resolve-field').value) return false;
+    if (filter === 'unresolved') return item.status === 'conflict' && !resolveChoice(resolveConflict(item));
     if (filter === 'all') return true;
     if (filter === 'resolved') return !!resolveChoice(resolveConflict(item));
     if (filter === 'conflict') return item.status === 'conflict';
     return item.status === filter;
   });
   document.getElementById('resolve-count').textContent = `${visible.length} of ${items.length}`;
-  if (!visible.includes(resolveSelected)) resolveSelected = visible[0] || null;
+  if (!visible.includes(resolveSelected)) resolveSelected = visible.find(item => item.timelineId === resolveSelected?.timelineId && item.itemId === resolveSelected?.itemId && item.field === resolveSelected?.field) || visible[0] || null;
   const queue = document.getElementById('resolve-queue');
   queue.replaceChildren();
   if (!visible.length) queue.append(make('p', 'history-empty', ready ? 'No changes match this filter.' : 'No snapshots selected.'));
@@ -584,9 +614,12 @@ function renderResolveState(state) {
   renderResolveDetail();
   const audit = document.getElementById('resolve-audit');
   const auditHash = state?.audit?.auditHash || state?.audit?.hash || state?.audit?.id;
-  const auditSummary = state?.audit ? `Audit ${auditHash ? String(auditHash).slice(0, 20) : 'available'} · ${state.decisions?.length || 0} recorded choice(s)` : 'Audit pending: decide every conflict.';
+  const complete = (state?.review?.conflicts || []).every(conflict => !!resolveChoice(conflict));
+  const auditSummary = state?.audit && complete ? `Audit ${auditHash ? String(auditHash).slice(0, 20) : 'available'} · ${state.decisions?.length || 0} recorded choice(s)` : 'Audit pending: decide every conflict.';
   audit.textContent = state?.artifactId ? `Saved preview: ${state.artifactId} · ${auditSummary}` : ready ? auditSummary : 'No saved preview loaded.';
   if (state?.artifactId) document.getElementById('resolve-artifact').value = state.artifactId;
+  document.getElementById('resolve-review-saved').textContent = state?.reviewArtifactId ? `Saved review: ${state.reviewArtifactId} · ${auditSummary}` : ready ? `${unresolved.length} unresolved conflict(s). Save review to preserve current choices.` : 'No saved review loaded.';
+  if (state?.reviewArtifactId) document.getElementById('resolve-review-artifact').value = state.reviewArtifactId;
 }
 function renderResolveDetail() {
   const detail = document.getElementById('resolve-detail');
@@ -616,14 +649,38 @@ function renderResolveDetail() {
     }
     detail.append(controls);
   }
-  const assessment = resolveState?.plan?.assessment;
-  if (assessment?.warnings?.length) {
-    detail.append(make('h3', 'resolve-subheading', 'Preview warnings'));
-    const list = make('ul', 'revision-detail-list');
-    assessment.warnings.forEach(warning => list.append(make('li', '', resolveValue(warning)))); detail.append(list);
-  }
-  if (assessment?.mediaRequirements?.length) detail.append(make('p', 'resolve-context', `${assessment.mediaRequirements.length} media requirement(s) need verification before any future apply.`));
 }
+function renderResolveInspection() {
+  const section = document.getElementById('resolve-inspection');
+  section.replaceChildren();
+  const assessment = resolveState?.plan?.assessment;
+  for (const [label, entries] of [['Warning categories', assessment?.warnings || []], ['Media requirements', assessment?.mediaRequirements || []]]) {
+    const disclosure = make('details', '');
+    disclosure.append(make('summary', '', `${label} (${entries.length})`));
+    if (!entries.length) disclosure.append(make('p', '', assessment ? `No ${label.toLowerCase()} reported.` : 'Choose snapshots to inspect requirements.'));
+    for (const entry of entries) {
+      const row = make('div', 'resolve-inspection-row');
+      if (label === 'Warning categories') row.append(make('strong', '', entry.code || 'Warning'), make('span', '', `${entry.count || 0} occurrence(s)`));
+      else row.append(make('strong', '', `${entry.timelineId} · ${entry.itemId || 'Timeline'}`), make('span', '', `Media ${entry.mediaPoolId || 'identity unknown'} · availability ${entry.availability || 'unknown'}`), make('span', '', `Identity: ${entry.identity || 'unknown'}${entry.pendingConflictResolution ? ' · conflict choice required' : ''}`));
+      disclosure.append(row);
+    }
+    section.append(disclosure);
+  }
+}
+function nextResolveConflict() {
+  if (resolveBusy) return;
+  const items = resolveChanges();
+  const index = items.indexOf(resolveSelected);
+  const ordered = [...items.slice(index + 1), ...items.slice(0, index + 1)];
+  const next = ordered.find(item => item.status === 'conflict' && !resolveChoice(resolveConflict(item)));
+  if (!next) return;
+  for (const id of ['resolve-timeline', 'resolve-field']) document.getElementById(id).value = 'all';
+  document.getElementById('resolve-filter').value = 'unresolved';
+  resolveSelected = next;
+  renderResolveState(resolveState);
+  document.querySelector('#resolve-queue [aria-pressed="true"]')?.focus();
+}
+
 async function resolveAction(method, ...args) {
   if (resolveBusy) return;
   resolveBusy = true;
@@ -634,8 +691,10 @@ async function resolveAction(method, ...args) {
     if (!window.desktop?.[method]) throw new Error('Resolve preview is available in the desktop app.');
     const state = await window.desktop[method](...args);
     if (state) resolveState = state;
-    if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = 'Snapshots verified and preview refreshed. Review the current conflict decisions.';
+    if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = state?.sourceVerification?.changed ? `Changed sources: ${(state.sourceVerification.staleRoles || []).join(', ')}. Previous choices cleared; review the refreshed comparison.` : 'Snapshot bytes verified unchanged. Current review choices retained.';
     if (method === 'saveResolvePreview' && !state?.error) resolveActionNotice = 'Preview saved. Session decisions are not restored by recovery.';
+    if (method === 'saveResolveReview' && !state?.error) resolveActionNotice = 'Review saved with current choices. An audit is included only when every conflict is decided. No changes applied.';
+    if (method === 'recoverResolveReview' && !state?.error) resolveActionNotice = 'Review recovered and source bytes verified. Saved choices restored; no changes applied.';
     if (method === 'recoverResolvePreview' && !state?.error) resolveActionNotice = 'Saved preview recovered. Review conflict decisions again.';
   } catch (error) {
     resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the snapshots again to retry.' } };
@@ -646,5 +705,12 @@ document.getElementById('resolve-refresh').addEventListener('click', () => resol
 document.getElementById('resolve-save').addEventListener('click', () => resolveAction('saveResolvePreview'));
 document.getElementById('resolve-filter').addEventListener('change', () => renderResolveState(resolveState));
 document.getElementById('resolve-recover-form').addEventListener('submit', event => { event.preventDefault(); resolveAction('recoverResolvePreview', document.getElementById('resolve-artifact').value.trim()); });
+document.getElementById('resolve-save-review').addEventListener('click', () => resolveAction('saveResolveReview'));
+for (const id of ['resolve-timeline', 'resolve-field']) document.getElementById(id).addEventListener('change', () => renderResolveState(resolveState));
+document.getElementById('resolve-next').addEventListener('click', nextResolveConflict);
+document.getElementById('resolve-review-recover-form').addEventListener('submit', event => { event.preventDefault(); resolveAction('recoverResolveReview', document.getElementById('resolve-review-artifact').value.trim()); });
+document.addEventListener('keydown', event => {
+  if (event.altKey && event.key.toLowerCase() === 'n' && document.getElementById('view-resolve').classList.contains('active') && !event.target?.closest?.('input, textarea, select, [contenteditable]')) { event.preventDefault(); nextResolveConflict(); }
+});
 renderResolveState(null);
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});

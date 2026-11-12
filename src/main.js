@@ -96,12 +96,28 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     return resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
   }));
   ipcMain.handle('resolve:save-preview', () => runResolveAction(async () => {
+    if (!resolveSourcePaths) return resolveReviewSession.getState();
+    const refreshed = resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
+    if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Snapshot files changed. Preview refreshed; inspect it before saving.' } };
+    if (refreshed.status !== 'ready') return refreshed;
     await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
     return resolveReviewSession.save();
+  }));
+  ipcMain.handle('resolve:save-review', () => runResolveAction(async () => {
+    if (!resolveSourcePaths) return resolveReviewSession.getState();
+    const refreshed = resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
+    if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Snapshot files changed. Previous choices cleared; review the new comparison before saving.' } };
+    if (refreshed.status !== 'ready') return refreshed;
+    await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
+    return resolveReviewSession.saveReview();
   }));
   ipcMain.handle('resolve:recover-preview', (_event, artifactId) => runResolveAction(async () => {
     if (!resolveSourcePaths) return resolveReviewSession.getState();
     return resolveReviewSession.recover(artifactId, await readResolveSources(resolveSourcePaths));
+  }));
+  ipcMain.handle('resolve:recover-review', (_event, artifactId) => runResolveAction(async () => {
+    if (!resolveSourcePaths) return resolveReviewSession.getState();
+    return resolveReviewSession.recoverReview(artifactId, await readResolveSources(resolveSourcePaths));
   }));
   ipcMain.handle('resolve:set-decision', (_event, conflictId, choice) => runResolveAction(
     () => resolveReviewSession.setDecision(conflictId, choice)));
