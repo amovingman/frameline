@@ -65,6 +65,8 @@ Both readouts were transcribed from the live Lua console; Resolve's API produced
 
 `api_export_mapping.py` compares one schema-3 API snapshot to a flat FCPXML 1.10 picture sequence using exact timeline offset, source-in, and duration frames. It reports unique timing matches as **candidates only**, rejects unsupported structures, and leaves collisions or mismatches unresolved. Its output includes the export SHA-256 and always sets `safe_to_apply` to false. It cannot prove that the API snapshot and export came from the same state, and it cannot turn timing into persistent clip IDs. Run it only as a read-only experiment:
 
+The matcher now also reads a flat Resolve `<clip>` with exactly one asset-backed `<video>` child, using the wrapper's visible timing. It refuses mixed audio, multiple video sources, unknown nested content, gap-attached lanes, and timing collisions. Its canonical snapshot hash and exact export-byte hash make each candidate report repeatable, but they do not establish that the two observations came from one editor state. The full performance export contains additional unsupported constructs and remains outside this flat matcher.
+
 ```sh
 python3 phase-0/resolve-xml-proof/api_export_mapping.py snapshot.json timeline.fcpxmld TIMELINE_ID
 ```

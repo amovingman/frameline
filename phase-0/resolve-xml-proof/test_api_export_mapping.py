@@ -29,6 +29,58 @@ class ApiExportMappingTests(unittest.TestCase):
         self.assertEqual([item["api_item_id"] for item in result["matches"]], ["a", "b", "c"])
         self.assertFalse(result["safe_to_apply"])
 
+    def wrapper_xml(self, content=None):
+        content = content or '<video ref="a" start="0s" offset="0s" duration="10s"/>'
+        return (f'<fcpxml version="1.10"><resources>'
+                '<format id="f" frameDuration="1/24s"/>'
+                '<asset id="a" hasVideo="1"/>'
+                '</resources><library><event><project><sequence format="f"><spine>'
+                f'<clip offset="2s" start="1s" duration="1s">{content}</clip>'
+                '</spine></sequence></project></event></library></fcpxml>').encode()
+
+    def wrapper_snapshot(self):
+        snapshot = self.snapshot()
+        item = snapshot["timelines"][0]["items"][0]
+        item.update(start_frame=48, end_frame=72, source_start_frame=24)
+        snapshot["timelines"][0]["items"] = [item]
+        return snapshot
+
+    def test_resolve_wrapper_uses_visible_wrapper_timing(self):
+        snapshot = self.wrapper_snapshot()
+        result = map_snapshot(snapshot, self.wrapper_xml(), "timeline-1")
+        self.assertEqual(result["status"], "candidates-only")
+        self.assertEqual(result["matches"], [{"api_item_id": "a", "xml_spine_index": 0}])
+        self.assertFalse(result["safe_to_apply"])
+        self.assertEqual(len(result["snapshot_sha256"]), 64)
+        changed = deepcopy(snapshot)
+        changed["timelines"][0]["items"][0]["name"] = "changed"
+        self.assertNotEqual(result["snapshot_sha256"], map_snapshot(
+            changed, self.wrapper_xml(), "timeline-1")["snapshot_sha256"])
+
+    def test_wrapper_rejects_mixed_multiple_or_unknown_sources(self):
+        video = '<video ref="a" duration="10s"/>'
+        for content in (video + '<audio/>', video * 2, video + '<mystery/>',
+                        '<video ref="a"><audio/></video>', '<video ref="missing"/>',
+                        '<video ref="a" lane="1"/>'):
+            with self.subTest(content=content), self.assertRaisesRegex(ValueError, "unsupported timeline content"):
+                map_snapshot(self.wrapper_snapshot(), self.wrapper_xml(content), "timeline-1")
+
+    def test_gap_attached_lanes_are_rejected(self):
+        xml = self.wrapper_xml().replace(b'<clip offset=', b'<gap><video lane="1"/></gap><clip offset=')
+        with self.assertRaisesRegex(ValueError, "unsupported timeline content"):
+            map_snapshot(self.wrapper_snapshot(), xml, "timeline-1")
+
+    def test_wrapper_timing_collision_is_unresolved(self):
+        xml = self.wrapper_xml()
+        from xml.etree import ElementTree as ET
+        root = ET.fromstring(xml)
+        spine = root.find("./library/event/project/sequence/spine")
+        spine.append(deepcopy(spine[0]))
+        result = map_snapshot(self.wrapper_snapshot(), ET.tostring(root), "timeline-1")
+        self.assertEqual(result["status"], "unresolved")
+        self.assertEqual(result["matches"], [])
+        self.assertFalse(result["safe_to_apply"])
+
     def test_timing_collision_is_unresolved(self):
         snapshot = self.snapshot()
         xml = b'''<fcpxml version="1.10"><resources><format id="f" frameDuration="1/24s"/></resources><library><event><project><sequence format="f"><spine><video offset="0s" start="0s" duration="1s"/><video offset="0s" start="0s" duration="1s"/></spine></sequence></project></event></library></fcpxml>'''

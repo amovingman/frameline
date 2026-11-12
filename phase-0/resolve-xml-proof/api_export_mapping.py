@@ -38,7 +38,7 @@ def map_snapshot(snapshot, xml_bytes, timeline_id):
     root = ET.fromstring(xml_bytes)
     if root.tag != "fcpxml" or root.get("version") != "1.10":
         raise ValueError("Export must be FCPXML 1.10")
-    sequences = root.findall(".//sequence")
+    sequences = root.findall("./library/event/project/sequence")
     if len(sequences) != 1:
         raise ValueError("Export must contain one sequence")
     sequence = sequences[0]
@@ -55,11 +55,30 @@ def map_snapshot(snapshot, xml_bytes, timeline_id):
 
     xml_signatures = defaultdict(list)
     for index, clip in enumerate(spine):
+        adjustments = {"adjust-conform", "adjust-transform"}
         if clip.tag == "gap":
+            # A gap may carry connected clips; silently skipping those loses items.
+            if len(clip) or clip.get("lane") not in (None, "0"):
+                raise ValueError("Export has unsupported timeline content")
             continue
-        if (clip.tag not in ("video", "asset-clip")
-                or any(child.tag not in {"adjust-conform", "adjust-transform"} for child in clip)
-                or clip.get("lane") not in (None, "0")):
+        if clip.get("lane") not in (None, "0"):
+            raise ValueError("Export has unsupported timeline content")
+        if clip.tag == "clip":
+            sources = [child for child in clip if child.tag == "video"]
+            if (len(sources) != 1
+                    or any(child.tag not in adjustments | {"video"} for child in clip)):
+                raise ValueError("Export has unsupported timeline content")
+            source = sources[0]
+            asset = resources.get(source.get("ref"))
+            if (source.get("lane") not in (None, "0")
+                    or any(child.tag not in adjustments for child in source)
+                    or asset is None or asset.tag != "asset"
+                    or asset.get("hasVideo") != "1"):
+                raise ValueError("Export has unsupported timeline content")
+            # Resolve's wrapper owns the visible trim and timeline placement.
+            # Its source video often spans the complete underlying media.
+        elif (clip.tag not in ("video", "asset-clip")
+                or any(child.tag not in adjustments for child in clip)):
             raise ValueError("Export has unsupported timeline content")
         signature = (
             _frames(clip.get("offset", "0s"), frame_duration),
@@ -91,6 +110,10 @@ def map_snapshot(snapshot, xml_bytes, timeline_id):
     return {
         "status": "candidates-only" if not unresolved else "unresolved",
         "export_sha256": hashlib.sha256(xml_bytes).hexdigest(),
+        "snapshot_sha256": hashlib.sha256(json.dumps(
+            snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")).hexdigest(),
         "project_id": snapshot["project_id"],
         "timeline_id": timeline_id,
         "matches": sorted(matches, key=lambda match: match["xml_spine_index"]),
