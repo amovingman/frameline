@@ -5,6 +5,9 @@ let currentAppState = null;
 let branchBusy = false;
 let reviewCopyBusy = false;
 let reviewCopySource = null;
+let verifiedReviewCopy = null;
+let mediaAuditBusy = false;
+let mediaAuditReports = {};
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -41,12 +44,20 @@ function renderAppState(state) {
   currentAppState = state;
   const projectName = state?.selectedProject?.name;
   const scan = state?.scan;
-  const copySource = projectName && scan?.sourceHash ? `${projectName}:${scan.sourceHash}` : null;
-  if (copySource !== reviewCopySource) document.getElementById('review-copy-result').textContent = '';
+  const copySource = projectName && scan?.sourceHash ? `${state.selectedProject.id || projectName}:${scan.sourceHash}` : null;
+  if (copySource !== reviewCopySource) {
+    document.getElementById('review-copy-result').textContent = '';
+    verifiedReviewCopy = null;
+    mediaAuditReports = {};
+    renderCopyMediaAudit();
+  }
   reviewCopySource = copySource;
   const canCopy = !state?.error && state?.scanStatus === 'ready' && !!scan && state?.selectedProject?.format === 'FCPXML' && /\.fcpxml$/i.test(projectName || '');
   document.getElementById('review-copy-panel').hidden = !canCopy;
-  document.getElementById('prepare-review-copy').disabled = reviewCopyBusy || !canCopy;
+  document.getElementById('prepare-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
+  document.getElementById('verify-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
+  document.getElementById('reveal-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy || !verifiedReviewCopy;
+  document.getElementById('audit-project-media').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
   document.getElementById('rescan-project').hidden = !projectName;
   document.querySelector('.branch-label').textContent = `${state?.currentBranch || 'main'} · ${projectName ? 'Local project' : 'Sample project'}`;
   document.getElementById('file-name').textContent = projectName
@@ -726,37 +737,101 @@ document.addEventListener('keydown', event => {
 renderResolveState(null);
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
 
-async function prepareReviewCopy() {
-  if (reviewCopyBusy || document.getElementById('review-copy-panel').hidden) return;
+async function reviewCopyAction(method) {
+  if (reviewCopyBusy || mediaAuditBusy || document.getElementById('review-copy-panel').hidden) return;
   reviewCopyBusy = true;
-  const button = document.getElementById('prepare-review-copy');
   const result = document.getElementById('review-copy-result');
   const sourceKey = reviewCopySource;
-  button.disabled = true;
-  button.textContent = 'Verifying and saving…';
-  result.textContent = 'Checking source bytes and the saved copy.';
+  const saving = method === 'prepareReviewCopy';
+  const revealing = method === 'revealReviewCopy';
+  result.textContent = revealing ? 'Revalidating the copy before revealing it…' : saving ? 'Checking source bytes and the saved copy…' : 'Choose an existing copy to verify against the selected export.';
+  renderAppState(currentAppState);
   try {
-    if (!window.desktop?.prepareReviewCopy) throw new Error('desktop-unavailable');
-    const response = await window.desktop.prepareReviewCopy();
-    if (sourceKey !== reviewCopySource) { result.textContent = ''; return; }
-    if (response?.error || response?.status === 'error') {
-      result.textContent = response?.error?.message || 'The review copy could not be verified and saved. Rescan the source and try a new destination.';
-    } else if (response?.status === 'cancelled' || response?.status === 'canceled') {
-      result.textContent = 'Save cancelled. No review copy was prepared.';
-    } else if (response?.copyName && response?.sourceHash) {
-      result.textContent = `${response.copyName} saved in the selected folder and verified unchanged · source ${response.sourceHash.slice(0, 12)}. No edits were merged. The source export was not changed.`;
+    if (!window.desktop?.[method]) throw new Error('desktop-unavailable');
+    const response = await window.desktop[method]();
+    if (sourceKey !== reviewCopySource) return;
+    if (response?.status === 'cancelled' || response?.status === 'canceled') {
+      result.textContent = `${saving ? 'Save' : 'Verification'} cancelled. ${verifiedReviewCopy ? 'The previous copy still requires revalidation before reveal.' : 'No copy is verified.'}`;
+    } else if (response?.error || response?.status === 'error') {
+      verifiedReviewCopy = null;
+      delete mediaAuditReports.copy;
+      result.textContent = response?.error?.message || 'Copy verification failed. Rescan the selected export and verify the copy again.';
+      renderCopyMediaAudit();
+    } else if (response?.status === 'ready' && response.copyName && (revealing || response.sourceHash)) {
+      verifiedReviewCopy = { copyName: response.copyName, sourceHash: response.sourceHash };
+      if (!revealing) delete mediaAuditReports.copy;
+      result.textContent = `${response.copyName} · ${revealing ? 'revalidated and revealed' : saving ? 'saved and verified unchanged' : 'verified unchanged'}. Reveal revalidates the copy each time. Editor import and apply readiness are not established.`;
+      renderCopyMediaAudit();
     } else {
-      result.textContent = 'The review copy could not be verified. Rescan the source and try again.';
+      verifiedReviewCopy = null;
+      result.textContent = 'The review copy could not be verified. Rescan the selected export and try again.';
     }
   } catch {
-    result.textContent = 'Could not save the review copy. Use the desktop app, rescan the source, and try again.';
+    if (sourceKey === reviewCopySource) {
+      verifiedReviewCopy = null;
+      result.textContent = 'Could not complete the copy check. Use the desktop app, rescan the selected export, and try again.';
+    }
   } finally {
     reviewCopyBusy = false;
-    button.textContent = 'Save unchanged copy';
     renderAppState(currentAppState);
   }
 }
-document.getElementById('prepare-review-copy').addEventListener('click', prepareReviewCopy);
+
+function renderCopyMediaAudit() {
+  const result = document.getElementById('copy-media-result');
+  const entries = document.getElementById('copy-media-entries');
+  const details = document.getElementById('copy-media-details');
+  entries.replaceChildren();
+  const summaries = [];
+  for (const [target, label] of [['source', 'Selected export'], ['copy', 'Verified copy']]) {
+    const report = mediaAuditReports[target];
+    if (!report) continue;
+    if (report.status !== 'ready') {
+      summaries.push(`${label}: ${report.error?.message || 'Audit unavailable. Rescan and try again.'}`);
+      continue;
+    }
+    const counts = report.counts || {};
+    summaries.push(`${label}: ${counts.total || 0} dependencies · ${counts.local || 0} local · ${counts.missing || 0} missing · ${counts.external || 0} external · ${counts.unknown || 0} unknown · ${counts.fingerprinted || 0} fingerprinted.`);
+    const group = make('section', 'copy-media-group');
+    group.append(make('h4', '', label));
+    for (const asset of report.assets || []) {
+      const row = make('div', 'copy-media-entry');
+      const names = Array.isArray(asset.displayNames) ? asset.displayNames.join(', ') : 'Unnamed dependency';
+      row.append(make('strong', '', names || 'Unnamed dependency'), make('span', '', `${asset.status || 'unknown'}${asset.reason ? ` · ${asset.reason}` : ''}`), make('span', '', asset.fingerprintAvailable ? 'Fingerprint available' : 'No fingerprint'));
+      group.append(row);
+    }
+    entries.append(group);
+  }
+  result.textContent = summaries.length ? `${summaries.join('\n')}\nFingerprinted means the bytes were read; original media identity is not verified. Audit results describe the last check.` : 'Run an audit to check local availability and fingerprint coverage.';
+  details.hidden = !entries.childElementCount;
+}
+
+async function auditCopyMedia() {
+  if (mediaAuditBusy || reviewCopyBusy || document.getElementById('review-copy-panel').hidden) return;
+  const sourceKey = reviewCopySource;
+  const targets = verifiedReviewCopy ? ['source', 'copy'] : ['source'];
+  mediaAuditBusy = true;
+  renderAppState(currentAppState);
+  document.getElementById('copy-media-result').textContent = 'Checking media availability and reading local fingerprints…';
+  try {
+    for (const target of targets) {
+      const report = await window.desktop.auditProjectMedia(target);
+      if (sourceKey !== reviewCopySource) return;
+      mediaAuditReports[target] = report || { status: 'error' };
+    }
+    renderCopyMediaAudit();
+  } catch {
+    if (sourceKey === reviewCopySource) document.getElementById('copy-media-result').textContent = 'Media audit could not finish. Use the desktop app and try again.';
+  } finally {
+    mediaAuditBusy = false;
+    renderAppState(currentAppState);
+  }
+}
+
+document.getElementById('prepare-review-copy').addEventListener('click', () => reviewCopyAction('prepareReviewCopy'));
+document.getElementById('verify-review-copy').addEventListener('click', () => reviewCopyAction('verifyReviewCopy'));
+document.getElementById('reveal-review-copy').addEventListener('click', () => reviewCopyAction('revealReviewCopy'));
+document.getElementById('audit-project-media').addEventListener('click', auditCopyMedia);
 
 function renderResolveExport(state, ready) {
   const report = state?.exportComparison;

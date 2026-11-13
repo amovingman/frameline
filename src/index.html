@@ -38,9 +38,10 @@
         </section>
 
         <section id="review-copy-panel" class="review-copy-panel" aria-labelledby="review-copy-title" hidden>
-          <div><h2 id="review-copy-title">Prepare a review copy</h2><p>Save an unchanged FCPXML copy for inspection. This does not merge edits or apply review decisions.</p></div>
-          <button id="prepare-review-copy" type="button">Save unchanged copy</button>
+          <div><h2 id="review-copy-title">Review copy</h2><p>Save or verify an unchanged FCPXML copy for inspection. Copy verification does not establish editor import or apply readiness.</p></div>
+          <div class="review-copy-actions"><button id="prepare-review-copy" type="button">Save unchanged copy</button><button id="verify-review-copy" type="button">Verify existing copy</button><button id="reveal-review-copy" type="button" disabled>Reveal verified copy</button></div>
           <p id="review-copy-result" role="status" aria-live="polite"></p>
+          <section class="copy-media-audit" aria-labelledby="copy-media-title"><div class="copy-media-head"><h3 id="copy-media-title">Media dependencies</h3><button id="audit-project-media" type="button">Audit media</button></div><p>Read-only checks for the selected export and verified copy. External references are not fetched; media is never copied or relinked.</p><div id="copy-media-result" role="status" aria-live="polite">Run an audit to check local availability and fingerprint coverage.</div><details id="copy-media-details" hidden><summary>Dependency details</summary><div id="copy-media-entries"></div></details></section>
         </section>
         <div class="work-grid" id="sample-review">
           <section class="change-section" aria-labelledby="queue-title"><div class="section-head"><h2 id="queue-title">Incoming edits</h2><span id="queue-total">3</span></div><div id="change-queue" class="change-queue" aria-label="Incoming changes"></div><div id="compact-queue" hidden></div></section>

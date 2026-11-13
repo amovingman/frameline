@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('desktop', {
   recoverResolveReview: artifactId => ipcRenderer.invoke('resolve:recover-review', artifactId),
   setResolveDecision: (conflictId, choice) => ipcRenderer.invoke('resolve:set-decision', conflictId, choice),
   prepareReviewCopy: () => ipcRenderer.invoke('project:prepare-review-copy'),
+  verifyReviewCopy: () => ipcRenderer.invoke('project:verify-review-copy'),
+  revealReviewCopy: () => ipcRenderer.invoke('project:reveal-review-copy'),
+  auditProjectMedia: target => ipcRenderer.invoke('project:audit-media', target),
   chooseResolveExport: timelineId => ipcRenderer.invoke('resolve:choose-export', timelineId),
   refreshResolveExport: () => ipcRenderer.invoke('resolve:refresh-export')
 });

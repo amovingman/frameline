@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
@@ -9,6 +9,8 @@ const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
 const { prepareReviewCopySession } = require('./review-copy-session');
 const { compareResolveSnapshotToExport } = require('./resolve-export-candidates');
+const { verifyReviewCopy } = require('./review-copy-verifier');
+const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
 
 let projectSession;
 let resolveReviewSession;
@@ -21,7 +23,27 @@ let resolveExportTimelineId = null;
 let resolveExportComparison = null;
 let resolveExportError = null;
 let resolveExportLocalHash = null;
+let verifiedCopyPath = null;
+let verifiedCopySourcePath = null;
+let verifiedCopyHash = null;
+let mediaAuditBusy = false;
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
+
+function currentCopyPath() {
+  const state = projectSession.getState();
+  return verifiedCopyPath && verifiedCopySourcePath === selectedProjectPath
+    && verifiedCopyHash === state.scan?.sourceHash && state.scanStatus === 'ready'
+    && state.selectedProject?.format === 'FCPXML' && !state.error
+    ? verifiedCopyPath : null;
+}
+
+function copyUnavailable() {
+  return { status: 'error', error: { code: 'review-copy-unavailable', message: 'Choose and scan a regular FCPXML export before verifying a review copy.' } };
+}
+
+function copyNotVerified() {
+  return { status: 'error', error: { code: 'review-copy-unverified', message: 'No verified copy is available for this export. Verify the copy again.' } };
+}
 
 function getResolveState(state = resolveReviewSession.getState()) {
   if (resolveExportLocalHash && state.sourceHashes?.local !== resolveExportLocalHash) {
@@ -217,6 +239,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     const selectedPath = result.filePaths[0];
     const state = await projectSession.select(selectedPath);
     selectedProjectPath = state.error === 'unsupported-format' ? null : selectedPath;
+    verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
     if (state.error === 'unsupported-format') {
       logger.warn('project.selection-rejected', { filePath: selectedPath });
     } else {
@@ -231,6 +254,9 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle('project:rescan', async () => {
     const state = await projectSession.rescan();
+    if (state.scanStatus !== 'ready' || state.scan?.sourceHash !== verifiedCopyHash) {
+      verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
+    }
     if (state.scanStatus === 'ready') logger.info('project.rescan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
     return state;
@@ -257,16 +283,106 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         || state.selectedProject.id !== projectSession.getState().selectedProject?.id) {
         return { status: 'error', error: { code: 'review-copy-unavailable', message: 'Project selection changed. Choose the current export and try again.' } };
       }
-      return await prepareReviewCopySession({
+      const prepared = await prepareReviewCopySession({
         sourcePath,
         expectedSha256: state.scan.sourceHash,
         destinationDirectory: path.dirname(result.filePath),
         preferredFilename: path.basename(result.filePath)
       });
+      if (prepared.status === 'ready' && selectedProjectPath === sourcePath
+        && projectSession.getState().scan?.sourceHash === state.scan.sourceHash) {
+        verifiedCopyPath = path.join(path.dirname(result.filePath), prepared.copyName);
+        verifiedCopySourcePath = sourcePath;
+        verifiedCopyHash = state.scan.sourceHash;
+      }
+      return prepared;
     } catch (error) {
       logger.warn('review-copy.failed', { code: error.code || 'review-copy-failed' });
       return { status: 'error', error: { code: 'review-copy-failed', message: 'Unable to prepare a verified review copy.' } };
     } finally { reviewCopyBusy = false; }
+  });
+  ipcMain.handle('project:verify-review-copy', async () => {
+    if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };
+    const state = projectSession.getState();
+    if (!selectedProjectPath || state.scanStatus !== 'ready' || state.selectedProject?.format !== 'FCPXML'
+      || !state.scan?.sourceHash || state.error) return copyUnavailable();
+    reviewCopyBusy = true;
+    try {
+      const sourcePath = selectedProjectPath;
+      const result = await dialog.showOpenDialog({
+        title: 'Choose an unchanged FCPXML review copy to verify',
+        properties: ['openFile'],
+        filters: [{ name: 'FCPXML review copy', extensions: ['fcpxml'] }]
+      });
+      if (result.canceled || !result.filePaths.length) return { status: 'canceled' };
+      if (selectedProjectPath !== sourcePath || projectSession.getState().scan?.sourceHash !== state.scan.sourceHash) return copyUnavailable();
+      const copyPath = result.filePaths[0];
+      const verified = await verifyReviewCopy({ sourcePath, copyPath, expectedSha256: state.scan.sourceHash });
+      if (verified.status === 'ready' && selectedProjectPath === sourcePath
+        && projectSession.getState().scan?.sourceHash === state.scan.sourceHash) {
+        verifiedCopyPath = copyPath;
+        verifiedCopySourcePath = sourcePath;
+        verifiedCopyHash = state.scan.sourceHash;
+      } else if (verified.status !== 'ready') {
+        verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
+      }
+      return verified;
+    } catch (error) {
+      logger.warn('review-copy.verify-failed', { code: error.code || 'review-copy-failed' });
+      return { status: 'error', error: { code: 'review-copy-failed', message: 'Unable to verify the FCPXML review copy.' } };
+    } finally { reviewCopyBusy = false; }
+  });
+  ipcMain.handle('project:reveal-review-copy', async () => {
+    if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };
+    const copyPath = currentCopyPath();
+    if (!copyPath) return copyNotVerified();
+    reviewCopyBusy = true;
+    try {
+      const state = projectSession.getState();
+      const verified = await verifyReviewCopy({ sourcePath: selectedProjectPath,
+        copyPath, expectedSha256: state.scan.sourceHash });
+      if (verified.status !== 'ready' || copyPath !== currentCopyPath()) {
+        verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
+        return verified.status === 'ready' ? copyNotVerified() : verified;
+      }
+      shell.showItemInFolder(copyPath);
+      return verified;
+    } catch (error) {
+      logger.warn('review-copy.reveal-failed', { code: error.code || 'review-copy-failed' });
+      return { status: 'error', error: { code: 'review-copy-failed', message: 'Unable to reveal the verified FCPXML review copy.' } };
+    } finally { reviewCopyBusy = false; }
+  });
+  ipcMain.handle('project:audit-media', async (_event, target) => {
+    if (mediaAuditBusy) return { status: 'error', error: { code: 'media-audit-busy', message: 'A media audit is already running.' } };
+    const state = projectSession.getState();
+    if (!['source', 'copy'].includes(target) || !selectedProjectPath || state.scanStatus !== 'ready'
+      || state.selectedProject?.format !== 'FCPXML' || !state.scan?.sourceHash || state.error) {
+      return { status: 'error', error: { code: 'media-audit-unavailable', message: 'Choose and scan a regular FCPXML export before auditing its media.' } };
+    }
+    const copyPath = target === 'copy' ? currentCopyPath() : null;
+    if (target === 'copy' && !copyPath) return copyNotVerified();
+    mediaAuditBusy = true;
+    try {
+      const sourcePath = selectedProjectPath;
+      const expectedHash = state.scan.sourceHash;
+      if (target === 'copy') {
+        const verified = await verifyReviewCopy({ sourcePath, copyPath, expectedSha256: expectedHash });
+        if (verified.status !== 'ready') {
+          verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
+          return verified;
+        }
+      }
+      const report = await auditFcpxmlMedia({ exportPath: target === 'copy' ? copyPath : sourcePath,
+        expectedSourceHash: expectedHash });
+      if (selectedProjectPath !== sourcePath || projectSession.getState().scan?.sourceHash !== expectedHash) return copyUnavailable();
+      return { status: 'ready', sourceHash: report.sourceHash, counts: report.counts,
+        assets: report.assets.map(({ fingerprint, ...asset }) => ({ ...asset,
+          fingerprintAvailable: !!fingerprint, size: fingerprint?.size ?? null })),
+        identityVerified: false, error: null };
+    } catch (error) {
+      logger.warn('media.audit-failed', { code: error.code || 'media-audit-failed' });
+      return { status: 'error', error: { code: 'media-audit-failed', message: 'Unable to audit media for this FCPXML export.' } };
+    } finally { mediaAuditBusy = false; }
   });
   ipcMain.handle('project:save-revision', async (_event, message) => {
     const state = await projectSession.saveRevision(message);
