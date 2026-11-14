@@ -10,9 +10,17 @@ function localChain(records, headId) {
   return chain.reverse();
 }
 
-function createRevisionSyncService(remote) {
+function createRevisionSyncService(remote, { cache = null } = {}) {
   if (!remote || !['putManifest', 'createRevision', 'compareAndSwapBranch', 'getBranch',
     'getRevision', 'getManifest', 'findRevisionBySource'].every(name => typeof remote[name] === 'function')) throw fail('sync-remote-invalid');
+  if (cache && (typeof cache.store !== 'function' || typeof cache.read !== 'function')) throw fail('sync-cache-invalid');
+  function conflict(remoteProjectId, branch, expected) {
+    const error = fail('sync-branch-conflict');
+    error.recoverable = true; error.actions = ['fetch', 'create-reconciliation-branch'];
+    error.expectedRemoteHead = expected;
+    error.actualRemoteHead = remote.getBranch(remoteProjectId, branch).revisionId;
+    return error;
+  }
   function divergence({ remoteProjectId, branch = 'main', bundle }) {
     const records = validateTransferBundle(bundle); const localHead = bundle.branches[branch];
     if (localHead === undefined) throw fail('sync-branch-invalid');
@@ -43,14 +51,25 @@ function createRevisionSyncService(remote) {
     const start = remoteSource ? chain.findIndex(item => item.id === remoteSource) + 1 : 0;
     if (remoteSource && start === 0) throw fail('sync-reconciliation-required');
     for (const local of chain.slice(start)) {
+      if (remote.getBranch(remoteProjectId, branch).revisionId !== expected) throw conflict(remoteProjectId, branch, expected);
       const existing = remote.findRevisionBySource(remoteProjectId, local.id);
-      if (existing) { expected = existing.id; continue; }
+      if (existing) {
+        if (existing.id === expected) continue;
+        if (existing.parentRevisionId !== expected) throw conflict(remoteProjectId, branch, expected);
+        try {
+          remote.compareAndSwapBranch({ projectId: remoteProjectId, branch, expectedRevisionId: expected,
+            revisionId: existing.id, idempotencyKey: `sync-branch:${remoteProjectId}:${local.id}` });
+        } catch (error) { if (error.code === 'branch-head-changed') throw conflict(remoteProjectId, branch, expected); throw error; }
+        expected = existing.id; pushed += 1; continue;
+      }
       const manifest = remote.putManifest(remoteProjectId, local.manifest);
       const revision = remote.createRevision({ projectId: remoteProjectId, manifestId: manifest.id,
         parentRevisionId: expected, authorId, message: local.message, sourceRevisionId: local.id,
         idempotencyKey: `sync:${remoteProjectId}:${local.id}` });
-      remote.compareAndSwapBranch({ projectId: remoteProjectId, branch, expectedRevisionId: expected,
-        revisionId: revision.id, idempotencyKey: `sync-branch:${remoteProjectId}:${local.id}` });
+      try {
+        remote.compareAndSwapBranch({ projectId: remoteProjectId, branch, expectedRevisionId: expected,
+          revisionId: revision.id, idempotencyKey: `sync-branch:${remoteProjectId}:${local.id}` });
+      } catch (error) { if (error.code === 'branch-head-changed') throw conflict(remoteProjectId, branch, expected); throw error; }
       expected = revision.id; pushed += 1;
     }
     return { pushed, remoteHead: expected, status: 'in-sync' };
@@ -65,10 +84,16 @@ function createRevisionSyncService(remote) {
         remote.getManifest(remoteProjectId, revision.manifestId));
       current = revision.parentRevisionId;
     }
-    return { schemaVersion: 1, remoteProjectId, branch, head, revisions: revisions.reverse(),
+    const result = { schemaVersion: 1, remoteProjectId, branch, head, revisions: revisions.reverse(),
       manifests: [...manifests.values()], mediaFetched: false };
+    if (cache) cache.store(result);
+    return result;
   }
-  return { push, fetch, divergence };
+  function fetchCached({ remoteProjectId, branch = 'main' }) {
+    if (!cache) throw fail('sync-cache-unavailable');
+    return cache.read(remoteProjectId, branch);
+  }
+  return { push, fetch, fetchCached, divergence };
 }
 
 module.exports = { createRevisionSyncService };

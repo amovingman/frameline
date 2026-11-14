@@ -195,9 +195,9 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Add an executable sync service that validates local revision bundles, uploads content-addressed manifests and immutable revisions idempotently, and advances remote branches by compare-and-swap.
 - [x] Fetch a remote branch head, ordered revision history, and required manifests without fetching media.
 - [x] Track in-sync, local-ahead, remote-ahead, and diverged states with explicit push, fetch, or reconciliation-branch actions.
-- [ ] Queue sync while offline and retry idempotently when connectivity returns.
-- [ ] Handle concurrent branch updates without overwriting remote work.
-- [ ] Cache revisions and manifests locally for offline browsing and pull planning.
+- [x] Add a durable, exact-input-deduplicated push queue that pauses offline, applies bounded exponential retry to transient network failures, and relies on the sync service's stable idempotency keys when connectivity returns.
+- [x] Detect branch-head races before and during push, preserve the concurrent remote head, and return explicit fetch/reconciliation actions without overwriting remote work.
+- [x] Store fetched revision and manifest metadata in a content-addressed, integrity-checked local cache for offline browsing and pull-planning inputs; media remains excluded.
 - [ ] Expose sync progress, retry, cancel, and recoverable error states.
 
 ### 3.4 Sharing and team workflow
