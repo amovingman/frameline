@@ -23,3 +23,14 @@ This test does not validate an apply transaction. The source is a repeated synth
 ## Scanner coverage follow-up
 
 The Free-only scanner update recognizes a top-level Resolve `<clip>` containing exactly one asset-backed `<video>` child. Rerunning `node phase-0/benchmark-editor-scan.js phase-0/performance-live.fcpxmld` against the same 822,382-byte export and SHA-256 above took 142.5 ms and enumerated 1,001 primary picture clips across 24,240 sequence frames. It still warned that nested audio/effects and gap-attached additional tracks are omitted. This single run measures the expanded read-only scan; it does not revise the earlier measurements or prove full timeline coverage.
+
+## Repeated read-only scan observation
+
+On November 12, 2026, on this macOS development host, `node phase-0/benchmark-editor-scan.js phase-0/performance-live.fcpxmld 10` ran ten scans sequentially in one Node process. Wall-clock scan times were 58.33, 52.06, 45.77, 53.52, 38.77, 32.30, 37.69, 38.70, 32.69, and 33.70 ms: minimum **32.30 ms**, median **38.73 ms**, maximum **58.33 ms**. These are host-specific observations, not a performance threshold; later runs may benefit from process and filesystem warm-up. The initial independent fixture read and hash check are outside the timed scans. Each timed scan includes the production scanner's file read and parsing.
+
+The benchmark independently checks the XML byte count and SHA-256 against the known export before timing, then asserts the scanner's source hash, 24,240 sequence frames, and 1,001 scanned clips on every run. It requires identical warning lists across runs and reports them in full:
+
+- `Nested clip content, including audio and effects, is not scanned`
+- `Content attached to a gap, including additional tracks, is not scanned`
+
+The count is the expected primary picture-clip count for this export, not proof of full timeline coverage. Nested content and additional tracks remain omitted. These scanner timings do not include export, project reopen, media handling, or any write/apply transaction; the earlier editor reopen observation is a separate UI measurement. The benchmark only reads the existing export and does not interact with the editor.

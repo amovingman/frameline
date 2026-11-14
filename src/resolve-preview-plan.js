@@ -3,6 +3,8 @@ const { bindSnapshotSources, verifySnapshotSources } = require('./resolve-snapsh
 const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
 const { classifyResolveThreeWay } = require('./resolve-three-way-classifier');
 const { assessResolvePlan } = require('./resolve-plan-policy');
+const { analyzeResolveConflictRules } = require('./resolve-conflict-rules');
+const { isDeepStrictEqual } = require('node:util');
 
 const MAX_SNAPSHOT_BYTES = 20 * 1024 * 1024;
 const ROLES = ['base', 'local', 'incoming'];
@@ -24,13 +26,15 @@ function createResolvePreviewPlan(sources) {
     }
     const classification = classifyResolveThreeWay(manifests.base, manifests.local, manifests.incoming);
     const assessment = assessResolvePlan(classification);
+    const conflictRules = analyzeResolveConflictRules(classification);
     return {
       schemaVersion: 1,
       readOnly: true,
       safeToApply: false,
       binding,
       classification,
-      assessment
+      assessment,
+      conflictRules
     };
   } catch {
     invalid();
@@ -40,11 +44,29 @@ function createResolvePreviewPlan(sources) {
 function verifyResolvePreviewPlan(plan, sources) {
   try {
     if (!plan || plan.schemaVersion !== 1 || plan.readOnly !== true || plan.safeToApply !== false
-      || !plan.binding || !plan.classification || !plan.assessment) invalid();
-    return verifySnapshotSources(plan.binding, sources);
+      || !plan.binding || !plan.classification || !plan.assessment || !plan.conflictRules) invalid();
+    const verification = verifySnapshotSources(plan.binding, sources);
+    if (verification.valid && !isDeepStrictEqual(plan, createResolvePreviewPlan(sources))) invalid();
+    return verification;
   } catch {
     invalid();
   }
 }
 
-module.exports = { createResolvePreviewPlan, verifyResolvePreviewPlan };
+/** Verify a prior preview and recalculate it against the current source bytes.
+ * Staleness is reported against the prior binding; the returned plan always
+ * describes the current sources and remains read-only, including after refresh.
+ */
+function refreshResolvePreviewPlan(plan, sources) {
+  const verification = verifyResolvePreviewPlan(plan, sources);
+  return {
+    schemaVersion: 1,
+    readOnly: true,
+    safeToApply: false,
+    refreshed: !verification.valid,
+    verification,
+    plan: createResolvePreviewPlan(sources)
+  };
+}
+
+module.exports = { createResolvePreviewPlan, verifyResolvePreviewPlan, refreshResolvePreviewPlan };

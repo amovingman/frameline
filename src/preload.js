@@ -12,5 +12,20 @@ contextBridge.exposeInMainWorld('desktop', {
   switchBranch: name => ipcRenderer.invoke('project:switch-branch', name),
   relinkProject: projectId => ipcRenderer.invoke('project:relink', projectId),
   exportRevisions: () => ipcRenderer.invoke('project:export-revisions'),
-  importRevisions: () => ipcRenderer.invoke('project:import-revisions')
+  importRevisions: () => ipcRenderer.invoke('project:import-revisions'),
+  getResolveReviewState: () => ipcRenderer.invoke('resolve:get-review-state'),
+  chooseResolveSnapshots: () => ipcRenderer.invoke('resolve:choose-snapshots'),
+  refreshResolvePreview: () => ipcRenderer.invoke('resolve:refresh-preview'),
+  saveResolvePreview: () => ipcRenderer.invoke('resolve:save-preview'),
+  saveResolveReview: () => ipcRenderer.invoke('resolve:save-review'),
+  recoverResolvePreview: artifactId => ipcRenderer.invoke('resolve:recover-preview', artifactId),
+  recoverResolveReview: artifactId => ipcRenderer.invoke('resolve:recover-review', artifactId),
+  setResolveDecision: (conflictId, choice) => ipcRenderer.invoke('resolve:set-decision', conflictId, choice),
+  prepareReviewCopy: () => ipcRenderer.invoke('project:prepare-review-copy'),
+  verifyReviewCopy: () => ipcRenderer.invoke('project:verify-review-copy'),
+  revealReviewCopy: () => ipcRenderer.invoke('project:reveal-review-copy'),
+  auditProjectMedia: target => ipcRenderer.invoke('project:audit-media', target),
+  findProjectMedia: target => ipcRenderer.invoke('project:find-media', target),
+  chooseResolveExport: timelineId => ipcRenderer.invoke('resolve:choose-export', timelineId),
+  refreshResolveExport: () => ipcRenderer.invoke('resolve:refresh-export')
 });

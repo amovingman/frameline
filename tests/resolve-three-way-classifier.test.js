@@ -73,3 +73,56 @@ test('paired Free captures classify the retained-ID move as incoming-only',()=>{
   assert.equal(result.decisions[0].itemId,result.decisions[1].itemId);
   assert.equal(result.safeToApply,false);
 });
+test('classifies the complete entity-presence matrix symmetrically for items and timelines',()=>{
+  const cases = [
+    [false,false,true,'incoming-only'],[false,true,false,'local-only'],
+    [false,true,true,'already-applied'],[true,false,false,'already-applied'],
+    [true,true,false,'incoming-only'],[true,false,true,'local-only']
+  ];
+  for (const level of ['item','timeline']) for (const [bp,lp,ip,status] of cases) {
+    const values=[bp,lp,ip].map(present=>{
+      const m=manifest();
+      if (!present) {
+        if (level==='timeline') m.timelines=[];
+        else m.timelines[0].items.shift();
+      }
+      return m;
+    });
+    const result=classify(...values);
+    assert.equal(result.decisions.length,1);
+    assert.equal(result.decisions[0].field,'existence');
+    assert.equal(result.decisions[0].status,status,`${level}: ${bp}/${lp}/${ip}`);
+    assert.equal(result.decisions[0].itemId,level==='item'?'a':null);
+  }
+});
+test('different concurrent additions conflict and delete/edit conflicts are symmetric',()=>{
+  for (const level of ['item','timeline']) {
+    const b=manifest(),l=manifest(),i=manifest();
+    if (level==='item') b.timelines[0].items.shift();
+    else b.timelines=[];
+    clip(i).name='Incoming edit';
+    assert.equal(classify(b,l,i).decisions[0].status,'conflict');
+    const base=manifest(),deleted=manifest(),edited=manifest();
+    if (level==='item') deleted.timelines[0].items.shift();
+    else deleted.timelines=[];
+    clip(edited).name='Local edit';
+    assert.equal(classify(base,deleted,edited).decisions[0].status,'conflict');
+    assert.equal(classify(base,edited,deleted).decisions[0].status,'conflict');
+  }
+});
+test('equivalent concurrent additions ignore collection order and object property order',()=>{
+  const b=manifest(),l=manifest(),i=manifest();b.timelines=[];
+  clip(l).linkedItemIds=['b','c'];clip(i).linkedItemIds=['c','b'];
+  i.timelines[0].tracks.reverse();i.timelines[0].items.reverse();
+  i.timelines[0].items=i.timelines[0].items.map(value=>Object.fromEntries(Object.entries(value).reverse()));
+  assert.equal(classify(b,l,i).decisions[0].status,'already-applied');
+});
+test('does not claim full equivalence from equal counts or unknown observations',()=>{
+  const b=manifest();clip(b).sourceStartFrame=null;
+  const result=classify(b,b,b);
+  assert.deepEqual(result.decisions,[]);
+  assert.equal(result.safeToApply,false);
+  assert.ok(result.warnings.some(value=>value.includes('observed fields only')));
+  assert.ok(result.warnings.some(value=>value.includes('Equal effect counts')));
+  assert.ok(result.warnings.some(value=>value.includes('unknown values')));
+});

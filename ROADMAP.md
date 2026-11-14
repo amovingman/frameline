@@ -36,6 +36,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video.
 - [x] Add a Free-only, read-only FCPXML diagnostic for serialized sequences, lanes/gaps, explicit audio, transitions, and effects. It preserves unresolved timing and link semantics and does not close the complete-enumeration gate. See `phase-0/READ_ONLY_INVENTORY.md`.
 - [x] Reconcile the paired Free API observation with its untouched XML export by construct counts, without guessing item IDs or track mappings. The report confirms missing explicit audio and unobservable effect/link semantics; complete enumeration remains open.
+- [x] Add an aggregate normalized API/XML coverage matrix with explicit omissions, unobservable constructs, source hashes, and no guessed track or clip mapping. Complete enumeration remains open.
 - [x] Confirm a supported API write path for limited clip edits: live Free-edition duplicate-timeline move, trim, and deletion plus documented methods; app-level safe apply remains unproven.
 - [x] Document the experimental FCPXML 1.10/Resolve Free 21.1.2 boundary and unsupported constructs in `phase-0/SUPPORT_MATRIX.md`; no release-supported minimum is declared yet.
 - [x] Record the initial Free/FCPXML target and current evidence in `PRODUCT.md` and `SYSTEM_DESIGN.md`; the write path remains open pending stable identity and broader timeline coverage.
@@ -52,9 +53,11 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained all five IDs through save/reopen and a full Resolve restart. IDs also survived rename, move, and trim on duplicate timelines; deletion removed only the deleted occurrence's ID. FCPXML exports still omit those IDs and leave repeated-media mapping ambiguous. Relink and safe API-to-export mapping remain open; this does not close the stable-ID gate.
 - [x] Validate exact Free 21.1.2 schema-3 API snapshots, normalize them into path-free read-only manifests, compare retained items by API ID, summarize field changes, and expose a local comparison command. The paired live captures show one retained-ID position change. Track identity and API-to-FCPXML mapping remain unresolved; this diagnostic does not enable app clip diffs or apply. See `phase-0/RESOLVE_SNAPSHOT_COMPARE.md`.
 - [x] Add a read-only API snapshot ↔ flat FCPXML timing matcher that returns candidates and rejects ambiguity; it always refuses to authorize apply and does not establish persistent IDs.
+- [x] Extend the read-only matcher to flat single-picture-source Resolve `<clip>` wrappers, reject mixed/nested/gap-lane structures and timing collisions, and bind candidate reports to snapshot and export hashes. Full performance exports remain unsupported by this matcher.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
 - [ ] Measure scan, write, and reopen behavior on realistically sized projects. A synthetic 1k–10k-clip scanner baseline is recorded in `phase-0/SCAN_BENCHMARK.md`; real projects and write/reopen remain open.
+- [x] Repeat the read-only scanner benchmark ten times on the exact editor-backed 1,001-picture-clip export and assert its hash, byte count, clip count, frames, and warnings each run. This does not measure editor write/reopen or complete coverage.
 - [ ] Stop or revisit editor choice if stable IDs and safe validation are not achievable.
 
 **Exit:** A repeatable test demonstrates scan → normalized manifest → one edit to a copy → editor reopen, with no collateral changes.
@@ -100,6 +103,8 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Filter and group changes by sequence, track, status, and change type.
 - [ ] Add tests for no-op, same change on both sides, independent edits, rename, and reorder.
 - [x] Show read-only sequence and media-inventory differences between a revision and its verified parent, while keeping clip-level edit decisions explicitly unavailable.
+- [x] Add a read-only JavaScript schema-3 Resolve snapshot ↔ selected FCPXML matcher for flat picture content. It reports exact source hashes, candidates, collisions, and unmatched items; supports the specified Resolve wrapper and fails closed on complex content. Candidate matching does not prove persistent identity or authorize apply.
+- [x] Add optional desktop FCPXML comparison and refresh UI for those candidate results. It remains read-only and does not enable clip-level revision comparison or apply.
 
 **Exit:** A real project can be scanned repeatedly; local commits are immutable and a useful diff can be inspected without writing to the project.
 
@@ -107,25 +112,34 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 2.1 Three-way pull planning
 - [x] Add a Free-only, read-only three-way API snapshot preview: hash binding, ID-based field classification, conservative warnings, deterministic in-memory assembly, and a CLI with stale-source verification. It does not record a synced base or enable apply. See `phase-0/THREE_WAY_PREVIEW.md`.
+- [x] Add schema-v4 local storage for a per-branch sync-base revision, with ancestry and expected-head checks. No current workflow claims a remote sync or sets the base automatically.
+- [x] Strengthen the Free snapshot preview with addition/deletion and concurrent-edit classification coverage, deterministic proposed changes and conflicts, unknown media requirements, and verification of saved preview contents against matching source bytes. This remains a read-only diagnostic.
+- [x] Add explicit stale-source refresh and immutable, content-addressed local preview recovery for the Free snapshot diagnostic. These do not implement an editor apply transaction.
+- [x] Add read-only observed-field and entity conflict guidance, including deletion versus edit and canonical review order for concurrent additions and moves. No field has a proven safe app-level apply rule or automatic timeline placement.
+- [x] Add conservative read-only risk gates for ripple/timing, linked clips, transitions, and nested/unknown constructs; conflict choices with context, completeness checks, and a source-bound audit record; plus standalone source-hash preflight and verified restore-point copy. These safety foundations do not enable apply. See `phase-0/THREE_WAY_PREVIEW.md`.
+- [x] Ship a Resolve preview tab that accepts three schema-3 API snapshot files (base, local, incoming), classifies observed field changes, presents conflicts and warnings, and lets the user record conflict review choices. Refresh re-reads sources and clears choices when bytes change. Save/recover is content-addressed and requires matching source bytes; saved previews omit decisions. The completed-conflict audit records review intent only. This UI preview does not record a synced base or enable apply.
+- [x] Add source-hash and changed-role status, timeline/field/unresolved filters, conflict navigation, and dedicated warning/media requirements inspection to the read-only Resolve preview.
+- [x] Persist partial or complete Resolve conflict review choices in a separate content-addressed artifact. Recovery revalidates exact source bytes, recomputes the plan and audit, and rejects stale or corrupted artifacts. This is not a resulting revision or editor apply record.
 - [ ] Record the last synced base manifest for each local branch.
-- [ ] Compare common base, current local state, and incoming revision.
-- [ ] Classify each change as incoming-only, local-only, already applied, or conflicting.
-- [ ] Produce a deterministic pull plan with changes, conflicts, media requirements, and validation warnings.
+- [ ] Compare the recorded common base, current local project state, and an incoming revision. The Resolve preview compares three user-selected API snapshot files only.
+- [ ] Classify each project change as incoming-only, local-only, already applied, or conflicting. The preview classifies observed snapshot fields; it is not an integrated project diff.
+- [ ] Produce a deterministic executable pull plan with changes, media requirements, and validation warnings. The preview assembles a read-only proposal and warnings, not an executable plan.
 - [ ] Bind each plan to hashes of the local project and incoming revision.
 - [ ] Recalculate a stale plan if the project changes before apply.
 - [ ] Persist enough plan state to recover from application interruption.
 
 ### 2.2 Conflict rules and resolution
-- [ ] Implement field-level conflicts for properties proven safe by the editor spike.
+- [ ] Implement field-level conflicts with safe app-level apply rules for properties proven safe by the editor spike. The preview can review observed-field conflicts but cannot apply their choices.
 - [ ] Treat local edit vs incoming deletion as a conflict.
 - [ ] Define ordering rules for concurrent clip additions and timeline moves.
 - [ ] Treat ripple edits, linked clips, transitions, nested sequences, and timing interactions conservatively until proven.
-- [ ] Offer explicit choices: keep local, take incoming, or manually choose supported field values.
+- [x] Offer conflict review choices in the Resolve preview, with affected values/context. These are review decisions only; supported manual field edits and apply are not implemented.
 - [ ] Show the affected clip in context, field values, and the consequence of each choice.
-- [ ] Require a decision for every unresolved conflict before enabling apply.
-- [ ] Preserve the user's conflict decisions in the resulting revision/audit record.
+- [x] Require a review choice for every conflict before showing the preview audit. Apply remains disabled.
+- [ ] Preserve the user's conflict decisions in the resulting revision/audit record. The preview can now persist and recover review intent, but no resulting project revision or apply audit exists.
 
 ### 2.3 Backup, apply, and recover
+- [x] Add a standalone main-process preflight that checks plan/audit/source/restore-point/adapter gates and always refuses apply while project-to-plan identity is unproven. See `phase-0/SAFE_PULL_PREFLIGHT.md`.
 - [ ] Build a transactional apply service outside the renderer.
 - [ ] Create and verify a timestamped restore point before in-place changes.
 - [ ] Check that the file still matches the plan's source hash before writing.
@@ -137,7 +151,9 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Record success, failure, chosen resolutions, and resulting revision.
 
 ### 2.4 Review-copy mode
-- [ ] Let the user choose a destination and a non-colliding filename.
+- [x] Add a bounded, byte-verified preparation copy for a regular FCPXML file in a selected destination, with noncolliding names and failed-copy cleanup. No pull plan is applied to this copy.
+- [x] Let the user choose a destination and filename in the desktop copy workflow; enforce noncollision and verify the copy by rescan, hash, and source checks. The result is sanitized for display.
+- [x] Audit the review copy as an unchanged byte-identical artifact; verify an existing copy again by hash, scan, and source checks before revealing it in Finder. A stale source invalidates the copy handoff.
 - [ ] Copy required project metadata and apply the same resolved pull plan to the copy.
 - [ ] Leave the original and its sync base unchanged.
 - [ ] Decide how referenced media paths remain valid; offer explicit media collection when needed.
@@ -146,11 +162,13 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 2.5 Local media inventory and relinking
 - [x] Check referenced `file:` media paths for local availability in the read-only FCPXML scan, without loading media contents or exposing paths to the renderer; relinking and richer asset states remain open.
-- [ ] Scan referenced asset paths without reading large media fully into memory.
-- [ ] Show available, missing, offline-volume, proxy-only, and excluded states.
-- [ ] Resolve moved files by user-selected folder and metadata hints.
-- [ ] Verify relink candidates using file size and content hash where appropriate.
-- [ ] List required media before apply; block or request confirmation when dependencies are unresolved.
+- [x] Add standalone streamed media fingerprints, evidence-based availability, bounded selected-folder search, size/hash candidate verification, and path-free readiness reporting. This does not relink a project or establish media requirements for an executable pull.
+- [x] Add a selected-regular-FCPXML media audit with path-free local, missing, external, and unknown states and streamed fingerprints where available. This is an inventory only; it does not claim media identity or pull readiness.
+- [x] Scan referenced asset paths with streamed fingerprints, without loading large media fully into memory.
+- [x] Show available, missing, offline-volume, proxy-only, excluded, external, and unknown states in a path-free dependency report.
+- [x] Resolve moved-file candidates from a user-selected folder into verified, ambiguous, filename-only, or not-found results. This produces a read-only resolution report; rewriting project references remains unavailable.
+- [x] Verify relink candidates using file size and content hash when expected identity evidence exists; filename-only matches remain unverified.
+- [x] List required media and produce an explicit ready, confirmation-required, or blocked gate. Apply remains disabled for the separate identity and adapter blockers.
 
 **Exit:** The app safely applies one tested edit to a copy and in place, supports explicit conflict decisions, and can prove recovery from failure.
 
@@ -158,25 +176,25 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 3.1 Service and data model
 - [ ] Select deployment and data-processing regions based on user needs.
-- [ ] Define API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity.
-- [ ] Store immutable manifests and revision metadata; index project and branch heads.
-- [ ] Use atomic compare-and-swap updates for branch heads.
-- [ ] Define service migrations, backups, restore drills, and data retention.
-- [ ] Add request IDs, idempotency keys, pagination, and API versioning.
+- [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. Deployment and transport remain open.
+- [x] Add an executable domain store for content-addressed immutable manifests, revision metadata, projects, and branch heads.
+- [x] Use compare-and-swap branch-head updates with expected-head and revision-parent checks.
+- [x] Define and test service-state migration, verified backup/restore, restore drills, and non-destructive retention reporting.
+- [x] Add request IDs, exact-input idempotency keys, signed bounded pagination, and API version envelopes to the service foundation.
 
 ### 3.2 Accounts, authorization, and security
-- [ ] Add sign-in, sign-out, token refresh, and account recovery.
-- [ ] Define teams, invitations, project roles, and permission boundaries.
-- [ ] Enforce authorization on every project, revision, branch, and asset request.
-- [ ] Store secrets in the operating system credential store; never expose tokens to page scripts.
-- [ ] Encrypt traffic and stored data; rotate service credentials.
-- [ ] Add abuse controls, rate limits, audit trails, and account deletion flows.
-- [ ] Threat-model malicious project files, archive traversal, symlinks, path disclosure, and unauthorized asset access.
+- [x] Add an executable identity foundation for sign-in, sign-out, rotating refresh tokens, generic account recovery, session revocation, and deletion. No hosted identity service or desktop sign-in UI is deployed.
+- [x] Define teams, expiring invitations, owner/editor/viewer project roles, and explicit permission boundaries.
+- [x] Enforce project-scoped authorization through a service wrapper before project, revision, branch, and asset operations.
+- [x] Add a main-process-only Electron `safeStorage` credential vault with atomic encrypted persistence and rotation; preload exposes no credential or token API.
+- [x] Require HTTPS service origins, add AES-256-GCM stored-record envelopes, and support key-ID rotation. Hosted TLS and managed keys remain deployment work.
+- [x] Add per-principal/action rate limits, hash-chained audit events, session-revoking account deletion, and ownership-orphan refusal.
+- [x] Threat-model malicious project files, archive traversal, symlinks, path disclosure, token theft, and unauthorized asset access in `SECURITY_MODEL.md`.
 
 ### 3.3 Push, fetch, and offline sync
-- [ ] Push immutable local revisions and manifests to a remote project.
-- [ ] Fetch branch heads, history, and required manifests without fetching media unnecessarily.
-- [ ] Track local/remote divergence and present an explicit reconciliation path.
+- [x] Add an executable sync service that validates local revision bundles, uploads content-addressed manifests and immutable revisions idempotently, and advances remote branches by compare-and-swap.
+- [x] Fetch a remote branch head, ordered revision history, and required manifests without fetching media.
+- [x] Track in-sync, local-ahead, remote-ahead, and diverged states with explicit push, fetch, or reconciliation-branch actions.
 - [ ] Queue sync while offline and retry idempotently when connectivity returns.
 - [ ] Handle concurrent branch updates without overwriting remote work.
 - [ ] Cache revisions and manifests locally for offline browsing and pull planning.
@@ -277,4 +295,4 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic revision review. File selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and an explicit matching-export ID relink work for a narrow top-level picture sequence. A synthetic compatibility corpus records expected scans and warns about unsupported nested content and connected lanes. Stable clip mapping, clip-level revision comparison, collaboration, media sync, conflict resolution, and pull are not implemented. This roadmap places safe editor identity and write validation before those features.
+The repository contains an Electron UI prototype with synthetic local revision review and a Resolve preview tab for three schema-3 API snapshots. The preview classifies observed field changes, presents conflicts and warnings, captures per-conflict review choices, reports source hashes and changed roles, and supports timeline/field filtering and unresolved-conflict navigation. Its source-bound preview and review artifacts can be recovered against the exact source bytes; review choices persist, while the audit remains review intent and apply is disabled. The desktop app also offers optional read-only comparison of a schema-3 local snapshot with a selected FCPXML file using candidate matching, plus a review-copy workflow for unchanged FCPXML. The matcher reports hashes, collisions, and unmatched items and fails closed on complex content; it does not establish persistent identity or enable apply. For a selected regular FCPXML source, the path-free media audit reports local, missing, external, or unknown references and streamed fingerprints where available, without claiming media identity or pull readiness. Copy preparation and audit verify an identical artifact; an existing copy is rechecked by hash, scan, and source checks before Finder reveal, and source staleness invalidates the handoff. The app also supports file selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and matching-export ID relink for a narrow top-level picture sequence. Stable API-ID to project mapping, media relinking/identity, integrated clip-level revision comparison, collaboration, media sync, and a safe pull transaction remain unimplemented. Standalone diagnostic risk gates and preflight utilities do not close those product gates.

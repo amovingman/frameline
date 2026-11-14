@@ -71,3 +71,31 @@ test('malformed or writable inputs fail closed', () => {
     assert.throws(() => assessResolvePlan(input), { code: 'invalid-resolve-classification' });
   }
 });
+
+test('assembles deterministic proposed changes, conflicts and conservative media requirements', () => {
+  const input = classification([
+    decision('name', { status: 'local-only', incoming: 'Keep local' }),
+    decision('name', { itemId: 'done', status: 'already-applied', incoming: 'Done' }),
+    decision('mediaPoolId', { base: 'old', local: 'old', incoming: 'media-new' }),
+    decision('startFrame', { itemId: 'conflicted', status: 'conflict', base: 0, local: 1, incoming: 2 }),
+    decision('existence', { itemId: 'deleted', base: { id: 'deleted' }, local: { id: 'deleted' } }),
+    decision('existence', { itemId: null, incoming: { id: 'timeline-1', items: [
+      { id: 'added', mediaPoolId: 'media-added' }, { id: 'unknown', mediaPoolId: null }
+    ] } })
+  ]);
+  const result = assessResolvePlan(input);
+  assert.equal(result.changes.length, 3);
+  assert.deepEqual(result.changes.map(value => value.operation), ['add', 'remove', 'update']);
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].itemId, 'conflicted');
+  assert.equal(result.mediaRequirements.length, 4);
+  assert.ok(result.mediaRequirements.every(value => value.availability === 'unknown'));
+  assert.equal(result.mediaRequirements.find(value => value.itemId === 'unknown').identity, 'unknown');
+  assert.equal(result.mediaRequirements.find(value => value.itemId === 'conflicted').pendingConflictResolution, true);
+  assert.equal(result.mediaRequirements.find(value => value.itemId === 'item-1').mediaPoolId, 'media-new');
+  assert.deepEqual(result.validationWarnings, result.warnings);
+  assert.deepEqual(assessResolvePlan(classification([...input.decisions].reverse())), result);
+  result.changes[0].incoming.items[0].id = 'mutated';
+  assert.equal(input.decisions[5].incoming.items[0].id, 'added');
+  assert.equal(result.safeToApply, false);
+});

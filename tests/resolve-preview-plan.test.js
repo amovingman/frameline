@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createResolvePreviewPlan, verifyResolvePreviewPlan } = require('../src/resolve-preview-plan');
+const { createResolvePreviewPlan, verifyResolvePreviewPlan, refreshResolvePreviewPlan } = require('../src/resolve-preview-plan');
 
 const proof = path.join(__dirname, '../phase-0/resolve-xml-proof');
 const read = name => fs.readFileSync(path.join(proof, name));
@@ -40,4 +40,65 @@ test('classifies a same-field disagreement as conflict and rejects unsafe source
   assert.equal(plan.assessment.counts.conflicts, 1);
   assert.throws(() => createResolvePreviewPlan({ ...input, extra: 'x' }), { code: 'invalid-resolve-preview' });
   assert.throws(() => createResolvePreviewPlan({ ...input, local: Buffer.from('{') }), { code: 'invalid-resolve-preview' });
+});
+
+test('verification rejects a modified preview even when source hashes still match', () => {
+  const input = sources();
+  const plan = createResolvePreviewPlan(input);
+  const changed = structuredClone(plan);
+  changed.classification.decisions[0].status = 'already-applied';
+  assert.throws(() => verifyResolvePreviewPlan(changed, input), { code: 'invalid-resolve-preview' });
+  const changedAssessment = structuredClone(plan);
+  changedAssessment.assessment.counts.conflicts = 10;
+  assert.throws(() => verifyResolvePreviewPlan(changedAssessment, input), { code: 'invalid-resolve-preview' });
+});
+
+test('refresh verifies an unchanged preview and returns a detached read-only plan', () => {
+  const input = sources();
+  const prior = createResolvePreviewPlan(input);
+  const result = refreshResolvePreviewPlan(prior, input);
+  assert.equal(result.refreshed, false);
+  assert.equal(result.readOnly, true);
+  assert.equal(result.safeToApply, false);
+  assert.deepEqual(result.verification.staleRoles, []);
+  assert.equal(result.verification.valid, true);
+  assert.deepEqual(result.plan, prior);
+  assert.notEqual(result.plan, prior);
+  const tampered = structuredClone(prior);
+  tampered.assessment.counts.conflicts = 10;
+  assert.throws(() => refreshResolvePreviewPlan(tampered, input), { code: 'invalid-resolve-preview' });
+});
+
+test('refresh reports stale roles and recomputes classification from current snapshots', () => {
+  const input = sources();
+  const prior = createResolvePreviewPlan(input);
+  const original = structuredClone(prior);
+  const local = JSON.parse(input.base.toString('utf8'));
+  const incoming = JSON.parse(input.base.toString('utf8'));
+  local.timelines[0].items[0].start_frame = 10;
+  incoming.timelines[0].items[0].start_frame = 20;
+  const current = { ...input, local: JSON.stringify(local), incoming: JSON.stringify(incoming) };
+  const result = refreshResolvePreviewPlan(prior, current);
+  assert.equal(result.refreshed, true);
+  assert.deepEqual(result.verification.staleRoles, ['local', 'incoming']);
+  assert.deepEqual(result.verification.matches, { base: true, local: false, incoming: false });
+  assert.equal(result.verification.valid, false);
+  assert.deepEqual(result.plan, createResolvePreviewPlan(current));
+  assert.equal(result.plan.assessment.counts.conflicts, 1);
+  assert.equal(result.plan.readOnly, true);
+  assert.equal(result.plan.safeToApply, false);
+  assert.equal(verifyResolvePreviewPlan(result.plan, current).valid, true);
+  assert.deepEqual(prior, original);
+  assert.throws(() => refreshResolvePreviewPlan(prior, { ...current, base: '{' }), { code: 'invalid-resolve-preview' });
+});
+
+test('refresh replaces the binding even when only snapshot formatting changes', () => {
+  const input = sources();
+  const prior = createResolvePreviewPlan(input);
+  const current = { ...input, base: input.base.toString('utf8') + '\n' };
+  const result = refreshResolvePreviewPlan(prior, current);
+  assert.equal(result.refreshed, true);
+  assert.deepEqual(result.verification.staleRoles, ['base']);
+  assert.deepEqual(result.plan.classification, prior.classification);
+  assert.notEqual(result.plan.binding.hashes.base, prior.binding.hashes.base);
 });

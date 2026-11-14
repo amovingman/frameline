@@ -3,6 +3,12 @@ const changes = new Map(sample.changes.map(change => [change.id, change]));
 let selectedChangeId = 'trim';
 let currentAppState = null;
 let branchBusy = false;
+let reviewCopyBusy = false;
+let reviewCopySource = null;
+let verifiedReviewCopy = null;
+let mediaAuditBusy = false;
+let mediaAuditReports = {};
+let mediaSearchReports = {};
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -39,6 +45,22 @@ function renderAppState(state) {
   currentAppState = state;
   const projectName = state?.selectedProject?.name;
   const scan = state?.scan;
+  const copySource = projectName && scan?.sourceHash ? `${state.selectedProject.id || projectName}:${scan.sourceHash}` : null;
+  if (copySource !== reviewCopySource) {
+    document.getElementById('review-copy-result').textContent = '';
+    verifiedReviewCopy = null;
+    mediaAuditReports = {};
+    mediaSearchReports = {};
+    renderCopyMediaAudit();
+  }
+  reviewCopySource = copySource;
+  const canCopy = !state?.error && state?.scanStatus === 'ready' && !!scan && state?.selectedProject?.format === 'FCPXML' && /\.fcpxml$/i.test(projectName || '');
+  document.getElementById('review-copy-panel').hidden = !canCopy;
+  document.getElementById('prepare-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
+  document.getElementById('verify-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
+  document.getElementById('reveal-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy || !verifiedReviewCopy;
+  document.getElementById('audit-project-media').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
+  document.getElementById('find-project-media').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy || !mediaAuditReports.source;
   document.getElementById('rescan-project').hidden = !projectName;
   document.querySelector('.branch-label').textContent = `${state?.currentBranch || 'main'} · ${projectName ? 'Local project' : 'Sample project'}`;
   document.getElementById('file-name').textContent = projectName
@@ -348,7 +370,11 @@ function renderMedia() {
 }
 
 function showView(name) {
-  document.getElementById('view-label').textContent = {workspace: document.getElementById('sample-review').hidden ? 'Timeline scan' : 'Review changes', history: 'Revision history', media: 'Project media'}[name];
+  const resolveMode = name === 'resolve';
+  document.body.classList.toggle('resolve-mode', resolveMode);
+  document.querySelector('.project-context strong').textContent = resolveMode ? 'Resolve review' : (currentAppState?.selectedProject?.name || 'Launch film');
+  document.querySelector('.workspace-bar > span:first-child').firstChild.textContent = resolveMode ? 'Resolve snapshots ' : `${currentAppState?.selectedProject?.name || 'Launch film'} `;
+  document.getElementById('view-label').textContent = {workspace: document.getElementById('sample-review').hidden ? 'Timeline scan' : 'Review changes', history: 'Revision history', media: 'Project media', resolve: 'Resolve preview'}[name];
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   document.querySelectorAll('[data-view]').forEach(button => {
     const active = button.dataset.view === name;
@@ -524,3 +550,353 @@ document.addEventListener('keydown', event => {
     showView(['workspace', 'history', 'media'][Number(event.key) - 1]);
   }
 });
+
+let resolveState = null;
+let resolveSelected = null;
+let resolveBusy = false;
+let resolveActionNotice = '';
+const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
+function resolveValue(value) {
+  if (value === undefined || value === null) return 'Not present';
+  return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+}
+function resolveChanges() {
+  return resolveState?.plan?.classification?.decisions || [];
+}
+function resolveConflict(change) {
+  return resolveState?.review?.conflicts?.find(item => item.timelineId === change.timelineId && item.itemId === change.itemId && item.field === change.field);
+}
+function resolveChoice(conflict) {
+  return resolveState?.decisions?.find(item => item.conflictId === conflict?.id)?.choice;
+}
+function renderResolveState(state) {
+  resolveState = state;
+  const items = resolveChanges();
+  const ready = state?.status === 'ready' && !!state.plan;
+  document.getElementById('resolve-refresh').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-save').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-choose').disabled = resolveBusy;
+  document.getElementById('resolve-recover').disabled = resolveBusy;
+  document.getElementById('resolve-notice').textContent = state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
+  const sources = document.getElementById('resolve-sources');
+  sources.replaceChildren();
+  const counts = items.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
+  for (const [key, label] of Object.entries(resolveLabels)) {
+    const row = make('div', 'resolve-classification');
+    row.append(make('strong', '', String(counts[key] || 0)), make('span', '', label));
+    sources.append(row);
+  }
+  for (const [id, key, label] of [['resolve-timeline', 'timelineId', 'All timelines'], ['resolve-field', 'field', 'All fields']]) {
+    const select = document.getElementById(id);
+    const previous = select.value;
+    select.replaceChildren();
+    for (const value of ['all', ...new Set(items.map(item => item[key]).filter(Boolean).sort())]) {
+      const option = make('option', '', value === 'all' ? label : value);
+      option.value = value; select.append(option);
+    }
+    select.value = [...select.options].some(option => option.value === previous) ? previous : 'all';
+  }
+  const unresolved = items.filter(item => item.status === 'conflict' && !resolveChoice(resolveConflict(item)));
+  document.getElementById('resolve-next').disabled = resolveBusy || !unresolved.length;
+  document.getElementById('resolve-save-review').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-review-recover').disabled = resolveBusy;
+  const sourcePanel = document.getElementById('resolve-source-hashes');
+  sourcePanel.replaceChildren();
+  for (const [role, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming']]) {
+    const stale = state?.sourceVerification?.staleRoles?.includes(role);
+    const row = make('div', stale ? 'source-stale' : '');
+    row.append(make('strong', '', label), make('code', '', state?.sourceHashes?.[role]?.slice(0, 12) || 'No source'), make('span', '', stale ? 'Changed on refresh · choices reset' : state?.sourceHashes?.[role] ? 'Source fingerprint' : 'Choose snapshots'));
+    sourcePanel.append(row);
+  }
+  renderResolveExport(state, ready);
+  renderResolveInspection();
+  const filter = document.getElementById('resolve-filter').value;
+  const visible = items.filter(item => {
+    if (document.getElementById('resolve-timeline').value !== 'all' && item.timelineId !== document.getElementById('resolve-timeline').value) return false;
+    if (document.getElementById('resolve-field').value !== 'all' && item.field !== document.getElementById('resolve-field').value) return false;
+    if (filter === 'unresolved') return item.status === 'conflict' && !resolveChoice(resolveConflict(item));
+    if (filter === 'all') return true;
+    if (filter === 'resolved') return !!resolveChoice(resolveConflict(item));
+    if (filter === 'conflict') return item.status === 'conflict';
+    return item.status === filter;
+  });
+  document.getElementById('resolve-count').textContent = `${visible.length} of ${items.length}`;
+  if (!visible.includes(resolveSelected)) resolveSelected = visible.find(item => item.timelineId === resolveSelected?.timelineId && item.itemId === resolveSelected?.itemId && item.field === resolveSelected?.field) || visible[0] || null;
+  const queue = document.getElementById('resolve-queue');
+  queue.replaceChildren();
+  if (!visible.length) queue.append(make('p', 'history-empty', ready ? 'No changes match this filter.' : 'No snapshots selected.'));
+  visible.forEach(item => {
+    const choice = resolveChoice(resolveConflict(item));
+    const button = make('button', `queue-item${item === resolveSelected ? ' selected' : ''}`);
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(item === resolveSelected));
+    button.append(make('strong', '', item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', item.timelineId || ''), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
+    button.addEventListener('click', () => { resolveSelected = item; renderResolveState(resolveState); });
+    queue.append(button);
+  });
+  renderResolveDetail();
+  const audit = document.getElementById('resolve-audit');
+  const auditHash = state?.audit?.auditHash || state?.audit?.hash || state?.audit?.id;
+  const complete = (state?.review?.conflicts || []).every(conflict => !!resolveChoice(conflict));
+  const auditSummary = state?.audit && complete ? `Audit ${auditHash ? String(auditHash).slice(0, 20) : 'available'} · ${state.decisions?.length || 0} recorded choice(s)` : 'Audit pending: decide every conflict.';
+  audit.textContent = state?.artifactId ? `Saved preview: ${state.artifactId} · ${auditSummary}` : ready ? auditSummary : 'No saved preview loaded.';
+  if (state?.artifactId) document.getElementById('resolve-artifact').value = state.artifactId;
+  document.getElementById('resolve-review-saved').textContent = state?.reviewArtifactId ? `Saved review: ${state.reviewArtifactId} · ${auditSummary}` : ready ? `${unresolved.length} unresolved conflict(s). Save review to preserve current choices.` : 'No saved review loaded.';
+  if (state?.reviewArtifactId) document.getElementById('resolve-review-artifact').value = state.reviewArtifactId;
+}
+function renderResolveDetail() {
+  const detail = document.getElementById('resolve-detail');
+  detail.replaceChildren();
+  const item = resolveSelected;
+  detail.append(make('h2', '', item ? `${item.field} comparison` : 'Source comparison'));
+  if (!item) { detail.append(make('p', '', 'Select a change to inspect base, local, and incoming source values.')); return; }
+  detail.append(make('p', 'resolve-context', `Timeline ${item.timelineId || 'unspecified'} · Item ${item.itemId || 'timeline'} · ${resolveLabels[item.status] || item.status}`));
+  const values = make('div', 'resolve-values');
+  for (const [key, label] of [['base', 'Common base'], ['local', 'Your local cut'], ['incoming', 'Incoming cut']]) {
+    const column = make('div', key === 'incoming' ? 'incoming-value' : '');
+    column.append(make('h3', '', label), make('pre', '', resolveValue(item[key])));
+    values.append(column);
+  }
+  detail.append(values);
+  const conflict = resolveConflict(item);
+  if (conflict) {
+    detail.append(make('p', 'resolve-context', 'Both cuts changed this field from the common base. Choose the value to record in this review.'));
+    const controls = make('div', 'resolve-decisions');
+    const selected = resolveChoice(conflict);
+    for (const choice of conflict.options || ['keep-local', 'take-incoming']) {
+      const button = make('button', selected === choice ? 'selected' : '', choice === 'keep-local' ? 'Keep local' : 'Take incoming');
+      button.type = 'button'; button.disabled = resolveBusy;
+      button.setAttribute('aria-pressed', String(selected === choice));
+      button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
+      controls.append(button);
+    }
+    detail.append(controls);
+  }
+}
+function renderResolveInspection() {
+  const section = document.getElementById('resolve-inspection');
+  section.replaceChildren();
+  const assessment = resolveState?.plan?.assessment;
+  for (const [label, entries] of [['Warning categories', assessment?.warnings || []], ['Media requirements', assessment?.mediaRequirements || []]]) {
+    const disclosure = make('details', '');
+    disclosure.append(make('summary', '', `${label} (${entries.length})`));
+    if (!entries.length) disclosure.append(make('p', '', assessment ? `No ${label.toLowerCase()} reported.` : 'Choose snapshots to inspect requirements.'));
+    for (const entry of entries) {
+      const row = make('div', 'resolve-inspection-row');
+      if (label === 'Warning categories') row.append(make('strong', '', entry.code || 'Warning'), make('span', '', `${entry.count || 0} occurrence(s)`));
+      else row.append(make('strong', '', `${entry.timelineId} · ${entry.itemId || 'Timeline'}`), make('span', '', `Media ${entry.mediaPoolId || 'identity unknown'} · availability ${entry.availability || 'unknown'}`), make('span', '', `Identity: ${entry.identity || 'unknown'}${entry.pendingConflictResolution ? ' · conflict choice required' : ''}`));
+      disclosure.append(row);
+    }
+    section.append(disclosure);
+  }
+}
+function nextResolveConflict() {
+  if (resolveBusy) return;
+  const items = resolveChanges();
+  const index = items.indexOf(resolveSelected);
+  const ordered = [...items.slice(index + 1), ...items.slice(0, index + 1)];
+  const next = ordered.find(item => item.status === 'conflict' && !resolveChoice(resolveConflict(item)));
+  if (!next) return;
+  for (const id of ['resolve-timeline', 'resolve-field']) document.getElementById(id).value = 'all';
+  document.getElementById('resolve-filter').value = 'unresolved';
+  resolveSelected = next;
+  renderResolveState(resolveState);
+  document.querySelector('#resolve-queue [aria-pressed="true"]')?.focus();
+}
+
+async function resolveAction(method, ...args) {
+  if (resolveBusy) return;
+  resolveBusy = true;
+  resolveActionNotice = '';
+  renderResolveState(resolveState);
+  document.getElementById('resolve-notice').textContent = 'Reading and verifying preview…';
+  try {
+    if (!window.desktop?.[method]) throw new Error('Resolve preview is available in the desktop app.');
+    const state = await window.desktop[method](...args);
+    if (state) resolveState = state;
+    if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = state?.sourceVerification?.changed ? `Changed sources: ${(state.sourceVerification.staleRoles || []).join(', ')}. Previous choices cleared; review the refreshed comparison.` : 'Snapshot bytes verified unchanged. Current review choices retained.';
+    if (method === 'saveResolvePreview' && !state?.error) resolveActionNotice = 'Preview saved. Session decisions are not restored by recovery.';
+    if (method === 'saveResolveReview' && !state?.error) resolveActionNotice = 'Review saved with current choices. An audit is included only when every conflict is decided. No changes applied.';
+    if (method === 'recoverResolveReview' && !state?.error) resolveActionNotice = 'Review recovered and source bytes verified. Saved choices restored; no changes applied.';
+    if (method === 'recoverResolvePreview' && !state?.error) resolveActionNotice = 'Saved preview recovered. Review conflict decisions again.';
+  } catch (error) {
+    resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the snapshots again to retry.' } };
+  } finally { resolveBusy = false; renderResolveState(resolveState); }
+}
+document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
+document.getElementById('resolve-export-refresh').addEventListener('click', () => resolveAction('refreshResolveExport'));
+document.getElementById('resolve-choose').addEventListener('click', () => resolveAction('chooseResolveSnapshots'));
+document.getElementById('resolve-refresh').addEventListener('click', () => resolveAction('refreshResolvePreview'));
+document.getElementById('resolve-save').addEventListener('click', () => resolveAction('saveResolvePreview'));
+document.getElementById('resolve-filter').addEventListener('change', () => renderResolveState(resolveState));
+document.getElementById('resolve-recover-form').addEventListener('submit', event => { event.preventDefault(); resolveAction('recoverResolvePreview', document.getElementById('resolve-artifact').value.trim()); });
+document.getElementById('resolve-save-review').addEventListener('click', () => resolveAction('saveResolveReview'));
+for (const id of ['resolve-timeline', 'resolve-field']) document.getElementById(id).addEventListener('change', () => renderResolveState(resolveState));
+document.getElementById('resolve-next').addEventListener('click', nextResolveConflict);
+document.getElementById('resolve-review-recover-form').addEventListener('submit', event => { event.preventDefault(); resolveAction('recoverResolveReview', document.getElementById('resolve-review-artifact').value.trim()); });
+document.addEventListener('keydown', event => {
+  if (event.altKey && event.key.toLowerCase() === 'n' && document.getElementById('view-resolve').classList.contains('active') && !event.target?.closest?.('input, textarea, select, [contenteditable]')) { event.preventDefault(); nextResolveConflict(); }
+});
+renderResolveState(null);
+window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
+
+async function reviewCopyAction(method) {
+  if (reviewCopyBusy || mediaAuditBusy || document.getElementById('review-copy-panel').hidden) return;
+  reviewCopyBusy = true;
+  const result = document.getElementById('review-copy-result');
+  const sourceKey = reviewCopySource;
+  const saving = method === 'prepareReviewCopy';
+  const revealing = method === 'revealReviewCopy';
+  result.textContent = revealing ? 'Revalidating the copy before revealing it…' : saving ? 'Checking source bytes and the saved copy…' : 'Choose an existing copy to verify against the selected export.';
+  renderAppState(currentAppState);
+  try {
+    if (!window.desktop?.[method]) throw new Error('desktop-unavailable');
+    const response = await window.desktop[method]();
+    if (sourceKey !== reviewCopySource) return;
+    if (response?.status === 'cancelled' || response?.status === 'canceled') {
+      result.textContent = `${saving ? 'Save' : 'Verification'} cancelled. ${verifiedReviewCopy ? 'The previous copy still requires revalidation before reveal.' : 'No copy is verified.'}`;
+    } else if (response?.error || response?.status === 'error') {
+      verifiedReviewCopy = null;
+      delete mediaAuditReports.copy;
+      result.textContent = response?.error?.message || 'Copy verification failed. Rescan the selected export and verify the copy again.';
+      renderCopyMediaAudit();
+    } else if (response?.status === 'ready' && response.copyName && (revealing || response.sourceHash)) {
+      verifiedReviewCopy = { copyName: response.copyName, sourceHash: response.sourceHash };
+      if (!revealing) delete mediaAuditReports.copy;
+      result.textContent = `${response.copyName} · ${revealing ? 'revalidated and revealed' : saving ? 'saved and verified unchanged' : 'verified unchanged'}. Reveal revalidates the copy each time. Editor import and apply readiness are not established.`;
+      renderCopyMediaAudit();
+    } else {
+      verifiedReviewCopy = null;
+      result.textContent = 'The review copy could not be verified. Rescan the selected export and try again.';
+    }
+  } catch {
+    if (sourceKey === reviewCopySource) {
+      verifiedReviewCopy = null;
+      result.textContent = 'Could not complete the copy check. Use the desktop app, rescan the selected export, and try again.';
+    }
+  } finally {
+    reviewCopyBusy = false;
+    renderAppState(currentAppState);
+  }
+}
+
+function renderCopyMediaAudit() {
+  const result = document.getElementById('copy-media-result');
+  const entries = document.getElementById('copy-media-entries');
+  const details = document.getElementById('copy-media-details');
+  entries.replaceChildren();
+  const summaries = [];
+  for (const [target, label] of [['source', 'Selected export'], ['copy', 'Verified copy']]) {
+    const report = mediaAuditReports[target];
+    if (!report) continue;
+    if (report.status !== 'ready') {
+      summaries.push(`${label}: ${report.error?.message || 'Audit unavailable. Rescan and try again.'}`);
+      continue;
+    }
+    const counts = report.counts || {};
+    const gate = report.requirements?.decision === 'blocked' ? 'Required media is blocked.'
+      : report.requirements?.decision === 'confirmation-required' ? 'Available media still lacks expected identity evidence.'
+        : 'Required media is verified.';
+    summaries.push(`${label}: ${counts.total || 0} dependencies · ${counts.local || 0} local · ${counts.missing || 0} missing · ${counts['offline-volume'] || 0} offline · ${counts['proxy-only'] || 0} proxy only · ${counts.excluded || 0} excluded · ${counts.external || 0} external · ${counts.unknown || 0} unknown · ${counts.fingerprinted || 0} fingerprinted. ${gate}`);
+    const group = make('section', 'copy-media-group');
+    group.append(make('h4', '', label));
+    for (const asset of report.assets || []) {
+      const row = make('div', 'copy-media-entry');
+      const names = Array.isArray(asset.displayNames) ? asset.displayNames.join(', ') : 'Unnamed dependency';
+      row.append(make('strong', '', names || 'Unnamed dependency'), make('span', '', `${asset.status || 'unknown'}${asset.reason ? ` · ${asset.reason}` : ''}`), make('span', '', asset.identityVerified ? 'Identity matched prior audit' : asset.expectedIdentityAvailable ? 'Prior identity available' : asset.fingerprintAvailable ? 'Fingerprint observed' : 'No fingerprint'));
+      group.append(row);
+    }
+    entries.append(group);
+  }
+  result.textContent = summaries.length ? `${summaries.join('\n')}\nFingerprinted means the bytes were read; original media identity is not verified. Audit results describe the last check.` : 'Run an audit to check local availability and fingerprint coverage.';
+  const searchResult = document.getElementById('copy-media-search-result');
+  const search = mediaSearchReports.source;
+  searchResult.textContent = !search ? '' : search.status !== 'ready' ? search.error?.message || 'The folder search failed.'
+    : search.canceled ? 'Folder search canceled.'
+      : `${search.items?.length || 0} unresolved dependencies searched · ${search.resolvedCount || 0} verified · ${search.ambiguousCount || 0} ambiguous · ${(search.items || []).filter(item => item.resolution === 'unverified').length} filename-only matches. The project export was not changed.`;
+  details.hidden = !entries.childElementCount;
+}
+
+async function auditCopyMedia() {
+  if (mediaAuditBusy || reviewCopyBusy || document.getElementById('review-copy-panel').hidden) return;
+  const sourceKey = reviewCopySource;
+  const targets = verifiedReviewCopy ? ['source', 'copy'] : ['source'];
+  mediaAuditBusy = true;
+  renderAppState(currentAppState);
+  document.getElementById('copy-media-result').textContent = 'Checking media availability and reading local fingerprints…';
+  try {
+    for (const target of targets) {
+      const report = await window.desktop.auditProjectMedia(target);
+      if (sourceKey !== reviewCopySource) return;
+      mediaAuditReports[target] = report || { status: 'error' };
+      delete mediaSearchReports[target];
+    }
+    renderCopyMediaAudit();
+  } catch {
+    if (sourceKey === reviewCopySource) document.getElementById('copy-media-result').textContent = 'Media audit could not finish. Use the desktop app and try again.';
+  } finally {
+    mediaAuditBusy = false;
+    renderAppState(currentAppState);
+  }
+}
+
+async function findProjectMedia() {
+  if (mediaAuditBusy || reviewCopyBusy || !mediaAuditReports.source) return;
+  mediaAuditBusy = true;
+  renderAppState(currentAppState);
+  document.getElementById('copy-media-search-result').textContent = 'Searching the selected folder without following symlinks…';
+  try { mediaSearchReports.source = await window.desktop.findProjectMedia('source'); }
+  catch { mediaSearchReports.source = { status: 'error', error: { message: 'The folder search could not finish.' } }; }
+  finally { mediaAuditBusy = false; renderCopyMediaAudit(); renderAppState(currentAppState); }
+}
+
+document.getElementById('prepare-review-copy').addEventListener('click', () => reviewCopyAction('prepareReviewCopy'));
+document.getElementById('verify-review-copy').addEventListener('click', () => reviewCopyAction('verifyReviewCopy'));
+document.getElementById('reveal-review-copy').addEventListener('click', () => reviewCopyAction('revealReviewCopy'));
+document.getElementById('audit-project-media').addEventListener('click', auditCopyMedia);
+document.getElementById('find-project-media').addEventListener('click', findProjectMedia);
+
+function renderResolveExport(state, ready) {
+  const report = state?.exportComparison;
+  const panel = document.getElementById('resolve-export-report');
+  panel.replaceChildren();
+  document.getElementById('resolve-export-choose').disabled = resolveBusy || !ready;
+  document.getElementById('resolve-export-refresh').disabled = resolveBusy || !ready || !report;
+  document.getElementById('resolve-export-notice').textContent = state?.exportError?.message || ((state?.exportError?.code || state?.exportError) === 'select-timeline' ? 'Choose a timeline in the Timeline filter, then choose its FCPXML export.' : state?.exportError ? 'The export comparison failed. Choose a supported FCPXML export or refresh to retry.' : report ? 'Read-only candidate comparison. No mapping is approved and no edits can be applied.' : ready ? 'Choose an FCPXML file or bundle exported from the local timeline.' : 'Choose the three snapshots first.');
+  if (!report) return;
+  const facts = make('dl', 'export-facts');
+  const groups = Array.isArray(report.unresolved) ? report.unresolved : [];
+  const matches = Array.isArray(report.matches) ? report.matches : [];
+  const unmatchedSnapshot = groups.filter(group => !group.xmlSpineIndices?.length).reduce((total, group) => total + (group.apiItemIds?.length || 0), 0);
+  const unmatchedExport = groups.filter(group => !group.apiItemIds?.length).reduce((total, group) => total + (group.xmlSpineIndices?.length || 0), 0);
+  const collisions = groups.filter(group => group.apiItemIds?.length && group.xmlSpineIndices?.length);
+  for (const [label, value] of [['Candidate matches', matches.length], ['Unmatched snapshot items', unmatchedSnapshot], ['Unmatched export clips', unmatchedExport], ['Collision groups', collisions.length]]) {
+    facts.append(make('dt', '', label), make('dd', '', String(value)));
+  }
+  if (report.exportSha256) panel.append(make('p', '', `Export fingerprint ${report.exportSha256.slice(0, 12)} · local snapshot ${report.snapshotSha256?.slice(0, 12) || 'unavailable'}`));
+  panel.append(facts);
+  const candidates = report.candidates || report.matches || report.candidateMatches;
+  if (Array.isArray(candidates) && candidates.length) {
+    const details = make('details');
+    details.append(make('summary', '', `Inspect ${candidates.length} candidate matches`));
+    for (const candidate of candidates.slice(0, 100)) {
+      const row = make('div', 'resolve-inspection-row');
+      row.append(make('strong', '', candidate.name || candidate.clipName || candidate.itemId || candidate.snapshotItemId || candidate.apiItemId || 'Clip candidate'), make('span', '', candidate.reason || candidate.status || `Spine position ${candidate.xmlSpineIndex ?? '?'} · candidate only; identity unverified`));
+      details.append(row);
+    }
+    if (candidates.length > 100) details.append(make('p', '', 'Showing the first 100 candidates. Counts cover the full comparison.'));
+    panel.append(details);
+  }
+  if (groups.length) {
+    const details = make('details');
+    details.append(make('summary', '', `Inspect ${groups.length} unmatched or collision groups`));
+    for (const group of groups.slice(0, 100)) {
+      const row = make('div', 'resolve-inspection-row');
+      row.append(make('strong', '', `Frames ${(group.frames || []).join(' / ')}`), make('span', '', `${group.apiItemIds?.length || 0} snapshot items · ${group.xmlSpineIndices?.length || 0} export clips`));
+      details.append(row);
+    }
+    if (groups.length > 100) details.append(make('p', '', 'Showing the first 100 groups. Counts cover the full comparison.'));
+    panel.append(details);
+  }
+  for (const warning of report.warnings || []) panel.append(make('p', '', typeof warning === 'string' ? warning : warning.message || warning.code || 'Comparison warning'));
+}

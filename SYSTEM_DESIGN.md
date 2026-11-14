@@ -182,6 +182,12 @@ A relational database can store:
 
 Manifests can be stored as versioned JSON documents or normalized records. For an MVP, storing immutable manifest blobs with indexed project/revision metadata is simpler; normalize further if queries or comparisons demand it.
 
+### Executable service foundation
+
+The local domain prototype in `src/project-api-contracts.js`, `src/cloud-history-store.js`, and `src/service-maintenance.js` exercises the first service invariants before deployment: versioned contracts, content-addressed immutable manifests, immutable revisions, compare-and-swap branch heads, exact-input idempotency, signed pagination, state migration, verified backup/restore, restore drills, and non-destructive retention reports. It has no network listener, hosted database, object store, or selected deployment region. Those remain deployment gates rather than implied capabilities.
+
+The next local layer adds rotating sessions and recovery, team invitations and project roles, authenticated authorization before project-resource operations, an Electron `safeStorage` credential vault, encrypted service records, rate limits, hash-chained audit events, and account deletion safeguards. The revision-sync proof validates immutable local bundles before push, fetches metadata without media, and classifies divergence before advancing a branch. `SECURITY_MODEL.md` documents its trust boundaries. A real network boundary, durable enforcement, hosted key management, offline queue, and region selection remain open.
+
 ## 9. Reliability, security, and performance
 
 - Use immutable revisions so history cannot be accidentally rewritten.
