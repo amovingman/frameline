@@ -13,6 +13,7 @@ const { verifyReviewCopy } = require('./review-copy-verifier');
 const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
 const { resolveFolderCandidates, sanitizeResolutionReport,
   carryObservedIdentity, evaluateMediaRequirements } = require('./local-media-readiness');
+const { createSyncQueue } = require('./sync-queue');
 
 let projectSession;
 let resolveReviewSession;
@@ -30,6 +31,7 @@ let verifiedCopySourcePath = null;
 let verifiedCopyHash = null;
 let mediaAuditBusy = false;
 let privateMediaAudits = {};
+let syncQueue;
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
 
 function currentCopyPath() {
@@ -124,10 +126,20 @@ function createWindow() {
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   projectSession = createProjectSession(fcpxmlProjectAdapter, createLocalMetadataStore(app.getPath('userData')));
+  syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   const resolveArtifactDirectory = path.join(app.getPath('userData'), 'resolve-previews');
   resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
+  ipcMain.handle('sync:get-state', () => ({ connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }));
+  ipcMain.handle('sync:retry', (_event, id) => {
+    try { syncQueue.retry(id); return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }; }
+    catch (error) { return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect(), error: error.code || 'sync-operation-unavailable' }; }
+  });
+  ipcMain.handle('sync:cancel', (_event, id) => {
+    try { syncQueue.cancel(id); return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }; }
+    catch (error) { return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect(), error: error.code || 'sync-operation-unavailable' }; }
+  });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
     const paths = {};

@@ -41,7 +41,9 @@ function createRevisionSyncService(remote, { cache = null } = {}) {
     }
     return { status: 'diverged', localHead, remoteHead, actions: ['fetch', 'create-reconciliation-branch'] };
   }
-  function push({ remoteProjectId, branch = 'main', bundle, authorId }) {
+  function push({ remoteProjectId, branch = 'main', bundle, authorId }, { onProgress = null, signal = null } = {}) {
+    if (onProgress !== null && typeof onProgress !== 'function') throw fail('sync-progress-invalid');
+    if (signal !== null && typeof signal?.aborted !== 'boolean') throw fail('sync-progress-invalid');
     const records = validateTransferBundle(bundle); const state = divergence({ remoteProjectId, branch, bundle });
     if (!['in-sync', 'local-ahead'].includes(state.status)) throw fail('sync-reconciliation-required');
     if (state.status === 'in-sync') return { pushed: 0, remoteHead: state.remoteHead, status: 'in-sync' };
@@ -50,7 +52,10 @@ function createRevisionSyncService(remote, { cache = null } = {}) {
     const remoteSource = expected ? remote.getRevision(remoteProjectId, expected).sourceRevisionId : null;
     const start = remoteSource ? chain.findIndex(item => item.id === remoteSource) + 1 : 0;
     if (remoteSource && start === 0) throw fail('sync-reconciliation-required');
-    for (const local of chain.slice(start)) {
+    const pending = chain.slice(start); const report = () => onProgress?.({ completed: pushed, total: pending.length });
+    report();
+    for (const local of pending) {
+      if (signal?.aborted) throw fail('sync-cancelled');
       if (remote.getBranch(remoteProjectId, branch).revisionId !== expected) throw conflict(remoteProjectId, branch, expected);
       const existing = remote.findRevisionBySource(remoteProjectId, local.id);
       if (existing) {
@@ -60,7 +65,7 @@ function createRevisionSyncService(remote, { cache = null } = {}) {
           remote.compareAndSwapBranch({ projectId: remoteProjectId, branch, expectedRevisionId: expected,
             revisionId: existing.id, idempotencyKey: `sync-branch:${remoteProjectId}:${local.id}` });
         } catch (error) { if (error.code === 'branch-head-changed') throw conflict(remoteProjectId, branch, expected); throw error; }
-        expected = existing.id; pushed += 1; continue;
+        expected = existing.id; pushed += 1; report(); continue;
       }
       const manifest = remote.putManifest(remoteProjectId, local.manifest);
       const revision = remote.createRevision({ projectId: remoteProjectId, manifestId: manifest.id,
@@ -70,7 +75,7 @@ function createRevisionSyncService(remote, { cache = null } = {}) {
         remote.compareAndSwapBranch({ projectId: remoteProjectId, branch, expectedRevisionId: expected,
           revisionId: revision.id, idempotencyKey: `sync-branch:${remoteProjectId}:${local.id}` });
       } catch (error) { if (error.code === 'branch-head-changed') throw conflict(remoteProjectId, branch, expected); throw error; }
-      expected = revision.id; pushed += 1;
+      expected = revision.id; pushed += 1; report();
     }
     return { pushed, remoteHead: expected, status: 'in-sync' };
   }

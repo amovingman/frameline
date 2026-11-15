@@ -4,6 +4,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
   appName: 'Git for Video Editing',
   getAppState: () => ipcRenderer.invoke('app:get-state'),
+  getSyncState: () => ipcRenderer.invoke('sync:get-state'),
+  retrySync: id => ipcRenderer.invoke('sync:retry', id),
+  cancelSync: id => ipcRenderer.invoke('sync:cancel', id),
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   rescanProject: () => ipcRenderer.invoke('project:rescan'),
   saveRevision: message => ipcRenderer.invoke('project:save-revision', message),

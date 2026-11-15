@@ -55,5 +55,29 @@ test('non-network sync failures remain blocked for explicit reconciliation', () 
     } } });
     assert.equal(result.blocked, 1); assert.equal(queue.inspect()[0].status, 'blocked');
     assert.equal(queue.inspect()[0].lastError, 'sync-branch-conflict');
+    assert.equal(queue.inspect()[0].recoverable, true);
+    assert.deepEqual(queue.inspect()[0].actions, ['retry', 'cancel', 'fetch']);
+    assert.equal(queue.retry(queue.inspect()[0].id).status, 'queued');
+    assert.equal(queue.inspect()[0].lastError, null);
+    assert.equal(queue.cancel(queue.inspect()[0].id).canceled, true);
+    assert.deepEqual(queue.inspect(), []);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('exposes durable progress and rejects unavailable retry or cancel actions', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'frameline-sync-queue-'));
+  try {
+    const queue = createSyncQueue({ directory });
+    const input = { remoteProjectId: 'remote-1', bundle: bundle(), authorId: 'user-1' };
+    const queued = queue.enqueuePush(input); const seen = [];
+    const result = queue.process({ online: true, sync: { push(_payload, options) {
+      options.onProgress({ completed: 0, total: 1 });
+      throw Object.assign(new Error('offline'), { code: 'sync-network-unavailable' });
+    } }, onProgress: value => seen.push(value) });
+    assert.equal(result.retrying, 1);
+    assert.deepEqual(queue.inspect()[0].progress, { completed: 0, total: 1 });
+    assert.deepEqual(seen, [{ id: queued.id, completed: 0, total: 1 }]);
+    assert.throws(() => queue.retry('missing'), { code: 'sync-operation-unavailable' });
+    assert.throws(() => queue.cancel('missing'), { code: 'sync-operation-unavailable' });
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });

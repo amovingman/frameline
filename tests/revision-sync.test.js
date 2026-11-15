@@ -61,6 +61,22 @@ test('push advances only the verified append and rejects stale concurrent branch
   assert.equal(sync.push({ remoteProjectId: 'remote-1', bundle: local, authorId: 'user-1' }).pushed, 1);
 });
 
+test('reports revision-level push progress and honors cancellation between revisions', () => {
+  const remote = createCloudHistoryStore(); remote.createProject({ projectId: 'remote-1', name: 'Film' });
+  const sync = createRevisionSyncService(remote); const local = bundle(2); const progress = [];
+  const result = sync.push({ remoteProjectId: 'remote-1', bundle: local, authorId: 'user-1' },
+    { onProgress: value => progress.push(value) });
+  assert.equal(result.pushed, 2);
+  assert.deepEqual(progress, [{ completed: 0, total: 2 }, { completed: 1, total: 2 }, { completed: 2, total: 2 }]);
+
+  const canceled = new AbortController(); canceled.abort();
+  const other = createCloudHistoryStore(); other.createProject({ projectId: 'remote-2', name: 'Film' });
+  assert.throws(() => createRevisionSyncService(other).push(
+    { remoteProjectId: 'remote-2', bundle: bundle(1), authorId: 'user-1' }, { signal: canceled.signal }),
+  { code: 'sync-cancelled' });
+  assert.equal(other.getBranch('remote-2', 'main').revisionId, null);
+});
+
 test('a concurrent branch writer wins without being overwritten', () => {
   const store = createCloudHistoryStore(); store.createProject({ projectId: 'remote-1', name: 'Film' });
   let competingHead = null; let injectRace = true;

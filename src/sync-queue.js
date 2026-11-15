@@ -53,6 +53,9 @@ function createSyncQueue({ directory, now = () => Date.now(), baseDelayMs = 1_00
           || !item.payload || !ID.test(item.payload.remoteProjectId) || !ID.test(item.payload.branch)
           || !ID.test(item.payload.authorId)) throw fail('sync-queue-corrupt');
         validateTransferBundle(item.payload.bundle);
+        if (item.progress === undefined) item.progress = { completed: 0, total: item.payload.bundle.records.length };
+        if (!Number.isSafeInteger(item.progress?.completed) || item.progress.completed < 0
+          || !Number.isSafeInteger(item.progress?.total) || item.progress.total < item.progress.completed) throw fail('sync-queue-corrupt');
       }
       return state;
     } catch (error) {
@@ -70,18 +73,27 @@ function createSyncQueue({ directory, now = () => Date.now(), baseDelayMs = 1_00
     const existing = state.items.find(item => item.id === id);
     if (existing) return { id, queued: false, status: existing.status };
     state.items.push({ id, operation: 'push', payload, status: 'queued', attempts: 0,
-      nextAttemptAt: 0, createdAt: new Date(now()).toISOString(), lastError: null });
+      nextAttemptAt: 0, createdAt: new Date(now()).toISOString(), lastError: null,
+      progress: { completed: 0, total: bundle.records.length } });
     write(state); return { id, queued: true, status: 'queued' };
   }
-  function process({ online, sync }) {
+  function process({ online, sync, onProgress = null, signal = null }) {
     if (typeof online !== 'boolean' || !sync || typeof sync.push !== 'function') throw fail('sync-queue-invalid');
+    if (onProgress !== null && typeof onProgress !== 'function') throw fail('sync-queue-invalid');
+    if (signal !== null && typeof signal?.aborted !== 'boolean') throw fail('sync-queue-invalid');
     const state = read(); const result = { processed: 0, completed: 0, retrying: 0, blocked: 0, pending: state.items.length };
     if (!online) return result;
     for (const item of [...state.items]) {
       if (item.status === 'blocked' || item.nextAttemptAt > now()) continue;
-      result.processed += 1; item.attempts += 1;
+      if (signal?.aborted) break;
+      result.processed += 1; item.attempts += 1; item.status = 'queued'; item.lastError = null;
       try {
-        sync.push(item.payload);
+        sync.push(item.payload, { signal, onProgress: progress => {
+          if (!progress || !Number.isSafeInteger(progress.completed) || !Number.isSafeInteger(progress.total)
+            || progress.completed < 0 || progress.total < progress.completed) throw fail('sync-progress-invalid');
+          item.progress = { completed: progress.completed, total: progress.total };
+          write(state); onProgress?.({ id: item.id, ...item.progress });
+        } });
         state.items = state.items.filter(candidate => candidate.id !== item.id);
         result.completed += 1;
       } catch (error) {
@@ -97,10 +109,24 @@ function createSyncQueue({ directory, now = () => Date.now(), baseDelayMs = 1_00
     result.pending = state.items.length; return result;
   }
   function inspect() {
-    return read().items.map(({ id, status, attempts, nextAttemptAt, createdAt, lastError }) =>
-      ({ id, status, attempts, nextAttemptAt, createdAt, lastError }));
+    return read().items.map(({ id, status, attempts, nextAttemptAt, createdAt, lastError, progress, payload }) =>
+      ({ id, operation: 'push', branch: payload.branch, status, attempts, nextAttemptAt, createdAt,
+        lastError, progress: structuredClone(progress), recoverable: status === 'retry-wait' || status === 'blocked',
+        actions: status === 'blocked' ? ['retry', 'cancel', 'fetch'] : ['retry', 'cancel'] }));
   }
-  return { enqueuePush, process, inspect };
+  function retry(id) {
+    const state = read(); const item = state.items.find(candidate => candidate.id === id);
+    if (!item || !['retry-wait', 'blocked'].includes(item.status)) throw fail('sync-operation-unavailable');
+    item.status = 'queued'; item.nextAttemptAt = 0; item.lastError = null;
+    write(state); return { id, status: item.status, attempts: item.attempts };
+  }
+  function cancel(id) {
+    const state = read(); const item = state.items.find(candidate => candidate.id === id);
+    if (!item) throw fail('sync-operation-unavailable');
+    state.items = state.items.filter(candidate => candidate.id !== id); write(state);
+    return { id, canceled: true };
+  }
+  return { enqueuePush, process, inspect, retry, cancel };
 }
 
 module.exports = { createSyncQueue, MAX_QUEUE_BYTES };

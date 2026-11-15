@@ -9,6 +9,7 @@ let verifiedReviewCopy = null;
 let mediaAuditBusy = false;
 let mediaAuditReports = {};
 let mediaSearchReports = {};
+let syncBusy = false;
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -244,6 +245,59 @@ function renderHistory() {
     row.append(make('span', 'history-id', revision.id), main, state);
     list.append(row);
   });
+}
+
+function syncErrorLabel(code) {
+  return ({
+    'sync-network-unavailable': 'Network unavailable. Retry when the connection returns.',
+    'sync-branch-conflict': 'Remote work changed this branch. Fetch before reconciling.',
+    'sync-reconciliation-required': 'This branch diverged and needs reconciliation.'
+  })[code] || 'Sync stopped safely. Retry or cancel this queued push.';
+}
+
+function renderSyncState(state) {
+  const list = document.getElementById('sync-operations');
+  const summary = document.getElementById('sync-summary');
+  const service = document.getElementById('sync-service-state');
+  list.replaceChildren();
+  service.textContent = state?.connected ? 'Connected' : 'Local only';
+  const operations = state?.operations || [];
+  if (!operations.length) {
+    summary.textContent = state?.connected ? 'No sync work is queued' : 'No hosted service is configured';
+    list.append(make('p', 'sync-empty', state?.connected
+      ? 'Local and remote history have no pending operations.'
+      : 'The durable queue is ready, but this build cannot push until a service connection is configured.'));
+    return;
+  }
+  summary.textContent = `${operations.length} queued operation${operations.length === 1 ? '' : 's'}`;
+  operations.forEach(operation => {
+    const row = make('article', 'sync-operation');
+    const details = make('div', 'sync-operation-main');
+    const title = make('div', 'sync-operation-title');
+    title.append(make('strong', '', `Push ${operation.branch}`), make('span', `sync-state ${operation.status}`, operation.status.replace('-', ' ')));
+    const completed = operation.progress?.completed || 0; const total = operation.progress?.total || 0;
+    details.append(title, make('p', '', operation.lastError ? syncErrorLabel(operation.lastError)
+      : `${completed} of ${total} revision${total === 1 ? '' : 's'} uploaded`));
+    const progress = make('progress', 'sync-progress'); progress.max = Math.max(total, 1); progress.value = completed;
+    progress.setAttribute('aria-label', `${completed} of ${total} revisions uploaded`); details.append(progress);
+    const actions = make('div', 'sync-actions');
+    if (operation.actions.includes('retry')) {
+      const retry = make('button', '', 'Retry'); retry.type = 'button'; retry.disabled = syncBusy || !operation.recoverable;
+      retry.addEventListener('click', () => runSyncAction('retry', operation.id)); actions.append(retry);
+    }
+    const cancel = make('button', '', 'Cancel'); cancel.type = 'button'; cancel.disabled = syncBusy;
+    cancel.addEventListener('click', () => runSyncAction('cancel', operation.id)); actions.append(cancel);
+    row.append(details, actions); list.append(row);
+  });
+}
+
+async function runSyncAction(action, id) {
+  if (syncBusy) return; syncBusy = true;
+  try {
+    const state = await (action === 'retry' ? window.desktop.retrySync(id) : window.desktop.cancelSync(id));
+    renderSyncState(state);
+  } catch { renderSyncState({ connected: false, operations: [] }); }
+  finally { syncBusy = false; }
 }
 
 function renderRealHistory(revisions, selectedId) {
@@ -544,6 +598,7 @@ document.getElementById('relink-action').addEventListener('click', async () => {
   } finally { button.disabled = false; }
 });
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
+window.desktop?.getSyncState?.().then(renderSyncState).catch(() => renderSyncState({ connected: false, operations: [] }));
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {
     event.preventDefault();

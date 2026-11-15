@@ -198,7 +198,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Add a durable, exact-input-deduplicated push queue that pauses offline, applies bounded exponential retry to transient network failures, and relies on the sync service's stable idempotency keys when connectivity returns.
 - [x] Detect branch-head races before and during push, preserve the concurrent remote head, and return explicit fetch/reconciliation actions without overwriting remote work.
 - [x] Store fetched revision and manifest metadata in a content-addressed, integrity-checked local cache for offline browsing and pull-planning inputs; media remains excluded.
-- [ ] Expose sync progress, retry, cancel, and recoverable error states.
+- [x] Expose durable revision-level sync progress, explicit retry and cancel controls, and recoverable network/conflict states in the desktop history view. Hosted transport remains unconfigured.
 
 ### 3.4 Sharing and team workflow
 - [ ] Invite collaborators to a project with role-based access.
