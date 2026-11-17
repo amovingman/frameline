@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "verification": "main-process-and-filesystem",
+  "readOnly": true,
+  "safeToApply": false,
+  "trialFilesUnchanged": true,
+  "clipboardWrites": 0,
+  "reviewLoaded": false,
+  "phase": "idle",
+  "inspectedRecords": 6,
+  "hasMore": false,
+  "stateCounts": {
+    "prepared": 2
+  },
+  "disposablePreparedFixturesRecognized": 2,
+  "fixtureTransactionIds": [
+    "9dfd5c07a2abf30daa35c2c18de672d9",
+    "3b86a6635768cddbbb791fd773fe94e6"
+  ],
+  "nativeUiVerified": false,
+  "liveResolveFlowVerified": false,
+  "nativeVerificationStatus": "pending-desktop-access"
+}

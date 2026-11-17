@@ -4,7 +4,9 @@ const path = require('node:path');
 const { constants } = require('node:fs');
 const { prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialConsoleResult,
   readRenameTrialResult, prepareRenameTrialRecovery, readRenameTrialRecoveryCapture,
-  issueRenameTrialRecovery, recordRenameTrialRecoveryResult } = require('./resolve-rename-trial');
+  issueRenameTrialRecovery, recordRenameTrialRecoveryResult, cancelPreparedRenameTrial,
+  validatePrivateTrialDirectory } = require('./resolve-rename-trial');
+const { discoverRenameTrials } = require('./resolve-trial-discovery');
 const { saveRenameTrialRevision } = require('./resolve-trial-history');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
@@ -15,6 +17,8 @@ const { createHash } = require('node:crypto');
 
 function createResolveTrialSession({ enabled = false, directory, store, getReview, clipboard } = {}) {
   let pending = null, phase = 'idle', error = null, busy = false, outcome = null, revision = null;
+  let discovery = { ready: false, items: [], scanned: 0, total: 0, hasMore: false, error: null };
+  let discoveryCursor = null, discovered = new Map();
   function getState() {
     return { enabled, phase, busy, transactionId: pending?.transactionId || null, projectName: pending?.projectName || null,
       captureId: pending?.captureId || null, effectGuard: pending?.effectGuard || null,
@@ -23,7 +27,50 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       backup: pending?.backup || null, outcome: outcome ? { status: outcome.status,
         snapshotSha256: outcome.resultingSnapshotSha256, auditHash: outcome.review?.auditHash || null,
         effectObservation: outcome.effectObservation || null } : null,
-      revisionId: revision?.revisionId || null, branch: pending?.target?.branch || null, error };
+      revisionId: revision?.revisionId || null, branch: pending?.target?.branch || null, error,
+      discovery: { ...discovery, items: discovery.items.map(item => ({ ...item })) } };
+  }
+  async function refreshDiscovery(append = false) {
+    return run(async () => {
+      if (typeof append !== 'boolean' || (append && !discovery.hasMore)) throw new Error('invalid-discovery-page');
+      try {
+        const page = await discoverRenameTrials({ directory, store, cursor: append ? discoveryCursor : null });
+        if (!append) discovered = new Map();
+        for (const [id, selection] of page.selections) discovered.set(id, selection);
+        const items = new Map((append ? discovery.items : []).map(item => [item.recordId, item]));
+        for (const item of page.items) items.set(item.recordId, item);
+        discovery = { ready: true, items: [...items.values()], scanned: (append ? discovery.scanned : 0) + page.scanned,
+          total: page.total, hasMore: page.hasMore, error: null };
+        discoveryCursor = page.cursor;
+      } catch {
+        discovery = { ...discovery, ready: true, error: 'Retained drill records could not be inspected. Keep the records and retry.' };
+      }
+    });
+  }
+  function initialize() { return discovery.ready ? Promise.resolve(getState()) : refreshDiscovery(); }
+  function forgetDiscovered(transactionId) {
+    for (const item of discovery.items.filter(value => value.transactionId === transactionId)) discovered.delete(item.recordId);
+    discovery.items = discovery.items.filter(value => value.transactionId !== transactionId);
+  }
+  async function recoverDiscovered(recordId) {
+    const selection = discovered.get(recordId);
+    if (!selection || selection.action !== 'recover') return run(async () => { throw new Error('invalid-discovered-trial'); });
+    return recover(selection.directory);
+  }
+  async function cancelDiscovered(recordId) {
+    return run(async () => {
+      const selection = discovered.get(recordId);
+      if (!['idle', 'saved'].includes(phase) || selection?.action !== 'cancel') throw new Error('trial-not-ready');
+      const cancelled = await cancelPreparedRenameTrial({ directory: selection.directory });
+      forgetDiscovered(cancelled.transactionId);
+    });
+  }
+  async function discoveredRecordPath(recordId) {
+    const selection = discovered.get(recordId);
+    if (!enabled || !selection || selection.action === 'none') throw new Error('invalid-discovered-trial');
+    await validatePrivateTrialDirectory(directory);
+    await validatePrivateTrialDirectory(selection.directory);
+    return selection.directory;
   }
   async function run(action) {
     if (!enabled || busy) return { ...getState(), error: enabled ? 'A trial action is already running.' : 'Rename experiments are disabled.' };
@@ -122,6 +169,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       if (!['verified', 'saved'].includes(phase)) throw new Error('trial-not-ready');
       revision = await saveRenameTrialRevision({ directory: pending.directory, store, ...pending.target });
       phase = 'saved';
+      forgetDiscovered(pending.transactionId);
     });
   }
   async function recover(selected) {
@@ -177,12 +225,13 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         pending = null; outcome = revision = null; phase = 'idle'; return;
       }
       if (phase !== 'backup-command') throw new Error('trial-cannot-cancel-issued-command');
-      await fs.writeFile(path.join(pending.directory, 'cancelled.json'), JSON.stringify({ transactionId: pending.transactionId,
-        reason: 'preparation-cancelled', retainedBackup: true }), { flag: 'wx', mode: 0o600 });
+      await cancelPreparedRenameTrial({ directory: pending.directory });
+      forgetDiscovered(pending.transactionId);
       pending = null; outcome = revision = null; phase = 'idle';
     });
   }
-  return { getState, prepare, issue, read, saveRevision, recover, inspectRecovery, backupPath, copyCommand, cancelPreparation };
+  return { getState, initialize, refreshDiscovery, recoverDiscovered, cancelDiscovered, discoveredRecordPath,
+    prepare, issue, read, saveRevision, recover, inspectRecovery, backupPath, copyCommand, cancelPreparation };
 }
 
 module.exports = { createResolveTrialSession };

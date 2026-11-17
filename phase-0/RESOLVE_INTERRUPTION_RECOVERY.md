@@ -4,7 +4,7 @@ The opt-in desktop drill can recover an issued, effect-guarded forced-rollback t
 
 ## Recover through the desktop
 
-Start the development app with `FRAMELINE_RENAME_DRILL=1 npm start`. In Resolve preview, choose **Recover a drill** and select the retained transaction directory. The native picker starts at the private trial root. The main process requires a direct child of that root and validates its prepared review, issued record, history target, and backup. Original review files do not need to be reselected: their exact bytes and audit are revalidated from the prepared record.
+Start the development app with `FRAMELINE_RENAME_DRILL=1 npm start`. In Resolve preview, **Choose drill folder** opens the retained transaction directory picker. The native picker starts at the private trial root. The main process requires a direct child of that root and validates its prepared review, issued record, history target, and backup. Original review files do not need to be reselected: their exact bytes and audit are revalidated from the prepared record. Startup discovery and direct list selection are now implemented; their native UI check remains pending. See `RESOLVE_STARTUP_DISCOVERY.md`.
 
 Completed transactions reopen their verified outcome as before. For an unfinished supported transaction, recovery proceeds as follows:
 
@@ -46,6 +46,6 @@ A second fixture was issued but its rename command was never run. After another 
 
 ## Limits
 
-Older issued commands without the persistent-retirement capability, counts-only trials, and non-forced standalone apply trials do not enter this automatic reverse-name path. Completed legacy outcomes remain readable. Preparation-only records, automatic startup discovery, unavailable/damaged backups, divergent represented edits, interrupted full-archive import recovery, and general project apply need further work. A native directory picker initiates recovery; Frameline does not silently change an open project on launch.
+Older issued commands without the persistent-retirement capability, counts-only trials, and non-forced standalone apply trials do not enter this automatic reverse-name path. Completed legacy outcomes remain readable. Startup discovery and safe cancellation of unissued preparations are implemented and tested, with native UI verification still pending. Unavailable/damaged backups, divergent represented edits, interrupted full-archive import recovery, and general project apply need further work. Recovery requires an explicit selection; Frameline does not silently change an open project on launch.
 
 The effect supplement does not observe parameters, nested content, automation, or persistent effect-instance identity. Matching observations do not establish native semantic equivalence or lossless writing. The native edit/no-edit export differences remain unresolved. See `RESOLVE_EFFECT_OBSERVATIONS.md` and `SAFE_PULL_PREFLIGHT.md`.

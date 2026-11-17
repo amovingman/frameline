@@ -6,6 +6,28 @@ const { constants } = require('node:fs');
 const { readRenameTrialResult } = require('./resolve-rename-trial');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 
+async function inspectRenameTrialHistoryLink({ directory, store, result, snapshot, target } = {}) {
+  let link;
+  try {
+    const handle = await fs.open(path.join(directory, 'revision-link.json'), constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.mode & 0o077 || stat.size > 8192) throw new Error('invalid-trial-revision-link');
+      link = JSON.parse(await handle.readFile('utf8'));
+    } finally { await handle.close(); }
+  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  const manifest = createResolveRevisionManifest(snapshot);
+  const project = (await store.listResolveProjects()).find(value => value.editorProjectId === snapshot.project_id);
+  if (!project || link.schemaVersion !== 1 || link.projectId !== project.id || link.transactionId !== result.transactionId
+    || link.status !== result.status || link.validation !== 'observed-fields-only' || link.contentHash !== manifest.sourceHash
+    || link.resultingSnapshotSha256 !== result.resultingSnapshotSha256 || link.auditHash !== (result.review?.auditHash || null)
+    || link.branch !== target.branch || link.expectedHeadId !== target.expectedHeadId) throw new Error('trial-history-link-mismatch');
+  const revision = await store.getRevision(project.id, link.revisionId);
+  if (revision.parentRevisionId !== target.expectedHeadId || revision.contentHash !== manifest.sourceHash
+    || revision.message !== `Rename trial ${result.transactionId} ${result.status}`) throw new Error('trial-history-link-mismatch');
+  return link;
+}
+
 // The immutable transaction directory retains the full review/audit record and
 // backup. History receives an ordinary observation revision and a durable link.
 // These are observed fields, never a lossless project revision.
@@ -66,4 +88,4 @@ async function saveRenameTrialRevision({ directory, store, branch, expectedHeadI
   return link;
 }
 
-module.exports = { saveRenameTrialRevision };
+module.exports = { saveRenameTrialRevision, inspectRenameTrialHistoryLink };

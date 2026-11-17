@@ -240,7 +240,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
-  ipcMain.handle('resolve-trial:state', () => resolveTrialSession.getState());
+  ipcMain.handle('resolve-trial:state', () => resolveTrialSession.initialize());
+  ipcMain.handle('resolve-trial:discover', (_event, append) => resolveTrialSession.refreshDiscovery(append));
+  ipcMain.handle('resolve-trial:recover-discovered', (_event, id) => resolveTrialSession.recoverDiscovered(id));
+  ipcMain.handle('resolve-trial:cancel-discovered', (_event, id) => resolveTrialSession.cancelDiscovered(id));
+  ipcMain.handle('resolve-trial:reveal-records', async (_event, id) => {
+    try { shell.showItemInFolder(await resolveTrialSession.discoveredRecordPath(id)); return resolveTrialSession.getState(); }
+    catch { return { ...resolveTrialSession.getState(), error: 'The retained drill folder could not be verified. Keep the records for manual inspection.' }; }
+  });
   ipcMain.handle('resolve-trial:prepare', (_event, projectName, acknowledged) => resolveTrialSession.prepare(projectName, acknowledged));
   ipcMain.handle('resolve-trial:issue', () => resolveTrialSession.issue());
   ipcMain.handle('resolve-trial:copy', () => resolveTrialSession.copyCommand());

@@ -1225,9 +1225,49 @@ function activeResolveTrial() {
   return resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command',
     'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialState?.phase);
 }
+function renderRetainedResolveTrials() {
+  const state = resolveTrialState, catalog = state?.discovery;
+  const items = catalog?.items || [], inProgress = Boolean(activeResolveTrial());
+  const reminder = document.getElementById('resolve-recovery-reminder');
+  reminder.hidden = !state?.enabled || !(items.length || catalog?.error || catalog?.hasMore || inProgress);
+  document.getElementById('resolve-recovery-reminder-text').textContent = inProgress
+    ? 'A disposable Resolve drill is in progress. Return to Resolve preview to finish it.'
+    : catalog?.error || (items.length ? `${items.length} retained ${items.length === 1 ? 'drill needs' : 'drills need'} attention.`
+      : 'Older retained drill records remain to inspect.');
+  document.getElementById('resolve-recovery-review').textContent = inProgress ? 'Return to drill' : 'Review retained drills';
+  const blocked = resolveTrialBusy || state?.busy;
+  document.getElementById('resolve-retained-refresh').disabled = Boolean(blocked);
+  document.getElementById('resolve-retained-more').hidden = !catalog?.hasMore;
+  document.getElementById('resolve-retained-more').disabled = Boolean(blocked);
+  document.getElementById('resolve-retained-status').textContent = catalog?.error || (!catalog?.ready
+    ? 'Checking retained drill records…'
+    : `${items.length ? `${items.length} retained ${items.length === 1 ? 'drill needs' : 'drills need'} attention.` : 'No unfinished drills found.'} ${catalog.scanned} records inspected.${catalog.hasMore ? ' Check older records to continue.' : ''}`);
+  const list = document.getElementById('resolve-retained-list'); list.replaceChildren();
+  const labels = { unfinished: 'Issued rename · live inspection needed', outcome: 'Verified outcome · history save pending',
+    prepared: 'Preparation only · rename command not issued', manual: 'Manual inspection required', unreadable: 'Record could not be verified' };
+  for (const item of items) {
+    const row = make('div', 'resolve-retained-row'), summary = make('div');
+    summary.append(make('strong', '', item.projectName || 'Unverified drill record'));
+    const date = item.createdAt ? new Date(item.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Date unavailable';
+    summary.append(make('span', '', `${date} · Trial ${item.transactionId.slice(0, 8)}`), make('span', '', labels[item.state] || labels.unreadable));
+    row.append(summary);
+    if (item.action !== 'none') {
+      const label = item.action === 'recover' ? item.state === 'outcome' ? 'Open outcome' : 'Inspect live state'
+        : item.action === 'cancel' ? 'Cancel preparation' : 'Reveal records';
+      const button = make('button', '', label); button.type = 'button';
+      button.setAttribute('aria-label', `${label} for ${item.projectName || 'unverified drill'} ${item.transactionId.slice(0, 8)}`);
+      button.disabled = Boolean(blocked || !['idle', 'saved'].includes(state?.phase));
+      button.addEventListener('click', () => resolveTrialAction(item.action === 'recover' ? 'recoverDiscoveredResolveTrial'
+        : item.action === 'cancel' ? 'cancelDiscoveredResolveTrial' : 'revealResolveTrialRecords', item.recordId));
+      row.append(button);
+    }
+    list.append(row);
+  }
+}
 function renderResolveTrial() {
   const state = resolveTrialState;
   document.getElementById('resolve-trial').hidden = !state?.enabled;
+  renderRetainedResolveTrials();
   const blocked = resolveTrialBusy || state?.busy;
   const phase = state?.phase;
   document.getElementById('resolve-trial-name').disabled = Boolean(activeResolveTrial());
@@ -1278,6 +1318,7 @@ async function resolveTrialAction(method, ...args) {
   } catch { resolveTrialState = { ...resolveTrialState, error: 'Could not complete the drill action. Keep the backup and retry.' }; }
   finally {
     resolveTrialBusy = false; renderResolveState(resolveState);
+    if (method === 'cancelDiscoveredResolveTrial' && !resolveTrialState?.error) document.getElementById('resolve-retained-refresh').focus();
     if (!resolveTrialState?.error && resolveTrialState?.phase !== previousPhase) {
       const next = { 'effect-command': 'read', 'backup-command': 'issue', 'rollback-command': 'read',
         'recovery-capture': 'read', 'recovery-ready': 'issue', 'recovery-command': 'read', 'recovery-required': 'inspect', verified: 'save' }[resolveTrialState?.phase];
@@ -1289,6 +1330,14 @@ document.getElementById('resolve-trial-form').addEventListener('submit', event =
   event.preventDefault(); resolveTrialAction('prepareResolveTrial', document.getElementById('resolve-trial-name').value.trim(), document.getElementById('resolve-trial-ack').checked);
 });
 document.getElementById('resolve-trial-ack').addEventListener('change', renderResolveTrial);
+document.getElementById('resolve-retained-refresh').addEventListener('click', () => resolveTrialAction('discoverResolveTrials', false));
+document.getElementById('resolve-retained-more').addEventListener('click', () => resolveTrialAction('discoverResolveTrials', true));
+document.getElementById('resolve-recovery-review').addEventListener('click', () => {
+  showView('resolve');
+  const target = document.getElementById(activeResolveTrial() ? 'resolve-trial-title' : 'resolve-retained-title');
+  target.scrollIntoView({ block: 'start' });
+  if (target.id === 'resolve-retained-title') target.focus();
+});
 for (const [id, method] of [['issue', 'issueResolveTrial'], ['copy', 'copyResolveTrialCommand'], ['cancel', 'cancelResolveTrialPreparation'], ['read', 'readResolveTrial'],
   ['save', 'saveResolveTrialRevision'], ['reveal', 'revealResolveTrialBackup'], ['recover', 'recoverResolveTrial'], ['inspect', 'inspectResolveTrialRecovery']]) {
   document.getElementById(`resolve-trial-${id}`).addEventListener('click', () => resolveTrialAction(method));

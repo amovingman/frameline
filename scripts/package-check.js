@@ -9,6 +9,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/companion/resolve-internal.py', 'src/companion/resolve_snapshot.py',
   'src/companion/resolve-internal.lua', 'src/resolve-menu-companion.js',
   'src/companion/resolve-effects.lua', 'src/resolve-effect-observation.js', 'src/resolve-effect-console.js',
+  'src/resolve-trial-discovery.js', 'src/resolve-trial-session.js', 'src/resolve-rename-trial.js', 'src/resolve-trial-history.js',
   'src/assets/fonts/ibm-plex-sans-latin-400-normal.woff2', 'src/assets/visuals/mountain-alps.jpg'];
 for (const file of requiredFiles) {
   if (!fs.statSync(path.join(root, file)).isFile()) throw new Error(`Missing packaged file: ${file}`);

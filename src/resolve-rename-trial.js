@@ -148,7 +148,7 @@ async function prepareTrial({ beforeBytes, afterBytes, destinationDir, disposabl
   if (Buffer.byteLength(json(plan)) > 45 * 1024 * 1024) throw new Error('trial-record-too-large');
   await writeRecord(directory, 'prepared.json', plan);
   const states = effectStates(plan);
-  const command = await capturePrelude(Boolean(plan.effectGuard)) + `assert(encode_state(capture_state())==${quote(json(states.before))},'Stale source'); local pm=resolve:GetProjectManager(); assert(bmd and bmd.fileexists and not bmd.fileexists(${quote(plan.backupPath)}),'Backup destination unavailable'); assert(pm:SaveProject(),'Save failed'); assert(pm:ExportProject(${quote(before.project_name)},${quote(plan.backupPath)},false),'Backup export failed'); assert(encode_state(capture_state())==${quote(json(states.before))},'Source changed during backup'); print('FRAMELINE_RENAME_BACKUP_V1:${id}')`;
+  const command = await capturePrelude(Boolean(plan.effectGuard)) + `assert(bmd and bmd.fileexists and not bmd.fileexists(${quote(path.join(directory, 'cancelled.json'))}),'Preparation cancelled');assert(encode_state(capture_state())==${quote(json(states.before))},'Stale source'); local pm=resolve:GetProjectManager(); assert(bmd and bmd.fileexists and not bmd.fileexists(${quote(plan.backupPath)}),'Backup destination unavailable'); assert(pm:SaveProject(),'Save failed'); assert(pm:ExportProject(${quote(before.project_name)},${quote(plan.backupPath)},false),'Backup export failed'); assert(encode_state(capture_state())==${quote(json(states.before))},'Source changed during backup'); print('FRAMELINE_RENAME_BACKUP_V1:${id}')`;
   return { directory, command, transactionId: id, backupPath: plan.backupPath, experimental: true };
 }
 
@@ -167,6 +167,7 @@ async function issueRenameTrial({ directory, forceFailure = false } = {}) {
   const plan = await readPlan(directory);
   const states = effectStates(plan);
   await rejectRecovery(directory);
+  if (await exists(directory, 'cancelled.json')) throw new Error('trial-preparation-cancelled');
   // Resolve creates mode 0666 exports. The containing directory is private;
   // narrow the regular file through its descriptor before archive inspection.
   const handle = await fs.open(plan.backupPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
@@ -425,6 +426,59 @@ async function recordRenameTrialRecoveryResult({ directory, attemptId, consoleOu
   return { completed: true, result };
 }
 
+async function cancelPreparedRenameTrial({ directory } = {}) {
+  const plan = await readPlan(directory);
+  for (const name of ['issued.json', 'result.json', 'recovery-result.json', 'recovery-started.json']) {
+    if (await exists(directory, name)) throw new Error('trial-cannot-cancel-issued-command');
+  }
+  const record = { transactionId: plan.id, reason: 'preparation-cancelled', retainedBackup: true };
+  if (await exists(directory, 'cancelled.json')) {
+    if (json(JSON.parse(await privateBytes(directory, 'cancelled.json', 1024))) !== json(record)) throw new Error('invalid-trial-cancellation');
+  } else await writeRecord(directory, 'cancelled.json', record);
+  return record;
+}
+
+// This inspection never writes a barrier, copies a command, or changes a trial.
+// Full observations stay with the main-process discovery caller, not the UI.
+async function describeRenameTrial(directory) {
+  const plan = await readPlan(directory);
+  if (typeof plan.createdAt !== 'string' || !Number.isFinite(Date.parse(plan.createdAt))
+    || new Date(plan.createdAt).toISOString() !== plan.createdAt) throw new Error('invalid-trial-date');
+  const description = { transactionId: plan.id, projectName: plan.before.project_name, createdAt: plan.createdAt };
+  const issuedExists = await exists(directory, 'issued.json');
+  const completed = await exists(directory, 'result.json') || await exists(directory, 'recovery-result.json');
+  const recovering = await exists(directory, 'recovery-started.json');
+  if (await exists(directory, 'cancelled.json')) {
+    const cancelled = JSON.parse(await privateBytes(directory, 'cancelled.json', 1024));
+    if (issuedExists || completed || recovering || json(cancelled) !== json({ transactionId: plan.id,
+      reason: 'preparation-cancelled', retainedBackup: true })) throw new Error('invalid-trial-cancellation');
+    return { ...description, state: 'cancelled' };
+  }
+  if (!issuedExists && (completed || recovering)) throw new Error('invalid-issued-trial');
+  if (!issuedExists && !completed) return { ...description, state: 'prepared' };
+  const target = JSON.parse(await privateBytes(directory, 'history-target.json', 1024));
+  if (Object.keys(target).sort().join(',') !== 'branch,expectedHeadId'
+    || typeof target.branch !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,39}$/.test(target.branch)
+    || !/^[a-f0-9-]{36}$/.test(target.expectedHeadId || '')) throw new Error('invalid-history-target');
+  if (completed) {
+    const { result, snapshot } = await readRenameTrialResult(directory);
+    return { ...description, target, result, snapshot, state: result.status === 'recovery-required' ? 'manual' : 'outcome' };
+  }
+  const issued = JSON.parse(await privateBytes(directory, 'issued.json', 16384));
+  if (issued.transactionId !== plan.id || typeof issued.forceFailure !== 'boolean' || !/^[a-f0-9]{64}$/.test(issued.backup?.sha256 || '')) {
+    throw new Error('invalid-issued-trial');
+  }
+  await inspectResolveProjectExport(plan.backupPath, issued.backup.sha256);
+  const supported = Boolean(plan.effectGuard && issued.recoveryVersion === 1 && issued.forceFailure);
+  if (await exists(directory, 'recovery-started.json')) {
+    if (!supported) throw new Error('invalid-trial-recovery');
+    const context = await recoveryContext(directory, plan);
+    if (json(JSON.parse(await privateBytes(directory, 'recovery-started.json', 1024))) !== json(context.marker)) throw new Error('trial-recovery-binding-mismatch');
+  }
+  return { ...description, target, state: supported ? 'unfinished' : 'manual' };
+}
+
 module.exports = { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult,
   recordRenameTrialConsoleResult, readRenameTrialResult, prepareRenameTrialRecovery, readRenameTrialRecoveryCapture,
-  issueRenameTrialRecovery, recordRenameTrialRecoveryResult };
+  issueRenameTrialRecovery, recordRenameTrialRecoveryResult, describeRenameTrial, cancelPreparedRenameTrial,
+  validatePrivateTrialDirectory: privateDirectory };
