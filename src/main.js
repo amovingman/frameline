@@ -6,7 +6,7 @@ const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
-const { readResolveHistoryPreviewSources } = require('./resolve-history-preview');
+const { readResolveHistoryPreviewSources, readResolveLiveHistoryPreviewSources } = require('./resolve-history-preview');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
@@ -128,8 +128,13 @@ async function readResolveSources(paths) {
 
 function hasResolveSources() { return !!resolveSourcePaths || !!resolveHistoryRevisionIds; }
 async function currentResolveSources() {
-  if (resolveHistoryRevisionIds) return readResolveHistoryPreviewSources(localMetadataStore,
-    resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids);
+  if (resolveHistoryRevisionIds) {
+    if (resolveHistoryRevisionIds.liveLocalSha256) return readResolveLiveHistoryPreviewSources(
+      localMetadataStore, resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids,
+      companionVerifiedSnapshot?.snapshot, resolveHistoryRevisionIds.liveLocalSha256);
+    return readResolveHistoryPreviewSources(localMetadataStore,
+      resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids);
+  }
   if (resolveSourcePaths) return readResolveSources(resolveSourcePaths);
   throw Object.assign(new Error('Resolve sources are unavailable.'), { code: 'invalid-resolve-preview' });
 }
@@ -376,12 +381,19 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle('resolve-history:preview', (_event, projectId, ids) => runResolveAction(async () => {
     let sources;
-    try { sources = await readResolveHistoryPreviewSources(localMetadataStore, projectId, ids); }
+    const liveLocalSha256 = ids?.local === 'verified-capture' ? companionVerifiedSnapshot?.snapshotSha256 : null;
+    try {
+      sources = ids?.local === 'verified-capture'
+        ? await readResolveLiveHistoryPreviewSources(localMetadataStore, projectId,
+          { base: ids.base, incoming: ids.incoming }, companionVerifiedSnapshot?.snapshot, liveLocalSha256)
+        : await readResolveHistoryPreviewSources(localMetadataStore, projectId, ids);
+    }
     catch { return { ...resolveReviewSession.getState(), error: { code: 'resolve-history-preview-invalid',
-      message: 'Choose verified revisions from one Resolve project, with a common base that precedes both cuts.' } }; }
+      message: 'Choose verified sources from one Resolve project. The base must precede the incoming revision and the current branch head.' } }; }
     const state = resolveReviewSession.load(sources);
     if (state.status === 'ready') {
-      resolveHistoryRevisionIds = { projectId, ids: { ...ids } };
+      resolveHistoryRevisionIds = { projectId, ids: liveLocalSha256
+        ? { base: ids.base, incoming: ids.incoming } : { ...ids }, liveLocalSha256 };
       resolveSourcePaths = null;
       resolveExportComparison = resolveExportError = resolveExportPath = resolveExportTimelineId = resolveExportLocalHash = null;
     }

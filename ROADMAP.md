@@ -123,7 +123,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Add source-hash and changed-role status, timeline/field/unresolved filters, conflict navigation, and dedicated warning/media requirements inspection to the read-only Resolve preview.
 - [x] Persist partial or complete Resolve conflict review choices in a separate content-addressed artifact. Recovery revalidates exact source bytes, recomputes the plan and audit, and rejects stale or corrupted artifacts. This is not a resulting revision or editor apply record.
 - [ ] Record the last synced base manifest for each local branch.
-- [ ] Compare the recorded common base, current local project state, and an incoming revision. The Resolve preview can now compare three immutable local API observation revisions with a verified common ancestor, but it does not bind the latest live project state or remote incoming work.
+- [ ] Compare the recorded common base, current local project state, and an incoming revision. The Resolve preview can compare immutable local API observations with a verified common ancestor, or use a current verified Console capture as its local side. It checks project ID and branch ancestry but cannot prove live edit provenance or bind remote incoming work.
 - [ ] Classify each project change as incoming-only, local-only, already applied, or conflicting. The preview classifies observed snapshot fields; it is not an integrated project diff.
 - [ ] Produce a deterministic executable pull plan with changes, media requirements, and validation warnings. The preview assembles a read-only proposal and warnings, not an executable plan.
 - [ ] Bind each plan to hashes of the local project and incoming revision.

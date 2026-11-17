@@ -944,6 +944,7 @@ async function resolveAction(method, ...args) {
 }
 document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
 let companionBusy = false;
+let verifiedResolveCaptureAvailable = false;
 document.getElementById('resolve-companion-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (companionBusy) return;
@@ -952,6 +953,7 @@ document.getElementById('resolve-companion-form').addEventListener('submit', asy
   const read = document.getElementById('resolve-companion-read');
   document.getElementById('resolve-companion-save').disabled = true;
   document.getElementById('resolve-companion-revision').disabled = true;
+  verifiedResolveCaptureAvailable = false;
   read.disabled = true;
   status.textContent = 'Preparing a private capture request…';
   try {
@@ -960,7 +962,7 @@ document.getElementById('resolve-companion-form').addEventListener('submit', asy
     read.disabled = false;
     status.textContent = `Command copied. Paste it into Resolve’s Python Console, then return within ${result.expiresMinutes} minutes and select Read capture.`;
   } catch (error) { status.textContent = error.message || 'Could not prepare a capture.'; }
-  finally { companionBusy = false; }
+  finally { companionBusy = false; refreshResolveHistory(); }
 });
 document.getElementById('resolve-companion-read').addEventListener('click', async () => {
   if (companionBusy) return;
@@ -972,11 +974,12 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
   try {
     const result = await window.desktop.readResolveCapture();
     if (!result?.ready) throw new Error(result?.error || 'No valid capture is ready.');
+    verifiedResolveCaptureAvailable = true;
     document.getElementById('resolve-companion-save').disabled = false;
     document.getElementById('resolve-companion-revision').disabled = false;
-    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Save it as JSON, then choose it for the three snapshot preview. SHA-256: ${result.snapshotSha256}.`;
-  } catch (error) { status.textContent = error.message || 'Could not read the capture.'; }
-  finally { companionBusy = false; }
+    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Save it as JSON or use it as the local side of a history preview. SHA-256: ${result.snapshotSha256}.`;
+  } catch (error) { verifiedResolveCaptureAvailable = false; status.textContent = error.message || 'Could not read the capture.'; }
+  finally { companionBusy = false; refreshResolveHistory(); }
 });
 document.getElementById('resolve-companion-revision-form').addEventListener('submit', async event => {
   event.preventDefault();
@@ -1082,6 +1085,10 @@ async function loadResolveHistoryGraph(projectId, generation) {
     for (const revision of result.revisions) {
       const option = make('option', '', `${revision.message} · ${revision.id.slice(0, 12)}`);
       option.value = revision.id; select.append(option);
+    }
+    if (role === 'local' && verifiedResolveCaptureAvailable) {
+      const option = make('option', '', 'Current verified capture · this session');
+      option.value = 'verified-capture'; select.append(option);
     }
     select.disabled = result.revisions.length === 0;
   }
