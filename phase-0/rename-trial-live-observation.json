@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17T21:22:15.768Z",
+  "editorVersion": "21.1.2.10",
+  "edition": "Free",
+  "platform": "macOS",
+  "projectName": "Frameline Restore Probe",
+  "transactionId": "5f30ba6387a1cdea3eee9187f7e87e5c",
+  "forcedFailure": true,
+  "status": "rolled-back",
+  "sourceSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "incomingSha256": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+  "resultingSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "commandSha256": "4055d6e0bbfc5adea67368714b51e87a98d05a2a69bd605ad932944f0c7f159b",
+  "backup": {
+    "archiveVerified": true,
+    "mode": 384,
+    "schemaVersion": 1,
+    "sha256": "da775f18991c53c612be04969fb281d52a38c48ae9d64e481c45dfb1784ae6e7",
+    "size": 69264,
+    "timelineCount": 1
+  },
+  "validation": "observed-fields-only",
+  "desktopIntegrated": false
+}

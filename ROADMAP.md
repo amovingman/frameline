@@ -142,7 +142,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 2.3 Backup, apply, and recover
 - [x] Add a standalone main-process preflight that checks plan/audit/source/restore-point/adapter gates and always refuses apply while project-to-plan identity is unproven. See `phase-0/SAFE_PULL_PREFLIGHT.md`.
-- [ ] Build a transactional apply service outside the renderer.
+- [ ] Build a transactional apply service outside the renderer. A main-process-only rename trial now prepares a private backup, verifies the archive, checks exact captured source state, applies through Resolve, saves/reopens, verifies observed fields, and records rollback or recovery-required outcomes. The forced-failure path ran live successfully; desktop pull/audit integration and complete validation remain open.
 - [ ] Create and verify a timestamped restore point before in-place changes. A disposable Free project now exports to a `.drp`, imports under a distinct name, passes archive/database integrity checks, and reopens with matching timeline duration and video/audio clip counts. Private-mode archive verification is implemented. Full content comparison, transaction integration, and a recovery drill remain open.
 - [ ] Check that the file still matches the plan's source hash before writing.
 - [ ] Apply changes through the supported editor API/adapter; never patch arbitrary bytes. A guarded Console rename/save/forced-failure/rollback probe now changes exactly one captured name field and restores the exact before snapshot hash on a disposable imported project; desktop transaction integration remains open.

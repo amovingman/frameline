@@ -57,3 +57,23 @@ The three untouched observations are `live-rename-before-schema3.json`, `live-re
 A subsequent Console probe checked the exact imported project ID and target item ID, repeated the rename, saved, closed the project with `ProjectManager.CloseProject`, and loaded it again with `LoadProject`. The target name remained `Frameline disposable rename`. It captured `live-rename-reopened-applied-schema3.json`, then restored the original name, saved, closed/reopened again, and captured `live-rename-reopened-rolled-back-schema3.json`. Both probe stages returned success. The applied reopen snapshot is byte-identical to the earlier applied capture (`7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9`), and the reopened rollback is byte-identical to the original imported snapshot (`654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850`). All 53 item IDs and other captured values persisted through these project close/reopens.
 
 `audit-first-editor.js` verifies the fixture hashes and recomputes the single name change and exact rollback match. The representative scan/write/reopen gate now has partial evidence. This was an internal Console probe on one disposable project; the desktop transaction, process-crash behavior, complete property validation, and representative-user projects remain open.
+
+## Executable guarded rename trial
+
+`src/resolve-rename-trial.js` now orchestrates the experiment from the main-process side. It requires validated before/incoming captures from the exact same named disposable project, permits exactly one clip-name change, and creates a noncolliding private transaction directory. Immutable, synced `prepared.json`, `issued.json`, and `result.json` records retain the source/incoming hashes, change, backup fingerprint, and observed result. The native backup is retained for every outcome. There is no renderer or IPC entry point yet.
+
+The preparation command compares the complete current captured state before saving/exporting a `.drp` and again after export. Node then narrows the exported file to mode `0600` and verifies its archive before issuing the mutation command. That command checks the exact captured source again, checks backup existence, refuses same-session transaction replay, finds the target through project/timeline/item IDs, renames, saves, closes/reopens, and compares all captured values to the expected result. On failure it attempts a rename rollback, saves/reopens, and compares to the before state. It reports `applied`, `rolled-back`, or `recovery-required`. Recording a successful outcome requires an exactly matching returned snapshot and rechecks the retained archive hash.
+
+The standalone CLI supports the manual Console flow:
+
+```sh
+node phase-0/rename-resolve-trial.js prepare before.json incoming.json PRIVATE_DIRECTORY 'Frameline Disposable Project'
+node phase-0/rename-resolve-trial.js issue TRANSACTION_DIRECTORY --force-failure
+node phase-0/rename-resolve-trial.js record TRANSACTION_DIRECTORY rolled-back returned-snapshot.json
+```
+
+Run each returned `command` in Resolve's Lua Console before continuing to the next phase. `PRIVATE_DIRECTORY` must already exist with mode `0700`. The named project must be a disposable fixture whose name starts with `Frameline `. Console status and snapshot parts must be checked together when recording. Command output and transaction records contain local recovery paths and stay in the main process/CLI.
+
+The live forced-failure run on `Frameline Restore Probe` produced a verified 69,264-byte backup, saved/reopened the rename, forced an error, then saved/reopened the rollback. Its final snapshot hash is the exact before hash. `rename-trial-live-observation.json` records the path-free outcome and executed command hash. The retained `.drp` hash is `da775f18991c53c612be04969fb281d52a38c48ae9d64e481c45dfb1784ae6e7`.
+
+This trial validates observed schema-3 fields only. Manual Console output is not authenticated editor provenance, and snapshot hashes cannot bind uncaptured native project properties. The command checks backup existence but cannot rehash the archive inside this Free Lua runtime after Node issues it. Process interruption, recovery after a failed reopen, complete property coverage, immutable transaction trust, and desktop conflict/revision integration remain required before enabling product apply. The trial is not wired into `checkApplyPreflight`; the product remains disabled.
