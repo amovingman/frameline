@@ -1011,6 +1011,9 @@ async function refreshResolveHistory(preferredProjectId = null) {
       const option = make('option', '', 'No saved Resolve projects'); option.value = ''; select.append(option);
       document.getElementById('resolve-history-list').replaceChildren();
       document.getElementById('resolve-history-detail').replaceChildren();
+      document.getElementById('resolve-history-branch').replaceChildren();
+      document.getElementById('resolve-history-branch').disabled = true;
+      document.getElementById('resolve-history-branch-create').disabled = true;
       clearResolveHistoryPreviewChoices();
       status.textContent = 'No Resolve observation revisions saved yet.';
       return;
@@ -1063,6 +1066,15 @@ async function loadResolveHistoryGraph(projectId, generation) {
   const result = await window.desktop.getResolveRevisionGraph(projectId);
   if (generation !== resolveHistoryGeneration) return;
   if (!result?.ready) throw new Error(result?.error || 'Could not read revision ancestry.');
+  const branchSelect = document.getElementById('resolve-history-branch');
+  branchSelect.replaceChildren();
+  for (const branch of Object.keys(result.branches).sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b))) {
+    const option = make('option', '', branch); option.value = branch; branchSelect.append(option);
+  }
+  branchSelect.value = result.currentBranch;
+  branchSelect.dataset.currentBranch = result.currentBranch;
+  branchSelect.disabled = false;
+  document.getElementById('resolve-history-branch-create').disabled = false;
   for (const role of ['base', 'local', 'incoming']) {
     const select = document.getElementById(`resolve-history-${role}`);
     const placeholder = make('option', '', `Choose ${role === 'base' ? 'common base' : role} revision`);
@@ -1099,6 +1111,35 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
 }
 document.getElementById('resolve-history-refresh').addEventListener('click', () => refreshResolveHistory());
 document.getElementById('resolve-history-project').addEventListener('change', event => loadResolveHistory(event.target.value));
+let resolveHistoryBranchBusy = false;
+document.getElementById('resolve-history-branch').addEventListener('change', async event => {
+  if (resolveHistoryBranchBusy) return;
+  resolveHistoryBranchBusy = true;
+  const projectId = document.getElementById('resolve-history-project').value;
+  try {
+    const result = await window.desktop.switchResolveBranch(projectId, event.target.value);
+    if (!result?.ready) throw new Error(result?.error || 'Could not switch branch.');
+    await refreshResolveHistory(projectId);
+  } catch (error) {
+    event.target.value = event.target.dataset.currentBranch;
+    document.getElementById('resolve-history-status').textContent = error.message || 'Could not switch branch.';
+  }
+  finally { resolveHistoryBranchBusy = false; }
+});
+document.getElementById('resolve-history-branch-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (resolveHistoryBranchBusy) return;
+  resolveHistoryBranchBusy = true;
+  const projectId = document.getElementById('resolve-history-project').value;
+  const name = document.getElementById('resolve-history-branch-name').value;
+  try {
+    const result = await window.desktop.createResolveBranch(projectId, name);
+    if (!result?.ready) throw new Error(result?.error || 'Could not create branch.');
+    document.getElementById('resolve-history-branch-name').value = '';
+    await refreshResolveHistory(projectId);
+  } catch (error) { document.getElementById('resolve-history-status').textContent = error.message || 'Could not create branch.'; }
+  finally { resolveHistoryBranchBusy = false; }
+});
 document.getElementById('resolve-history-preview-form').addEventListener('submit', event => {
   event.preventDefault();
   const projectId = document.getElementById('resolve-history-project').value;

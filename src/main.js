@@ -345,12 +345,33 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve-history:graph', async (_event, projectId) => {
     try {
       const graph = await localMetadataStore.getResolveRevisionGraph(projectId);
-      return { ready: true, projectId, branches: graph.branches,
+      return { ready: true, projectId, branches: graph.branches, currentBranch: graph.currentBranch,
         revisions: graph.revisions.map(({ id, parentRevisionId, message, createdAt, contentHash }) =>
           ({ id, parentRevisionId, message, createdAt, contentHash })) };
     } catch (error) {
       logger.warn('resolve.history-graph-failed', { code: error.code || 'resolve-history-error' });
       return { ready: false, error: 'Could not read this Resolve revision graph.' };
+    }
+  });
+  ipcMain.handle('resolve-history:create-branch', async (_event, projectId, name) => {
+    try {
+      const graph = await localMetadataStore.getResolveRevisionGraph(projectId);
+      const state = await localMetadataStore.createBranch(projectId, name,
+        graph.branches[graph.currentBranch]);
+      return { ready: true, currentBranch: state.currentBranch, branches: state.branches };
+    } catch (error) {
+      logger.warn('resolve.history-create-branch-failed', { code: error.code || 'resolve-history-error' });
+      return { ready: false, error: 'Could not create this branch. Use a unique lowercase name with letters, numbers, dots, underscores, or hyphens.' };
+    }
+  });
+  ipcMain.handle('resolve-history:switch-branch', async (_event, projectId, name) => {
+    try {
+      await localMetadataStore.getResolveRevisionGraph(projectId);
+      const state = await localMetadataStore.switchBranch(projectId, name);
+      return { ready: true, currentBranch: state.currentBranch, branches: state.branches };
+    } catch (error) {
+      logger.warn('resolve.history-switch-branch-failed', { code: error.code || 'resolve-history-error' });
+      return { ready: false, error: 'Could not switch to this Resolve branch. Refresh history and try again.' };
     }
   });
   ipcMain.handle('resolve-history:preview', (_event, projectId, ids) => runResolveAction(async () => {
