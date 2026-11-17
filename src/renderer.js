@@ -105,7 +105,8 @@ function renderAppState(state) {
     renderRealHistory(state.revisions || [], state.selectedRevision?.id);
     renderRevisionDetail(state.selectedRevision, state.revisionDetailError, state.selectedComparison, state.comparisonError);
     document.querySelector('#view-history .view-footnote').textContent = 'History follows the selected branch. Clip-level comparison and pull remain unavailable until stable IDs are proven.';
-    document.querySelector('#view-media .secondary-hero p').textContent = scan ? `${scan.media.length} referenced media assets · ${scan.media.filter(item => item.availability === 'local').length} available locally · ${scan.media.filter(item => item.availability === 'missing').length} missing` : 'Media could not be scanned.';
+    document.querySelector('#view-media .secondary-hero p').textContent = scan
+      ? window.mediaAvailabilitySummary(scan.media) : 'Media could not be scanned.';
     document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
     document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
     if (scan) renderScan(scan);

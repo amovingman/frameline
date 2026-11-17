@@ -265,19 +265,19 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 5.4 Later features (after MVP evidence)
 - [ ] Review comments pinned to clips or timeline ranges. A private local store now supports authorized comments on verified immutable-revision clip IDs or frame ranges; stable FCPXML anchors, desktop UI, and hosted delivery remain open. See `REVIEW_COMMENTS.md`.
-- [ ] Approval requests and protected branches.
-- [ ] Notifications and digest preferences.
-- [ ] Project templates and team presets.
-- [ ] Storage integrations for studios and shared storage volumes.
-- [ ] Advanced asset lifecycle controls.
-- [ ] Real-time co-editing only if editor APIs and user research support it.
-- [ ] Cloud rendering only as a separately scoped product capability.
+- [ ] Approval requests and protected branches. An authorized service path now checks independent, head-bound local approvals and rechecks reviewer access; durable hosted policy and audit remain open.
+- [ ] Notifications and digest preferences. A local planner now defaults delivery off and supports immediate or daily UTC plans from the authorized inbox; scheduling and delivery remain open.
+- [ ] Project templates and team presets. Team-scoped preset plans now validate branch and media-class choices without changing a project; durable storage and atomic application remain open.
+- [ ] Storage integrations for studios and shared storage volumes. A selected-root verifier now confirms file size and hash without exposing locations; mount, permissions, and relink integration remain open.
+- [ ] Advanced asset lifecycle controls. A local deletion planner now blocks retained, shared, and held assets; durable holds and transactional garbage collection remain open.
+- [ ] Real-time co-editing only if editor APIs and user research support it. A fail-closed evidence gate now keeps the product disabled; identity, events, recovery, and research remain unproven.
+- [ ] Cloud rendering only as a separately scoped product capability. A separate evidence gate now keeps the product disabled until consent, rights, processing region, costs, and provenance are proven. See `LATER_FEATURE_FOUNDATIONS.md`.
 
 ## Cross-cutting requirements
 
-- [ ] **Data safety:** immutable history, verified backups, atomic writes, and tested restore paths.
-- [ ] **Correctness:** frame-accurate time values, stable IDs, deterministic manifests, and compatibility fixtures.
-- [ ] **Honesty:** distinguish sample data, unknown values, unavailable media, and unsupported edits in the UI.
+- [ ] **Data safety:** immutable history, verified backups, atomic writes, and tested restore paths. Existing local/service restore tests remain in CI; protected writes and deletion planning now add explicit guards, while hosted recovery is open.
+- [ ] **Correctness:** frame-accurate time values, stable IDs, deterministic manifests, and compatibility fixtures. Exact Resolve snapshot anchors and deterministic FCPXML scans are tested; stable cross-export clip identity remains open.
+- [ ] **Honesty:** distinguish sample data, unknown values, unavailable media, and unsupported edits in the UI. The media headline now separates unchecked, unspecified, and uncheckable references; full workflow review remains open.
 - [ ] **Privacy:** collect the least project metadata possible; make media upload explicit and inspectable.
 - [ ] **Performance:** stream and hash large media; make long work cancellable and resumable.
 - [ ] **Accessibility:** keyboard operation, visible focus, clear status text, and readable contrast.

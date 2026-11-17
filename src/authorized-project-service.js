@@ -3,7 +3,8 @@ function fail(code) { const error = new Error(code); error.code = code; return e
 // Every operation resolves authorization before touching the history store.
 // Asset access is represented even though the current history store does not
 // persist media bytes.
-function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null }) {
+function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null,
+  branchProtection = null }) {
   if (!history || !access || !identity || typeof identity.authenticate !== 'function') throw fail('authorized-service-invalid');
   function checked(context, projectId, resource, action, operation) {
     const actorId = identity.authenticate(context?.accessToken).userId;
@@ -28,6 +29,8 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
       return result;
     }),
     updateBranch: (context, input) => checked(context, input.projectId, 'branch', 'write', actorId => {
+      branchProtection?.assertCanAdvance({ actorId, projectId: input.projectId, branch: input.branch,
+        expectedHead: input.expectedRevisionId ?? null, revisionId: input.revisionId });
       const result = history.compareAndSwapBranch(input);
       activity?.record({ projectId: input.projectId, actorId, type: 'branch.changed', subjectId: input.branch,
         recipientIds: access.listProjectMembers(actorId, input.projectId).map(item => item.userId) });
