@@ -12,7 +12,8 @@ function objectWithKeys(value, keys) {
     && Object.keys(value).sort().join('|') === [...keys].sort().join('|');
 }
 
-const label = value => typeof value === 'string' && value.trim().length > 0;
+const label = value => typeof value === 'string' && value.trim().length > 0
+  && !/[\\/\x00-\x1f\x7f]/.test(value) && !/^[a-z]:/i.test(value);
 const frame = value => Number.isSafeInteger(value) && value >= 0;
 
 function validateScanManifest(scan) {

@@ -144,10 +144,10 @@ async function estimateUpload({ projectId, assets, policy, service }) {
   const allowed = new Set(policy.get(projectId).syncClasses);
   const seen = new Set(); const items = []; let uploadBytes = 0, excludedBytes = 0, reusedBytes = 0;
   for (const asset of validateAssets(assets)) {
-    if (!allowed.has(asset.assetClass)) { excludedBytes += asset.size; items.push({ id: asset.id, action: 'excluded-by-policy', bytes: asset.size }); continue; }
+    if (!allowed.has(asset.assetClass)) { excludedBytes += asset.size; items.push({ id: asset.id, assetClass: asset.assetClass, action: 'excluded-by-policy', bytes: asset.size }); continue; }
     if (seen.has(asset.contentId) || await service.hasContent(projectId, asset.contentId)) {
-      reusedBytes += asset.size; items.push({ id: asset.id, action: 'reuse', bytes: asset.size });
-    } else { seen.add(asset.contentId); uploadBytes += asset.size; items.push({ id: asset.id, action: 'upload', bytes: asset.size }); }
+      reusedBytes += asset.size; items.push({ id: asset.id, assetClass: asset.assetClass, action: 'reuse', bytes: asset.size });
+    } else { seen.add(asset.contentId); uploadBytes += asset.size; items.push({ id: asset.id, assetClass: asset.assetClass, action: 'upload', bytes: asset.size }); }
   }
   return { projectId, uploadBytes, excludedBytes, reusedBytes, currentUsage: await service.storageUsage(projectId), items };
 }

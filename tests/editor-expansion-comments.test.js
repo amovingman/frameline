@@ -20,7 +20,8 @@ test('session scan metrics report only aggregate outcomes and safe codes', async
   await assert.rejects(scan('/private/bad.fcpxml'));
   const snapshot = metrics.snapshot();
   assert.deepEqual(snapshot, { attempts: 2, succeeded: 1, failed: 1, cancelled: 0,
-    averageDurationMs: 12, errorCodes: { 'scan-failed': 1 } });
+    averageDurationMs: 12, recentSampleCount: 2, recentP50Ms: 12, recentP95Ms: 12,
+    errorCodes: { 'scan-failed': 1 } });
   const report = createDiagnosticsReport({ appVersion: '0.1.0', state: { scanStatus: 'idle' },
     syncState: { operations: [] }, adapterUsage: snapshot });
   assert.equal(report.report.adapterUsage.attempts, 2);

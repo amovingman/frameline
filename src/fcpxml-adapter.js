@@ -4,8 +4,9 @@ const { createHash } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
 const { XMLParser, XMLValidator } = require('fast-xml-parser');
 const { validateScanManifest } = require('./scan-manifest');
+const { EXPERIMENTAL_TARGET } = require('./compatibility-contract');
 
-const MAX_XML_BYTES = 20 * 1024 * 1024;
+const MAX_XML_BYTES = EXPERIMENTAL_TARGET.maximumXmlBytes;
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', processEntities: false });
 const inventoryCache = new Map();
 function checkAbort(signal) { if (signal?.aborted) throw new ScanError('scan-cancelled'); }

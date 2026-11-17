@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-17T00:00:00Z",
+  "generatedAt": "2026-11-17T14:52:58Z",
   "title": "Design System: Frameline graphite review workspace",
   "extensions": {
     "colorMeta": {
@@ -43,7 +43,7 @@
     },
     {
       "name": "Sidebar navigation", "kind": "nav", "refersTo": "main-nav button",
-      "description": "Quiet navigation item with a raised current state.",
+      "description": "Quiet navigation item with a raised current state, visible keyboard focus, and shortcuts for the four main views.",
       "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item ds-active\" aria-current=\"page\">Review</button><button class=\"ds-nav-item\">History</button></nav>",
       "css": ".ds-nav{display:grid;gap:4px;padding:8px;background:#101011}.ds-nav-item{height:40px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:#b4b4ba;text-align:left;font:400 14px/1.5 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-nav-item:hover{background:#1b1b1d}.ds-nav-item.ds-active{background:#27272a;color:#ededee}.ds-nav-item:focus-visible{outline:2px solid #9eeaf0;outline-offset:2px}"
     },
@@ -62,7 +62,7 @@
   ],
   "narrative": {
     "northStar": "See which incoming edits affect the cut and where they differ",
-    "overview": "A calm graphite editing workspace keeps the sequence visible while editors compare incoming changes with the local cut and common base. Review, History, and Media share the same restrained shell. Sample footage is identified as illustrative; a selected FCPXML export is scanned read only.",
+    "overview": "A calm graphite editing workspace keeps the sequence visible while editors compare incoming changes with the local cut and common base. Review, Resolve preview, History, and Media share the same restrained shell. Sample footage is identified as illustrative; a selected FCPXML export is scanned read only.",
     "keyCharacteristics": ["sequence-first review", "graphite surfaces", "Plex Sans operating text", "cyan selection", "worded status", "honest sample data"],
     "rules": [
       { "name": "Show location first", "body": "Keep the selected clip or track visible above its comparison values.", "section": "components" },

@@ -1,9 +1,8 @@
-const SECRET_FIELD = /(password|token|secret|credential|authorization|email|path|filename)/i;
-const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:\\|\\\\)/;
+const SECRET_FIELD = /(password|token|secret|credential|authorization|email|path|filename|(?:media|clip|project)name)/i;
 
 function redact(value, field = '') {
   if (SECRET_FIELD.test(field)) return '[REDACTED]';
-  if (typeof value === 'string') return ABSOLUTE_PATH.test(value) ? '[LOCAL_PATH]' : value;
+  if (typeof value === 'string') return /[/\\]/.test(value) ? '[LOCAL_PATH]' : /@/.test(value) ? '[REDACTED]' : value;
   if (Array.isArray(value)) return value.map(item => redact(item));
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redact(item, key)]));

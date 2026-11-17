@@ -17,6 +17,8 @@ function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = 
       ? { attempts: adapterUsage.attempts, succeeded: adapterUsage.succeeded,
         failed: adapterUsage.failed, cancelled: adapterUsage.cancelled,
         averageDurationMs: adapterUsage.averageDurationMs,
+        recentSampleCount: adapterUsage.recentSampleCount,
+        recentP50Ms: adapterUsage.recentP50Ms, recentP95Ms: adapterUsage.recentP95Ms,
         errorCodes: Object.fromEntries(Object.entries(adapterUsage.errorCodes || {})
           .filter(([code, count]) => /^[a-z0-9-]{1,80}$/.test(code) && Number.isSafeInteger(count) && count >= 0)) }
       : null

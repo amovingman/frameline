@@ -2,6 +2,8 @@
 
 The initial integration target is **DaVinci Resolve Free 21.1.2 (build 21.1.20010) on macOS**. This is a test boundary, not a release support promise. Other editions, operating systems, and Resolve versions are outside the current target. No minimum release-supported editor version is declared.
 
+`src/compatibility-contract.js` encodes this exact version/build/OS/FCPXML 1.10 tuple for machine checks. It grants only an experimental read-only scan claim; write and release support always remain false.
+
 Compatibility is declared per editor edition, build, operating system, format version, timeline construct, and operation. This matrix does not imply support for every Resolve project file or for other editing applications. A second editor requires its own corpus and release row under `EDITOR_EXPANSION.md`.
 
 The desktop scanner now accepts **FCPXML 1.10** only. The selected `.fcpxml` file or `.fcpxmld/Info.fcpxml` is read only, up to 20 MB. A different or missing FCPXML version produces a recovery error. This version gate reflects the fixtures and Resolve exports on hand; it does not assert that every FCPXML 1.10 construct is handled.

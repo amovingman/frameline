@@ -752,9 +752,11 @@ window.desktop?.getSyncState?.().then(renderSyncState).catch(() => renderSyncSta
 window.desktop?.getCollaborationState?.().then(renderCollaborationState)
   .catch(() => renderCollaborationState({ available: false, members: [], invitations: [] }));
 document.addEventListener('keydown', event => {
-  if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && ['1', '2', '3', '4'].includes(event.key)) {
     event.preventDefault();
-    showView(['workspace', 'history', 'media'][Number(event.key) - 1]);
+    const view = ['workspace', 'history', 'media', 'resolve'][Number(event.key) - 1];
+    showView(view);
+    document.querySelector(`[data-view="${view}"]`)?.focus();
   }
 });
 for (const listId of ['video-track', 'change-queue', 'resolve-queue']) {

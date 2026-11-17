@@ -5,6 +5,7 @@ const KNOWN_ERRORS = new Set(['scan-cancelled', 'unsupported-format', 'file-unav
 // Session-local aggregate only. No source paths, media names, or network sink.
 function createAdapterMetrics({ now = () => Date.now() } = {}) {
   let attempts = 0, succeeded = 0, failed = 0, cancelled = 0, totalDurationMs = 0;
+  const recentDurations = [];
   const errorCodes = {};
   function wrapScan(scan) {
     if (typeof scan !== 'function') throw new TypeError('A scan function is required');
@@ -21,13 +22,22 @@ function createAdapterMetrics({ now = () => Date.now() } = {}) {
         else { failed++; errorCodes[code] = (errorCodes[code] || 0) + 1; }
         throw error;
       } finally {
-        totalDurationMs += Math.max(0, now() - start);
+        const duration = Math.max(0, now() - start);
+        totalDurationMs += duration;
+        recentDurations.push(duration);
+        if (recentDurations.length > 128) recentDurations.shift();
       }
     };
   }
-  return { wrapScan, snapshot: () => ({ attempts, succeeded, failed, cancelled,
-    averageDurationMs: attempts ? Math.round(totalDurationMs / attempts) : null,
-    errorCodes: { ...errorCodes } }) };
+  function snapshot() {
+    const sorted = [...recentDurations].sort((a, b) => a - b);
+    const percentile = fraction => sorted.length ? Math.round(sorted[Math.ceil(sorted.length * fraction) - 1]) : null;
+    return { attempts, succeeded, failed, cancelled,
+      averageDurationMs: attempts ? Math.round(totalDurationMs / attempts) : null,
+      recentSampleCount: sorted.length, recentP50Ms: percentile(0.5), recentP95Ms: percentile(0.95),
+      errorCodes: { ...errorCodes } };
+  }
+  return { wrapScan, snapshot };
 }
 
 module.exports = { createAdapterMetrics };

@@ -4,6 +4,8 @@ const { validateScanManifest } = require('./scan-manifest');
 const uuidPattern = /^[a-f0-9-]{36}$/;
 const branchPattern = /^[a-z0-9][a-z0-9._-]{0,39}$/;
 const fields = ['id', 'projectId', 'parentRevisionId', 'author', 'createdAt', 'message', 'editorVersion', 'manifestVersion', 'contentHash'];
+const pathFreeText = value => typeof value === 'string' && value.trim().length > 0
+  && !/[\\/\x00-\x1f\x7f]/.test(value) && !/^[a-z]:/i.test(value);
 
 function transferError() {
   return Object.assign(new Error('revision-transfer-invalid'), { code: 'revision-transfer-invalid' });
@@ -16,6 +18,7 @@ function verifyRecord(summary, bytes) {
   try { record = JSON.parse(bytes); validateScanManifest(record.manifest); }
   catch { throw transferError(); }
   if (fields.some(field => record[field] !== summary[field])
+    || !pathFreeText(record.author) || !pathFreeText(record.message)
     || record.contentHash !== record.manifest.sourceHash
     || record.manifestVersion !== record.manifest.schemaVersion
     || !uuidPattern.test(record.id) || !uuidPattern.test(record.projectId)

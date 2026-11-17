@@ -278,19 +278,19 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] **Data safety:** immutable history, verified backups, atomic writes, and tested restore paths. Existing local/service restore tests remain in CI; protected writes and deletion planning now add explicit guards, while hosted recovery is open.
 - [ ] **Correctness:** frame-accurate time values, stable IDs, deterministic manifests, and compatibility fixtures. Exact Resolve snapshot anchors and deterministic FCPXML scans are tested; stable cross-export clip identity remains open.
 - [ ] **Honesty:** distinguish sample data, unknown values, unavailable media, and unsupported edits in the UI. The media headline now separates unchecked, unspecified, and uncheckable references; full workflow review remains open.
-- [ ] **Privacy:** collect the least project metadata possible; make media upload explicit and inspectable.
-- [ ] **Performance:** stream and hash large media; make long work cancellable and resumable.
-- [ ] **Accessibility:** keyboard operation, visible focus, clear status text, and readable contrast.
-- [ ] **Observability:** useful errors and metrics without leaking media paths or credentials.
-- [ ] **Compatibility:** publish exact editor, project-format, OS, and version support.
+- [ ] **Privacy:** collect the least project metadata possible; make media upload explicit and inspectable. Revision transfer now rejects path-like labels and user-entered path text; metadata and asset-byte disclosures are path-free planning artifacts. Desktop review and hosted policy remain open.
+- [ ] **Performance:** stream and hash large media; make long work cancellable and resumable. Streaming hashes and resumable local chunks exist; scan metrics now retain bounded recent p50/p95 timings. Real-project and hosted-transfer measurements remain open.
+- [ ] **Accessibility:** keyboard operation, visible focus, clear status text, and readable contrast. Four main views now expose their keyboard shortcuts and focus the selected navigation button. A full keyboard, screen-reader and contrast audit remains open.
+- [ ] **Observability:** useful errors and metrics without leaking media paths or credentials. Log redaction now covers embedded paths; reviewed diagnostics include bounded scan timing aggregates and safe error codes. Consented pilot telemetry remains open.
+- [ ] **Compatibility:** publish exact editor, project-format, OS, and version support. An exact experimental version/build/OS/format contract now fails closed for writes and release claims; a supported release row remains open.
 
 ## Key decisions to resolve early
 
-1. Which editor and project format are first? The Resolve FCPXML probe under `phase-0/resolve-xml-proof/` includes synthetic and Resolve-exported evidence, while safe write support remains unproven.
-2. Can its supported API reliably enumerate and write the timeline objects needed for clip-level changes?
-3. Which platforms and editor versions must the first release support?
-4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests?
-5. What project metadata and media are uploaded, and what privacy, retention, and deletion controls do users require?
+1. Which editor and project format are first? The working experimental choice is Resolve Free 21.1.2/build 21.1.20010 on macOS with FCPXML 1.10 read-only scan. See `EARLY_DECISIONS.md`; safe write remains unproven.
+2. Can its supported API reliably enumerate and write the timeline objects needed for clip-level changes? Limited internal-console evidence exists; external Free access, complete enumeration, stable mapping and recoverable apply remain open.
+3. Which platforms and editor versions must the first release support? No release row is declared. The exact tested macOS/Free build is a pilot boundary pending intended-user corpus and release drills.
+4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests? Pilot planning uses local/shared media and metadata-only history; pricing and hosted media remain research decisions.
+5. What project metadata and media are uploaded, and what privacy, retention, and deletion controls do users require? A validated bundle and explicit asset-byte review describe the proposed transfer; hosted region, retention and deletion policy remain open.
 6. What constitutes a safe automatic merge for ripple edits, linked media, transitions, and nested sequences?
 
 ## Current status

@@ -24,3 +24,11 @@ test('preserves ordinary diagnostic values', () => {
     format: 'FCPXML', attempt: 2, enabled: false
   });
 });
+
+test('redacts paths and addresses embedded in otherwise ordinary messages', () => {
+  assert.deepEqual(redact({ note: 'Could not read /Users/editor/cut.fcpxml',
+    detail: 'https://example.test/download?token=secret', contact: 'editor@example.test',
+    mediaName: 'take-01.mov' }), {
+    note: '[LOCAL_PATH]', detail: '[LOCAL_PATH]', contact: '[REDACTED]', mediaName: '[REDACTED]'
+  });
+});
