@@ -147,7 +147,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Check that the file still matches the plan's source hash before writing.
 - [ ] Apply changes through the supported editor API/adapter; never patch arbitrary bytes.
 - [ ] Write atomically where supported and preserve permissions/metadata.
-- [ ] Reopen or validate the resulting project with the target editor integration.
+- [ ] Reopen or validate the resulting project with the target editor integration. A read-only recovery comparison command now compares exact-hash-bound schema-3 captures across an explicitly imported project copy, including timing, IDs, links, media references, and effect counts. Live post-import capture and full content validation remain open.
 - [ ] Keep the backup until validation succeeds and the user can recover it.
 - [ ] On any failure, restore or retain the original and report the exact recovery path.
 - [ ] Record success, failure, chosen resolutions, and resulting revision.

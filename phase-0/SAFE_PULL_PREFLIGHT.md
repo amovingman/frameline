@@ -29,3 +29,15 @@ On the disposable `Frameline Lua Capture Fixture` in Resolve Free 21.1.2, `Proje
 `ProjectManager.ImportProject` was then invoked with the exported path and a distinct name, `Frameline Restore Probe`. Resolve created a separate local project at that name. Its `Project.db` passes SQLite `PRAGMA integrity_check`. The original project remains present. Opening the imported copy in Resolve showed `Frameline Capture Timeline` at `00:00:51:00`, with three clips on Video 1 and 49 clips on Audio 1, matching the track counts of the saved source capture. Media-pool thumbnails and the linked final video/audio clip were visible. Effect settings, every item property, and a post-import API snapshot were not compared; an apply/rollback transaction remains unproven.
 
 `inspectResolveProjectExport` is a read-only verifier for private `.drp` files. It fingerprints the file before and after ZIP member and CRC checks, requires a project XML, media-pool XML, and at least one sequence XML, and rejects group/world-readable exports, symlinks, and changed files. Its result is evidence about an archive, not permission to write to an editor project.
+
+## Compare captured recovery content
+
+After capturing the source and reopened copy through the companion, run:
+
+```sh
+node phase-0/compare-resolve-recovery.js source-snapshot.json recovered-snapshot.json
+```
+
+The command binds its report to both exact input hashes and compares all schema-3 observed fields using the existing ID-based differ. It allows a distinct project ID/name for an imported copy, but requires original timeline/item IDs to match; regenerated IDs produce additions/deletions rather than guessed matches. Enumeration order is ignored. Track names, item names, timing, source bounds, media-pool IDs, links, and effect counts are compared. Exit status is `0` for matching observed fields, `2` for differences, and `1` for invalid inputs. Input paths are omitted from the report and error messages.
+
+The result always retains `recoveryValidated: false`: snapshot provenance, effect identity/settings, nested content, media bytes, and other uncaptured properties remain unverified. Automated tests use the pinned mixed live source capture and deliberately changed copies. A fresh companion capture of the reopened `Frameline Restore Probe` has not yet completed, so no live source/copy comparison result is claimed.

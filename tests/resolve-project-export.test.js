@@ -48,6 +48,10 @@ test('refuses missing timeline, malformed archive, insecure mode, and symlink', 
   const link = path.join(path.dirname(filePath), 'link.drp');
   await fs.symlink(filePath, link);
   await assert.rejects(inspectResolveProjectExport(link));
+  const linkedDirectory = path.join(path.dirname(filePath), 'linked-directory');
+  await fs.symlink(path.dirname(filePath), linkedDirectory);
+  await assert.rejects(inspectResolveProjectExport(path.join(linkedDirectory, 'copy.drp')), /export-symlink-invalid/);
+  await assert.rejects(inspectResolveProjectExport('copy.drp'), /invalid-export-input/);
   await fs.truncate(filePath, (await fs.stat(filePath)).size - 20);
   await assert.rejects(inspectResolveProjectExport(filePath), /export-archive-invalid/);
 });

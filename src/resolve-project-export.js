@@ -5,9 +5,18 @@ const { constants } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const path = require('node:path');
 
 const run = promisify(execFile);
 const HASH = /^[a-f0-9]{64}$/;
+
+async function rejectSymlinkComponents(filePath) {
+  let current = path.parse(filePath).root;
+  for (const part of filePath.slice(current.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    if ((await fs.lstat(current)).isSymbolicLink()) throw new Error('export-symlink-invalid');
+  }
+}
 
 async function fingerprint(filePath) {
   const handle = await fs.open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
@@ -23,7 +32,8 @@ async function fingerprint(filePath) {
         before.size !== named.size || before.mtimeMs !== named.mtimeMs || before.ctimeMs !== named.ctimeMs) {
       throw new Error('export-changed');
     }
-    return { sha256: hash.digest('hex'), size: before.size, mode: before.mode & 0o777 };
+    return { sha256: hash.digest('hex'), size: before.size, mode: before.mode & 0o777,
+      identity: [before.dev, before.ino, before.mtimeMs, before.ctimeMs] };
   } finally {
     await handle.close();
   }
@@ -46,8 +56,10 @@ function checkMembers(output) {
 // Read-only archive evidence. This does not prove the copied timeline opens in Resolve
 // and is never sufficient authorization to mutate the live project.
 async function inspectResolveProjectExport(filePath, expectedSha256) {
-  if (typeof filePath !== 'string' || !filePath.endsWith('.drp') ||
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !filePath.endsWith('.drp') ||
       (expectedSha256 !== undefined && !HASH.test(expectedSha256))) throw new Error('invalid-export-input');
+  filePath = path.resolve(filePath);
+  await rejectSymlinkComponents(filePath);
   const before = await fingerprint(filePath);
   if (expectedSha256 !== undefined && before.sha256 !== expectedSha256) throw new Error('export-hash-mismatch');
   if (before.mode & 0o077) throw new Error('export-permissions-insecure');
@@ -61,7 +73,9 @@ async function inspectResolveProjectExport(filePath, expectedSha256) {
     throw new Error('export-archive-invalid');
   }
   const after = await fingerprint(filePath);
-  if (before.sha256 !== after.sha256 || before.size !== after.size || after.mode !== before.mode) throw new Error('export-changed');
+  await rejectSymlinkComponents(filePath);
+  if (before.sha256 !== after.sha256 || before.size !== after.size || after.mode !== before.mode ||
+      before.identity.some((value, index) => value !== after.identity[index])) throw new Error('export-changed');
   return { schemaVersion: 1, sha256: before.sha256, size: before.size, mode: before.mode, timelineCount, archiveVerified: true };
 }
 
