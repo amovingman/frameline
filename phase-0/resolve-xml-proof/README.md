@@ -1,5 +1,7 @@
 # DaVinci Resolve FCPXML proof
 
+The November 17 [native backup and recovery probe](../SAFE_PULL_PREFLIGHT.md#live-copied-project-capture-and-failure-recovery-2026-11-17) adds untouched post-import and rename/rollback schema-3 observations. The imported copy regenerates all captured object IDs. The saved rename changes exactly one observed field; intentional-failure rollback returns the exact before snapshot bytes. These observations do not establish a desktop apply transaction or preservation of uncaptured editor properties.
+
 Resolve 21.1.2 is installed at `/Applications/DaVinci Resolve/DaVinci Resolve.app` (build 21.1.20010). The disposable fixture `resolve-import-test.fcpxml` references three local mountain JPEGs and defines a 24 fps, three-clip timeline with three-second durations. The existing empty “New Project” was used as the test target.
 
 ## Import result: passed

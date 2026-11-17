@@ -145,9 +145,9 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Build a transactional apply service outside the renderer.
 - [ ] Create and verify a timestamped restore point before in-place changes. A disposable Free project now exports to a `.drp`, imports under a distinct name, passes archive/database integrity checks, and reopens with matching timeline duration and video/audio clip counts. Private-mode archive verification is implemented. Full content comparison, transaction integration, and a recovery drill remain open.
 - [ ] Check that the file still matches the plan's source hash before writing.
-- [ ] Apply changes through the supported editor API/adapter; never patch arbitrary bytes.
+- [ ] Apply changes through the supported editor API/adapter; never patch arbitrary bytes. A guarded Console rename/save/forced-failure/rollback probe now changes exactly one captured name field and restores the exact before snapshot hash on a disposable imported project; desktop transaction integration remains open.
 - [ ] Write atomically where supported and preserve permissions/metadata.
-- [ ] Reopen or validate the resulting project with the target editor integration. A read-only recovery comparison command now compares exact-hash-bound schema-3 captures across an explicitly imported project copy, including timing, IDs, links, media references, and effect counts. Live post-import capture and full content validation remain open.
+- [ ] Reopen or validate the resulting project with the target editor integration. A live post-import capture confirms regenerated project/timeline/item/media IDs; all other captured values, link edges, and media-sharing groups match for the known fixture. Source plans cannot reuse those IDs. Full content validation and post-apply reopen remain open.
 - [ ] Keep the backup until validation succeeds and the user can recover it.
 - [ ] On any failure, restore or retain the original and report the exact recovery path.
 - [ ] Record success, failure, chosen resolutions, and resulting revision.
