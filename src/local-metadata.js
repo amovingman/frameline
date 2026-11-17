@@ -229,6 +229,16 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
       .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '') || a.id.localeCompare(b.id)));
   }
 
+  function getResolveRevisionGraph(projectId) {
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project || projectKind(project) !== 'resolve-api') throw new MetadataError('metadata-project-missing');
+      return structuredClone({ projectId, editorProjectId: project.editorProjectId,
+        displayName: project.displayName || null,
+        currentBranch: project.currentBranch, branches: project.branches, revisions: project.revisions });
+    });
+  }
+
   function listRevisions(projectId, branchName = null) {
     return transact(async metadata => {
       const project = Object.values(metadata.projects).find(item => item.id === projectId);
@@ -491,7 +501,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  return { getProjectId, getResolveProjectId, listResolveProjects, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
+  return { getProjectId, getResolveProjectId, listResolveProjects, getResolveRevisionGraph, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

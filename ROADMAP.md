@@ -95,7 +95,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
 - [x] Provide local revision export/import for backup and transfer before cloud sync exists.
-- [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. The desktop can browse saved project histories and inspect bounded parent differences after restart. Live Console capture and apply remain open.
+- [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. The desktop can browse saved histories, inspect bounded parent differences, and preview three verified revisions with a common ancestor after restart. Live Console capture and apply remain open.
 
 ### 1.4 Change detection and comparison
 - [ ] Match objects using stable IDs, not names or timeline positions alone. The audit confirms five retained API IDs in one project; FCPXML pairing remains candidate-only.
@@ -123,7 +123,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Add source-hash and changed-role status, timeline/field/unresolved filters, conflict navigation, and dedicated warning/media requirements inspection to the read-only Resolve preview.
 - [x] Persist partial or complete Resolve conflict review choices in a separate content-addressed artifact. Recovery revalidates exact source bytes, recomputes the plan and audit, and rejects stale or corrupted artifacts. This is not a resulting revision or editor apply record.
 - [ ] Record the last synced base manifest for each local branch.
-- [ ] Compare the recorded common base, current local project state, and an incoming revision. The Resolve preview compares three user-selected API snapshot files only.
+- [ ] Compare the recorded common base, current local project state, and an incoming revision. The Resolve preview can now compare three immutable local API observation revisions with a verified common ancestor, but it does not bind the latest live project state or remote incoming work.
 - [ ] Classify each project change as incoming-only, local-only, already applied, or conflicting. The preview classifies observed snapshot fields; it is not an integrated project diff.
 - [ ] Produce a deterministic executable pull plan with changes, media requirements, and validation warnings. The preview assembles a read-only proposal and warnings, not an executable plan.
 - [ ] Bind each plan to hashes of the local project and incoming revision.

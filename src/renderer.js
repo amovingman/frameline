@@ -1011,6 +1011,7 @@ async function refreshResolveHistory(preferredProjectId = null) {
       const option = make('option', '', 'No saved Resolve projects'); option.value = ''; select.append(option);
       document.getElementById('resolve-history-list').replaceChildren();
       document.getElementById('resolve-history-detail').replaceChildren();
+      clearResolveHistoryPreviewChoices();
       status.textContent = 'No Resolve observation revisions saved yet.';
       return;
     }
@@ -1028,13 +1029,18 @@ async function loadResolveHistory(projectId, generation = ++resolveHistoryGenera
   const detail = document.getElementById('resolve-history-detail');
   resolveHistoryOpenToken++;
   list.replaceChildren(); detail.replaceChildren();
+  clearResolveHistoryPreviewChoices();
   status.textContent = 'Reading local revisions…';
   try {
     const result = await window.desktop.listResolveRevisions(projectId);
     if (generation !== resolveHistoryGeneration) return;
     if (!result?.ready) throw new Error(result?.error || 'Could not read local revisions.');
     status.textContent = `${result.total} saved observation${result.total === 1 ? '' : 's'} on ${result.branch}${result.total > result.revisions.length ? ` · newest ${result.revisions.length} shown` : ''}.`;
-    if (!result.revisions.length) { list.append(make('p', '', 'No revisions on this branch.')); return; }
+    if (!result.revisions.length) {
+      list.append(make('p', '', 'No revisions on this branch.'));
+      await loadResolveHistoryGraph(projectId, generation);
+      return;
+    }
     for (const revision of result.revisions) {
       const button = make('button', 'resolve-history-entry'); button.type = 'button';
       button.setAttribute('aria-pressed', 'false');
@@ -1043,7 +1049,31 @@ async function loadResolveHistory(projectId, generation = ++resolveHistoryGenera
       list.append(button);
     }
     detail.append(make('p', '', 'Choose a revision to inspect its observed field changes.'));
+    await loadResolveHistoryGraph(projectId, generation);
   } catch (error) { if (generation === resolveHistoryGeneration) status.textContent = error.message || 'Could not read local revisions.'; }
+}
+function clearResolveHistoryPreviewChoices() {
+  for (const role of ['base', 'local', 'incoming']) {
+    const select = document.getElementById(`resolve-history-${role}`);
+    select.replaceChildren(); select.disabled = true;
+  }
+  document.getElementById('resolve-history-preview').disabled = true;
+}
+async function loadResolveHistoryGraph(projectId, generation) {
+  const result = await window.desktop.getResolveRevisionGraph(projectId);
+  if (generation !== resolveHistoryGeneration) return;
+  if (!result?.ready) throw new Error(result?.error || 'Could not read revision ancestry.');
+  for (const role of ['base', 'local', 'incoming']) {
+    const select = document.getElementById(`resolve-history-${role}`);
+    const placeholder = make('option', '', `Choose ${role === 'base' ? 'common base' : role} revision`);
+    placeholder.value = ''; select.append(placeholder);
+    for (const revision of result.revisions) {
+      const option = make('option', '', `${revision.message} · ${revision.id.slice(0, 12)}`);
+      option.value = revision.id; select.append(option);
+    }
+    select.disabled = result.revisions.length === 0;
+  }
+  document.getElementById('resolve-history-preview').disabled = result.revisions.length < 1;
 }
 async function openResolveHistoryRevision(projectId, revisionId, generation, button) {
   if (generation !== resolveHistoryGeneration) return;
@@ -1069,6 +1099,14 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
 }
 document.getElementById('resolve-history-refresh').addEventListener('click', () => refreshResolveHistory());
 document.getElementById('resolve-history-project').addEventListener('change', event => loadResolveHistory(event.target.value));
+document.getElementById('resolve-history-preview-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const projectId = document.getElementById('resolve-history-project').value;
+  const ids = Object.fromEntries(['base', 'local', 'incoming'].map(role =>
+    [role, document.getElementById(`resolve-history-${role}`).value]));
+  if (!projectId || Object.values(ids).some(value => !value)) return;
+  resolveAction('previewResolveHistory', projectId, ids);
+});
 if (window.desktop?.listResolveProjects) refreshResolveHistory();
 document.getElementById('resolve-companion-save').addEventListener('click', async () => {
   if (companionBusy) return;

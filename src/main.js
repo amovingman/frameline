@@ -6,6 +6,7 @@ const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
+const { readResolveHistoryPreviewSources } = require('./resolve-history-preview');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
@@ -26,6 +27,7 @@ const { createAdapterMetrics } = require('./adapter-metrics');
 let projectSession;
 let resolveReviewSession;
 let resolveSourcePaths = null;
+let resolveHistoryRevisionIds = null;
 let resolveBusy = false;
 let selectedProjectPath = null;
 let reviewCopyBusy = false;
@@ -122,6 +124,14 @@ async function readResolveSources(paths) {
     }
   }
   return sources;
+}
+
+function hasResolveSources() { return !!resolveSourcePaths || !!resolveHistoryRevisionIds; }
+async function currentResolveSources() {
+  if (resolveHistoryRevisionIds) return readResolveHistoryPreviewSources(localMetadataStore,
+    resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids);
+  if (resolveSourcePaths) return readResolveSources(resolveSourcePaths);
+  throw Object.assign(new Error('Resolve sources are unavailable.'), { code: 'invalid-resolve-preview' });
 }
 
 async function runResolveAction(action) {
@@ -332,6 +342,30 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { ready: false, error: 'This revision could not be verified.' };
     }
   });
+  ipcMain.handle('resolve-history:graph', async (_event, projectId) => {
+    try {
+      const graph = await localMetadataStore.getResolveRevisionGraph(projectId);
+      return { ready: true, projectId, branches: graph.branches,
+        revisions: graph.revisions.map(({ id, parentRevisionId, message, createdAt, contentHash }) =>
+          ({ id, parentRevisionId, message, createdAt, contentHash })) };
+    } catch (error) {
+      logger.warn('resolve.history-graph-failed', { code: error.code || 'resolve-history-error' });
+      return { ready: false, error: 'Could not read this Resolve revision graph.' };
+    }
+  });
+  ipcMain.handle('resolve-history:preview', (_event, projectId, ids) => runResolveAction(async () => {
+    let sources;
+    try { sources = await readResolveHistoryPreviewSources(localMetadataStore, projectId, ids); }
+    catch { return { ...resolveReviewSession.getState(), error: { code: 'resolve-history-preview-invalid',
+      message: 'Choose verified revisions from one Resolve project, with a common base that precedes both cuts.' } }; }
+    const state = resolveReviewSession.load(sources);
+    if (state.status === 'ready') {
+      resolveHistoryRevisionIds = { projectId, ids: { ...ids } };
+      resolveSourcePaths = null;
+      resolveExportComparison = resolveExportError = resolveExportPath = resolveExportTimelineId = resolveExportLocalHash = null;
+    }
+    return state;
+  }));
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
     const paths = {};
     for (const role of ['base', 'local', 'incoming']) {
@@ -345,45 +379,45 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
     const sources = await readResolveSources(paths);
     const state = resolveReviewSession.load(sources);
-    if (state.status === 'ready') resolveSourcePaths = paths;
+    if (state.status === 'ready') { resolveSourcePaths = paths; resolveHistoryRevisionIds = null; }
     return state;
   }));
   ipcMain.handle('resolve:refresh-preview', () => runResolveAction(async () => {
-    if (!resolveSourcePaths) return resolveReviewSession.getState();
-    return resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
+    if (!hasResolveSources()) return resolveReviewSession.getState();
+    return resolveReviewSession.refresh(await currentResolveSources());
   }));
   ipcMain.handle('resolve:save-preview', () => runResolveAction(async () => {
-    if (!resolveSourcePaths) return resolveReviewSession.getState();
-    const refreshed = resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
+    if (!hasResolveSources()) return resolveReviewSession.getState();
+    const refreshed = resolveReviewSession.refresh(await currentResolveSources());
     if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Snapshot files changed. Preview refreshed; inspect it before saving.' } };
     if (refreshed.status !== 'ready') return refreshed;
     await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
     return resolveReviewSession.save();
   }));
   ipcMain.handle('resolve:save-review', () => runResolveAction(async () => {
-    if (!resolveSourcePaths) return resolveReviewSession.getState();
-    const refreshed = resolveReviewSession.refresh(await readResolveSources(resolveSourcePaths));
+    if (!hasResolveSources()) return resolveReviewSession.getState();
+    const refreshed = resolveReviewSession.refresh(await currentResolveSources());
     if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Snapshot files changed. Previous choices cleared; review the new comparison before saving.' } };
     if (refreshed.status !== 'ready') return refreshed;
     await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
     return resolveReviewSession.saveReview();
   }));
   ipcMain.handle('resolve:recover-preview', (_event, artifactId) => runResolveAction(async () => {
-    if (!resolveSourcePaths) return resolveReviewSession.getState();
-    return resolveReviewSession.recover(artifactId, await readResolveSources(resolveSourcePaths));
+    if (!hasResolveSources()) return resolveReviewSession.getState();
+    return resolveReviewSession.recover(artifactId, await currentResolveSources());
   }));
   ipcMain.handle('resolve:recover-review', (_event, artifactId) => runResolveAction(async () => {
-    if (!resolveSourcePaths) return resolveReviewSession.getState();
-    return resolveReviewSession.recoverReview(artifactId, await readResolveSources(resolveSourcePaths));
+    if (!hasResolveSources()) return resolveReviewSession.getState();
+    return resolveReviewSession.recoverReview(artifactId, await currentResolveSources());
   }));
   ipcMain.handle('resolve:set-decision', (_event, conflictId, choice) => runResolveAction(
     () => resolveReviewSession.setDecision(conflictId, choice)));
   ipcMain.handle('resolve:choose-export', (_event, requestedTimelineId) => runResolveAction(async () => {
-    if (!resolveSourcePaths) {
+    if (!hasResolveSources()) {
       resolveExportError = { code: 'resolve-export-unavailable', message: 'Choose the three Resolve snapshots before matching an export.' };
       return resolveReviewSession.getState();
     }
-    const sources = await readResolveSources(resolveSourcePaths);
+    const sources = await currentResolveSources();
     const state = resolveReviewSession.refresh(sources);
     if (state.status !== 'ready') return state;
     const timelines = JSON.parse(sources.local.toString('utf8')).timelines;
@@ -413,11 +447,11 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     return state;
   }));
   ipcMain.handle('resolve:refresh-export', () => runResolveAction(async () => {
-    if (!resolveSourcePaths || !resolveExportPath || !resolveExportTimelineId) {
+    if (!hasResolveSources() || !resolveExportPath || !resolveExportTimelineId) {
       resolveExportError = { code: 'resolve-export-unavailable', message: 'Choose an FCPXML export before refreshing its candidates.' };
       return resolveReviewSession.getState();
     }
-    const sources = await readResolveSources(resolveSourcePaths);
+    const sources = await currentResolveSources();
     const state = resolveReviewSession.refresh(sources);
     if (state.status !== 'ready') return state;
     try {

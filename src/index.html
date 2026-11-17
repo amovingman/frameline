@@ -70,6 +70,7 @@
           <p>Browse saved read-only API captures, including after restarting Frameline. These revisions record observed fields; they do not permit apply.</p>
           <label for="resolve-history-project">Project</label><select id="resolve-history-project"><option value="">No saved Resolve projects</option></select>
           <p id="resolve-history-status" role="status" aria-live="polite">Checking local observations…</p>
+          <form id="resolve-history-preview-form" class="resolve-history-preview"><div><label for="resolve-history-base">Common base</label><select id="resolve-history-base" required></select></div><div><label for="resolve-history-local">Local revision</label><select id="resolve-history-local" required></select></div><div><label for="resolve-history-incoming">Incoming revision</label><select id="resolve-history-incoming" required></select></div><button id="resolve-history-preview" type="submit" disabled>Preview revisions</button></form>
           <div class="resolve-history-work"><div id="resolve-history-list" aria-label="Local Resolve revisions"></div><div id="resolve-history-detail" aria-label="Selected Resolve revision"></div></div>
         </section>
         <section class="resolve-export" aria-labelledby="resolve-export-title">

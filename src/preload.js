@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('desktop', {
   listResolveProjects: () => ipcRenderer.invoke('resolve-history:list-projects'),
   listResolveRevisions: projectId => ipcRenderer.invoke('resolve-history:list-revisions', projectId),
   openResolveRevision: (projectId, revisionId) => ipcRenderer.invoke('resolve-history:open-revision', projectId, revisionId),
+  getResolveRevisionGraph: projectId => ipcRenderer.invoke('resolve-history:graph', projectId),
+  previewResolveHistory: (projectId, ids) => ipcRenderer.invoke('resolve-history:preview', projectId, ids),
   chooseResolveSnapshots: () => ipcRenderer.invoke('resolve:choose-snapshots'),
   refreshResolvePreview: () => ipcRenderer.invoke('resolve:refresh-preview'),
   saveResolvePreview: () => ipcRenderer.invoke('resolve:save-preview'),
