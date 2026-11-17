@@ -23,7 +23,7 @@ Each private `recovery/<attempt-id>/` contains a request bound to the barrier, t
 
 Successful recovery stores `recovery-result.json`, `recovery-result-snapshot.json`, and `recovery-result-effects.json` separately from original result artifacts. A partially written original snapshot is retained rather than overwritten. Loading or saving a recovered outcome revalidates its barrier, request, inspection, issued action, expected state, effect hashes, review audit, and backup. A conflicting normal and recovery result is rejected. A failed recovery retains its observation under the attempt directory and permits a new inspection, without creating a final outcome or revision.
 
-The history save retains the existing compare-and-swap branch-head protection and duplicate-link reconciliation. Complete review, recovery, and effect artifacts remain private transaction records; current revision-backup exports do not include them.
+The history save retains the existing compare-and-swap branch-head protection and duplicate-link reconciliation. Newly saved reviewed outcomes also carry a portable transaction audit in their observation revision, including exact review sources, decisions, outcome, effect observations when captured, and recovery inspection/retirement bindings when applicable. Revision backups preserve this audit. Native archives, executable commands, and local recovery paths remain private. Existing immutable revisions are not rewritten; their audits can be exported separately from retained transaction records. See the portable-audit workflow in `SAFE_PULL_PREFLIGHT.md`.
 
 ## Console CLI
 

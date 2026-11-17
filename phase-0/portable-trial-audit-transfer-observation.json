@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "source": "previously-recorded-disposable-resolve-trials",
+  "newEditorAccessUsed": false,
+  "originalTrialFilesUnchanged": true,
+  "nativeBackupsIncluded": false,
+  "readOnly": true,
+  "safeToApply": false,
+  "exports": [
+    {
+      "transactionId": "0f58103033d8161e69db7432745e260f",
+      "status": "rolled-back",
+      "choiceCount": 1,
+      "effectMetadataRecorded": false,
+      "auditHash": "eb2642ed5410e3aa6f84708ed144d3135fb60d4ac150e828f0cd2fff5b3603fd",
+      "nativeBackupIncluded": false,
+      "readOnly": true,
+      "safeToApply": false,
+      "importedRevisionId": "55d46bba-6244-4348-aa30-1bd720d4bc1d"
+    },
+    {
+      "transactionId": "fa76d3906284d144a974b2db7dd28685",
+      "status": "restored",
+      "choiceCount": 0,
+      "effectMetadataRecorded": true,
+      "auditHash": "99dbf5f7319b248f157e12a30dda8f3f4b4405366ecc1ae15516754599c3f1aa",
+      "nativeBackupIncluded": false,
+      "readOnly": true,
+      "safeToApply": false,
+      "importedRevisionId": "ce39a43a-5db9-4624-8e55-70b102b6708a"
+    }
+  ],
+  "revisionBackup": {
+    "version": 2,
+    "importedRevisions": 2,
+    "localIdsRemapped": true,
+    "auditPayloadsPreserved": true,
+    "previewSourcesVerified": true
+  },
+  "inMemoryReferenceTransfer": {
+    "networkUsed": false,
+    "manifestCount": 2,
+    "distinctAuditHashes": 2,
+    "mediaFetched": false
+  }
+}

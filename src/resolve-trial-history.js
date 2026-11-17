@@ -3,8 +3,9 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { constants } = require('node:fs');
-const { readRenameTrialResult } = require('./resolve-rename-trial');
+const { readRenameTrialResult, exportRenameTrialAudit } = require('./resolve-rename-trial');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
+const { portableTrialAuditHash } = require('./resolve-portable-trial-audit');
 
 async function inspectRenameTrialHistoryLink({ directory, store, result, snapshot, target } = {}) {
   let link;
@@ -25,6 +26,11 @@ async function inspectRenameTrialHistoryLink({ directory, store, result, snapsho
   const revision = await store.getRevision(project.id, link.revisionId);
   if (revision.parentRevisionId !== target.expectedHeadId || revision.contentHash !== manifest.sourceHash
     || revision.message !== `Rename trial ${result.transactionId} ${result.status}`) throw new Error('trial-history-link-mismatch');
+  if (link.transactionAuditHash !== revision.manifest.transactionAuditHash) throw new Error('trial-history-link-mismatch');
+  if (revision.manifest.transactionAudit) {
+    const audit = await exportRenameTrialAudit(directory);
+    if (!audit || portableTrialAuditHash(audit) !== revision.manifest.transactionAuditHash) throw new Error('trial-history-link-mismatch');
+  }
   return link;
 }
 
@@ -36,7 +42,7 @@ async function saveRenameTrialRevision({ directory, store, branch, expectedHeadI
   if (result.status === 'recovery-required') throw new Error('trial-recovery-required');
   if (expectedHeadId === undefined || typeof branch !== 'string' || !branch) throw new Error('trial-history-target-required');
   const project = await store.getResolveProjectId(snapshot.project_id, snapshot.project_name);
-  const manifest = createResolveRevisionManifest(snapshot);
+  const manifest = createResolveRevisionManifest(snapshot, await exportRenameTrialAudit(directory));
   const message = `Rename trial ${result.transactionId} ${result.status}`;
   const linkPath = path.join(directory, 'revision-link.json');
   let existing = null;
@@ -52,6 +58,9 @@ async function saveRenameTrialRevision({ directory, store, branch, expectedHeadI
     const revision = await store.getRevision(project.id, revisionId);
     if (revision.parentRevisionId !== expectedHeadId || revision.contentHash !== manifest.sourceHash
       || revision.message !== message) throw new Error('trial-history-link-mismatch');
+    if (revision.manifest.transactionAudit && revision.manifest.transactionAuditHash !== manifest.transactionAuditHash) {
+      throw new Error('trial-history-link-mismatch');
+    }
     return revision;
   }
   if (existing) {
@@ -60,7 +69,8 @@ async function saveRenameTrialRevision({ directory, store, branch, expectedHeadI
       || existing.projectId !== project.id || existing.expectedHeadId !== expectedHeadId
       || existing.resultingSnapshotSha256 !== result.resultingSnapshotSha256
       || existing.auditHash !== (result.review?.auditHash || null)) throw new Error('trial-history-link-mismatch');
-    await verify(existing.revisionId);
+    const revision = await verify(existing.revisionId);
+    if (existing.transactionAuditHash !== revision.manifest.transactionAuditHash) throw new Error('trial-history-link-mismatch');
     return existing;
   }
   const state = await store.getBranchState(project.id);
@@ -70,11 +80,13 @@ async function saveRenameTrialRevision({ directory, store, branch, expectedHeadI
   // persisted. The transaction ID gives this exact operation a unique message.
   const candidates = revisions.filter(revision => revision.message === message);
   if (candidates.length > 1) throw new Error('trial-history-ambiguous');
-  const revision = candidates.length ? await verify(candidates[0].id)
+  const saved = candidates.length ? candidates[0]
     : await store.saveRevision(project.id, manifest, message, expectedHeadId, branch);
+  const revision = await verify(saved.id);
   const link = { schemaVersion: 1, transactionId: result.transactionId, projectId: project.id,
     branch, expectedHeadId, revisionId: revision.id, contentHash: manifest.sourceHash,
     resultingSnapshotSha256: result.resultingSnapshotSha256, auditHash: result.review?.auditHash || null,
+    ...(revision.manifest.transactionAuditHash ? { transactionAuditHash: revision.manifest.transactionAuditHash } : {}),
     status: result.status, validation: 'observed-fields-only' };
   try {
     const handle = await fs.open(linkPath, 'wx', 0o600);

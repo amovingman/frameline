@@ -11,6 +11,7 @@ const { inspectResolveProjectExport } = require('./resolve-project-export');
 const { resolveReviewedRename } = require('./resolve-rename-review');
 const { parseEffectObservation } = require('./resolve-effect-observation');
 const { createEffectCaptureCommand, readEffectConsoleResult } = require('./resolve-effect-console');
+const { validatePortableTrialAudit } = require('./resolve-portable-trial-audit');
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const canonical = value => Array.isArray(value) ? value.map(canonical)
@@ -478,7 +479,33 @@ async function describeRenameTrial(directory) {
   return { ...description, target, state: supported ? 'unfinished' : 'manual' };
 }
 
+async function exportRenameTrialAudit(directory) {
+  const { result, snapshot } = await readRenameTrialResult(directory);
+  if (result.status === 'recovery-required') throw new Error('trial-recovery-required');
+  const plan = await readPlan(directory);
+  if (!plan.reviewContext) return null;
+  const decode = bytes => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  const prefix = result.recovery ? 'recovery-' : '';
+  const audit = { schemaVersion: 1, kind: 'resolve-rename-trial-audit', readOnly: true, safeToApply: false,
+    nativeBackupIncluded: false, provenance: 'copied-console-observation',
+    transactionId: result.transactionId,
+    sources: Object.fromEntries(['base', 'local', 'incoming'].map(role =>
+      [role, decode(Buffer.from(plan.reviewContext.sources[role], 'base64'))])),
+    review: structuredClone(plan.reviewContext.audit),
+    issuedRecord: decode(await privateBytes(directory, 'issued.json', 16384)),
+    outcome: { status: result.status, recordedAt: result.recordedAt, sourceSha256: result.sourceSha256,
+      incomingSha256: result.incomingSha256, resultingSnapshotSha256: result.resultingSnapshotSha256,
+      validation: result.validation, effectObservation: result.effectObservation || null },
+    resultSnapshot: decode(await privateBytes(directory, `${prefix}result-snapshot.json`)),
+    effects: plan.effectGuard ? { before: decode(Buffer.from(plan.effectGuard.sourceBase64, 'base64')),
+      after: decode(await privateBytes(directory, `${prefix}result-effects.json`)) } : null,
+    recovery: result.recovery ? { binding: result.recovery,
+      inspection: decode(await privateBytes(path.join(directory, 'recovery', result.recovery.attemptId), 'inspection.json')),
+      revocation: decode(await privateBytes(directory, 'recovery-started.json', 1024)) } : null };
+  return validatePortableTrialAudit(audit, snapshot);
+}
+
 module.exports = { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult,
   recordRenameTrialConsoleResult, readRenameTrialResult, prepareRenameTrialRecovery, readRenameTrialRecoveryCapture,
   issueRenameTrialRecovery, recordRenameTrialRecoveryResult, describeRenameTrial, cancelPreparedRenameTrial,
-  validatePrivateTrialDirectory: privateDirectory };
+  validatePrivateTrialDirectory: privateDirectory, exportRenameTrialAudit };
