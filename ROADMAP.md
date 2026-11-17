@@ -94,7 +94,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Detect concurrent local writes and prevent silent branch-head replacement.
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
-- [x] Provide local revision export/import for backup and transfer before cloud sync exists.
+- [x] Provide local revision export/import for backup and transfer before cloud sync exists. Resolve observation history now has dedicated reviewed export/import controls, preserving portable trial audits and importing into separate branches. The real service/renderer flow passed an isolated browser round trip; native Electron file-dialog verification remains pending desktop access.
 - [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. The desktop can browse histories, create and switch branches, inspect bounded parent differences, and preview three verified revisions with a common ancestor after restart. Live Console capture and apply remain open.
 
 ### 1.4 Change detection and comparison

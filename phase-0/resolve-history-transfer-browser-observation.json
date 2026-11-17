@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "source": "isolated-browser-preview-with-real-transfer-service",
+  "nativeFileDialogsVerified": false,
+  "newEditorAccessUsed": false,
+  "userMetadataChanged": false,
+  "readOnly": true,
+  "safeToApply": false,
+  "browserFlow": {
+    "cancelledExportWithoutWriting": true,
+    "reviewedExportSaved": true,
+    "reviewedImportConfirmed": true,
+    "exportedRevisions": 2,
+    "totalRevisionsAfterImport": 4,
+    "currentBranchPreserved": "import-main",
+    "importBranchesAdded": [
+      "import-main-2",
+      "import-import-main"
+    ],
+    "auditPayloadsPreserved": true,
+    "distinctAuditHashes": 2
+  },
+  "backup": {
+    "sha256": "7e1bcc9add3136edbf6e1d0cd611c9b7c32df99f04d34c6ddb2b61c149da71db",
+    "byteCount": 383888,
+    "mode": 384,
+    "nativeBackupsIncluded": false
+  },
+  "visualChecks": {
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflow": false,
+    "font": "Plex Sans",
+    "screenshots": [
+      {
+        "width": 1440,
+        "sha256": "921fc96159d0747dd56f5cbb794fae26954019298015118f10d8ae9736c65209"
+      },
+      {
+        "width": 768,
+        "sha256": "4ef11e616e5237a4a907e41d5f82416dc4f77e90842a91ec4e13f8ba3ef79f94"
+      },
+      {
+        "width": 390,
+        "sha256": "ac570ae2c9e8c2e02fbe562bc99a5a1264816d0d8ca322f965f7096f2b59b100"
+      }
+    ]
+  }
+}

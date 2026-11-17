@@ -1007,6 +1007,66 @@ document.getElementById('resolve-companion-revision-form').addEventListener('sub
 });
 let resolveHistoryGeneration = 0;
 let resolveHistoryOpenToken = 0;
+let resolveTransferReview = null;
+let resolveTransferBusy = false;
+function renderResolveTransfer() {
+  const reviewing = !!resolveTransferReview;
+  document.getElementById('resolve-history-export').disabled = resolveTransferBusy || reviewing
+    || !document.getElementById('resolve-history-project').value;
+  document.getElementById('resolve-history-import').disabled = resolveTransferBusy || reviewing;
+  document.getElementById('resolve-history-transfer-review').hidden = !reviewing;
+  document.getElementById('resolve-history-transfer-confirm').disabled = resolveTransferBusy;
+  document.getElementById('resolve-history-transfer-cancel').disabled = resolveTransferBusy;
+  if (!reviewing) return;
+  const review = resolveTransferReview, exporting = review.operation === 'export';
+  document.getElementById('resolve-history-transfer-title').textContent = exporting
+    ? `Export observations for ${review.projectName}` : `Import observations into ${review.projectName}`;
+  document.getElementById('resolve-history-transfer-summary').textContent =
+    `${review.revisionCount} revisions · ${review.branchCount} branches · ${(review.byteCount / 1024).toFixed(1)} KB. `
+    + `${review.auditCount} trial audits · ${review.choiceCount} recorded ${review.choiceCount === 1 ? 'choice' : 'choices'} · ${review.effectAuditCount} with effect observations · ${review.recoveryAuditCount} with recovery evidence. `
+    + (exporting ? 'The file will be saved locally.' : `${review.createsProject ? 'Creates a local observation history. ' : ''}Adds separate import branches. Your current branch stays selected.`);
+  document.getElementById('resolve-history-transfer-confirm').textContent = exporting ? 'Save reviewed backup' : 'Import reviewed revisions';
+}
+async function resolveTransferAction(operation) {
+  if (resolveTransferBusy) return;
+  let focusTarget = null;
+  resolveTransferBusy = true; renderResolveTransfer();
+  const status = document.getElementById('resolve-history-transfer-status');
+  status.textContent = operation === 'confirm' ? 'Transferring reviewed observations…' : operation === 'cancel' ? 'Cancelling review…' : 'Verifying revision backup…';
+  try {
+    let result;
+    if (operation === 'export') result = await window.desktop.prepareResolveHistoryExport(document.getElementById('resolve-history-project').value);
+    else if (operation === 'import') result = await window.desktop.prepareResolveHistoryImport();
+    else if (operation === 'cancel') result = await window.desktop.cancelResolveHistoryTransfer(resolveTransferReview?.token);
+    else if (resolveTransferReview?.operation === 'export') result = await window.desktop.saveResolveHistoryExport(resolveTransferReview.token);
+    else if (resolveTransferReview) result = await window.desktop.importReviewedResolveHistory(resolveTransferReview.token);
+    if (result?.error || !result) throw new Error(result?.error || 'Could not transfer the backup. Prepare a new review and try again.');
+    if (result.ready) {
+      resolveTransferReview = result; renderResolveTransfer();
+      document.getElementById('resolve-history-transfer-title').focus();
+      status.textContent = 'Review the included information before continuing.';
+    } else if (result.saved || result.imported) {
+      resolveTransferReview = null;
+      status.textContent = result.saved ? `Saved ${result.revisionCount} observation revisions.`
+        : `Imported ${result.revisionCount} revisions onto ${result.branches.join(', ')}. Switch branches to inspect them.`;
+      await refreshResolveHistory(result.projectId);
+      focusTarget = result.saved ? 'resolve-history-export' : 'resolve-history-import';
+    } else if (result.cancelled) {
+      if (operation === 'cancel') resolveTransferReview = null;
+      status.textContent = resolveTransferReview ? 'Save cancelled. The reviewed backup is ready to retry.' : 'Backup review cancelled.';
+      if (!resolveTransferReview) focusTarget = 'resolve-history-import';
+    }
+  } catch (error) {
+    status.textContent = error.message || 'Could not transfer the backup. Prepare a new review and try again.';
+  } finally {
+    resolveTransferBusy = false; renderResolveTransfer();
+    if (focusTarget) document.getElementById(focusTarget).focus();
+  }
+}
+document.getElementById('resolve-history-export').addEventListener('click', () => resolveTransferAction('export'));
+document.getElementById('resolve-history-import').addEventListener('click', () => resolveTransferAction('import'));
+document.getElementById('resolve-history-transfer-confirm').addEventListener('click', () => resolveTransferAction('confirm'));
+document.getElementById('resolve-history-transfer-cancel').addEventListener('click', () => resolveTransferAction('cancel'));
 async function refreshResolveHistory(preferredProjectId = null) {
   const generation = ++resolveHistoryGeneration;
   const select = document.getElementById('resolve-history-project');
@@ -1026,6 +1086,7 @@ async function refreshResolveHistory(preferredProjectId = null) {
       document.getElementById('resolve-history-branch').disabled = true;
       document.getElementById('resolve-history-branch-create').disabled = true;
       clearResolveHistoryPreviewChoices();
+      renderResolveTransfer();
       status.textContent = 'No Resolve observation revisions saved yet.';
       return;
     }
@@ -1034,6 +1095,7 @@ async function refreshResolveHistory(preferredProjectId = null) {
       option.value = project.id; select.append(option);
     }
     select.value = result.projects.some(project => project.id === previous) ? previous : result.projects[0].id;
+    renderResolveTransfer();
     await loadResolveHistory(select.value, generation);
   } catch (error) { if (generation === resolveHistoryGeneration) status.textContent = error.message || 'Could not read local Resolve history.'; }
 }

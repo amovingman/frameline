@@ -27,10 +27,12 @@ const { createFirstRun } = require('./first-run');
 const { createDiagnosticsReport } = require('./diagnostics-report');
 const { createAdapterMetrics } = require('./adapter-metrics');
 const { createResolveTrialSession } = require('./resolve-trial-session');
+const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
 
 let projectSession;
 let resolveReviewSession;
 let resolveTrialSession;
+let resolveHistoryTransfer;
 let resolveSourcePaths = null;
 let resolveHistoryRevisionIds = null;
 let resolveBusy = false;
@@ -187,6 +189,7 @@ function createWindow() {
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   adapterMetrics = createAdapterMetrics();
   localMetadataStore = createLocalMetadataStore(app.getPath('userData'));
+  resolveHistoryTransfer = createResolveHistoryTransfer({ store: localMetadataStore });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
     scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, localMetadataStore);
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
@@ -363,6 +366,39 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       logger.warn('resolve.history-list-failed', { code: error.code || 'resolve-history-error' });
       return { ready: false, error: 'Could not read local Resolve history.' };
     }
+  });
+  const backupFailure = error => {
+    logger.warn('resolve.history-transfer-failed', { code: error.code || 'resolve-backup-invalid' });
+    const messages = {
+      'resolve-backup-changed': 'History changed after review. Prepare the backup again.',
+      'resolve-backup-size': 'Choose a nonempty Resolve revision backup under 50 MB.',
+      'resolve-backup-review-expired': 'This review expired. Prepare the backup again.',
+      'resolve-backup-project-missing': 'Choose a saved Resolve project before exporting.',
+      'resolve-backup-busy': 'A backup action is already running. Wait for it to finish.',
+      EEXIST: 'That filename already exists. Choose a new filename.'
+    };
+    return { ready: false, error: messages[error.code] || 'The backup could not be verified or saved. Choose a valid Resolve revision backup and try again.' };
+  };
+  ipcMain.handle('resolve-history:prepare-export', async (_event, projectId) => {
+    try { return await resolveHistoryTransfer.prepareExport(projectId); } catch (error) { return backupFailure(error); }
+  });
+  ipcMain.handle('resolve-history:prepare-import', async () => {
+    const choice = await dialog.showOpenDialog({ title: 'Review Resolve revision backup', properties: ['openFile'],
+      filters: [{ name: 'Frameline revision backup', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePaths.length) return { cancelled: true };
+    try { return await resolveHistoryTransfer.prepareImport(choice.filePaths[0]); } catch (error) { return backupFailure(error); }
+  });
+  ipcMain.handle('resolve-history:save-export', async (_event, token) => {
+    const choice = await dialog.showSaveDialog({ title: 'Save reviewed Resolve revision backup', defaultPath: 'frameline-resolve-history.json',
+      filters: [{ name: 'Frameline revision backup', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePath) return { cancelled: true };
+    try { return await resolveHistoryTransfer.saveExport(token, choice.filePath); } catch (error) { return backupFailure(error); }
+  });
+  ipcMain.handle('resolve-history:import-reviewed', async (_event, token) => {
+    try { return await resolveHistoryTransfer.importReviewed(token); } catch (error) { return backupFailure(error); }
+  });
+  ipcMain.handle('resolve-history:cancel-transfer', async (_event, token) => {
+    try { return await resolveHistoryTransfer.cancel(token); } catch (error) { return backupFailure(error); }
   });
   ipcMain.handle('resolve-history:list-revisions', async (_event, projectId) => {
     try {
