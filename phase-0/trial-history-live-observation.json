@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17T21:33:07.128Z",
+  "transactionId": "0f58103033d8161e69db7432745e260f",
+  "status": "rolled-back",
+  "revisionId": "8cdaac05-2942-4df6-abda-8fd19fa6ad3e",
+  "contentHash": "e95069f3100c849def01eca67c5b0dbc53d3739bb695eb98b8e8567fde492ad1",
+  "resultingSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "auditHash": "19b03aee7a8a8465bb45e953334bf6193a4dced011d2bd4a81da61df454458dc",
+  "retrySameRevision": true,
+  "revisionCount": 2,
+  "storeKind": "disposable-local-metadata",
+  "desktopIntegrated": false
+}

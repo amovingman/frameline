@@ -9,6 +9,10 @@ const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, record
 const { createResolvePreviewPlan } = require('../src/resolve-preview-plan');
 const { createResolveConflictReview, createResolveDecisionAudit } = require('../src/resolve-review-decisions');
 const { resolveReviewedRename } = require('../src/resolve-rename-review');
+const { readRenameTrialResult } = require('../src/resolve-rename-trial');
+const { saveRenameTrialRevision } = require('../src/resolve-trial-history');
+const { createLocalMetadataStore } = require('../src/local-metadata');
+const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
 
 async function fixture(t) {
   const directory = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'rename-trial-test-'));
@@ -193,4 +197,52 @@ test('live reviewed rollback observation retains the recomputed audit and exact 
   assert.equal(observation.backup.mode, 0o600);
   assert.equal(observation.desktopIntegrated, false);
   assert.ok(!JSON.stringify(observation).includes('/private/'));
+});
+
+async function completedTrial(t, status = 'applied') {
+  const options = await reviewedFixture(t);
+  const trial = await prepareReviewedRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory });
+  await recordRenameTrialResult({ directory: trial.directory, status,
+    snapshotBytes: status === 'applied' ? options.afterBytes : options.beforeBytes });
+  const store = createLocalMetadataStore(path.join(options.destinationDir, 'history'));
+  const manifest = createResolveRevisionManifest(JSON.parse(options.beforeBytes));
+  const project = await store.getResolveProjectId(manifest.snapshot.project_id, manifest.snapshot.project_name);
+  const baseline = await store.saveRevision(project.id, manifest, 'Before trial');
+  return { options, trial, store, project, baseline,
+    target: { directory: trial.directory, store, branch: 'main', expectedHeadId: baseline.id } };
+}
+
+test('saves an audited resulting observation and reconciles interruption without creating a duplicate revision', async t => {
+  const { trial, store, project, baseline, target } = await completedTrial(t);
+  const link = await saveRenameTrialRevision(target);
+  assert.equal(link.status, 'applied');
+  assert.equal(link.expectedHeadId, baseline.id);
+  const { result, snapshot } = await readRenameTrialResult(trial.directory);
+  const revision = await store.getRevision(project.id, link.revisionId);
+  assert.deepEqual(revision.manifest.snapshot, snapshot);
+  assert.equal(link.auditHash, result.review.auditHash);
+  assert.deepEqual(await saveRenameTrialRevision(target), link);
+  await fs.unlink(path.join(trial.directory, 'revision-link.json'));
+  assert.deepEqual(await saveRenameTrialRevision(target), link);
+  assert.equal((await store.listRevisions(project.id)).length, 2);
+});
+
+test('does not advance history after a branch-head race or an unresolved recovery outcome', async t => {
+  const { store, project, baseline, target, options } = await completedTrial(t);
+  const manifest = createResolveRevisionManifest(JSON.parse(options.beforeBytes));
+  const concurrent = await store.saveRevision(project.id, manifest, 'Concurrent local work', baseline.id);
+  await assert.rejects(saveRenameTrialRevision(target), { code: 'revision-head-changed' });
+  assert.equal((await store.listRevisions(project.id))[0].id, concurrent.id);
+  const recovery = await completedTrial(t, 'recovery-required');
+  await assert.rejects(saveRenameTrialRevision(recovery.target), /trial-recovery-required/);
+  assert.equal((await recovery.store.listRevisions(recovery.project.id)).length, 1);
+});
+
+test('rejects altered outcome snapshots before recording a resulting revision', async t => {
+  const { trial, target, store, project } = await completedTrial(t);
+  await fs.appendFile(path.join(trial.directory, 'result-snapshot.json'), '\n');
+  await assert.rejects(saveRenameTrialRevision(target), /trial-result-mismatch/);
+  assert.equal((await store.listRevisions(project.id)).length, 1);
 });

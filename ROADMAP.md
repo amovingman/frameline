@@ -150,7 +150,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Reopen or validate the resulting project with the target editor integration. A saved rename and its rollback now each survive project close/reopen with exact matching observed snapshot bytes, verified by the evidence audit. Import regenerates project/timeline/item/media IDs, so source plans cannot reuse those IDs. Desktop transaction and full content validation remain open.
 - [ ] Keep the backup until validation succeeds and the user can recover it.
 - [ ] On any failure, restore or retain the original and report the exact recovery path.
-- [ ] Record success, failure, chosen resolutions, and resulting revision.
+- [ ] Record success, failure, chosen resolutions, and resulting revision. Verified rename-trial outcomes now save an ordinary local observation revision and a durable transaction/audit link, with branch-head race protection and retry reconciliation after an interrupted link write. The recorded live rollback was linked successfully in a disposable metadata store. Desktop workflow and full editor revision validation remain open.
 
 ### 2.4 Review-copy mode
 - [x] Add a bounded, byte-verified preparation copy for a regular FCPXML file in a selected destination, with noncolliding names and failed-copy cleanup. No pull plan is applied to this copy.

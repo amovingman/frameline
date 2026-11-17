@@ -142,8 +142,49 @@ async function recordRenameTrialResult({ directory, status, snapshotBytes } = {}
     ...(plan.reviewContext ? { review: { sourceBindings: plan.reviewContext.preview.binding,
       planHash: plan.reviewContext.audit.planHash, auditHash: plan.reviewContext.audit.auditHash,
       choices: plan.reviewContext.audit.choices } } : {}) };
+  const snapshotPath = path.join(directory, 'result-snapshot.json');
+  try {
+    const handle = await fs.open(snapshotPath, 'wx', 0o600);
+    try { await handle.writeFile(snapshotBytes); await handle.sync(); } finally { await handle.close(); }
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    const handle = await fs.open(snapshotPath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.mode & 0o077 || stat.size !== Buffer.byteLength(snapshotBytes)
+        || !(await handle.readFile()).equals(Buffer.from(snapshotBytes))) throw error;
+    } finally { await handle.close(); }
+  }
   await writeRecord(directory, 'result.json', result);
   return result;
+}
+
+async function readRenameTrialResult(directory) {
+  const plan = await readPlan(directory);
+  async function privateBytes(name, limit) {
+    const handle = await fs.open(path.join(directory, name), constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.mode & 0o077 || stat.size > limit) throw new Error('invalid-trial-result-file');
+      const bytes = await handle.readFile();
+      if (bytes.length !== stat.size) throw new Error('trial-result-file-changed');
+      return bytes;
+    } finally { await handle.close(); }
+  }
+  const result = JSON.parse(await privateBytes('result.json', 20 * 1024 * 1024));
+  const snapshotBytes = await privateBytes('result-snapshot.json', 20 * 1024 * 1024);
+  const snapshot = parse(snapshotBytes);
+  if (result.transactionId !== plan.id || result.sourceSha256 !== plan.sourceSha256
+    || result.incomingSha256 !== plan.incomingSha256 || result.resultingSnapshotSha256 !== sha(snapshotBytes)
+    || !['applied', 'rolled-back', 'recovery-required'].includes(result.status)) throw new Error('trial-result-mismatch');
+  if (result.status !== 'recovery-required' && json(snapshot) !== json(result.status === 'applied' ? plan.after : plan.before)) throw new Error('trial-result-mismatch');
+  const expectedReview = plan.reviewContext ? { sourceBindings: plan.reviewContext.preview.binding,
+    planHash: plan.reviewContext.audit.planHash, auditHash: plan.reviewContext.audit.auditHash,
+    choices: plan.reviewContext.audit.choices } : null;
+  if (json(result.review || null) !== json(expectedReview)) throw new Error('trial-review-binding-mismatch');
+  if (result.backupPath !== plan.backupPath) throw new Error('invalid-trial-backup-path');
+  await inspectResolveProjectExport(plan.backupPath, result.backup.sha256);
+  return { result, snapshot };
 }
 
 async function recordRenameTrialConsoleResult({ directory, consoleOutput } = {}) {
@@ -167,4 +208,4 @@ async function recordRenameTrialConsoleResult({ directory, consoleOutput } = {})
   return recordRenameTrialResult({ directory, status: resultLines[0].slice(statusPrefix.length), snapshotBytes: `${bytes}\n` });
 }
 
-module.exports = { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult };
+module.exports = { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult, readRenameTrialResult };
