@@ -201,7 +201,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Expose durable revision-level sync progress, explicit retry and cancel controls, and recoverable network/conflict states in the desktop history view. Hosted transport remains unconfigured.
 
 ### 3.4 Sharing and team workflow
-- [ ] Invite collaborators to a project with role-based access.
+- [x] Add owner-only project invitations for editor/viewer roles, token-free member and pending-invite listings, and a desktop access panel. Invitations remain local until hosted delivery exists.
 - [ ] Show author, time, message, branch, and sync state in revision history.
 - [ ] Copy a read-only share link with configurable expiration/permissions where appropriate.
 - [ ] Notify users about incoming revisions and permission changes.

@@ -14,6 +14,7 @@ const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
 const { resolveFolderCandidates, sanitizeResolutionReport,
   carryObservedIdentity, evaluateMediaRequirements } = require('./local-media-readiness');
 const { createSyncQueue } = require('./sync-queue');
+const { createAccessControl } = require('./access-control');
 
 let projectSession;
 let resolveReviewSession;
@@ -32,7 +33,29 @@ let verifiedCopyHash = null;
 let mediaAuditBusy = false;
 let privateMediaAudits = {};
 let syncQueue;
+let collaborationAccess;
+let collaborationTeam;
+const collaborationProjects = new Set();
+const LOCAL_OWNER_ID = 'local-owner';
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
+
+function ensureCollaborationProject(projectId) {
+  if (!collaborationProjects.has(projectId)) {
+    collaborationAccess.registerProject(LOCAL_OWNER_ID, projectId, collaborationTeam.id);
+    collaborationProjects.add(projectId);
+  }
+}
+
+function getCollaborationState(error = null) {
+  const appState = projectSession.getState(); const projectId = appState.selectedProject?.id;
+  if (!projectId) return { available: false, delivery: 'not-configured', members: [], invitations: [], error };
+  ensureCollaborationProject(projectId);
+  const members = collaborationAccess.listProjectMembers(LOCAL_OWNER_ID, projectId).map(member => ({
+    ...member, displayName: member.userId === LOCAL_OWNER_ID ? 'You' : 'Collaborator', status: 'active'
+  }));
+  return { available: true, delivery: 'not-configured', projectId, members,
+    invitations: collaborationAccess.listProjectInvitations(LOCAL_OWNER_ID, projectId), error };
+}
 
 function currentCopyPath() {
   const state = projectSession.getState();
@@ -127,6 +150,8 @@ function createWindow() {
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   projectSession = createProjectSession(fcpxmlProjectAdapter, createLocalMetadataStore(app.getPath('userData')));
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
+  collaborationAccess = createAccessControl();
+  collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
   const resolveArtifactDirectory = path.join(app.getPath('userData'), 'resolve-previews');
   resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
   logger.info('app.ready', { version: app.getVersion() });
@@ -139,6 +164,19 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('sync:cancel', (_event, id) => {
     try { syncQueue.cancel(id); return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }; }
     catch (error) { return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect(), error: error.code || 'sync-operation-unavailable' }; }
+  });
+  ipcMain.handle('collaboration:get-state', () => getCollaborationState());
+  ipcMain.handle('collaboration:invite', (_event, email, role) => {
+    const projectId = projectSession.getState().selectedProject?.id;
+    if (!projectId) return getCollaborationState('invitation-project-required');
+    try {
+      ensureCollaborationProject(projectId);
+      collaborationAccess.inviteProject(LOCAL_OWNER_ID, projectId, email, role);
+      return getCollaborationState();
+    } catch (error) {
+      logger.warn('collaboration.invite-failed', { code: error.code || 'invitation-invalid' });
+      return getCollaborationState(error.code || 'invitation-invalid');
+    }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {

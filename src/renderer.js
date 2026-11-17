@@ -10,6 +10,9 @@ let mediaAuditBusy = false;
 let mediaAuditReports = {};
 let mediaSearchReports = {};
 let syncBusy = false;
+let collaborationBusy = false;
+let collaborationProjectId = null;
+let currentCollaborationState = { available: false, members: [], invitations: [] };
 
 const scanRecovery = {
   'unsupported-format': 'Choose a .fcpxml file or .fcpxmld bundle exported from DaVinci Resolve.',
@@ -121,6 +124,11 @@ function renderAppState(state) {
     const notice = document.getElementById('file-notice');
     notice.textContent = scanRecovery[state.error] || 'The timeline scan failed. Try exporting it again from Resolve.';
     notice.hidden = false;
+  }
+  const nextCollaborationProject = state?.selectedProject?.id || null;
+  if (nextCollaborationProject !== collaborationProjectId) {
+    collaborationProjectId = nextCollaborationProject;
+    refreshCollaborationState();
   }
 }
 
@@ -298,6 +306,62 @@ async function runSyncAction(action, id) {
     renderSyncState(state);
   } catch { renderSyncState({ connected: false, operations: [] }); }
   finally { syncBusy = false; }
+}
+
+function renderCollaborationState(state) {
+  currentCollaborationState = state;
+  const form = document.getElementById('invite-form'); const list = document.getElementById('members-list');
+  const summary = document.getElementById('members-summary'); const notice = document.getElementById('invite-notice');
+  [...form.querySelectorAll('input, select, button')].forEach(control => {
+    control.disabled = collaborationBusy || !state?.available;
+  });
+  list.replaceChildren();
+  if (!state?.available) {
+    summary.textContent = 'Choose a project to manage collaborators';
+    list.append(make('p', 'members-empty', 'Project invitations become available after selecting a local FCPXML export.'));
+    notice.textContent = 'Invitations are recorded locally. This build does not send email.';
+    return;
+  }
+  const pending = state.invitations.filter(item => item.status === 'pending').length;
+  summary.textContent = `${state.members.length} active · ${pending} pending`;
+  state.members.forEach(member => {
+    const row = make('div', 'member-row');
+    row.append(make('span', 'member-avatar', member.displayName.slice(0, 1)), make('strong', '', member.displayName), make('span', '', member.role));
+    list.append(row);
+  });
+  state.invitations.forEach(invitation => {
+    const row = make('div', 'member-row pending');
+    row.append(make('span', 'member-avatar', invitation.email.slice(0, 1).toUpperCase()), make('strong', '', invitation.email),
+      make('span', '', `${invitation.role} · ${invitation.status}`));
+    list.append(row);
+  });
+  notice.textContent = state.error ? ({
+    'invitation-invalid': 'Enter a valid collaborator email.',
+    'invitation-exists': 'A pending invitation already exists for this email.',
+    'invitation-forbidden': 'Only the project owner can create editor or viewer invitations.'
+  })[state.error] || 'The invitation could not be created.'
+    : 'Invitations are recorded locally. This build does not send email.';
+}
+
+async function refreshCollaborationState() {
+  if (!window.desktop?.getCollaborationState) return renderCollaborationState({ available: false, members: [], invitations: [] });
+  try { renderCollaborationState(await window.desktop.getCollaborationState()); }
+  catch { renderCollaborationState({ available: false, members: [], invitations: [] }); }
+}
+
+async function inviteCollaborator(event) {
+  event.preventDefault(); if (collaborationBusy || !currentCollaborationState.available) return;
+  collaborationBusy = true; renderCollaborationState(currentCollaborationState);
+  const email = document.getElementById('invite-email'); const role = document.getElementById('invite-role');
+  try {
+    const state = await window.desktop.inviteCollaborator(email.value, role.value);
+    if (!state.error) email.value = '';
+    currentCollaborationState = state;
+  } catch {
+    currentCollaborationState = { ...currentCollaborationState, error: 'invitation-invalid' };
+  } finally {
+    collaborationBusy = false; renderCollaborationState(currentCollaborationState);
+  }
 }
 
 function renderRealHistory(revisions, selectedId) {
@@ -576,6 +640,7 @@ document.querySelectorAll('[data-mode]').forEach(button => button.addEventListen
 document.getElementById('choose-file').addEventListener('click', chooseFile);
 document.getElementById('rescan-project').addEventListener('click', rescanProject);
 document.getElementById('revision-form').addEventListener('submit', saveRevision);
+document.getElementById('invite-form').addEventListener('submit', inviteCollaborator);
 document.getElementById('branch-form').addEventListener('submit', event => {
   event.preventDefault();
   changeBranch(document.getElementById('branch-name').value, true);
@@ -599,6 +664,8 @@ document.getElementById('relink-action').addEventListener('click', async () => {
 });
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 window.desktop?.getSyncState?.().then(renderSyncState).catch(() => renderSyncState({ connected: false, operations: [] }));
+window.desktop?.getCollaborationState?.().then(renderCollaborationState)
+  .catch(() => renderCollaborationState({ available: false, members: [], invitations: [] }));
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && ['1', '2', '3'].includes(event.key)) {
     event.preventDefault();

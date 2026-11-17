@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('desktop', {
   getSyncState: () => ipcRenderer.invoke('sync:get-state'),
   retrySync: id => ipcRenderer.invoke('sync:retry', id),
   cancelSync: id => ipcRenderer.invoke('sync:cancel', id),
+  getCollaborationState: () => ipcRenderer.invoke('collaboration:get-state'),
+  inviteCollaborator: (email, role) => ipcRenderer.invoke('collaboration:invite', email, role),
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   rescanProject: () => ipcRenderer.invoke('project:rescan'),
   saveRevision: message => ipcRenderer.invoke('project:save-revision', message),

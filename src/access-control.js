@@ -1,6 +1,7 @@
 const { randomBytes, randomUUID, createHash } = require('node:crypto');
 
 const ROLES = Object.freeze(['owner', 'editor', 'viewer']);
+const COLLABORATOR_ROLES = Object.freeze(['editor', 'viewer']);
 const PERMISSIONS = Object.freeze({
   owner: new Set(['project:read', 'project:write', 'project:delete', 'members:read', 'members:write',
     'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write']),
@@ -23,14 +24,27 @@ function createAccessControl({ now = () => Date.now(), invitationTtlMs = 7 * 24 
     const normalized = String(email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw fail('invitation-invalid');
     const token = randomBytes(32).toString('base64url'); const id = randomUUID(); const expiresAt = now() + invitationTtlMs;
-    invitations.set(digest(token), { id, teamId, email: normalized, role, expiresAt, acceptedAt: null });
+    invitations.set(digest(token), { id, teamId, projectId: null, email: normalized, role, expiresAt, acceptedAt: null });
     return { id, token, expiresAt };
+  }
+  function inviteProject(actorId, projectId, email, role = 'editor') {
+    const project = projects.get(projectId); const normalized = String(email || '').trim().toLowerCase();
+    if (!project || project.roles.get(actorId) !== 'owner' || !COLLABORATOR_ROLES.includes(role)) throw fail('invitation-forbidden');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) throw fail('invitation-invalid');
+    const duplicate = [...invitations.values()].some(item => item.projectId === projectId && item.email === normalized
+      && !item.acceptedAt && item.expiresAt > now());
+    if (duplicate) throw fail('invitation-exists');
+    const token = randomBytes(32).toString('base64url'); const id = randomUUID(); const expiresAt = now() + invitationTtlMs;
+    invitations.set(digest(token), { id, teamId: project.teamId, projectId, email: normalized, role, expiresAt, acceptedAt: null });
+    return { id, token, expiresAt, projectId, role };
   }
   function acceptInvitation(token, userId, email) {
     const invitation = invitations.get(digest(String(token || ''))); const normalized = String(email || '').trim().toLowerCase();
     if (!invitation || invitation.acceptedAt || invitation.expiresAt <= now() || invitation.email !== normalized) throw fail('invitation-invalid');
-    teams.get(invitation.teamId).members.set(userId, invitation.role); invitation.acceptedAt = now();
-    return { teamId: invitation.teamId, role: invitation.role };
+    teams.get(invitation.teamId).members.set(userId, invitation.role);
+    if (invitation.projectId) projects.get(invitation.projectId).roles.set(userId, invitation.role);
+    invitation.acceptedAt = now();
+    return { teamId: invitation.teamId, projectId: invitation.projectId, role: invitation.role };
   }
   function registerProject(actorId, projectId, teamId) {
     const team = teams.get(teamId);
@@ -45,6 +59,17 @@ function createAccessControl({ now = () => Date.now(), invitationTtlMs = 7 * 24 
     project.roles.set(userId, role); return { projectId, userId, role };
   }
   function roleFor(userId, projectId) { return projects.get(projectId)?.roles.get(userId) || null; }
+  function listProjectMembers(actorId, projectId) {
+    authorize(actorId, { projectId, resource: 'members', action: 'read' });
+    return [...projects.get(projectId).roles.entries()].map(([userId, role]) => ({ userId, role }));
+  }
+  function listProjectInvitations(actorId, projectId) {
+    authorize(actorId, { projectId, resource: 'members', action: 'write' });
+    return [...invitations.values()].filter(item => item.projectId === projectId).map(item => ({
+      id: item.id, email: item.email, role: item.role, expiresAt: item.expiresAt,
+      status: item.acceptedAt ? 'accepted' : item.expiresAt <= now() ? 'expired' : 'pending'
+    })).sort((left, right) => left.expiresAt - right.expiresAt);
+  }
   function authorize(userId, { projectId, resource, action }) {
     if (!['project', 'members', 'revision', 'branch', 'asset'].includes(resource)
       || !['read', 'write', 'delete'].includes(action)) throw fail('authorization-request-invalid');
@@ -66,8 +91,8 @@ function createAccessControl({ now = () => Date.now(), invitationTtlMs = 7 * 24 
     for (const project of projects.values()) project.roles.delete(userId);
     return { removed: true };
   }
-  return { createTeam, invite, acceptInvitation, registerProject, setProjectRole, roleFor,
-    authorize, accountRemovalPlan, removeUser };
+  return { createTeam, invite, inviteProject, acceptInvitation, registerProject, setProjectRole, roleFor,
+    listProjectMembers, listProjectInvitations, authorize, accountRemovalPlan, removeUser };
 }
 
-module.exports = { ROLES, PERMISSIONS, createAccessControl };
+module.exports = { ROLES, COLLABORATOR_ROLES, PERMISSIONS, createAccessControl };

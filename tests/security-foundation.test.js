@@ -44,6 +44,30 @@ test('teams, invitations and project roles enforce every resource boundary', () 
   assert.throws(() => access.authorize('outsider', { projectId: 'project-1', resource: 'project', action: 'read' }), { code: 'forbidden' });
 });
 
+test('project invitations grant editor or viewer access without exposing tokens in listings', () => {
+  let clock = 1_000;
+  const access = createAccessControl({ now: () => clock, invitationTtlMs: 10_000 });
+  const owner = 'user-owner'; const editor = 'user-editor';
+  const team = access.createTeam(owner, 'Post team'); access.registerProject(owner, 'project-1', team.id);
+  const invitation = access.inviteProject(owner, 'project-1', 'Editor@example.com', 'editor');
+  assert.equal(invitation.role, 'editor');
+  assert.deepEqual(access.listProjectInvitations(owner, 'project-1'), [{
+    id: invitation.id, email: 'editor@example.com', role: 'editor', expiresAt: 11_000, status: 'pending'
+  }]);
+  assert.doesNotMatch(JSON.stringify(access.listProjectInvitations(owner, 'project-1')), new RegExp(invitation.token));
+  assert.throws(() => access.inviteProject(owner, 'project-1', 'editor@example.com', 'viewer'), { code: 'invitation-exists' });
+  access.acceptInvitation(invitation.token, editor, 'editor@example.com');
+  assert.equal(access.roleFor(editor, 'project-1'), 'editor');
+  assert.deepEqual(access.listProjectMembers(editor, 'project-1').find(item => item.userId === editor), { userId: editor, role: 'editor' });
+  assert.throws(() => access.inviteProject(editor, 'project-1', 'viewer@example.com', 'viewer'), { code: 'invitation-forbidden' });
+  assert.throws(() => access.listProjectInvitations(editor, 'project-1'), { code: 'forbidden' });
+
+  const viewer = access.inviteProject(owner, 'project-1', 'viewer@example.com', 'viewer');
+  clock = viewer.expiresAt;
+  assert.equal(access.listProjectInvitations(owner, 'project-1').find(item => item.id === viewer.id).status, 'expired');
+  assert.throws(() => access.acceptInvitation(viewer.token, 'user-viewer', 'viewer@example.com'), { code: 'invitation-invalid' });
+});
+
 test('authorized history wrapper checks writes, reads, assets, rate limits and audit trail', () => {
   const history = createCloudHistoryStore(); history.createProject({ projectId: 'project-1', name: 'Film' });
   const identity = createIdentityService(); const owner = identity.createAccount('owner@example.com', 'authorization password');
