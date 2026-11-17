@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createCaptureRequest, readCaptureResponse } = require('../src/resolve-companion-protocol');
+const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
 
 const fixture = path.join(__dirname, '../phase-0/resolve-xml-proof/live-mapping-before-schema3.json');
 const companion = path.join(__dirname, '../src/companion/resolve-internal.py');
@@ -38,6 +39,7 @@ test('private internal companion handoff validates exact request and Resolve sna
     includeSnapshot: true });
   assert.equal(withSnapshot.snapshot.project_id, read.manifest.projectId);
   assert.equal(withSnapshot.snapshotSha256, read.snapshotSha256);
+  assert.equal(createResolveRevisionManifest(withSnapshot.snapshot).sourceHash, read.snapshotSha256);
   await assert.rejects(readCaptureResponse({ directory, ...created, now: () => now + 300001 }),
     { code: 'resolve-companion-invalid' });
   const responseFile = path.join(directory, `${created.requestId}.response.json`);

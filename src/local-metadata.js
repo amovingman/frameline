@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
-const { validateScanManifest } = require('./scan-manifest');
+const { validateRevisionManifest } = require('./revision-manifest');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { validateTransferBundle, verifyRecord } = require('./revision-transfer');
 const { verifyFcpXmlSource } = require('./fcpxml-adapter');
@@ -9,6 +9,7 @@ const { verifyFcpXmlSource } = require('./fcpxml-adapter');
 const FILE_NAME = 'metadata.json';
 const BACKUP_NAME = 'metadata.json.bak';
 const branchNamePattern = /^[a-z0-9][a-z0-9._-]{0,39}$/;
+const projectKind = project => project.sourceKind || 'export';
 
 class MetadataError extends Error {
   constructor(code) {
@@ -33,6 +34,13 @@ function validateMetadata(value) {
       throw new MetadataError('metadata-invalid');
     }
     if (value.schemaVersion >= 3) {
+      if (project.sourceKind !== undefined && !['export', 'resolve-api'].includes(project.sourceKind)) throw new MetadataError('metadata-invalid');
+      if (projectKind(project) === 'resolve-api') {
+        if (typeof project.editorProjectId !== 'string' || !project.editorProjectId.trim()
+          || project.editorProjectId.length > 160 || /[\\/\x00-\x1f\x7f]/.test(project.editorProjectId)
+          || /^[a-z]:/i.test(project.editorProjectId)
+          || fingerprint !== createHash('sha256').update(`resolve-api:${project.editorProjectId}`).digest('hex')) throw new MetadataError('metadata-invalid');
+      } else if (project.editorProjectId !== undefined) throw new MetadataError('metadata-invalid');
       if (projectIds.has(project.id)) throw new MetadataError('metadata-invalid');
       projectIds.add(project.id);
       const byId = new Map(project.revisions.map(revision => [revision.id, revision]));
@@ -174,9 +182,29 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
     return transact(async (metadata, recovered) => {
       if (!metadata.projects[fingerprint]) {
-        metadata.projects[fingerprint] = { id: randomUUID(), revisions: [], branches: { main: null }, currentBranch: 'main', syncBases: { main: null } };
+        metadata.projects[fingerprint] = { id: randomUUID(), sourceKind: 'export', revisions: [], branches: { main: null }, currentBranch: 'main', syncBases: { main: null } };
         await writeMetadata(directory, metadata);
       }
+      if (projectKind(metadata.projects[fingerprint]) !== 'export') throw new MetadataError('metadata-invalid');
+      return { id: metadata.projects[fingerprint].id, recovered };
+    });
+  }
+
+  async function getResolveProjectId(resolveProjectId) {
+    if (typeof resolveProjectId !== 'string' || !resolveProjectId.trim() || resolveProjectId.length > 160
+      || /[\\/\x00-\x1f\x7f]/.test(resolveProjectId) || /^[a-z]:/i.test(resolveProjectId)) {
+      throw new MetadataError('metadata-project-invalid');
+    }
+    const fingerprint = createHash('sha256').update(`resolve-api:${resolveProjectId}`).digest('hex');
+    return transact(async (metadata, recovered) => {
+      if (!metadata.projects[fingerprint]) {
+        metadata.projects[fingerprint] = { id: randomUUID(), sourceKind: 'resolve-api', editorProjectId: resolveProjectId,
+          revisions: [], branches: { main: null },
+          currentBranch: 'main', syncBases: { main: null } };
+        await writeMetadata(directory, metadata);
+      }
+      if (projectKind(metadata.projects[fingerprint]) !== 'resolve-api'
+        || metadata.projects[fingerprint].editorProjectId !== resolveProjectId) throw new MetadataError('metadata-invalid');
       return { id: metadata.projects[fingerprint].id, recovered };
     });
   }
@@ -220,6 +248,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
       const candidates = [];
       for (const project of Object.values(metadata.projects)) {
         if (project.id === targetProjectId) continue;
+        if (projectKind(project) !== 'export') continue;
         const branch = project.currentBranch;
         const headId = project.branches[branch];
         const head = project.revisions.find(item => item.id === headId);
@@ -240,6 +269,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
       const target = metadata.projects[targetFingerprint];
       const sourceEntry = Object.entries(metadata.projects).find(([, project]) => project.id === sourceProjectId);
       if (!target || target.id !== targetProjectId || !sourceEntry || targetProjectId === sourceProjectId
+        || projectKind(target) !== 'export' || projectKind(sourceEntry[1]) !== 'export'
         || target.revisions.length || Object.keys(target.branches).length !== 1
         || target.branches.main !== null || target.currentBranch !== 'main') throw new MetadataError('relink-unavailable');
       const [sourceFingerprint, source] = sourceEntry;
@@ -314,17 +344,22 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
 
   function saveRevision(projectId, manifest, message, expectedHeadId = null, branchName = 'main') {
     return transact(async metadata => {
-      if (typeof message !== 'string' || !message.trim() || message.length > 120) throw new MetadataError('revision-message-invalid');
-      validateScanManifest(manifest);
+      if (typeof message !== 'string' || !message.trim() || message.length > 120
+        || /[\\/\x00-\x1f\x7f]/.test(message) || /^[a-z]:/i.test(message)) throw new MetadataError('revision-message-invalid');
+      validateRevisionManifest(manifest);
       const project = Object.values(metadata.projects).find(item => item.id === projectId);
       if (!project) throw new MetadataError('metadata-project-missing');
+      const resolveApi = manifest.format === 'resolve-api-observation';
+      if (projectKind(project) !== (resolveApi ? 'resolve-api' : 'export')
+        || (resolveApi && project.editorProjectId !== manifest.snapshot.project_id)) throw new MetadataError('metadata-project-invalid');
       if (!Object.hasOwn(project.branches, branchName) || project.currentBranch !== branchName) throw new MetadataError('branch-not-found');
       const parentRevisionId = project.branches[branchName];
       if (parentRevisionId !== expectedHeadId) throw new MetadataError('revision-head-changed');
       const revision = {
         id: randomUUID(), projectId, parentRevisionId, author: 'Local editor',
         createdAt: new Date().toISOString(), message,
-        editorVersion: null, manifestVersion: manifest.schemaVersion,
+        editorVersion: manifest.format === 'resolve-api-observation' ? manifest.snapshot.resolve_version : null,
+        manifestVersion: manifest.schemaVersion,
         contentHash: manifest.sourceHash, manifest
       };
       const folder = path.join(directory, 'revisions', projectId);
@@ -354,10 +389,13 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
       catch { throw new MetadataError('revision-corrupt'); }
       if (summary.recordHash && createHash('sha256').update(bytes).digest('hex') !== summary.recordHash) throw new MetadataError('revision-corrupt');
       let revision;
-      try { revision = JSON.parse(bytes.toString('utf8')); validateScanManifest(revision.manifest); }
+      try { revision = JSON.parse(bytes.toString('utf8')); validateRevisionManifest(revision.manifest); }
       catch { throw new MetadataError('revision-corrupt'); }
       const fields = ['id', 'projectId', 'parentRevisionId', 'author', 'createdAt', 'message', 'editorVersion', 'manifestVersion', 'contentHash'];
-      if (fields.some(field => revision[field] !== summary[field]) || revision.contentHash !== revision.manifest.sourceHash
+      if (projectKind(project) !== (revision.manifest.format === 'resolve-api-observation' ? 'resolve-api' : 'export')
+        || (projectKind(project) === 'resolve-api' && project.editorProjectId !== revision.manifest.snapshot.project_id)
+        || fields.some(field => revision[field] !== summary[field]) || revision.contentHash !== revision.manifest.sourceHash
+        || revision.editorVersion !== (revision.manifest.format === 'resolve-api-observation' ? revision.manifest.snapshot.resolve_version : null)
         || revision.manifestVersion !== revision.manifest.schemaVersion) throw new MetadataError('revision-corrupt');
       return structuredClone(revision);
     });
@@ -374,9 +412,15 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
         catch { throw new MetadataError('revision-corrupt'); }
         try { verifyRecord(summary, bytes); }
         catch { throw new MetadataError('revision-corrupt'); }
+        const record = JSON.parse(bytes);
+        if (projectKind(project) !== (record.manifest.format === 'resolve-api-observation' ? 'resolve-api' : 'export')
+          || (projectKind(project) === 'resolve-api' && project.editorProjectId !== record.manifest.snapshot.project_id)) {
+          throw new MetadataError('revision-corrupt');
+        }
         records.push({ summary, bytes });
       }
-      const bundle = { format: 'frameline-revisions', version: 1, projectId, branches: project.branches, records };
+      const bundle = { format: 'frameline-revisions', version: projectKind(project) === 'resolve-api' ? 2 : 1,
+        projectId, branches: project.branches, records };
       try { validateTransferBundle(bundle); }
       catch { throw new MetadataError('revision-corrupt'); }
       return structuredClone(bundle);
@@ -388,6 +432,10 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
       const incoming = validateTransferBundle(bundle);
       const project = Object.values(metadata.projects).find(item => item.id === projectId);
       if (!project) throw new MetadataError('metadata-project-missing');
+      if ([...incoming.values()].some(record => projectKind(project) !== (record.manifest.format === 'resolve-api-observation' ? 'resolve-api' : 'export')
+        || (projectKind(project) === 'resolve-api' && project.editorProjectId !== record.manifest.snapshot.project_id))) {
+        throw new MetadataError('metadata-project-invalid');
+      }
       const ids = new Map([...incoming.keys()].map(id => [id, randomUUID()]));
       const newRecords = [];
       for (const record of incoming.values()) {
@@ -423,7 +471,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  return { getProjectId, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
+  return { getProjectId, getResolveProjectId, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

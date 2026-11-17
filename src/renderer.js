@@ -951,6 +951,7 @@ document.getElementById('resolve-companion-form').addEventListener('submit', asy
   const status = document.getElementById('resolve-companion-status');
   const read = document.getElementById('resolve-companion-read');
   document.getElementById('resolve-companion-save').disabled = true;
+  document.getElementById('resolve-companion-revision').disabled = true;
   read.disabled = true;
   status.textContent = 'Preparing a private capture request…';
   try {
@@ -965,13 +966,31 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
   if (companionBusy) return;
   companionBusy = true;
   const status = document.getElementById('resolve-companion-status');
+  document.getElementById('resolve-companion-save').disabled = true;
+  document.getElementById('resolve-companion-revision').disabled = true;
   status.textContent = 'Verifying the capture…';
   try {
     const result = await window.desktop.readResolveCapture();
     if (!result?.ready) throw new Error(result?.error || 'No valid capture is ready.');
     document.getElementById('resolve-companion-save').disabled = false;
+    document.getElementById('resolve-companion-revision').disabled = false;
     status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Save it as JSON, then choose it for the three snapshot preview. SHA-256: ${result.snapshotSha256}.`;
   } catch (error) { status.textContent = error.message || 'Could not read the capture.'; }
+  finally { companionBusy = false; }
+});
+document.getElementById('resolve-companion-revision-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (companionBusy) return;
+  companionBusy = true;
+  const status = document.getElementById('resolve-companion-status');
+  status.textContent = 'Saving the verified observation…';
+  try {
+    const result = await window.desktop.saveResolveCaptureRevision(document.getElementById('resolve-companion-message').value);
+    if (result?.unchanged) { status.textContent = result.message; return; }
+    if (!result?.saved) throw new Error(result?.error || 'Could not save the observation.');
+    status.textContent = `Read-only observation saved on ${result.branch}: revision ${result.revisionId}${result.changeCount === null ? '' : ` · ${result.changeCount} observed field changes`}. The Resolve project was not changed.`;
+    document.getElementById('resolve-companion-message').value = '';
+  } catch (error) { status.textContent = error.message || 'Could not save the observation.'; }
   finally { companionBusy = false; }
 });
 document.getElementById('resolve-companion-save').addEventListener('click', async () => {

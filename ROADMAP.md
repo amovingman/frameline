@@ -95,11 +95,12 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
 - [x] Provide local revision export/import for backup and transfer before cloud sync exists.
+- [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. Live Console capture, branch browsing, and apply remain open.
 
 ### 1.4 Change detection and comparison
 - [ ] Match objects using stable IDs, not names or timeline positions alone. The audit confirms five retained API IDs in one project; FCPXML pairing remains candidate-only.
 - [ ] Compare additions, deletions, and property changes at the smallest safe level. A new read-only paired-export diagnostic joins API-ID field differences to exact-source XML candidate positions and drops those positions on ambiguity; unrepresented constructs and durable revision comparison remain open.
-- [ ] Normalize equivalent values so unchanged edits do not appear as differences.
+- [ ] Normalize equivalent values so unchanged edits do not appear as differences. The read-only Resolve observation history now treats reordered timelines, tracks, items, and links as unchanged; integrated project diffs across all supported values remain open.
 - [ ] Present sequence, track, clip, timecode, property, and before/after values.
 - [ ] Filter and group changes by sequence, track, status, and change type.
 - [ ] Add tests for no-op, same change on both sides, independent edits, rename, and reorder.

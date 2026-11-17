@@ -1,5 +1,5 @@
 const { createHash } = require('node:crypto');
-const { validateScanManifest } = require('./scan-manifest');
+const { validateRevisionManifest } = require('./revision-manifest');
 
 const uuidPattern = /^[a-f0-9-]{36}$/;
 const branchPattern = /^[a-z0-9][a-z0-9._-]{0,39}$/;
@@ -15,11 +15,12 @@ function verifyRecord(summary, bytes) {
   if (!summary || typeof summary !== 'object' || typeof bytes !== 'string'
     || (summary.recordHash && createHash('sha256').update(bytes).digest('hex') !== summary.recordHash)) throw transferError();
   let record;
-  try { record = JSON.parse(bytes); validateScanManifest(record.manifest); }
+  try { record = JSON.parse(bytes); validateRevisionManifest(record.manifest); }
   catch { throw transferError(); }
   if (fields.some(field => record[field] !== summary[field])
     || !pathFreeText(record.author) || !pathFreeText(record.message)
     || record.contentHash !== record.manifest.sourceHash
+    || record.editorVersion !== (record.manifest.format === 'resolve-api-observation' ? record.manifest.snapshot.resolve_version : null)
     || record.manifestVersion !== record.manifest.schemaVersion
     || !uuidPattern.test(record.id) || !uuidPattern.test(record.projectId)
     || (record.parentRevisionId !== null && !uuidPattern.test(record.parentRevisionId))) throw transferError();
@@ -28,13 +29,14 @@ function verifyRecord(summary, bytes) {
 
 function validateTransferBundle(bundle) {
   if (!bundle || typeof bundle !== 'object' || Array.isArray(bundle) || bundle.format !== 'frameline-revisions'
-    || bundle.version !== 1 || !uuidPattern.test(bundle.projectId) || !Array.isArray(bundle.records)
+    || ![1, 2].includes(bundle.version) || !uuidPattern.test(bundle.projectId) || !Array.isArray(bundle.records)
     || !bundle.branches || typeof bundle.branches !== 'object' || Array.isArray(bundle.branches)
     || !Object.keys(bundle.branches).length || !Object.hasOwn(bundle.branches, 'main')) throw transferError();
   const records = new Map();
   for (const entry of bundle.records) {
     if (!entry || typeof entry !== 'object') throw transferError();
     const record = verifyRecord(entry.summary, entry.bytes);
+    if (bundle.version === 1 && record.manifest.format === 'resolve-api-observation') throw transferError();
     if (record.projectId !== bundle.projectId || records.has(record.id)) throw transferError();
     records.set(record.id, record);
   }

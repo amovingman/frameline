@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('desktop', {
   prepareResolveCapture: projectName => ipcRenderer.invoke('resolve-companion:prepare', projectName),
   readResolveCapture: () => ipcRenderer.invoke('resolve-companion:read'),
   saveResolveCapture: () => ipcRenderer.invoke('resolve-companion:save-snapshot'),
+  saveResolveCaptureRevision: message => ipcRenderer.invoke('resolve-companion:save-revision', message),
   chooseResolveSnapshots: () => ipcRenderer.invoke('resolve:choose-snapshots'),
   refreshResolvePreview: () => ipcRenderer.invoke('resolve:refresh-preview'),
   saveResolvePreview: () => ipcRenderer.invoke('resolve:save-preview'),

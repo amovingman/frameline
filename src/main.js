@@ -4,6 +4,8 @@ const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
+const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
+const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
@@ -34,6 +36,7 @@ let resolveExportError = null;
 let resolveExportLocalHash = null;
 let companionPending = null;
 let companionVerifiedSnapshot = null;
+let localMetadataStore;
 let verifiedCopyPath = null;
 let verifiedCopySourcePath = null;
 let verifiedCopyHash = null;
@@ -158,8 +161,9 @@ function createWindow() {
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   adapterMetrics = createAdapterMetrics();
+  localMetadataStore = createLocalMetadataStore(app.getPath('userData'));
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
-    scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, createLocalMetadataStore(app.getPath('userData')));
+    scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, localMetadataStore);
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   collaborationAccess = createAccessControl();
   collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
@@ -255,6 +259,32 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } catch (error) {
       logger.warn('resolve.companion-save-failed', { code: error.code || 'resolve-companion-save-failed' });
       return { saved: false, error: 'Could not save the snapshot. Choose a new filename and try again.' };
+    }
+  });
+  ipcMain.handle('resolve-companion:save-revision', async (_event, message) => {
+    const verified = companionVerifiedSnapshot;
+    if (!verified) return { saved: false, error: 'Verify a capture before saving a revision.' };
+    try {
+      const manifest = createResolveRevisionManifest(verified.snapshot);
+      if (typeof message !== 'string' || !message.trim() || message.trim().length > 120
+        || /[\\/\x00-\x1f\x7f]/.test(message) || /^[a-z]:/i.test(message)) {
+        return { saved: false, error: 'Enter a revision message of 1 to 120 characters.' };
+      }
+      const project = await localMetadataStore.getResolveProjectId(manifest.snapshot.project_id);
+      const branch = (await localMetadataStore.getBranchState(project.id)).currentBranch;
+      const revisions = await localMetadataStore.listRevisions(project.id, branch);
+      const parent = revisions[0] ? await localMetadataStore.getRevision(project.id, revisions[0].id) : null;
+      const comparison = parent ? compareResolveRevisionManifests(parent.manifest, manifest) : null;
+      if (comparison && comparison.changes.length === 0) {
+        return { saved: false, unchanged: true, branch, message: 'No observed fields changed from the branch head.' };
+      }
+      const revision = await localMetadataStore.saveRevision(project.id, manifest, message.trim(), revisions[0]?.id || null, branch);
+      return { saved: true, revisionId: revision.id, branch,
+        contentHash: revision.contentHash, changeCount: comparison?.changes.length ?? null,
+        readOnly: true, safeToApply: false };
+    } catch (error) {
+      logger.warn('resolve.companion-revision-failed', { code: error.code || 'resolve-companion-revision-failed' });
+      return { saved: false, error: 'Could not save the observation. Refresh history and retry.' };
     }
   });
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
