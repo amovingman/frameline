@@ -945,19 +945,6 @@ async function resolveAction(method, ...args) {
 document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
 let companionBusy = false;
 let verifiedResolveCaptureAvailable = false;
-document.getElementById('resolve-companion-menu-install').addEventListener('click', async event => {
-  event.target.disabled = true;
-  const status = document.getElementById('resolve-companion-menu-status');
-  status.textContent = 'Installing the read-only Scripts menu command…';
-  try {
-    const result = await window.desktop.installResolveMenuCapture();
-    if (!result?.ready) throw new Error(result?.error || 'Could not install the menu command.');
-    status.textContent = result.installed
-      ? 'Installed. Save the disposable project and restart Resolve once; then prepare a capture request and choose Workspace → Scripts → Utility → Frameline Read Only Capture.'
-      : 'Already installed. Prepare a capture request and choose Workspace → Scripts → Utility → Frameline Read Only Capture.';
-  } catch (error) { status.textContent = error.message || 'Could not install the menu command.'; }
-  finally { event.target.disabled = false; }
-});
 document.getElementById('resolve-companion-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (companionBusy) return;
@@ -973,7 +960,7 @@ document.getElementById('resolve-companion-form').addEventListener('submit', asy
     const result = await window.desktop.prepareResolveCapture(document.getElementById('resolve-companion-name').value);
     if (!result?.ready) throw new Error(result?.error || 'Could not prepare a capture.');
     read.disabled = false;
-    status.textContent = `Request prepared. Paste the command into Resolve’s Python Console or run the installed Scripts menu command, then return within ${result.expiresMinutes} minutes and select Read capture.`;
+    status.textContent = `Command copied. Paste it into Resolve’s Lua Console and press Return. Click the output, press Cmd+A and Cmd+C, then return within ${result.expiresMinutes} minutes and select Read copied result.`;
   } catch (error) { status.textContent = error.message || 'Could not prepare a capture.'; }
   finally { companionBusy = false; refreshResolveHistory(); }
 });

@@ -7,6 +7,7 @@ const manifest = require(path.join(root, 'package.json'));
 if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) throw new Error('Package manifest is not release-ready');
 const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
   'src/companion/resolve-internal.py', 'src/companion/resolve_snapshot.py',
+  'src/companion/resolve-internal.lua', 'src/resolve-menu-companion.js',
   'src/assets/fonts/ibm-plex-sans-latin-400-normal.woff2', 'src/assets/visuals/mountain-alps.jpg'];
 for (const file of requiredFiles) {
   if (!fs.statSync(path.join(root, file)).isFile()) throw new Error(`Missing packaged file: ${file}`);

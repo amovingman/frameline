@@ -64,4 +64,20 @@ async function activateResolveMenuRequest({ pointerPath, requestFile, requestsDi
   return pointerPath;
 }
 
-module.exports = { installResolveMenuCompanion, activateResolveMenuRequest };
+function createLuaCaptureCommand({ luaScriptPath, luaSource, request, expectedProjectName } = {}) {
+  if (typeof luaScriptPath !== 'string' || !path.isAbsolute(luaScriptPath)
+    || typeof luaSource !== 'string' || !luaSource.includes('return { capture_request = capture_request }')
+    || !request || typeof request.requestFile !== 'string' || !path.isAbsolute(request.requestFile)
+    || path.dirname(request.requestFile) !== path.join(path.dirname(luaScriptPath), 'requests')
+    || path.basename(request.requestFile) !== `${request.requestId}.request.json`
+    || !/^[a-f0-9]{32}$/.test(request.requestId || '')
+    || !/^[a-f0-9]{64}$/.test(request.requestSha256 || '')
+    || !Number.isSafeInteger(request.expiresAt) || request.expiresAt < 0
+    || typeof expectedProjectName !== 'string' || !expectedProjectName.trim()
+    || /[\\/\x00-\x1f\x7f]/.test(expectedProjectName)) fail();
+  const oneLineSource = luaSource.split('\n').filter(line => !/^\s*--/.test(line)).join(' ');
+  return `local ok,err=pcall(function() local companion=(function() ${oneLineSource} end)(); companion.capture_request(resolve, ${JSON.stringify(request.requestId)}, ${JSON.stringify(request.requestSha256)}, ${JSON.stringify(expectedProjectName)}, ${request.expiresAt}) end); if not ok then print('FRAMELINE_CAPTURE_ERROR_V1:'..tostring(err)) end`;
+}
+
+module.exports = { installResolveMenuCompanion, activateResolveMenuRequest,
+  createLuaCaptureCommand };

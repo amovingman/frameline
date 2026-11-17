@@ -14,7 +14,7 @@ const { createResolveReviewSession } = require('./resolve-review-session');
 const { prepareReviewCopySession } = require('./review-copy-session');
 const { compareResolveSnapshotToExport } = require('./resolve-export-candidates');
 const { installResolveCompanion } = require('./resolve-companion-install');
-const { installResolveMenuCompanion, activateResolveMenuRequest } = require('./resolve-menu-companion');
+const { createLuaCaptureCommand } = require('./resolve-menu-companion');
 const { createCaptureRequest, readCaptureResponse } = require('./resolve-companion-protocol');
 const { verifyReviewCopy } = require('./review-copy-verifier');
 const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
@@ -236,10 +236,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         bundledDirectory: path.join(__dirname, 'companion'),
         dataDirectory: path.join(app.getPath('userData'), 'resolve-companion')
       });
-      const request = await createCaptureRequest({ directory: installed.requestsDirectory, expectedProjectName });
-      await activateResolveMenuRequest({ pointerPath: path.join(path.dirname(installed.scriptPath), 'active-request.txt'),
-        requestFile: request.requestFile, requestsDirectory: installed.requestsDirectory });
-      const command = `import runpy; bridge = runpy.run_path(${JSON.stringify(installed.scriptPath)}); bridge['capture_request'](resolve, ${JSON.stringify(request.requestFile)})`;
+      const request = await createCaptureRequest({ directory: installed.requestsDirectory,
+        expectedProjectName });
+      const command = createLuaCaptureCommand({ luaScriptPath: installed.luaScriptPath,
+        luaSource: await fs.readFile(installed.luaScriptPath, 'utf8'), request, expectedProjectName });
       clipboard.writeText(command);
       companionPending = { directory: installed.requestsDirectory,
         requestId: request.requestId, requestSha256: request.requestSha256 };
@@ -249,28 +249,21 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { ready: false, error: 'Could not prepare a capture. Check the exact project name and try again.' };
     }
   });
-  ipcMain.handle('resolve-companion:install-menu', async () => {
-    if (process.platform !== 'darwin') return { ready: false, error: 'The Scripts menu companion is available for this macOS target only.' };
-    try {
-      const installed = await installResolveCompanion({
-        bundledDirectory: path.join(__dirname, 'companion'),
-        dataDirectory: path.join(app.getPath('userData'), 'resolve-companion')
-      });
-      const menu = await installResolveMenuCompanion({
-        scriptsDirectory: path.join(app.getPath('home'), 'Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts'),
-        scriptPath: installed.scriptPath,
-        pointerPath: path.join(path.dirname(installed.scriptPath), 'active-request.txt')
-      });
-      return { ready: true, installed: menu.installed, menuName: menu.menuName };
-    } catch (error) {
-      logger.warn('resolve.companion-menu-install-failed', { code: error.code || 'resolve-menu-companion-invalid' });
-      return { ready: false, error: 'Could not install the Scripts menu companion. Check folder permissions and any existing Frameline script.' };
-    }
-  });
   ipcMain.handle('resolve-companion:read', async () => {
     if (!companionPending) return { ready: false, error: 'Prepare a new capture first.' };
     try {
-      const result = await readCaptureResponse({ ...companionPending, includeSnapshot: true });
+      const copied = clipboard.readText();
+      const marker = 'FRAMELINE_CAPTURE_RESULT_V1:';
+      const lines = copied.split(/\r?\n/);
+      const failure = lines.findLast(line => line.startsWith('FRAMELINE_CAPTURE_ERROR_V1:'));
+      if (failure?.includes('Capture exceeds Console transfer limit')) {
+        companionVerifiedSnapshot = null;
+        return { ready: false, error: 'This project is too large for the experimental Console handoff. Use a smaller disposable project.' };
+      }
+      const resultLine = lines.findLast(line => line.startsWith(marker));
+      const responseText = resultLine ? resultLine.slice(marker.length) : '';
+      const result = await readCaptureResponse({ ...companionPending,
+        responseText, includeSnapshot: true });
       companionVerifiedSnapshot = { snapshot: result.snapshot, snapshotSha256: result.snapshotSha256 };
       return { ready: true, requestId: result.requestId, projectId: result.manifest.projectId,
         timelineCount: result.manifest.timelines.length,
@@ -279,7 +272,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } catch (error) {
       companionVerifiedSnapshot = null;
       logger.warn('resolve.companion-read-failed', { code: error.code || 'resolve-companion-error' });
-      return { ready: false, error: 'No valid capture is ready. Run the copied command in Resolve’s Python Console, then retry within five minutes.' };
+      return { ready: false, error: 'No valid capture is ready. Copy the output from Resolve’s Lua Console, then retry within five minutes.' };
     }
   });
   ipcMain.handle('resolve-companion:save-snapshot', async () => {

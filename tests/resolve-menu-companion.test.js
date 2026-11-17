@@ -7,7 +7,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { installResolveCompanion } = require('../src/resolve-companion-install');
 const { createCaptureRequest, readCaptureResponse } = require('../src/resolve-companion-protocol');
-const { installResolveMenuCompanion, activateResolveMenuRequest } = require('../src/resolve-menu-companion');
+const { installResolveMenuCompanion, activateResolveMenuRequest,
+  createLuaCaptureCommand } = require('../src/resolve-menu-companion');
 
 const fixture = path.join(__dirname, '..', 'phase-0/resolve-xml-proof/live-mapping-before-schema3.json');
 const projectName = 'Frameline API Relink Test';
@@ -58,5 +59,28 @@ test('Scripts menu command runs only the active private read-only request', asyn
   await fs.writeFile(menuPath, 'changed');
   await assert.rejects(installResolveMenuCompanion({ scriptsDirectory,
     scriptPath: installed.scriptPath, pointerPath }),
+  { code: 'resolve-menu-companion-invalid' });
+});
+
+test('Lua Console command embeds only the matching private request and prints a marked result', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-lua-companion-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const installed = await installResolveCompanion({
+    bundledDirectory: path.join(__dirname, '..', 'src/companion'),
+    dataDirectory: path.join(root, 'private')
+  });
+  const first = await createCaptureRequest({ directory: installed.requestsDirectory,
+    expectedProjectName: projectName });
+  const luaSource = await fs.readFile(installed.luaScriptPath, 'utf8');
+  const command = createLuaCaptureCommand({ luaScriptPath: installed.luaScriptPath,
+    luaSource, request: first,
+    expectedProjectName: projectName });
+  assert.equal(command.includes('\n'), false);
+  assert.match(command, /FRAMELINE_CAPTURE_RESULT_V1:/);
+  assert.match(command, new RegExp(first.requestId));
+  assert.doesNotMatch(command, /\bio\.open\b|\bdofile\b|SetClipboard/);
+  assert.throws(() => createLuaCaptureCommand({ luaScriptPath: installed.luaScriptPath,
+    luaSource, request: { ...first,
+      requestFile: path.join(root, 'other.request.json') }, expectedProjectName: projectName }),
   { code: 'resolve-menu-companion-invalid' });
 });

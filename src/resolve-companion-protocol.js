@@ -42,8 +42,8 @@ async function readPrivateFile(filename) {
   finally { await handle?.close(); }
 }
 
-// The main process prepares a private, time-limited request. The user runs the
-// companion in Resolve's internal Python console; no external API is required.
+// The main process prepares a private, time-limited request for Resolve's
+// internal Console; no external API connection is required.
 async function createCaptureRequest({ directory, expectedProjectName, now = () => Date.now() } = {}) {
   const root = await privateDirectory(directory);
   if (!projectName(expectedProjectName)) fail();
@@ -57,10 +57,12 @@ async function createCaptureRequest({ directory, expectedProjectName, now = () =
   const filename = path.join(root, `${requestId}.request.json`);
   try { await fs.writeFile(filename, bytes, { flag: 'wx', mode: 0o600 }); }
   catch { fail(); }
-  return { requestId, requestSha256: sha(bytes), requestFile: filename };
+  return { requestId, requestSha256: sha(bytes), requestFile: filename,
+    expiresAt: request.expiresAt };
 }
 
-async function readCaptureResponse({ directory, requestId, requestSha256, now = () => Date.now(), includeSnapshot = false } = {}) {
+async function readCaptureResponse({ directory, requestId, requestSha256, now = () => Date.now(),
+  includeSnapshot = false, responseText } = {}) {
   const root = await privateDirectory(directory);
   if (!ID.test(requestId || '') || !SHA.test(requestSha256 || '')) fail();
   const requestBytes = await readPrivateFile(path.join(root, `${requestId}.request.json`));
@@ -68,7 +70,10 @@ async function readCaptureResponse({ directory, requestId, requestSha256, now = 
   let request, response;
   try {
     request = JSON.parse(requestBytes);
-    response = JSON.parse(await readPrivateFile(path.join(root, `${requestId}.response.json`)));
+    if (responseText !== undefined && (typeof responseText !== 'string'
+      || Buffer.byteLength(responseText) < 1 || Buffer.byteLength(responseText) > MAX_BYTES)) fail();
+    response = JSON.parse(responseText === undefined
+      ? await readPrivateFile(path.join(root, `${requestId}.response.json`)) : responseText);
   } catch { fail(); }
   const checkedAt = now();
   if (!exactKeys(request, ['schemaVersion', 'operation', 'requestId', 'createdAt', 'expiresAt', 'expectedProjectName'])

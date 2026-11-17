@@ -44,10 +44,15 @@ test('private internal companion handoff validates exact request and Resolve sna
     { code: 'resolve-companion-invalid' });
   const responseFile = path.join(directory, `${created.requestId}.response.json`);
   const response = JSON.parse(await fs.readFile(responseFile, 'utf8'));
+  const clipboardRead = await readCaptureResponse({ directory, ...created, now: () => now + 1000,
+    responseText: JSON.stringify(response) });
+  assert.equal(clipboardRead.snapshotSha256, read.snapshotSha256);
   response.requestSha256 = '0'.repeat(64);
   await fs.writeFile(responseFile, JSON.stringify(response));
   await assert.rejects(readCaptureResponse({ directory, ...created, now: () => now + 1000 }),
     { code: 'resolve-companion-invalid' });
+  await assert.rejects(readCaptureResponse({ directory, ...created, now: () => now + 1000,
+    responseText: JSON.stringify(response) }), { code: 'resolve-companion-invalid' });
 });
 
 test('internal companion refuses a different open project before writing', async t => {

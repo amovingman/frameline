@@ -4,7 +4,7 @@ const path = require('node:path');
 const { constants } = require('node:fs');
 const { createHash } = require('node:crypto');
 
-const FILES = ['resolve-internal.py', 'resolve_snapshot.py'];
+const FILES = ['resolve-internal.py', 'resolve_snapshot.py', 'resolve-internal.lua'];
 function fail() { const error = new Error('resolve-companion-install-invalid'); error.code = 'resolve-companion-install-invalid'; throw error; }
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 async function privateDirectory(directory) {
@@ -38,7 +38,7 @@ async function installResolveCompanion({ bundledDirectory, dataDirectory } = {})
     catch (error) { if (error.code !== 'EEXIST') fail(); await verifyExisting(filename, sources[index]); }
   }
   const requestsDirectory = await privateDirectory(path.join(version, 'requests'));
-  return { scriptPath: path.join(version, FILES[0]), requestsDirectory,
+  return { scriptPath: path.join(version, FILES[0]), luaScriptPath: path.join(version, FILES[2]), requestsDirectory,
     packageSha256: packageHash };
 }
 
