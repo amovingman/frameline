@@ -221,11 +221,11 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Encrypt assets at rest and protect signed download/upload URLs. The reference service uses AES-256-GCM chunks and method-bound, expiring HMAC URLs; hosted key management and HTTP redemption remain open. See `ASSET_SERVICE_FOUNDATION.md`.
 
 ### 4.2 Media availability and storage policy
-- [ ] Distinguish cloud-present, collaborator-only, local-only, missing, excluded, and archived media.
-- [ ] Let projects configure which asset classes sync.
-- [ ] Download only assets required for a selected revision or pull.
-- [ ] Support proxies and relinking without confusing them with camera originals.
-- [ ] Explain storage use before upload and show per-project usage.
+- [ ] Distinguish cloud-present, collaborator-only, local-only, missing, excluded, and archived media. A path-free local classifier now preserves explicit evidence; hosted state and desktop display remain open.
+- [ ] Let projects configure which asset classes sync. A per-project policy model now defaults to no classes and validates authorized changes; durable hosted settings and desktop controls remain open.
+- [ ] Download only assets required for a selected revision or pull. A reference executor rechecks authoritative revision assets, downloads required chunks only, and verifies final hashes; canonical manifest integration and hosted transfer remain open.
+- [ ] Support proxies and relinking without confusing them with camera originals. Class- and hash-verified relink decisions now reject proxy substitution; editor project rewriting remains open.
+- [ ] Explain storage use before upload and show per-project usage. A path-free estimate and local project usage report now count upload, reuse, exclusion, logical, and exclusive bytes; desktop presentation and hosted accounting remain open. See `MEDIA_POLICY_FOUNDATION.md`.
 - [ ] Add retention, deletion, and garbage-collection rules that preserve assets referenced by retained revisions.
 - [ ] Provide export and deletion reports for project owners.
 

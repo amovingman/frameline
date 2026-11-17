@@ -160,6 +160,17 @@ function createContentAssetService({ directory, namespaceId, keyring, urlSecret,
     onProgress({ direction: 'download', projectId, assetId, receivedBytes: bytes.length, totalBytes: asset.size, index });
     return { bytes, checksum: asset.hashes[index], chunks: asset.chunks, totalBytes: asset.size };
   }
+  async function storageUsage(projectId) {
+    checkProject(projectId, 'read');
+    const assets = Object.values((await state()).assets).filter(asset => asset.projects.includes(projectId));
+    return { projectId, assetCount: assets.length, logicalBytes: assets.reduce((sum, asset) => sum + asset.size, 0),
+      exclusiveBytes: assets.filter(asset => asset.projects.length === 1).reduce((sum, asset) => sum + asset.size, 0) };
+  }
+  async function hasContent(projectId, assetId) {
+    checkProject(projectId, 'write');
+    const hash = parseIdentity({ version: 1, algorithm: 'sha256', contentId: assetId, size: 0 });
+    return !!(await state()).assets[hash];
+  }
   function signedUrl({ projectId, assetId, method, expiresAt }) {
     checkProject(projectId, method === 'GET' ? 'read' : 'write');
     if (!['GET', 'PUT'].includes(method) || typeof assetId !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(assetId)
@@ -184,7 +195,8 @@ function createContentAssetService({ directory, namespaceId, keyring, urlSecret,
     checkProject(projectId, method === 'GET' ? 'read' : 'write');
     return { projectId, assetId, method, expiresAt };
   }
-  return { beginUpload, putChunk, uploadStatus, completeUpload, readChunk, signedUrl, verifySignedUrl };
+  return { beginUpload, putChunk, uploadStatus, completeUpload, readChunk,
+    storageUsage, hasContent, signedUrl, verifySignedUrl };
 }
 
 module.exports = { createContentAssetService };
