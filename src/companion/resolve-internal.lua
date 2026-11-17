@@ -128,8 +128,28 @@ local function capture_request(resolve, request_id, request_sha, expected_name, 
   local snapshot = capture(resolve)
   local response = encode({ schemaVersion = 1, operation = 'capture-result',
     requestId = request_id, requestSha256 = request_sha, snapshot = snapshot })
-  if #response > 16384 then error('Capture exceeds Console transfer limit') end
-  print('FRAMELINE_CAPTURE_RESULT_V1:' .. response)
+  if #response > 20 * 1024 * 1024 then error('Capture exceeds Frameline transfer limit') end
+  if #response <= 16384 then
+    FRAMELINE_CAPTURE_BUFFER_V1 = nil
+    print('FRAMELINE_CAPTURE_RESULT_V1:' .. response)
+  else
+    local chunks = {}
+    local position = 1
+    while position <= #response do
+      local last = math.min(position + 8191, #response)
+      while last < #response do
+        local next_byte = response:byte(last + 1)
+        if next_byte < 128 or next_byte > 191 then break end
+        last = last - 1
+      end
+      if last < position then error('Invalid UTF-8 capture boundary') end
+      chunks[#chunks + 1] = response:sub(position, last)
+      position = last + 1
+    end
+    FRAMELINE_CAPTURE_BUFFER_V1 = { request_id = request_id,
+      request_sha = request_sha, expires_at = expires_at, chunks = chunks }
+    print('FRAMELINE_CAPTURE_CHUNK_V1:' .. request_id .. ':1:' .. #chunks .. ':' .. chunks[1])
+  end
   return { responseWritten = true, readOnly = true, safeToApply = false }
 end
 

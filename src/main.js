@@ -16,6 +16,7 @@ const { compareResolveSnapshotToExport } = require('./resolve-export-candidates'
 const { installResolveCompanion } = require('./resolve-companion-install');
 const { createLuaCaptureCommand } = require('./resolve-menu-companion');
 const { createCaptureRequest, readCaptureResponse } = require('./resolve-companion-protocol');
+const { acceptConsoleOutput } = require('./resolve-console-transfer');
 const { verifyReviewCopy } = require('./review-copy-verifier');
 const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
 const { resolveFolderCandidates, sanitizeResolutionReport,
@@ -252,18 +253,17 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve-companion:read', async () => {
     if (!companionPending) return { ready: false, error: 'Prepare a new capture first.' };
     try {
-      const copied = clipboard.readText();
-      const marker = 'FRAMELINE_CAPTURE_RESULT_V1:';
-      const lines = copied.split(/\r?\n/);
-      const failure = lines.findLast(line => line.startsWith('FRAMELINE_CAPTURE_ERROR_V1:'));
-      if (failure?.includes('Capture exceeds Console transfer limit')) {
-        companionVerifiedSnapshot = null;
-        return { ready: false, error: 'This project is too large for the experimental Console handoff. Use a smaller disposable project.' };
+      const transfer = acceptConsoleOutput({ output: clipboard.readText(),
+        requestId: companionPending.requestId, requestSha256: companionPending.requestSha256,
+        transfer: companionPending.transfer });
+      if (!transfer.complete) {
+        companionPending.transfer = transfer.transfer;
+        clipboard.writeText(transfer.command);
+        return { ready: false, collecting: true, received: transfer.transfer.chunks.length,
+          total: transfer.transfer.total };
       }
-      const resultLine = lines.findLast(line => line.startsWith(marker));
-      const responseText = resultLine ? resultLine.slice(marker.length) : '';
       const result = await readCaptureResponse({ ...companionPending,
-        responseText, includeSnapshot: true });
+        responseText: transfer.responseText, includeSnapshot: true });
       companionVerifiedSnapshot = { snapshot: result.snapshot, snapshotSha256: result.snapshotSha256 };
       return { ready: true, requestId: result.requestId, projectId: result.manifest.projectId,
         timelineCount: result.manifest.timelines.length,

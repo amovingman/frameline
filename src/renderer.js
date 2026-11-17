@@ -973,6 +973,10 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
   status.textContent = 'Verifying the capture…';
   try {
     const result = await window.desktop.readResolveCapture();
+    if (result?.collecting) {
+      status.textContent = `Received capture part ${result.received} of ${result.total}. The next Console command is copied. Paste it into Resolve’s Lua Console, press Return, copy the output, then select Read copied result again.`;
+      return;
+    }
     if (!result?.ready) throw new Error(result?.error || 'No valid capture is ready.');
     verifiedResolveCaptureAvailable = true;
     document.getElementById('resolve-companion-save').disabled = false;
