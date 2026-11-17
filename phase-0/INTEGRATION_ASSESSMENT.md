@@ -14,6 +14,8 @@ The installed developer `Developer/Scripting/README.md` distinguishes internal s
 
 On November 17, 2026, a read-only external Python `scriptapp("Resolve")` probe returned no connection while Free 21.1.2/build 21.1.20010 was open on a disposable performance project. The result was the same inside and outside the workspace sandbox. `probe-external-resolve.py` reproduces the check and `external-api-observation.json` records the outside-sandbox result. This does not prove all Free configurations are unable to connect. For this installation, an Electron-controlled live API path remains unavailable; any safe apply design must prove an internal-script bridge or revisit the first editor/edition target.
 
+The user selected the Free internal-script path for continued work. `INTERNAL_COMPANION.md` describes a five-minute, private request/response prototype for read-only schema-3 captures. Its Python writer and Node validator are tested together using a disposable capture; a live console execution, desktop packaging, and any write transaction remain open.
+
 ## 3. Integration paths and test assets
 
 | Path | Read/identity | Write | Licensing and current evidence |

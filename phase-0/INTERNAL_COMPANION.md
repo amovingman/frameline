@@ -1,0 +1,12 @@
+# Resolve Free internal companion prototype
+
+The installed Free build exposes its API inside Resolve but did not accept an external Python connection in the November 17 probe. The user chose to retain Free and explore an internal-script companion. This prototype tests a **read-only** file handoff; it does not enable apply or a packaged desktop flow.
+
+1. Open the named disposable project in DaVinci Resolve Free 21.1.2.10. Create a private absolute directory (mode `0700`) for the handoff.
+2. Run `node phase-0/companion-capture.js prepare PRIVATE_DIRECTORY "Exact Resolve Project Name"`. It writes a new five-minute request and prints a `consoleCommand`.
+3. In Resolve's **Workspace → Console**, select Python and run that command. The script captures the current project through Resolve's internal API and writes a new, private response. It never saves or edits the project.
+4. Run `node phase-0/companion-capture.js read PRIVATE_DIRECTORY REQUEST_ID REQUEST_SHA256`. The reader verifies the original request bytes, expiry, project name, response binding, schema, and path-free snapshot before returning a normalized read-only manifest.
+
+The companion refuses a different open project, expired or modified requests, unsupported Resolve versions, path-bearing snapshots, existing response files, and non-private handoff files. The response stores display names and opaque IDs locally; the directory must stay private. The CLI does not send anything to a service.
+
+Automated tests exercise the real Python response writer with a disposable schema-3 capture and a fake Resolve object, then verify the Node reader and failure cases. A live invocation through Resolve's internal Console still needs a successful end-to-end observation, followed by packaging and desktop controls. This prototype does not prove complete timeline coverage, a stable project/export mapping, or a safe write transaction.
