@@ -6,7 +6,7 @@ const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
-const { describeResolveHistoryChanges } = require('./resolve-history-detail');
+const { describeResolveHistoryChanges, describeResolveHistoryAudit } = require('./resolve-history-detail');
 const { readResolveHistoryPreviewSources, readResolveLiveHistoryPreviewSources } = require('./resolve-history-preview');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
@@ -413,7 +413,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { ready: false, error: 'Could not read local Resolve revisions.' };
     }
   });
-  ipcMain.handle('resolve-history:open-revision', async (_event, projectId, revisionId, filters) => {
+  ipcMain.handle('resolve-history:open-revision', async (_event, projectId, revisionId, filters, auditOffset) => {
     try {
       const project = (await localMetadataStore.listResolveProjects()).find(item => item.id === projectId);
       if (!project || typeof revisionId !== 'string' || !/^[a-f0-9-]{36}$/.test(revisionId)) {
@@ -428,7 +428,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         message: revision.message, createdAt: revision.createdAt,
         sourceHash: revision.manifest.sourceHash, changeCount: detail?.changeCount ?? null,
         filteredCount: detail?.filteredCount ?? null, options: detail?.options || null,
-        changes: detail?.changes || [], readOnly: true, safeToApply: false };
+        changes: detail?.changes || [], trialAudit: describeResolveHistoryAudit(revision.manifest, auditOffset),
+        readOnly: true, safeToApply: false };
     } catch (error) {
       logger.warn('resolve.history-open-failed', { code: error.code || 'resolve-history-error' });
       return { ready: false, error: 'This revision could not be verified.' };

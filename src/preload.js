@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('desktop', {
   importReviewedResolveHistory: reviewId => ipcRenderer.invoke('resolve-history:import-reviewed', reviewId),
   cancelResolveHistoryTransfer: reviewId => ipcRenderer.invoke('resolve-history:cancel-transfer', reviewId),
   listResolveRevisions: projectId => ipcRenderer.invoke('resolve-history:list-revisions', projectId),
-  openResolveRevision: (projectId, revisionId, filters) => ipcRenderer.invoke('resolve-history:open-revision', projectId, revisionId, filters),
+  openResolveRevision: (projectId, revisionId, filters, auditOffset) => ipcRenderer.invoke('resolve-history:open-revision', projectId, revisionId, filters, auditOffset),
   getResolveRevisionGraph: projectId => ipcRenderer.invoke('resolve-history:graph', projectId),
   previewResolveHistory: (projectId, ids) => ipcRenderer.invoke('resolve-history:preview', projectId, ids),
   createResolveBranch: (projectId, name) => ipcRenderer.invoke('resolve-history:create-branch', projectId, name),

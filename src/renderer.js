@@ -1164,19 +1164,75 @@ async function loadResolveHistoryGraph(projectId, generation) {
   }
   document.getElementById('resolve-history-preview').disabled = result.revisions.length < 1;
 }
-async function openResolveHistoryRevision(projectId, revisionId, generation, button, filters = {}) {
+function renderResolveHistoryAudit(detail, audit, openPage) {
+  if (!audit?.available) {
+    detail.append(make('p', '', 'This observation has no portable trial audit.'));
+    return;
+  }
+  const section = make('section', 'resolve-history-audit');
+  section.setAttribute('aria-label', 'Recorded trial audit');
+  const heading = make('h4', '', 'Recorded trial audit'); heading.tabIndex = -1;
+  const outcomeNames = { applied: 'Applied', 'rolled-back': 'Rolled back', restored: 'Restored', 'source-verified': 'Source verified' };
+  section.append(heading, make('p', '', `${outcomeNames[audit.status] || audit.status} · ${audit.recordedAt}`),
+    make('p', '', 'Choices record review intent. The outcome comes from copied Console observations and covers captured fields only.'));
+  section.append(make('p', '', audit.effects
+    ? `${audit.effects.effectCount} ${audit.effects.effectCount === 1 ? 'effect' : 'effects'} observed across ${audit.effects.itemCount} items. Effect parameters and complete native properties were not checked.`
+    : 'This trial did not capture effect metadata.'));
+  if (audit.recovery) section.append(make('p', '', audit.recovery.operation === 'restore-name'
+    ? 'Recovery restored the original clip name after a fresh state inspection.' : 'Recovery verified the saved source after a fresh state inspection.'));
+  const verification = make('details', 'resolve-audit-verification');
+  verification.append(make('summary', '', 'Verification details'));
+  const facts = make('dl', 'resolve-audit-values');
+  for (const [label, value] of [['Transaction', audit.transactionId], ['Audit SHA-256', audit.auditHash],
+    ['Base source SHA-256', audit.sourceHashes.base], ['Local source SHA-256', audit.sourceHashes.local],
+    ['Incoming source SHA-256', audit.sourceHashes.incoming], ['Result SHA-256', audit.resultSnapshotHash],
+    ['Native backup SHA-256', audit.backup.sha256],
+    ...(audit.effects ? [['Effect source SHA-256', audit.effects.sourceHash], ['Effect result SHA-256', audit.effects.resultHash]] : []),
+    ...(audit.recovery ? [['Recovery attempt', audit.recovery.attemptId], ['Inspection SHA-256', audit.recovery.inspectionHash]] : [])]) {
+    facts.append(make('dt', '', label), make('dd', '', value));
+  }
+  verification.append(facts, make('p', '', 'The native backup is excluded from this revision. Its availability is not checked here.'));
+  section.append(verification);
+  section.append(make('p', '', audit.choiceCount ? `Choices ${audit.offset + 1}–${audit.offset + audit.choices.length} of ${audit.choiceCount}` : 'No conflicts required a review choice.'));
+  for (const choice of audit.choices) {
+    const row = make('article', 'resolve-audit-choice');
+    row.append(make('h5', '', `${choice.timelineName} · ${choice.track || 'Timeline'} · ${choice.itemName || choice.itemId || 'Timeline'} · ${choice.field}`),
+      make('p', '', `Recorded choice: ${choice.choice === 'take-incoming' ? 'Take incoming' : 'Keep local'}`));
+    const values = make('dl', 'resolve-audit-values');
+    for (const [key, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming'], ['selected', 'Selected value']]) {
+      const value = choice[key], definition = make('dd');
+      definition.append(make('pre', '', value.text));
+      if (value.truncated) definition.append(make('span', '', `Showing 1,200 of ${value.characterCount} characters. Export the revision backup to inspect the complete value.`));
+      values.append(make('dt', '', label), definition);
+    }
+    row.append(values); section.append(row);
+  }
+  if (audit.previousOffset !== null || audit.nextOffset !== null) {
+    const controls = make('div', 'resolve-toolbar');
+    for (const [offset, label] of [[audit.previousOffset, 'Earlier choices'], [audit.nextOffset, 'More choices']]) {
+      if (offset === null) continue;
+      const action = make('button', '', label); action.type = 'button';
+      action.addEventListener('click', () => openPage(offset)); controls.append(action);
+    }
+    section.append(controls);
+  }
+  detail.append(section);
+}
+async function openResolveHistoryRevision(projectId, revisionId, generation, button, filters = {}, auditOffset = 0) {
   if (generation !== resolveHistoryGeneration) return;
   const openToken = ++resolveHistoryOpenToken;
   const detail = document.getElementById('resolve-history-detail');
   detail.replaceChildren(make('p', '', 'Verifying revision…'));
   try {
-    const result = await window.desktop.openResolveRevision(projectId, revisionId, filters);
+    const result = await window.desktop.openResolveRevision(projectId, revisionId, filters, auditOffset);
     if (generation !== resolveHistoryGeneration || openToken !== resolveHistoryOpenToken) return;
     if (!result?.ready) throw new Error(result?.error || 'Could not verify this revision.');
     for (const entry of document.querySelectorAll('#resolve-history-list button')) entry.setAttribute('aria-pressed', String(entry === button));
     detail.replaceChildren();
     detail.append(make('h3', '', result.message), make('p', '', `${result.createdAt} · ${result.changeCount === null ? 'First observation' : `${result.changeCount} observed field changes`} · SHA-256 ${result.sourceHash.slice(0, 12)}`));
     if (result.changeCount === 0) detail.append(make('p', '', 'No observed fields changed.'));
+    renderResolveHistoryAudit(detail, result.trialAudit, offset => openResolveHistoryRevision(projectId, revisionId, generation, button, filters, offset));
+    if (auditOffset) detail.querySelector('.resolve-history-audit h4')?.focus();
     if (result.options && result.changeCount > 0) {
       const controls = make('div', 'resolve-history-filters');
       const fields = [

@@ -54,6 +54,21 @@
 .resolve-history .resolve-toolbar button:disabled{opacity:.7}
 #resolve-history-transfer-confirm{background:var(--text);color:var(--ground)}
 #resolve-history-transfer-status{overflow-wrap:anywhere}
+
+.resolve-history-audit{margin:20px 0;padding:16px 0;border-top:1px solid var(--line)}
+.resolve-history-audit h4{margin:0;font-size:14px;font-weight:500}
+.resolve-history-audit h4:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.resolve-history-audit p{margin:10px 0;line-height:1.5}
+.resolve-audit-verification{margin:16px 0;font-size:13px}
+.resolve-audit-verification summary{padding:8px 0;cursor:pointer}
+.resolve-audit-values{display:grid;grid-template-columns:minmax(90px,.35fr) minmax(0,1fr);gap:8px 12px;margin:12px 0;font-size:12px}
+.resolve-audit-values dt{color:var(--secondary)}
+.resolve-audit-values dd{margin:0;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.resolve-audit-values pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
+.resolve-audit-values dd>span{display:block;margin-top:6px;color:var(--secondary)}
+.resolve-audit-choice{padding:14px 0;border-top:1px solid var(--line)}
+.resolve-audit-choice h5{margin:0;font-size:13px;font-weight:500;overflow-wrap:anywhere}
+@media(max-width:600px){.resolve-audit-values{grid-template-columns:minmax(0,1fr);gap:4px}.resolve-audit-values dd{margin-bottom:8px}}
 .resolve-companion .resolve-trial-ack{display:flex;align-items:flex-start;gap:8px;margin-top:12px;color:var(--text);line-height:1.5}.resolve-companion .resolve-trial-ack input{flex:none;min-height:16px;width:16px;height:16px;padding:0;margin-top:2px;accent-color:var(--accent)}#resolve-trial .resolve-toolbar{margin-top:16px}#resolve-trial-status{white-space:pre-wrap;overflow-wrap:anywhere}#resolve-trial .resolve-toolbar button:first-child{background:var(--raised);color:var(--text)}
 .resolve-recovery-reminder{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px;padding:16px 20px;background:var(--surface);border-radius:6px}.resolve-recovery-reminder p{font-size:13px;line-height:1.5}.resolve-recovery-reminder button{flex:none;min-height:38px;padding:8px 14px;border-radius:6px;background:var(--raised);color:var(--text)}.resolve-recovery-reminder button:hover{background:var(--hover)}.resolve-retained{margin:16px 0 20px;padding-bottom:16px;border-bottom:1px solid var(--line)}.resolve-retained h3{font-size:14px;font-weight:500}.resolve-retained>p{margin:8px 0;color:var(--secondary);font-size:13px;max-width:75ch}.resolve-retained-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.resolve-retained-row strong,.resolve-retained-row span{display:block;overflow-wrap:anywhere}.resolve-retained-row strong{font-size:13px}.resolve-retained-row span{margin-top:3px;color:var(--secondary);font-size:12px}.resolve-retained-row button{white-space:nowrap}.resolve-retained h3:focus-visible{outline:2px solid var(--accent);outline-offset:4px}#resolve-retained-more{margin-top:12px}@media(max-width:600px){.resolve-recovery-reminder{align-items:flex-start;flex-direction:column;gap:12px}.resolve-retained-row{grid-template-columns:1fr;gap:8px}.resolve-retained-row button{justify-self:start;white-space:normal}}
 .resolve-companion{padding:20px 0;margin:0 0 20px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.resolve-companion>p{max-width:75ch;margin-top:8px;color:var(--secondary);font-size:13px;line-height:1.5}.resolve-companion form{margin-top:16px}.resolve-companion label{display:block;margin-bottom:6px;color:var(--secondary);font-size:12px}.resolve-companion form>div{display:flex;flex-wrap:wrap;gap:8px}.resolve-companion input{flex:1 1 240px;min-width:0;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}.resolve-companion button{min-height:38px;padding:8px 14px;border-radius:6px;background:var(--raised);color:var(--text)}.resolve-companion button:hover:not(:disabled){background:var(--hover)}.resolve-companion button:disabled{opacity:.5}.resolve-companion input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}#resolve-companion-status{overflow-wrap:anywhere}
