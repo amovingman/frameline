@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "readOnly": true,
+  "safeToApply": false,
+  "losslessValidated": false,
+  "before": {
+    "sha256": "d859f5138ff9544d678922e55af363f411ee1238d7f305953fc4f19db7e76e35",
+    "size": 69407
+  },
+  "after": {
+    "sha256": "535e55bd9bdbf54237783086db877353e2f2909779c910c5d32a61369f78bbf4",
+    "size": 69433
+  },
+  "memberBytesMatch": false,
+  "changedMembers": 3,
+  "members": [
+    {
+      "memberNameSha256": "fa62ee93a82512b319eea18ffaa35b6cfab32668394a938c0db72119e359f2e1",
+      "kind": "gallery",
+      "status": "unchanged",
+      "beforeSha256": "8b6422db9a4ea20f0e48796505f9c9518b5e7cf23e1c9528d26ddb0f815dc2bb",
+      "afterSha256": "8b6422db9a4ea20f0e48796505f9c9518b5e7cf23e1c9528d26ddb0f815dc2bb",
+      "changedLineTags": {}
+    },
+    {
+      "memberNameSha256": "0395bb3008801245eb201aca2825c544075e9bcb6fd0198332f26f3ca4e3faf6",
+      "kind": "media-pool",
+      "status": "changed",
+      "beforeSha256": "3131b4b0b003a418f1c34366ca46b534490e0669a2d2a050760b57d59aa9686c",
+      "afterSha256": "67477b2d5fd3c12366eb251a70ef55f9a95afa4eeb39ab26778b9dd234acc5c5",
+      "changedLineTags": {
+        "Body": {
+          "removed": 1,
+          "added": 1
+        },
+        "DbSavedTime": {
+          "removed": 1,
+          "added": 1
+        },
+        "FieldsBlob": {
+          "removed": 2,
+          "added": 2
+        }
+      }
+    },
+    {
+      "memberNameSha256": "41a216f94a45e4ef90e3bd71887b14eef1ab6598ff3db6ef1835099c70017362",
+      "kind": "sequence",
+      "status": "changed",
+      "beforeSha256": "fda064ee49731fb0fcd9720f7cc8f156fcd9659f19740c481ec53424e99698c7",
+      "afterSha256": "ab867df463d2b46e07e0fa6e292842c4b6d0f23041e384d1e975964425d4429c",
+      "changedLineTags": {
+        "BtThumnail": {
+          "removed": 3,
+          "added": 3
+        },
+        "FieldsBlob": {
+          "removed": 1,
+          "added": 1
+        },
+        "Name": {
+          "removed": 1,
+          "added": 1
+        }
+      }
+    },
+    {
+      "memberNameSha256": "a8d5e2a5cbeb500e59aca88e0613283c57d530c6df7630555d5a08bc5c3a660f",
+      "kind": "project",
+      "status": "changed",
+      "beforeSha256": "1a9746dae24edc113dd8a43f04068e8e15bb1c4d206c1c26554b93b686a50f67",
+      "afterSha256": "4a730e33a02bd0c1d9b6851f2ace379802f94ec369fa7bcf0e359f78217ebe54",
+      "changedLineTags": {
+        "BlobOwner": {
+          "removed": 1,
+          "added": 1
+        },
+        "BtMetadataLockableBlob": {
+          "removed": 2,
+          "added": 2
+        },
+        "DbSavedTime": {
+          "removed": 2,
+          "added": 2
+        },
+        "Element": {
+          "removed": 2,
+          "added": 2
+        },
+        "FieldsBlob": {
+          "removed": 2,
+          "added": 2
+        },
+        "LastModTimeInSecs": {
+          "removed": 1,
+          "added": 1
+        },
+        "ProjectAgeInMs": {
+          "removed": 1,
+          "added": 1
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Native serialization is undocumented; line tags are diagnostic labels only.",
+    "No changed fields or opaque blobs are ignored.",
+    "Matching bytes cannot prove editor behavior or referenced media identity."
+  ]
+}

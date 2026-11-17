@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "editorVersion": "21.1.2.10",
+  "edition": "Free",
+  "desktopIntegrated": false,
+  "forcedFailure": false,
+  "forward": {
+    "backup": {
+      "archiveVerified": true,
+      "mode": 384,
+      "schemaVersion": 1,
+      "sha256": "d859f5138ff9544d678922e55af363f411ee1238d7f305953fc4f19db7e76e35",
+      "size": 69407,
+      "timelineCount": 1
+    },
+    "experimental": true,
+    "incomingSha256": "bf83a635acad8e2c96c6c39983d641a097a31ad6d17b08bcbfcf62d64be37a40",
+    "recordedAt": "2026-11-17T21:47:37.000Z",
+    "resultingSnapshotSha256": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+    "review": {
+      "auditHash": "d64f5dc89fa3e62238f3a90844d2170ddff97c409bbeafe2825185343ccf2de9",
+      "choices": [],
+      "planHash": "23e6ba333ea604ae688bfce51958a68dbcad404e4406f8f8035856c80fd610aa",
+      "sourceBindings": {
+        "hashes": {
+          "base": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+          "incoming": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+          "local": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850"
+        },
+        "readOnly": true,
+        "safeToApply": false,
+        "schemaVersion": 1
+      }
+    },
+    "schemaVersion": 1,
+    "sourceSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+    "status": "applied",
+    "transactionId": "698a14a0b0b26677a208aca6c26d8076",
+    "validation": "observed-fields-only"
+  },
+  "reverse": {
+    "schemaVersion": 1,
+    "experimental": true,
+    "transactionId": "38f1d6eb1f2af9cb6c52a892450328d3",
+    "status": "applied",
+    "sourceSha256": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+    "incomingSha256": "e95069f3100c849def01eca67c5b0dbc53d3739bb695eb98b8e8567fde492ad1",
+    "resultingSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+    "backup": {
+      "schemaVersion": 1,
+      "sha256": "222a815dbfb9a9dce51b6e43c023247c0b5a9d0130812246489303d5afa50b83",
+      "size": 69444,
+      "mode": 384,
+      "timelineCount": 1,
+      "archiveVerified": true
+    },
+    "validation": "observed-fields-only",
+    "recordedAt": "2026-11-17T21:49:28.131Z",
+    "review": {
+      "sourceBindings": {
+        "hashes": {
+          "base": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+          "incoming": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+          "local": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9"
+        },
+        "readOnly": true,
+        "safeToApply": false,
+        "schemaVersion": 1
+      },
+      "planHash": "bfd6da1edb93552ca37c63a61da04b8dce3a4799714693ccbb21486e312d3ce1",
+      "auditHash": "4028d2ddbdcaed7f041b5b5a5e4db830f74c50b130e7087eb383ea0eed973cae",
+      "choices": []
+    }
+  },
+  "originalObservedStateRestored": true,
+  "nativeContentValidated": false,
+  "history": {
+    "storeKind": "disposable-local-metadata",
+    "appliedRevisionId": "e925ae20-cff3-4800-b19a-a4f9689068d5",
+    "restoredRevisionId": "b40a20cc-4982-405d-bb2b-3b9eabb5f488",
+    "restoredParentRevisionId": "e925ae20-cff3-4800-b19a-a4f9689068d5"
+  }
+}
