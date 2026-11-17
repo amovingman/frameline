@@ -790,12 +790,14 @@ function resolveChoice(conflict) {
 }
 function renderResolveState(state) {
   resolveState = state;
+  renderResolveTrial();
   const items = resolveChanges();
   const ready = state?.status === 'ready' && !!state.plan;
-  document.getElementById('resolve-refresh').disabled = resolveBusy || !ready;
-  document.getElementById('resolve-save').disabled = resolveBusy || !ready;
-  document.getElementById('resolve-choose').disabled = resolveBusy;
-  document.getElementById('resolve-recover').disabled = resolveBusy;
+  const locked = resolveBusy || ['backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
+  document.getElementById('resolve-refresh').disabled = locked || !ready;
+  document.getElementById('resolve-save').disabled = locked || !ready;
+  document.getElementById('resolve-choose').disabled = locked;
+  document.getElementById('resolve-recover').disabled = locked;
   document.getElementById('resolve-notice').textContent = state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
   const sources = document.getElementById('resolve-sources');
   sources.replaceChildren();
@@ -817,8 +819,8 @@ function renderResolveState(state) {
   }
   const unresolved = items.filter(item => item.status === 'conflict' && !resolveChoice(resolveConflict(item)));
   document.getElementById('resolve-next').disabled = resolveBusy || !unresolved.length;
-  document.getElementById('resolve-save-review').disabled = resolveBusy || !ready;
-  document.getElementById('resolve-review-recover').disabled = resolveBusy;
+  document.getElementById('resolve-save-review').disabled = locked || !ready;
+  document.getElementById('resolve-review-recover').disabled = locked;
   const sourcePanel = document.getElementById('resolve-source-hashes');
   sourcePanel.replaceChildren();
   for (const [role, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming']]) {
@@ -884,7 +886,7 @@ function renderResolveDetail() {
     const selected = resolveChoice(conflict);
     for (const choice of conflict.options || ['keep-local', 'take-incoming']) {
       const button = make('button', selected === choice ? 'selected' : '', choice === 'keep-local' ? 'Keep local' : 'Take incoming');
-      button.type = 'button'; button.disabled = resolveBusy;
+      button.type = 'button'; button.disabled = resolveBusy || ['backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
       button.setAttribute('aria-pressed', String(selected === choice));
       button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
       controls.append(button);
@@ -1214,6 +1216,50 @@ document.addEventListener('keydown', event => {
 });
 renderResolveState(null);
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
+
+var resolveTrialState = null;
+var resolveTrialBusy = false;
+function renderResolveTrial() {
+  const state = resolveTrialState;
+  document.getElementById('resolve-trial').hidden = !state?.enabled;
+  const blocked = resolveTrialBusy || state?.busy;
+  const phase = state?.phase;
+  document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit
+    || !['idle', 'saved'].includes(phase) || !document.getElementById('resolve-trial-ack').checked;
+  document.getElementById('resolve-trial-issue').disabled = blocked || phase !== 'backup-command';
+  document.getElementById('resolve-trial-copy').disabled = blocked || !['backup-command', 'rollback-command'].includes(phase);
+  document.getElementById('resolve-trial-cancel').disabled = blocked || phase !== 'backup-command';
+  document.getElementById('resolve-trial-read').disabled = blocked || phase !== 'rollback-command';
+  document.getElementById('resolve-trial-save').disabled = blocked || phase !== 'verified' || state?.outcome?.status === 'recovery-required';
+  document.getElementById('resolve-trial-reveal').disabled = blocked || !state?.backup;
+  document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
+  const messages = { idle: 'Review one rename and acknowledge the disposable project to begin.',
+    'backup-command': 'Backup command copied. Run it in Resolve’s Lua Console, then verify the backup here.',
+    'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
+    verified: `Verified outcome: ${state?.outcome?.status || 'unknown'}. Save an observation revision to retain the history link.`,
+    saved: `Outcome revision saved on ${state?.branch || 'the selected branch'}: ${state?.revisionId || ''}.` };
+  document.getElementById('resolve-trial-status').textContent = blocked ? 'Verifying drill records…' : state?.error
+    || [messages[phase] || messages.idle, state?.backup ? `Retained backup: ${state.backup.size.toLocaleString()} bytes · SHA-256 ${state.backup.sha256.slice(0, 12)}` : '',
+      state?.outcome ? 'Validation covers captured fields. Full editor-property validation remains incomplete.' : ''].filter(Boolean).join('\n');
+}
+async function resolveTrialAction(method, ...args) {
+  if (resolveTrialBusy) return;
+  resolveTrialBusy = true; renderResolveTrial();
+  try {
+    resolveTrialState = await window.desktop[method](...args);
+    if (method === 'saveResolveTrialRevision' && !resolveTrialState.error) await refreshResolveHistory();
+  } catch { resolveTrialState = { ...resolveTrialState, error: 'Could not complete the drill action. Keep the backup and retry.' }; }
+  finally { resolveTrialBusy = false; renderResolveState(resolveState); }
+}
+document.getElementById('resolve-trial-form').addEventListener('submit', event => {
+  event.preventDefault(); resolveTrialAction('prepareResolveTrial', document.getElementById('resolve-trial-name').value.trim(), document.getElementById('resolve-trial-ack').checked);
+});
+document.getElementById('resolve-trial-ack').addEventListener('change', renderResolveTrial);
+for (const [id, method] of [['issue', 'issueResolveTrial'], ['copy', 'copyResolveTrialCommand'], ['cancel', 'cancelResolveTrialPreparation'], ['read', 'readResolveTrial'],
+  ['save', 'saveResolveTrialRevision'], ['reveal', 'revealResolveTrialBackup'], ['recover', 'recoverResolveTrial']]) {
+  document.getElementById(`resolve-trial-${id}`).addEventListener('click', () => resolveTrialAction(method));
+}
+window.desktop?.getResolveTrialState?.().then(state => { resolveTrialState = state; renderResolveTrial(); }).catch(() => {});
 
 async function reviewCopyAction(method) {
   if (reviewCopyBusy || mediaAuditBusy || document.getElementById('review-copy-panel').hidden) return;

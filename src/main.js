@@ -26,9 +26,11 @@ const { createAccessControl } = require('./access-control');
 const { createFirstRun } = require('./first-run');
 const { createDiagnosticsReport } = require('./diagnostics-report');
 const { createAdapterMetrics } = require('./adapter-metrics');
+const { createResolveTrialSession } = require('./resolve-trial-session');
 
 let projectSession;
 let resolveReviewSession;
+let resolveTrialSession;
 let resolveSourcePaths = null;
 let resolveHistoryRevisionIds = null;
 let resolveBusy = false;
@@ -143,6 +145,10 @@ async function currentResolveSources() {
 }
 
 async function runResolveAction(action) {
+  if (['backup-command', 'rollback-command'].includes(resolveTrialSession?.getState().phase)) {
+    return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
+      message: 'Finish the active drill or cancel its backup preparation before changing the review.' } });
+  }
   if (resolveBusy) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-review-busy', message: 'A Resolve review action is already running.' } });
   resolveBusy = true;
   try { return getResolveState(await action()); }
@@ -188,6 +194,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   firstRun = createFirstRun({ directory: path.join(app.getPath('userData'), 'onboarding') });
   const resolveArtifactDirectory = path.join(app.getPath('userData'), 'resolve-previews');
   resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
+  const trialDirectory = path.join(app.getPath('userData'), 'resolve-rename-trials');
+  resolveTrialSession = createResolveTrialSession({ enabled: !app.isPackaged && process.env.FRAMELINE_RENAME_DRILL === '1',
+    directory: trialDirectory, store: localMetadataStore, clipboard,
+    getReview: async () => resolveReviewSession.getVerifiedReview(await currentResolveSources()) });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('onboarding:get', () => firstRun.read());
@@ -229,6 +239,22 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
+  ipcMain.handle('resolve-trial:state', () => resolveTrialSession.getState());
+  ipcMain.handle('resolve-trial:prepare', (_event, projectName, acknowledged) => resolveTrialSession.prepare(projectName, acknowledged));
+  ipcMain.handle('resolve-trial:issue', () => resolveTrialSession.issue());
+  ipcMain.handle('resolve-trial:copy', () => resolveTrialSession.copyCommand());
+  ipcMain.handle('resolve-trial:cancel', () => resolveTrialSession.cancelPreparation());
+  ipcMain.handle('resolve-trial:read', () => resolveTrialSession.read());
+  ipcMain.handle('resolve-trial:save-revision', () => resolveTrialSession.saveRevision());
+  ipcMain.handle('resolve-trial:recover', async () => {
+    if (!resolveTrialSession.getState().enabled) return resolveTrialSession.getState();
+    const choice = await dialog.showOpenDialog({ title: 'Recover a completed rename drill', defaultPath: trialDirectory, properties: ['openDirectory'] });
+    return choice.canceled ? resolveTrialSession.getState() : resolveTrialSession.recover(choice.filePaths[0]);
+  });
+  ipcMain.handle('resolve-trial:reveal-backup', async () => {
+    try { shell.showItemInFolder(await resolveTrialSession.backupPath()); return resolveTrialSession.getState(); }
+    catch { return { ...resolveTrialSession.getState(), error: 'The retained backup could not be verified. Keep the trial records for recovery.' }; }
+  });
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
     companionPending = null;
     companionVerifiedSnapshot = null;

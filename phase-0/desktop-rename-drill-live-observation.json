@@ -1,0 +1,40 @@
+{
+  "backup": {
+    "archiveVerified": true,
+    "mode": 384,
+    "schemaVersion": 1,
+    "sha256": "082ee5eb1f7d66bcdd475b400966dda26a3994f9467fd4a1a9952d6ffcb36a4c",
+    "size": 69414,
+    "timelineCount": 1
+  },
+  "experimental": true,
+  "incomingSha256": "bf83a635acad8e2c96c6c39983d641a097a31ad6d17b08bcbfcf62d64be37a40",
+  "recordedAt": "2026-11-17T21:41:05.107Z",
+  "resultingSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "review": {
+    "auditHash": "d64f5dc89fa3e62238f3a90844d2170ddff97c409bbeafe2825185343ccf2de9",
+    "choices": [],
+    "planHash": "23e6ba333ea604ae688bfce51958a68dbcad404e4406f8f8035856c80fd610aa",
+    "sourceBindings": {
+      "hashes": {
+        "base": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+        "incoming": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+        "local": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850"
+      },
+      "readOnly": true,
+      "safeToApply": false,
+      "schemaVersion": 1
+    }
+  },
+  "schemaVersion": 1,
+  "sourceSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "status": "rolled-back",
+  "transactionId": "0f509e90c9b0d10cb3846f80c75ba36b",
+  "validation": "observed-fields-only",
+  "revisionId": "5d873496-1495-4089-9851-3526566dd7fb",
+  "revisionContentHash": "e95069f3100c849def01eca67c5b0dbc53d3739bb695eb98b8e8567fde492ad1",
+  "desktopIntegrated": true,
+  "forcedFailure": true,
+  "editorVersion": "21.1.2.10",
+  "edition": "Free"
+}

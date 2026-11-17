@@ -1,6 +1,6 @@
 'use strict';
 
-const { createResolvePreviewPlan, refreshResolvePreviewPlan } = require('./resolve-preview-plan');
+const { createResolvePreviewPlan, refreshResolvePreviewPlan, verifyResolvePreviewPlan } = require('./resolve-preview-plan');
 const { saveResolvePreview, loadResolvePreview } = require('./resolve-preview-store');
 const { saveResolveReview, loadResolveReview } = require('./resolve-review-store');
 const { createResolveConflictReview, createResolveDecisionAudit } = require('./resolve-review-decisions');
@@ -102,6 +102,10 @@ function createResolveReviewSession({ artifactDirectory }) {
       return getState();
     } catch { return failure('invalid-resolve-review-decisions', 'Unable to record Resolve review decision.'); }
   }
-  return { load, refresh, save, recover, saveReview, recoverReview, setDecision, getState };
+  function getVerifiedReview(input) {
+    if (!audit || !verifyResolvePreviewPlan(plan, input).valid) throw new Error('complete-current-review-required');
+    return { sources: copySources(input), plan: clone(plan), audit: clone(audit) };
+  }
+  return { load, refresh, save, recover, saveReview, recoverReview, setDecision, getState, getVerifiedReview };
 }
 module.exports = { createResolveReviewSession };
