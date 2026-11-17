@@ -1,6 +1,8 @@
 # Resolve Free internal companion prototype
 
-The installed Free build exposes its API inside Resolve but did not accept an external Python connection in the November 17 probe. The user chose to retain Free and explore an internal-script companion. This prototype tests a **read-only** file handoff; it does not enable apply or a packaged desktop flow.
+The installed Free build exposes its API inside Resolve but did not accept an external Python connection in the November 17 probe. The user chose to retain Free and explore an internal-script companion. This prototype tests a **read-only** file handoff; it does not enable apply.
+
+The desktop Resolve tab now prepares a private request, installs the bundled Python scripts as ordinary files outside Electron's archive, copies the internal Console command to the clipboard, and verifies the response when **Read capture** is selected. Enter the exact name of an open disposable project. The main process retains the request path and hash; the renderer receives only a path-free count and snapshot hash. Captures do not automatically enter the three-way preview. The copied command is local and expires in five minutes.
 
 1. Open the named disposable project in DaVinci Resolve Free 21.1.2.10. Create a private absolute directory (mode `0700`) for the handoff.
 2. Run `node phase-0/companion-capture.js prepare PRIVATE_DIRECTORY "Exact Resolve Project Name"`. It writes a new five-minute request and prints a `consoleCommand`.
@@ -9,4 +11,4 @@ The installed Free build exposes its API inside Resolve but did not accept an ex
 
 The companion refuses a different open project, expired or modified requests, unsupported Resolve versions, path-bearing snapshots, existing response files, and non-private handoff files. The response stores display names and opaque IDs locally; the directory must stay private. The CLI does not send anything to a service.
 
-Automated tests exercise the real Python response writer with a disposable schema-3 capture and a fake Resolve object, then verify the Node reader and failure cases. The companion scripts live under `src/companion/` and are checked as package inputs. A live invocation through Resolve's internal Console and desktop controls still need a successful end-to-end observation. This prototype does not prove complete timeline coverage, a stable project/export mapping, or a safe write transaction.
+Automated tests exercise the real Python response writer with a disposable schema-3 capture and a fake Resolve object, then verify the Node reader and failure cases. The companion scripts live under `src/companion/` and are checked as package inputs. A live invocation through Resolve's internal Console and desktop controls still needs a successful end-to-end observation. This prototype does not prove complete timeline coverage, a stable project/export mapping, or a safe write transaction.

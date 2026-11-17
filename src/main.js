@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
@@ -9,6 +9,8 @@ const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
 const { prepareReviewCopySession } = require('./review-copy-session');
 const { compareResolveSnapshotToExport } = require('./resolve-export-candidates');
+const { installResolveCompanion } = require('./resolve-companion-install');
+const { createCaptureRequest, readCaptureResponse } = require('./resolve-companion-protocol');
 const { verifyReviewCopy } = require('./review-copy-verifier');
 const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
 const { resolveFolderCandidates, sanitizeResolutionReport,
@@ -30,6 +32,7 @@ let resolveExportTimelineId = null;
 let resolveExportComparison = null;
 let resolveExportError = null;
 let resolveExportLocalHash = null;
+let companionPending = null;
 let verifiedCopyPath = null;
 let verifiedCopySourcePath = null;
 let verifiedCopyHash = null;
@@ -203,6 +206,37 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
+  ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
+    companionPending = null;
+    try {
+      const installed = await installResolveCompanion({
+        bundledDirectory: path.join(__dirname, 'companion'),
+        dataDirectory: path.join(app.getPath('userData'), 'resolve-companion')
+      });
+      const request = await createCaptureRequest({ directory: installed.requestsDirectory, expectedProjectName });
+      const command = `import runpy; bridge = runpy.run_path(${JSON.stringify(installed.scriptPath)}); bridge['capture_request'](resolve, ${JSON.stringify(request.requestFile)})`;
+      clipboard.writeText(command);
+      companionPending = { directory: installed.requestsDirectory,
+        requestId: request.requestId, requestSha256: request.requestSha256 };
+      return { ready: true, requestId: request.requestId, expiresMinutes: 5 };
+    } catch (error) {
+      logger.warn('resolve.companion-prepare-failed', { code: error.code || 'resolve-companion-error' });
+      return { ready: false, error: 'Could not prepare a capture. Check the exact project name and try again.' };
+    }
+  });
+  ipcMain.handle('resolve-companion:read', async () => {
+    if (!companionPending) return { ready: false, error: 'Prepare a new capture first.' };
+    try {
+      const result = await readCaptureResponse(companionPending);
+      return { ready: true, requestId: result.requestId, projectId: result.manifest.projectId,
+        timelineCount: result.manifest.timelines.length,
+        itemCount: result.manifest.timelines.reduce((sum, timeline) => sum + timeline.items.length, 0),
+        snapshotSha256: result.snapshotSha256, readOnly: true, safeToApply: false };
+    } catch (error) {
+      logger.warn('resolve.companion-read-failed', { code: error.code || 'resolve-companion-error' });
+      return { ready: false, error: 'No valid capture is ready. Run the copied command in Resolve’s Python Console, then retry within five minutes.' };
+    }
+  });
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
     const paths = {};
     for (const role of ['base', 'local', 'incoming']) {

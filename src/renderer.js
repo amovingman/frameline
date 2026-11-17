@@ -943,6 +943,35 @@ async function resolveAction(method, ...args) {
   } finally { resolveBusy = false; renderResolveState(resolveState); }
 }
 document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
+let companionBusy = false;
+document.getElementById('resolve-companion-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (companionBusy) return;
+  companionBusy = true;
+  const status = document.getElementById('resolve-companion-status');
+  const read = document.getElementById('resolve-companion-read');
+  read.disabled = true;
+  status.textContent = 'Preparing a private capture request…';
+  try {
+    const result = await window.desktop.prepareResolveCapture(document.getElementById('resolve-companion-name').value);
+    if (!result?.ready) throw new Error(result?.error || 'Could not prepare a capture.');
+    read.disabled = false;
+    status.textContent = `Command copied. Paste it into Resolve’s Python Console, then return within ${result.expiresMinutes} minutes and select Read capture.`;
+  } catch (error) { status.textContent = error.message || 'Could not prepare a capture.'; }
+  finally { companionBusy = false; }
+});
+document.getElementById('resolve-companion-read').addEventListener('click', async () => {
+  if (companionBusy) return;
+  companionBusy = true;
+  const status = document.getElementById('resolve-companion-status');
+  status.textContent = 'Verifying the capture…';
+  try {
+    const result = await window.desktop.readResolveCapture();
+    if (!result?.ready) throw new Error(result?.error || 'No valid capture is ready.');
+    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Snapshot SHA-256: ${result.snapshotSha256}. Apply remains unavailable.`;
+  } catch (error) { status.textContent = error.message || 'Could not read the capture.'; }
+  finally { companionBusy = false; }
+});
 document.getElementById('resolve-export-refresh').addEventListener('click', () => resolveAction('refreshResolveExport'));
 document.getElementById('resolve-choose').addEventListener('click', () => resolveAction('chooseResolveSnapshots'));
 document.getElementById('resolve-refresh').addEventListener('click', () => resolveAction('refreshResolvePreview'));

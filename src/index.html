@@ -58,6 +58,12 @@
         <div class="masthead"><div><h1>Resolve merge preview</h1><p>Compare base, local, and incoming snapshots before reviewing conflicts.</p></div><span class="status ready">Preview only</span></div>
         <div class="resolve-toolbar"><button id="resolve-choose" type="button">Choose three snapshots</button><button id="resolve-refresh" type="button" disabled>Refresh snapshots</button><button id="resolve-save" type="button" disabled>Save preview</button><button id="resolve-save-review" type="button" disabled>Save review</button><button type="button" disabled>Apply unavailable</button></div>
         <p id="resolve-notice" class="resolve-notice" role="status" aria-live="polite">Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.</p>
+        <section class="resolve-companion" aria-labelledby="resolve-companion-title">
+          <div class="section-head"><h2 id="resolve-companion-title">Capture from Resolve Free</h2><span>Read only</span></div>
+          <p>Open a disposable project in Resolve. Enter its exact name, copy the command, then paste it into Workspace → Console with Python selected. Return here to read the capture. The request expires after five minutes.</p>
+          <form id="resolve-companion-form"><label for="resolve-companion-name">Open project name</label><div><input id="resolve-companion-name" type="text" maxlength="160" required autocomplete="off" placeholder="Exact name in Resolve"><button id="resolve-companion-prepare" type="submit">Copy capture command</button><button id="resolve-companion-read" type="button" disabled>Read capture</button></div></form>
+          <p id="resolve-companion-status" role="status" aria-live="polite">No capture request prepared. This does not change the open project.</p>
+        </section>
         <section class="resolve-export" aria-labelledby="resolve-export-title">
           <div class="section-head"><h2 id="resolve-export-title">Optional FCPXML comparison</h2><span>Candidates only</span></div>
           <p>Compare a fourth export with the local snapshot to inspect possible clip matches. Candidates do not establish clip identity; applying changes remains unavailable.</p>
