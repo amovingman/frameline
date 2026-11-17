@@ -17,6 +17,7 @@ const { createSyncQueue } = require('./sync-queue');
 const { createAccessControl } = require('./access-control');
 const { createFirstRun } = require('./first-run');
 const { createDiagnosticsReport } = require('./diagnostics-report');
+const { createAdapterMetrics } = require('./adapter-metrics');
 
 let projectSession;
 let resolveReviewSession;
@@ -38,6 +39,7 @@ let syncQueue;
 let collaborationAccess;
 let collaborationTeam;
 let firstRun;
+let adapterMetrics;
 const collaborationProjects = new Set();
 const LOCAL_OWNER_ID = 'local-owner';
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
@@ -151,7 +153,9 @@ function createWindow() {
 }
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
-  projectSession = createProjectSession(fcpxmlProjectAdapter, createLocalMetadataStore(app.getPath('userData')));
+  adapterMetrics = createAdapterMetrics();
+  projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
+    scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, createLocalMetadataStore(app.getPath('userData')));
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   collaborationAccess = createAccessControl();
   collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
@@ -163,7 +167,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('onboarding:get', () => firstRun.read());
   ipcMain.handle('onboarding:save', (_event, selection) => firstRun.save(selection));
   const diagnostic = () => createDiagnosticsReport({ appVersion: app.getVersion(), state: projectSession.getState(),
-    syncState: { connected: false, operations: syncQueue.inspect() } });
+    syncState: { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot() });
   ipcMain.handle('diagnostics:preview', () => {
     const { report, sha256 } = diagnostic(); return { report, sha256 };
   });

@@ -1,6 +1,6 @@
 const { createHash } = require('node:crypto');
 function fail(code) { const error = new Error(code); error.code = code; return error; }
-function createDiagnosticsReport({ appVersion, state, syncState } = {}) {
+function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = null } = {}) {
   if (typeof appVersion !== 'string' || !/^\d+\.\d+\.\d+/.test(appVersion) || !state || !syncState) throw fail('diagnostics-input-invalid');
   const report = {
     schemaVersion: 1, product: 'Frameline', appVersion,
@@ -12,7 +12,14 @@ function createDiagnosticsReport({ appVersion, state, syncState } = {}) {
     mediaReferenceCount: Array.isArray(state.scan?.media) ? state.scan.media.length : null,
     revisionCount: Array.isArray(state.revisions) ? state.revisions.length : 0,
     syncConnected: syncState.connected === true,
-    queuedSyncCount: Array.isArray(syncState.operations) ? syncState.operations.length : 0
+    queuedSyncCount: Array.isArray(syncState.operations) ? syncState.operations.length : 0,
+    adapterUsage: adapterUsage && Number.isSafeInteger(adapterUsage.attempts)
+      ? { attempts: adapterUsage.attempts, succeeded: adapterUsage.succeeded,
+        failed: adapterUsage.failed, cancelled: adapterUsage.cancelled,
+        averageDurationMs: adapterUsage.averageDurationMs,
+        errorCodes: Object.fromEntries(Object.entries(adapterUsage.errorCodes || {})
+          .filter(([code, count]) => /^[a-z0-9-]{1,80}$/.test(code) && Number.isSafeInteger(count) && count >= 0)) }
+      : null
   };
   const bytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
   return { report, sha256: createHash('sha256').update(bytes).digest('hex'), bytes };

@@ -251,20 +251,20 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 ### 5.2 Release engineering
 - [ ] Sign and notarize desktop installers for supported operating systems. A fail-closed evidence checker and release procedure now exist; signing identity, installer, and notarization remain open.
 - [ ] Add secure automatic updates with staged rollout and rollback. A signed-manifest policy verifier now checks HTTPS, hash, version, channel, and rollout eligibility; download, install, health check, and rollback remain open. See `RELEASE_SECURITY.md`.
-- [ ] Establish release channels, version compatibility policy, and change notes.
-- [ ] Add CI for unit, integration, adapter-fixture, security, and packaging checks.
-- [ ] Test upgrade, downgrade prevention, interrupted update, and local database migration.
-- [ ] Document incident response, backups, service recovery, and security disclosure.
+- [ ] Establish release channels, version compatibility policy, and change notes. `RELEASE_POLICY.md`, `CHANGELOG.md`, and a strict version/schema planning gate now exist; signed channel releases and published compatibility evidence remain open.
+- [x] Add CI for unit, integration, adapter-fixture, security, and packaging checks. `.github/workflows/ci.yml` runs the suite, corpus, migration, security, audit, and package-input checks; installer signing remains a separate gate.
+- [ ] Test upgrade, downgrade prevention, interrupted update, and local database migration. Policy tests now cover downgrade and interrupted stage/activation recovery; local metadata and service migration tests are included in CI. A real installer upgrade/rollback drill remains open.
+- [ ] Document incident response, backups, service recovery, and security disclosure. `INCIDENT_RESPONSE.md` records the local response and restore procedure; private intake, responders, and managed off-device backups remain open.
 
 ### 5.3 Add integrations only after the first is reliable
-- [ ] Measure real usage and failure rates of the first adapter.
-- [ ] Generalize the adapter contract only from proven shared behavior.
-- [ ] Evaluate the next editor against the same identity, diff, write, and validation gates.
-- [ ] Build one adapter at a time with its own compatibility corpus and release support matrix.
-- [ ] Do not promise universal project-file compatibility.
+- [ ] Measure real usage and failure rates of the first adapter. The desktop now counts session-local scan outcomes and duration without paths and includes aggregate counts in reviewed diagnostics; consented pilot measurements remain open.
+- [ ] Generalize the adapter contract only from proven shared behavior. A gate now returns no shared capabilities until two release-ready adapters demonstrate them; only one experimental adapter exists.
+- [ ] Evaluate the next editor against the same identity, diff, write, and validation gates. `EDITOR_EXPANSION.md` and a fail-closed candidate gate define the evidence; selecting and testing a candidate waits on the first adapter's release readiness.
+- [ ] Build one adapter at a time with its own compatibility corpus and release support matrix. The expansion gate requires a candidate corpus; no second adapter or supported matrix row exists yet.
+- [x] Do not promise universal project-file compatibility. The README and support matrix now state the exact experimental boundary and rule out arbitrary project files and editors.
 
 ### 5.4 Later features (after MVP evidence)
-- [ ] Review comments pinned to clips or timeline ranges.
+- [ ] Review comments pinned to clips or timeline ranges. A private local store now supports authorized comments on verified immutable-revision clip IDs or frame ranges; stable FCPXML anchors, desktop UI, and hosted delivery remain open. See `REVIEW_COMMENTS.md`.
 - [ ] Approval requests and protected branches.
 - [ ] Notifications and digest preferences.
 - [ ] Project templates and team presets.

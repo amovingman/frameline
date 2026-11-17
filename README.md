@@ -1,6 +1,7 @@
 # Frameline
 
 Frameline is an early desktop prototype for versioning video-editing decisions and safely bringing collaborator changes into an existing project.
+Its current compatibility boundary is the named Resolve Free build and FCPXML 1.10 read-only workflow in [the support matrix](phase-0/SUPPORT_MATRIX.md). It does not support arbitrary project files or other editors.
 
 ## Run locally
 
