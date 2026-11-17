@@ -102,3 +102,41 @@ test('refresh replaces the binding even when only snapshot formatting changes', 
   assert.deepEqual(result.plan.classification, prior.classification);
   assert.notEqual(result.plan.binding.hashes.base, prior.binding.hashes.base);
 });
+
+test('source-bound preview handles no-op, shared edit, independent edits, rename, and ordering', () => {
+  const base = JSON.parse(read('live-mapping-before-schema3.json'));
+  const make = (local, incoming) => createResolvePreviewPlan({
+    base: JSON.stringify(base), local: JSON.stringify(local), incoming: JSON.stringify(incoming)
+  });
+  const plain = structuredClone(base);
+  assert.deepEqual(make(plain, plain).classification.decisions, []);
+
+  const sharedLocal = structuredClone(base);
+  const sharedIncoming = structuredClone(base);
+  sharedLocal.timelines[0].items[0].name = 'Shared rename';
+  sharedIncoming.timelines[0].items[0].name = 'Shared rename';
+  const shared = make(sharedLocal, sharedIncoming);
+  assert.deepEqual(shared.classification.decisions.map(({ field, status }) => [field, status]),
+    [['name', 'already-applied']]);
+
+  const local = structuredClone(base);
+  const incoming = structuredClone(base);
+  local.timelines[0].items[0].name = 'Local rename';
+  incoming.timelines[0].items[1].name = 'Incoming rename';
+  const independent = make(local, incoming);
+  assert.deepEqual(independent.classification.decisions.map(({ itemId, field, status }) =>
+    [itemId, field, status]), [
+    [local.timelines[0].items[0].id, 'name', 'local-only'],
+    [incoming.timelines[0].items[1].id, 'name', 'incoming-only']
+  ].sort((a, b) => a[0].localeCompare(b[0])));
+  assert.equal(independent.safeToApply, false);
+
+  const reordered = structuredClone(base);
+  reordered.timelines[0].items.reverse();
+  reordered.timelines[0].tracks.reverse();
+  const orderPlan = make(base, reordered);
+  assert.deepEqual(orderPlan.classification.decisions, []);
+  assert.notEqual(orderPlan.binding.hashes.base, orderPlan.binding.hashes.incoming);
+  assert.equal(verifyResolvePreviewPlan(orderPlan,
+    { base: JSON.stringify(base), local: JSON.stringify(base), incoming: JSON.stringify(reordered) }).valid, true);
+});
