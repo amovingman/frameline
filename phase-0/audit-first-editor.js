@@ -18,6 +18,11 @@ const pair = phase => ({ snapshot: fs.readFileSync(path.join(root, `live-mapping
 const gate = (id, status, evidence) => ({ id, status, evidence });
 
 function auditFirstEditor() {
+  const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
+  if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
+    || external.editorVersion !== '21.1.2' || external.editorBuild !== '21.1.20010'
+    || external.platform !== 'macOS' || external.connected !== false
+    || external.reason !== 'external-connection-unavailable') throw new Error('invalid-external-observation');
   const structureCoverage = reconcileCoverage(
     JSON.parse(fs.readFileSync(path.join(structure, 'live-structure-api.json'), 'utf8')),
     inspectFreeExport(path.join(structure, 'resolve-structure-live.fcpxmld')));
@@ -38,7 +43,7 @@ function auditFirstEditor() {
     gate('release-version-corpus', 'open', 'Only the named Free 21.1.2 build is editor-backed; no release support range is declared.'),
     gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures; XML association is candidate-only and track identity is index-only.`),
     gate('representative-scan-write-reopen', 'open', 'Scanner observations exist; representative-project and app write/reopen measurements do not.'),
-    gate('editor-choice-stop-or-revisit', 'open', 'Revisit if external Free access, complete enumeration, persistent identity, or validated write proves unavailable.'),
+    gate('editor-choice-stop-or-revisit', 'blocked', `External Free connection was unavailable in the ${external.observedOn} local probe; evaluate an internal-script bridge or a different release target.`),
     gate('lossless-editor-fields', 'blocked', `Paired coverage leaves ${pairedCoverage.timelines[0].unobservable.length} construct/identity categories unobservable.`),
     gate('durable-sidecar-identity', 'blocked', 'No generated ID mapping survives a changed export; candidate ledger is exact-source-bound.'),
     gate('stable-id-object-matching', 'partial', `${ledger.retained.length} API IDs are retained in one project; API-to-export identity remains unproven.`),
@@ -48,7 +53,7 @@ function auditFirstEditor() {
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
     sources: { ...ledger.sourceHashes, structureExport: structureCoverage.sourceHash,
       pairedCoverage: pairedCoverage.sources },
-    observations: { apiAudioItems: structureCoverage.api.audioItems,
+    observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
       retainedApiItems: ledger.retained.length, candidateStatus: ledger.status,
       observedDifferenceKinds: diffKinds }, gates };

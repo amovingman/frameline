@@ -12,6 +12,8 @@ The disposable import → FCPXML export → modified-copy reimport in [the Resol
 
 The installed developer `Developer/Scripting/README.md` distinguishes internal scripting from external scripting. The current Electron app uses exported FCPXML, while Free can also be probed through its internal console. External live API control from the Electron app has not been proven in Free. Studio and other Resolve versions are outside the initial target.
 
+On November 17, 2026, a read-only external Python `scriptapp("Resolve")` probe returned no connection while Free 21.1.2/build 21.1.20010 was open on a disposable performance project. The result was the same inside and outside the workspace sandbox. `probe-external-resolve.py` reproduces the check and `external-api-observation.json` records the outside-sandbox result. This does not prove all Free configurations are unable to connect. For this installation, an Electron-controlled live API path remains unavailable; any safe apply design must prove an internal-script bridge or revisit the first editor/edition target.
+
 ## 3. Integration paths and test assets
 
 | Path | Read/identity | Write | Licensing and current evidence |

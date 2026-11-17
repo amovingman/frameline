@@ -14,6 +14,8 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.equal(report.sources.afterExport, '61cf1c4088dc791e3973a38516516c3a5179b436a2e8eae0a113d0e75da8c307');
   assert.equal(report.sources.structureExport, '9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9');
   assert.equal(report.observations.apiAudioItems, 2);
+  assert.equal(report.observations.externalFreeConnection, false);
+  assert.equal(report.gates.find(gate => gate.id === 'editor-choice-stop-or-revisit').status, 'blocked');
   assert.equal(report.observations.xmlExplicitAudioEntries, 1);
   assert.equal(report.observations.retainedApiItems, 5);
   assert.deepEqual(report.observations.observedDifferenceKinds, { 'item-changed': 2 });

@@ -58,7 +58,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
 - [ ] Measure scan, write, and reopen behavior on realistically sized projects. The benchmark now separates first-scan and cached-rescan timing on the pinned 1,001-picture-clip export; representative projects and app write/reopen remain open.
 - [x] Repeat the read-only scanner benchmark ten times on the exact editor-backed 1,001-picture-clip export and assert its hash, byte count, clip count, frames, and warnings each run. This does not measure editor write/reopen or complete coverage.
-- [ ] Stop or revisit editor choice if stable IDs and safe validation are not achievable. `phase-0/FIRST_EDITOR_READINESS.md` names external Free API access, complete enumeration, persistent identity, and recoverable write as revisit triggers; none is resolved by the current proof.
+- [ ] Stop or revisit editor choice if stable IDs and safe validation are not achievable. A dated outside-sandbox probe could not connect externally to the running Free build, triggering evaluation of an internal-script bridge or a different release target; complete enumeration, identity, and recovery remain open.
 
 **Exit:** A repeatable test demonstrates scan → normalized manifest → one edit to a copy → editor reopen, with no collateral changes.
 

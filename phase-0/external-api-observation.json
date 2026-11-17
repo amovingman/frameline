@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "edition": "Free",
+  "editorVersion": "21.1.2",
+  "editorBuild": "21.1.20010",
+  "platform": "macOS",
+  "appState": "running with disposable performance reopen copy",
+  "execution": "external Python process outside workspace sandbox",
+  "readOnly": true,
+  "connected": false,
+  "reason": "external-connection-unavailable"
+}
