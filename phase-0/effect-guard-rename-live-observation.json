@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "experimental": true,
+  "observedOn": "2026-11-17",
+  "editorVersion": "21.1.2.10",
+  "disposableProject": true,
+  "transactionId": "40cf52e2daa3b0660d95272097303e1c",
+  "sourceSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "resultingSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "effectObservation": {
+    "sourceSha256": "696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585",
+    "resultingSha256": "696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585",
+    "validation": "observed-effect-metadata-only"
+  },
+  "rejectedEffectObservationSha256": "7b5cbe4ebe91f915e58b060f86a6f4eacf3daeb7750f3e9a78ce3a0e50b4728d",
+  "staleCommandRejected": true,
+  "staleCommandConsumed": false,
+  "staleClipNameUnchanged": true,
+  "staleSchema3Changes": 0,
+  "staleEffectChanges": [
+    {
+      "timelineId": "ed6239f2-300b-4615-ba3e-55bbef44b11c",
+      "itemId": "caead6fa-1b2c-49a5-9325-8aae89a0fe55",
+      "category": "ofx",
+      "index": 1,
+      "kind": "slot-field-changed",
+      "field": "enabled",
+      "before": true,
+      "after": false
+    }
+  ],
+  "forcedFailure": true,
+  "status": "rolled-back",
+  "savedAndReopened": true,
+  "backup": {
+    "sha256": "3e17ad5b7b2f375ae0121e6e47207e56c26ce78b087999ba915799cd986c5f0e",
+    "archiveVerified": true,
+    "mode": 384
+  },
+  "desktopIntegrated": false,
+  "safeToApply": false,
+  "losslessValidated": false
+}

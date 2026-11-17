@@ -13,6 +13,7 @@ const { readRenameTrialResult } = require('../src/resolve-rename-trial');
 const { saveRenameTrialRevision } = require('../src/resolve-trial-history');
 const { createLocalMetadataStore } = require('../src/local-metadata');
 const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
+const { createHash } = require('node:crypto');
 
 async function fixture(t) {
   const directory = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'rename-trial-test-'));
@@ -245,4 +246,114 @@ test('rejects altered outcome snapshots before recording a resulting revision', 
   await fs.appendFile(path.join(trial.directory, 'result-snapshot.json'), '\n');
   await assert.rejects(saveRenameTrialRevision(target), /trial-result-mismatch/);
   assert.equal((await store.listRevisions(project.id)).length, 1);
+});
+
+async function effectFixture(t) {
+  return { ...await fixture(t), effectObservationBytes: await fs.readFile(path.join(__dirname,
+    '../phase-0/resolve-xml-proof/live-effects-enabled.json')) };
+}
+
+test('binds the effect supplement to the exact represented source before creating a trial', async t => {
+  const options = await effectFixture(t);
+  const wrong = JSON.parse(options.effectObservationBytes);
+  wrong.snapshot.timelines[0].items[0].name = 'Unrelated current name';
+  await assert.rejects(prepareRenameTrial({ ...options, effectObservationBytes: JSON.stringify(wrong) }), /effect-source-snapshot-mismatch/);
+  await assert.rejects(prepareRenameTrial({ ...options, effectObservationBytes: options.beforeBytes }), /invalid-effect-observation/);
+  assert.deepEqual(await fs.readdir(options.destinationDir), []);
+  const trial = await prepareRenameTrial(options);
+  await exportFixture(trial);
+  const filename = path.join(trial.directory, 'prepared.json');
+  const prepared = JSON.parse(await fs.readFile(filename));
+  prepared.effectGuard.sourceSha256 = '0'.repeat(64);
+  await fs.writeFile(filename, JSON.stringify(prepared));
+  await assert.rejects(issueRenameTrial({ directory: trial.directory }), /effect-source-hash-mismatch/);
+  await assert.rejects(fs.stat(path.join(trial.directory, 'issued.json')), { code: 'ENOENT' });
+});
+
+test('a guarded rollback requires matching effect metadata even when schema-3 fields are unchanged', async t => {
+  const options = await effectFixture(t);
+  const trial = await prepareRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory, forceFailure: true });
+  const input = { directory: trial.directory, status: 'rolled-back', snapshotBytes: options.beforeBytes };
+  await assert.rejects(recordRenameTrialResult(input), /missing-effect-result/);
+  for (const field of ['enabled', 'typeId', 'name']) {
+    const changed = JSON.parse(options.effectObservationBytes);
+    const effect = changed.items.flatMap(item => item.effects)[0];
+    effect[field] = field === 'enabled' ? false : 'Different effect';
+    await assert.rejects(recordRenameTrialResult({ ...input, effectObservationBytes: JSON.stringify(changed) }), /trial-effect-result-mismatch/);
+  }
+  await assert.rejects(fs.stat(path.join(trial.directory, 'result.json')), { code: 'ENOENT' });
+  const result = await recordRenameTrialResult({ ...input, effectObservationBytes: options.effectObservationBytes });
+  assert.equal(result.effectObservation.sourceSha256, result.effectObservation.resultingSha256);
+  assert.equal(result.effectObservation.validation, 'observed-effect-metadata-only');
+  assert.deepEqual((await readRenameTrialResult(trial.directory)).snapshot, JSON.parse(options.beforeBytes));
+  assert.equal((await fs.stat(path.join(trial.directory, 'result-effects.json'))).mode & 0o777, 0o600);
+});
+
+test('guarded Console results retain the full observation and a separately usable history snapshot', async t => {
+  const options = await reviewedFixture(t);
+  options.effectObservationBytes = (await effectFixture(t)).effectObservationBytes;
+  const trial = await prepareReviewedRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory });
+  const observation = JSON.parse(options.effectObservationBytes);
+  observation.snapshot = JSON.parse(options.afterBytes);
+  const raw = JSON.stringify(observation);
+  const lines = [];
+  for (let offset = 0; offset < raw.length; offset += 8192) {
+    lines.push(`FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${trial.transactionId}:${lines.length + 1}:${raw.slice(offset, offset + 8192)}`);
+  }
+  lines.push(`FRAMELINE_RENAME_TRIAL_RESULT_V1:${trial.transactionId}:applied`);
+  const result = await recordRenameTrialConsoleResult({ directory: trial.directory, consoleOutput: lines.join('\n') });
+  assert.equal(result.review.auditHash, options.audit.auditHash);
+  assert.equal(result.effectObservation.resultingSha256, createHash('sha256').update(`${raw}\n`).digest('hex'));
+  const { snapshot } = await readRenameTrialResult(trial.directory);
+  assert.deepEqual(snapshot, JSON.parse(options.afterBytes));
+  const store = createLocalMetadataStore(path.join(options.destinationDir, 'history'));
+  const manifest = createResolveRevisionManifest(JSON.parse(options.beforeBytes));
+  const project = await store.getResolveProjectId(manifest.snapshot.project_id, manifest.snapshot.project_name);
+  const baseline = await store.saveRevision(project.id, manifest, 'Before guarded trial');
+  const target = { directory: trial.directory, store, branch: 'main', expectedHeadId: baseline.id };
+  const link = await saveRenameTrialRevision(target);
+  assert.deepEqual((await store.getRevision(project.id, link.revisionId)).manifest.snapshot, snapshot);
+  await fs.appendFile(path.join(trial.directory, 'result-effects.json'), '\n');
+  await assert.rejects(saveRenameTrialRevision(target), /trial-effect-result-mismatch/);
+  assert.equal((await store.listRevisions(project.id)).length, 2);
+});
+
+test('rechecks effect semantics on reload even if a modified result file has a matching new hash', async t => {
+  const options = await effectFixture(t);
+  const trial = await prepareRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory });
+  await recordRenameTrialResult({ directory: trial.directory, status: 'rolled-back',
+    snapshotBytes: options.beforeBytes, effectObservationBytes: options.effectObservationBytes });
+  const changed = JSON.parse(options.effectObservationBytes);
+  changed.items.flatMap(item => item.effects)[0].enabled = false;
+  const bytes = JSON.stringify(changed);
+  await fs.writeFile(path.join(trial.directory, 'result-effects.json'), bytes);
+  const filename = path.join(trial.directory, 'result.json');
+  const result = JSON.parse(await fs.readFile(filename));
+  result.effectObservation.resultingSha256 = createHash('sha256').update(bytes).digest('hex');
+  await fs.writeFile(filename, JSON.stringify(result));
+  await assert.rejects(readRenameTrialResult(trial.directory), /trial-effect-result-mismatch/);
+});
+
+test('retains unresolved effect changes for recovery without advancing history', async t => {
+  const options = await effectFixture(t);
+  const trial = await prepareRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory });
+  const disabled = await fs.readFile(path.join(__dirname, '../phase-0/resolve-xml-proof/live-effects-disabled.json'));
+  const result = await recordRenameTrialResult({ directory: trial.directory, status: 'recovery-required',
+    snapshotBytes: options.beforeBytes, effectObservationBytes: disabled });
+  assert.notEqual(result.effectObservation.sourceSha256, result.effectObservation.resultingSha256);
+  assert.equal((await readRenameTrialResult(trial.directory)).result.status, 'recovery-required');
+  await assert.rejects(saveRenameTrialRevision({ directory: trial.directory }), /trial-recovery-required/);
+  const unguarded = await prepareRenameTrial({ ...options, effectObservationBytes: undefined });
+  await exportFixture(unguarded);
+  await issueRenameTrial({ directory: unguarded.directory });
+  await assert.rejects(recordRenameTrialResult({ directory: unguarded.directory, status: 'rolled-back',
+    snapshotBytes: options.beforeBytes, effectObservationBytes: options.effectObservationBytes }), /unexpected-effect-result/);
 });

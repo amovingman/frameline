@@ -35,6 +35,9 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.equal(report.gates.find(gate => gate.id === 'lossless-editor-fields').status, 'blocked');
   assert.deepEqual(report.observations.effectMetadata, { observedItems: 53, observedEffects: 1, enabledStateChanges: 1,
     schema3Changes: 0, restoredBytesMatch: true, effectParametersObserved: false, persistentEffectIdentityProven: false });
+  assert.equal(report.sources.effectGuardReport, 'dae8e1491cf1f4fb116249a5e2b4b34f8cfd1fb1c4a412bea9e2f08619ca7b2a');
+  assert.deepEqual(report.observations.effectGuard, { staleCommandRejected: true, staleSchema3Changes: 0,
+    staleEffectChanges: 1, rollbackEffectBytesMatch: true, desktopIntegrated: false, fullProjectApplyVerified: false });
   assert(report.gates.every(gate => ['open', 'blocked', 'partial'].includes(gate.status)));
   assert(!JSON.stringify(report).includes('/Users/'));
 });

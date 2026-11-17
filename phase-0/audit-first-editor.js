@@ -134,6 +134,30 @@ function readEffectEvidence() {
     restoredBytesMatch: true, effectParametersObserved: false, persistentEffectIdentityProven: false };
 }
 
+function readEffectGuardEvidence(effects, recovery) {
+  const bytes = fs.readFileSync(path.join(__dirname, 'effect-guard-rename-live-observation.json'));
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (hash !== 'dae8e1491cf1f4fb116249a5e2b4b34f8cfd1fb1c4a412bea9e2f08619ca7b2a') throw new Error('effect-guard-evidence-changed');
+  const report = JSON.parse(bytes);
+  const before = fs.readFileSync(path.join(root, 'live-effects-enabled.json'));
+  const disabled = fs.readFileSync(path.join(root, 'live-effects-disabled.json'));
+  const diff = compareEffectObservations(before, disabled);
+  if (report.schemaVersion !== 1 || report.safeToApply !== false || report.losslessValidated !== false
+    || report.sourceSha256 !== recovery.sourceHash || report.resultingSnapshotSha256 !== recovery.sourceHash
+    || report.effectObservation.sourceSha256 !== effects.hashes.enabled
+    || report.effectObservation.resultingSha256 !== effects.hashes.restored
+    || report.rejectedEffectObservationSha256 !== effects.hashes.disabled
+    || report.staleCommandRejected !== true || report.staleCommandConsumed !== false || report.staleClipNameUnchanged !== true
+    || report.staleSchema3Changes !== diff.snapshotChanges.length
+    || JSON.stringify(report.staleEffectChanges) !== JSON.stringify(diff.effectChanges)
+    || report.forcedFailure !== true || report.status !== 'rolled-back' || report.savedAndReopened !== true
+    || report.backup.archiveVerified !== true || report.backup.mode !== 0o600 || report.desktopIntegrated !== false) {
+    throw new Error('effect-guard-evidence-mismatch');
+  }
+  return { hash, staleCommandRejected: true, staleSchema3Changes: 0, staleEffectChanges: diff.effectChanges.length,
+    rollbackEffectBytesMatch: true, desktopIntegrated: false, fullProjectApplyVerified: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -158,6 +182,7 @@ function auditFirstEditor() {
   const recovery = readRecoveryEvidence();
   const native = readNativeControlEvidence();
   const effects = readEffectEvidence();
+  const effectGuard = readEffectGuardEvidence(effects, recovery);
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
@@ -173,7 +198,8 @@ function auditFirstEditor() {
   ];
   return { schemaVersion: 1, readOnly: true, safeToApply: false, releaseSupported: false,
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
-    sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes, structureExport: structureCoverage.sourceHash,
+    sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes,
+      effectGuardReport: effectGuard.hash, structureExport: structureCoverage.sourceHash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
@@ -183,6 +209,9 @@ function auditFirstEditor() {
       recovery, effectMetadata: { observedItems: effects.observedItems, observedEffects: effects.observedEffects,
         enabledStateChanges: effects.enabledStateChanges, schema3Changes: effects.schema3Changes,
         restoredBytesMatch: effects.restoredBytesMatch, effectParametersObserved: false, persistentEffectIdentityProven: false },
+      effectGuard: { staleCommandRejected: effectGuard.staleCommandRejected, staleSchema3Changes: effectGuard.staleSchema3Changes,
+        staleEffectChanges: effectGuard.staleEffectChanges, rollbackEffectBytesMatch: effectGuard.rollbackEffectBytesMatch,
+        desktopIntegrated: false, fullProjectApplyVerified: false },
       nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
         editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };

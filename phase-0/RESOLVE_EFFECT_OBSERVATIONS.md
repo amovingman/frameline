@@ -26,6 +26,21 @@ On this disposable copy only, a guarded Console command checked the exact projec
 
 A second guarded command restored the enabled state, saved, and closed/reopened again. `live-effects-restored.json` is byte-identical to the original enabled supplement. The original observed project state and enabled effect are restored. Tests pin the fixture bytes and recompute the difference and restoration. The first-editor audit also verifies these results.
 
+## Guarded rename experiment
+
+The standalone rename trial accepts the supplement as an additional source guard:
+
+```sh
+node phase-0/rename-resolve-trial.js prepare-effects BEFORE.json AFTER.json PRIVATE_DIR 'Frameline disposable project' EFFECTS.json
+node phase-0/rename-resolve-trial.js prepare-reviewed-effects BASE.json LOCAL.json INCOMING.json AUDIT.json PRIVATE_DIR 'Frameline disposable project' EFFECTS.json
+```
+
+The supplement must represent exactly the trial's current schema-3 snapshot. Its exact bytes and hash are retained in the private prepared record. The backup command checks all represented effect metadata before and after export. The mutation command repeats this check before consuming the command or calling `SetName`, then verifies the expected clip name and unchanged effect metadata after save/reopen and after any rollback. A mismatched effect during rollback produces `recovery-required`; the trial cannot repair arbitrary effect changes.
+
+`record-console` reads the full returned supplement, validates it against the expected state, and retains it privately as `result-effects.json` with source/result hashes in `result.json`. It separately stores the schema-3 snapshot for ordinary observation history. Reloading or saving the result to history revalidates the supplement, including semantic equality rather than only its digest. These private transaction artifacts are not part of an exported revision backup. The manual `record` command accepts an optional fourth argument for the effect-result file. Legacy counts-only trials remain readable; the current desktop drill still prepares those trials and does not collect this supplement.
+
+The live guarded trial on November 17 exported and verified its backup, then rejected its issued command after the Gaussian Blur effect was disabled and saved/reopened. The clip name was unchanged and the command remained unconsumed. A separate supplement capture confirmed exactly the same schema-3 fields and one enabled-state change. After the effect was restored and saved/reopened, the same issued command ran its intentional failure and rollback. The resulting schema-3 snapshot and full effect supplement matched the original hashes exactly. The path-free record is `effect-guard-rename-live-observation.json`; its archived backup and private transaction records remain local.
+
 ## Remaining validation
 
-The comparison reports changes by project/timeline/item ID and effect category/index, with both exact source hashes. It always returns `safeToApply: false`. Effect parameter values, Fusion graph contents, nested content, automation, and persistent effect-instance IDs remain unobserved. Complete effect preservation cannot be inferred from one matched catalogue ID or enabled state. The schema-3 rename trial still validates counts rather than this supplement; binding richer observations into product apply remains required. Ordinary apply remains disabled.
+The comparison reports changes by project/timeline/item ID and effect category/index, with both exact source hashes. It always returns `safeToApply: false`. Effect parameter values, Fusion graph contents, nested content, automation, and persistent effect-instance IDs remain unobserved. Complete effect preservation cannot be inferred from one matched catalogue ID or enabled state. The capture rechecks schema-3 fields around enumeration; it cannot guarantee an atomic view of effect metadata during concurrent editor changes. Binding richer observations into desktop/product apply remains required. Ordinary apply remains disabled.
