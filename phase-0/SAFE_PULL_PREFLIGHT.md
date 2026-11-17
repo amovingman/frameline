@@ -77,3 +77,19 @@ Run each returned `command` in Resolve's Lua Console before continuing to the ne
 The live forced-failure run on `Frameline Restore Probe` produced a verified 69,264-byte backup, saved/reopened the rename, forced an error, then saved/reopened the rollback. Its final snapshot hash is the exact before hash. `rename-trial-live-observation.json` records the path-free outcome and executed command hash. The retained `.drp` hash is `da775f18991c53c612be04969fb281d52a38c48ae9d64e481c45dfb1784ae6e7`.
 
 This trial validates observed schema-3 fields only. Manual Console output is not authenticated editor provenance, and snapshot hashes cannot bind uncaptured native project properties. The command checks backup existence but cannot rehash the archive inside this Free Lua runtime after Node issues it. Process interruption, recovery after a failed reopen, complete property coverage, immutable transaction trust, and desktop conflict/revision integration remain required before enabling product apply. The trial is not wired into `checkApplyPreflight`; the product remains disabled.
+
+### Bind the trial to conflict review
+
+`prepareReviewedRenameTrial` now verifies the exact three-way plan and complete decision audit against their source bytes. It derives the desired state from the current local snapshot, preserving independent local edits. Incoming-only changes and selected `take-incoming` choices must resolve to exactly one clip-name update. `keep-local` choices preserve the local values. Unsupported selected incoming operations and no-op reviews are rejected before any transaction directory is created.
+
+The private prepared record retains the base/local/incoming bytes, preview, and audit. Issuing the command and recording its result both reverify those artifacts, derive the expected rename again, and check the transaction's before/after binding. The result records all three source hashes, plan and audit hashes, and the exact conflict choices. The low-level trial's `incomingSha256` refers to its derived desired snapshot; `review.sourceBindings.hashes.incoming` retains the original incoming revision bytes.
+
+```sh
+node phase-0/rename-resolve-trial.js prepare-reviewed base.json local.json incoming.json audit.json PRIVATE_DIRECTORY 'Frameline Disposable Project'
+node phase-0/rename-resolve-trial.js issue TRANSACTION_DIRECTORY --force-failure
+node phase-0/rename-resolve-trial.js record-console TRANSACTION_DIRECTORY copied-console-output.txt
+```
+
+`audit.json` is the complete result of `createResolveDecisionAudit`, checked against the recomputed preview. The `record-console` operation accepts ordered snapshot parts followed by exactly one matching transaction result marker; missing, duplicate, out-of-order, and different-transaction parts are rejected. It then performs the existing snapshot and backup checks. This reduces manual recording mistakes; Console text remains unauthenticated observation evidence.
+
+A live reviewed trial on the disposable `Frameline Restore Probe` exercised one name conflict resolved with `take-incoming`. It verified the backup, ran the generated rename/save/reopen command with forced failure, rolled back/save/reopened, and recorded the Console output through the new reader. The result in `reviewed-rename-live-observation.json` retains the exact choice and recomputable plan/audit/source bindings. The source and final snapshot hashes both equal `654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850`. Its private backup is 69,220 bytes with SHA-256 `28719b60f7f61a163c5d4742eab535b2a6e34e6c775a2baa2783f6468a989219`. Desktop workflow, resulting revision creation, and full property validation remain open.

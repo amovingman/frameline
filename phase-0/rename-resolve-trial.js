@@ -1,7 +1,8 @@
 'use strict';
 
 const fs = require('node:fs/promises');
-const { prepareRenameTrial, issueRenameTrial, recordRenameTrialResult } = require('../src/resolve-rename-trial');
+const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult } = require('../src/resolve-rename-trial');
+const { createResolvePreviewPlan } = require('../src/resolve-preview-plan');
 
 async function readBounded(filename) {
   const handle = await fs.open(filename, 'r');
@@ -26,10 +27,16 @@ async function readBounded(filename) {
   if (operation === 'prepare' && args.length === 4) {
     result = await prepareRenameTrial({ beforeBytes: await readBounded(args[0]), afterBytes: await readBounded(args[1]),
       destinationDir: args[2], disposableProjectName: args[3] });
+  } else if (operation === 'prepare-reviewed' && args.length === 6) {
+    const sources = { base: await readBounded(args[0]), local: await readBounded(args[1]), incoming: await readBounded(args[2]) };
+    result = await prepareReviewedRenameTrial({ sources, plan: createResolvePreviewPlan(sources),
+      audit: JSON.parse(await readBounded(args[3])), destinationDir: args[4], disposableProjectName: args[5] });
   } else if (operation === 'issue' && (args.length === 1 || (args.length === 2 && args[1] === '--force-failure'))) {
     result = await issueRenameTrial({ directory: args[0], forceFailure: args[1] === '--force-failure' });
   } else if (operation === 'record' && args.length === 3) {
     result = await recordRenameTrialResult({ directory: args[0], status: args[1], snapshotBytes: await readBounded(args[2]) });
+  } else if (operation === 'record-console' && args.length === 2) {
+    result = await recordRenameTrialConsoleResult({ directory: args[0], consoleOutput: (await readBounded(args[1])).toString('utf8') });
   } else throw new Error('usage');
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 })().catch(() => { process.stderr.write('resolve-rename-trial-failed\n'); process.exitCode = 1; });

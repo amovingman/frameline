@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "experimental": true,
+  "transactionId": "0f58103033d8161e69db7432745e260f",
+  "status": "rolled-back",
+  "sourceSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "incomingSha256": "bf83a635acad8e2c96c6c39983d641a097a31ad6d17b08bcbfcf62d64be37a40",
+  "resultingSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "backup": {
+    "schemaVersion": 1,
+    "sha256": "28719b60f7f61a163c5d4742eab535b2a6e34e6c775a2baa2783f6468a989219",
+    "size": 69220,
+    "mode": 384,
+    "timelineCount": 1,
+    "archiveVerified": true
+  },
+  "validation": "observed-fields-only",
+  "recordedAt": "2026-11-17T21:28:28.753Z",
+  "review": {
+    "sourceBindings": {
+      "hashes": {
+        "base": "82107f86b7c62108a1969f3a7e57dd9283276e57c0b7c2e363b6a7801faa3dbe",
+        "incoming": "7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9",
+        "local": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850"
+      },
+      "readOnly": true,
+      "safeToApply": false,
+      "schemaVersion": 1
+    },
+    "planHash": "2eff58e35aa11e3bd10d4d01ff39465bd8e6c5710a9b64757d81757cd1196526",
+    "auditHash": "19b03aee7a8a8465bb45e953334bf6193a4dced011d2bd4a81da61df454458dc",
+    "choices": [
+      {
+        "choice": "take-incoming",
+        "conflictId": "4138ab901d526dfa5d73ad0f1c71e7cefb786a0f977260ccb66b83abb2d4383f",
+        "field": "name",
+        "itemId": "caead6fa-1b2c-49a5-9325-8aae89a0fe55",
+        "selectedValue": "Frameline disposable rename",
+        "timelineId": "ed6239f2-300b-4615-ba3e-55bbef44b11c"
+      }
+    ]
+  },
+  "editorVersion": "21.1.2.10",
+  "edition": "Free",
+  "forcedFailure": true,
+  "desktopIntegrated": false
+}

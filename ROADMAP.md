@@ -138,7 +138,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Offer conflict review choices in the Resolve preview, with affected values/context. These are review decisions only; supported manual field edits and apply are not implemented.
 - [ ] Show the affected clip in context, field values, and the consequence of each choice.
 - [x] Require a review choice for every conflict before showing the preview audit. Apply remains disabled.
-- [ ] Preserve the user's conflict decisions in the resulting revision/audit record. The preview can now persist and recover review intent, but no resulting project revision or apply audit exists.
+- [ ] Preserve the user's conflict decisions in the resulting revision/audit record. The experimental rename transaction now revalidates the complete review against exact source bytes and retains the chosen resolutions and plan/audit/source hashes in its live-tested rollback record. Desktop integration and resulting project revision creation remain open.
 
 ### 2.3 Backup, apply, and recover
 - [x] Add a standalone main-process preflight that checks plan/audit/source/restore-point/adapter gates and always refuses apply while project-to-plan identity is unproven. See `phase-0/SAFE_PULL_PREFLIGHT.md`.

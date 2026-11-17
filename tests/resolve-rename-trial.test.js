@@ -5,7 +5,10 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
-const { prepareRenameTrial, issueRenameTrial, recordRenameTrialResult } = require('../src/resolve-rename-trial');
+const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult } = require('../src/resolve-rename-trial');
+const { createResolvePreviewPlan } = require('../src/resolve-preview-plan');
+const { createResolveConflictReview, createResolveDecisionAudit } = require('../src/resolve-review-decisions');
+const { resolveReviewedRename } = require('../src/resolve-rename-review');
 
 async function fixture(t) {
   const directory = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'rename-trial-test-'));
@@ -84,4 +87,110 @@ test('records the expected applied state while normalizing incoming enumeration 
   assert.equal(result.status, 'applied');
   assert.notEqual(result.resultingSnapshotSha256, result.sourceSha256);
   assert.equal(result.backup.archiveVerified, true);
+});
+
+async function reviewedFixture(t) {
+  const options = await fixture(t);
+  const base = JSON.parse(options.beforeBytes);
+  base.timelines[0].items[0].name = 'Earlier clip name';
+  const sources = { base: JSON.stringify(base), local: options.beforeBytes, incoming: options.afterBytes };
+  const plan = createResolvePreviewPlan(sources);
+  const review = createResolveConflictReview(plan, sources);
+  const audit = createResolveDecisionAudit(plan, sources, review.conflicts.map(conflict => ({ conflictId: conflict.id, choice: 'take-incoming' })));
+  return { ...options, sources, plan, audit };
+}
+
+test('reviewed conflict choice survives transaction preparation and a recorded rollback', async t => {
+  const options = await reviewedFixture(t);
+  assert.equal(options.audit.choices.length, 1);
+  const trial = await prepareReviewedRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory, forceFailure: true });
+  const result = await recordRenameTrialResult({ directory: trial.directory, status: 'rolled-back', snapshotBytes: options.beforeBytes });
+  assert.deepEqual(result.review.choices, options.audit.choices);
+  assert.deepEqual(result.review.sourceBindings, options.plan.binding);
+  assert.equal(result.review.auditHash, options.audit.auditHash);
+  assert.equal(result.review.planHash, options.audit.planHash);
+});
+
+test('rejects stale review bytes, changed audit, keep-local no-op, and additional unresolved incoming work', async t => {
+  const options = await reviewedFixture(t);
+  await assert.rejects(prepareReviewedRenameTrial({ ...options, sources: { ...options.sources, local: Buffer.concat([options.sources.local, Buffer.from('\n')]) } }));
+  const altered = structuredClone(options.audit);
+  altered.choices[0].selectedValue = 'Unreviewed name';
+  await assert.rejects(prepareReviewedRenameTrial({ ...options, audit: altered }));
+  const audit = createResolveDecisionAudit(options.plan, options.sources,
+    options.audit.choices.map(choice => ({ conflictId: choice.conflictId, choice: 'keep-local' })));
+  await assert.rejects(prepareReviewedRenameTrial({ ...options, audit }), /reviewed-trial-requires-one-rename/);
+  const incoming = JSON.parse(options.afterBytes);
+  incoming.timelines[0].items[2].start_frame++;
+  const sources = { ...options.sources, incoming: JSON.stringify(incoming) };
+  const plan = createResolvePreviewPlan(sources);
+  const review = createResolveConflictReview(plan, sources);
+  const completeAudit = createResolveDecisionAudit(plan, sources,
+    review.conflicts.map(conflict => ({ conflictId: conflict.id, choice: 'take-incoming' })));
+  await assert.rejects(prepareReviewedRenameTrial({ ...options, sources, plan, audit: completeAudit }), /unsupported-reviewed-operation/);
+  assert.deepEqual(await fs.readdir(options.destinationDir), []);
+});
+
+test('rechecks persisted review bindings before issuing a command', async t => {
+  const options = await reviewedFixture(t);
+  const trial = await prepareReviewedRenameTrial(options);
+  await exportFixture(trial);
+  const filename = path.join(trial.directory, 'prepared.json');
+  const prepared = JSON.parse(await fs.readFile(filename));
+  prepared.reviewContext.audit.choices[0].choice = 'keep-local';
+  await fs.writeFile(filename, JSON.stringify(prepared));
+  await assert.rejects(issueRenameTrial({ directory: trial.directory }));
+  await assert.rejects(fs.stat(path.join(trial.directory, 'issued.json')), { code: 'ENOENT' });
+});
+
+test('preserves independent local edits when resolving the incoming name change', async t => {
+  const options = await fixture(t);
+  const local = JSON.parse(options.beforeBytes);
+  local.timelines[0].items[2].start_frame++;
+  const sources = { base: options.beforeBytes, local: JSON.stringify(local), incoming: options.afterBytes };
+  const plan = createResolvePreviewPlan(sources);
+  const audit = createResolveDecisionAudit(plan, sources, []);
+  const derived = resolveReviewedRename({ sources, plan, audit });
+  const desired = JSON.parse(derived.afterBytes);
+  assert.equal(desired.timelines[0].items[2].start_frame, local.timelines[0].items[2].start_frame);
+  assert.equal(desired.timelines[0].items[0].name, 'Frameline disposable rename');
+});
+
+test('Console recording requires ordered same-transaction parts followed by exactly one result', async t => {
+  const options = await reviewedFixture(t);
+  const trial = await prepareReviewedRenameTrial(options);
+  await exportFixture(trial);
+  await issueRenameTrial({ directory: trial.directory });
+  const raw = options.beforeBytes.toString('utf8').trimEnd();
+  const parts = [];
+  for (let offset = 0; offset < raw.length; offset += 8192) parts.push(raw.slice(offset, offset + 8192));
+  const lines = parts.map((part, index) => `FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${trial.transactionId}:${index + 1}:${part}`);
+  const status = `FRAMELINE_RENAME_TRIAL_RESULT_V1:${trial.transactionId}:rolled-back`;
+  const valid = [...lines, status].join('\n');
+  for (const bad of [[...lines.slice(1), status].join('\n'), [...lines, status, status].join('\n'),
+    [status, ...lines].join('\n'), valid.replaceAll(trial.transactionId, '0'.repeat(32))]) {
+    await assert.rejects(recordRenameTrialConsoleResult({ directory: trial.directory, consoleOutput: bad }));
+  }
+  const report = await recordRenameTrialConsoleResult({ directory: trial.directory, consoleOutput: valid });
+  assert.equal(report.status, 'rolled-back');
+  assert.equal(report.resultingSnapshotSha256, report.sourceSha256);
+  assert.equal(report.review.auditHash, options.audit.auditHash);
+});
+
+test('live reviewed rollback observation retains the recomputed audit and exact local source hash', async t => {
+  const options = await reviewedFixture(t);
+  const observation = JSON.parse(await fs.readFile(path.join(__dirname, '../phase-0/reviewed-rename-live-observation.json')));
+  assert.equal(observation.status, 'rolled-back');
+  assert.equal(observation.forcedFailure, true);
+  assert.equal(observation.sourceSha256, observation.resultingSnapshotSha256);
+  assert.deepEqual(observation.review.sourceBindings, options.plan.binding);
+  assert.equal(observation.review.planHash, options.audit.planHash);
+  assert.equal(observation.review.auditHash, options.audit.auditHash);
+  assert.deepEqual(observation.review.choices, options.audit.choices);
+  assert.equal(observation.backup.archiveVerified, true);
+  assert.equal(observation.backup.mode, 0o600);
+  assert.equal(observation.desktopIntegrated, false);
+  assert.ok(!JSON.stringify(observation).includes('/private/'));
 });

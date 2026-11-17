@@ -8,6 +8,7 @@ const { createHash, randomBytes } = require('node:crypto');
 const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
 const { compareResolveManifests } = require('./resolve-id-diff');
 const { inspectResolveProjectExport } = require('./resolve-project-export');
+const { resolveReviewedRename } = require('./resolve-rename-review');
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const canonical = value => Array.isArray(value) ? value.map(canonical)
@@ -53,6 +54,15 @@ async function readPlan(directory) {
     if (!/^[a-f0-9]{32}$/.test(plan.id || '') || plan.backupPath !== path.join(directory, 'before.drp')) throw new Error('invalid-trial-record');
     const verified = renameChange(plan.before, plan.after);
     if (json(verified) !== json(plan.change)) throw new Error('invalid-trial-record');
+    if (plan.reviewContext) {
+      const { sources, preview, audit } = plan.reviewContext;
+      const restoredSources = Object.fromEntries(['base', 'local', 'incoming'].map(role => [role, Buffer.from(sources[role], 'base64')]));
+      const reviewed = resolveReviewedRename({ sources: restoredSources, plan: preview, audit });
+      if (json(parse(reviewed.beforeBytes)) !== json(plan.before) || json(parse(reviewed.afterBytes)) !== json(plan.after)
+        || plan.sourceSha256 !== sha(reviewed.beforeBytes) || plan.incomingSha256 !== sha(reviewed.afterBytes)) {
+        throw new Error('trial-review-binding-mismatch');
+      }
+    }
     return plan;
   } finally { await handle.close(); }
 }
@@ -72,7 +82,7 @@ async function capturePrelude() {
   return `local c=(function() ${source.replace(sentinel, 'return { capture=capture, encode=encode }').split('\n').filter(line => !/^\s*--/.test(line)).join(' ')} end)(); `;
 }
 
-async function prepareRenameTrial({ beforeBytes, afterBytes, destinationDir, disposableProjectName } = {}) {
+async function prepareTrial({ beforeBytes, afterBytes, destinationDir, disposableProjectName } = {}, reviewContext = null) {
   const before = parse(beforeBytes), incoming = parse(afterBytes);
   const change = renameChange(before, incoming);
   const after = structuredClone(before);
@@ -86,10 +96,21 @@ async function prepareRenameTrial({ beforeBytes, afterBytes, destinationDir, dis
   await fs.mkdir(directory, { mode: 0o700 });
   const plan = { schemaVersion: 1, experimental: true, id, createdAt: new Date().toISOString(),
     sourceSha256: sha(beforeBytes), incomingSha256: sha(afterBytes), before, after, change,
-    backupPath: path.join(directory, 'before.drp') };
+    backupPath: path.join(directory, 'before.drp'), ...(reviewContext ? { reviewContext } : {}) };
+  if (Buffer.byteLength(json(plan)) > 45 * 1024 * 1024) throw new Error('trial-record-too-large');
   await writeRecord(directory, 'prepared.json', plan);
   const command = await capturePrelude() + `assert(c.encode(c.capture(resolve))==${quote(json(before))},'Stale source'); local pm=resolve:GetProjectManager(); assert(bmd and bmd.fileexists and not bmd.fileexists(${quote(plan.backupPath)}),'Backup destination unavailable'); assert(pm:SaveProject(),'Save failed'); assert(pm:ExportProject(${quote(before.project_name)},${quote(plan.backupPath)},false),'Backup export failed'); assert(c.encode(c.capture(resolve))==${quote(json(before))},'Source changed during backup'); print('FRAMELINE_RENAME_BACKUP_V1:${id}')`;
   return { directory, command, transactionId: id, backupPath: plan.backupPath, experimental: true };
+}
+
+async function prepareRenameTrial(options) { return prepareTrial(options); }
+
+async function prepareReviewedRenameTrial({ sources, plan, audit, destinationDir, disposableProjectName } = {}) {
+  const derived = resolveReviewedRename({ sources, plan, audit });
+  const reviewContext = { sources: Object.fromEntries(['base', 'local', 'incoming']
+    .map(role => [role, Buffer.from(sources[role]).toString('base64')])), preview: plan, audit };
+  return prepareTrial({ beforeBytes: derived.beforeBytes, afterBytes: derived.afterBytes,
+    destinationDir, disposableProjectName }, reviewContext);
 }
 
 async function issueRenameTrial({ directory, forceFailure = false } = {}) {
@@ -117,9 +138,33 @@ async function recordRenameTrialResult({ directory, status, snapshotBytes } = {}
   const result = { schemaVersion: 1, experimental: true, transactionId: plan.id, status,
     sourceSha256: plan.sourceSha256, incomingSha256: plan.incomingSha256,
     resultingSnapshotSha256: sha(snapshotBytes), backup, backupPath: plan.backupPath,
-    validation: 'observed-fields-only', recordedAt: new Date().toISOString() };
+    validation: 'observed-fields-only', recordedAt: new Date().toISOString(),
+    ...(plan.reviewContext ? { review: { sourceBindings: plan.reviewContext.preview.binding,
+      planHash: plan.reviewContext.audit.planHash, auditHash: plan.reviewContext.audit.auditHash,
+      choices: plan.reviewContext.audit.choices } } : {}) };
   await writeRecord(directory, 'result.json', result);
   return result;
 }
 
-module.exports = { prepareRenameTrial, issueRenameTrial, recordRenameTrialResult };
+async function recordRenameTrialConsoleResult({ directory, consoleOutput } = {}) {
+  if (typeof consoleOutput !== 'string' || Buffer.byteLength(consoleOutput) > 24 * 1024 * 1024) throw new Error('invalid-trial-console-output');
+  const plan = await readPlan(directory);
+  const lines = consoleOutput.split(/\r?\n/);
+  const statusPrefix = `FRAMELINE_RENAME_TRIAL_RESULT_V1:${plan.id}:`;
+  const resultLines = lines.filter(line => line.startsWith(statusPrefix));
+  if (resultLines.length !== 1) throw new Error('missing-or-duplicate-trial-result');
+  const resultIndex = lines.indexOf(resultLines[0]);
+  const prefix = `FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${plan.id}:`;
+  const chunks = lines.map((line, index) => ({ line, index })).filter(({ line }) => line.startsWith(prefix));
+  if (!chunks.length || chunks.length > 2560) throw new Error('invalid-trial-capture-parts');
+  let bytes = '';
+  for (const [index, chunk] of chunks.entries()) {
+    const match = /^(\d+):(.*)$/.exec(chunk.line.slice(prefix.length));
+    if (!match || Number(match[1]) !== index + 1 || !match[2] || chunk.index >= resultIndex
+      || Buffer.byteLength(match[2]) > 8192) throw new Error('invalid-trial-capture-parts');
+    bytes += match[2];
+  }
+  return recordRenameTrialResult({ directory, status: resultLines[0].slice(statusPrefix.length), snapshotBytes: `${bytes}\n` });
+}
+
+module.exports = { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult };
