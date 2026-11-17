@@ -1,103 +1,74 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-30T00:32:01Z",
-  "title": "Design System: Frameline contact-sheet workspace",
+  "generatedAt": "2026-11-17T00:00:00Z",
+  "title": "Design System: Frameline graphite review workspace",
   "extensions": {
     "colorMeta": {
-      "cyan": {
-        "role": "main field",
-        "displayName": "Workspace cyan"
-      },
-      "ink": {
-        "role": "anchor",
-        "displayName": "Film and pull ink"
-      },
-      "lime": {
-        "role": "selection",
-        "displayName": "Selected and incoming"
-      },
-      "pink": {
-        "role": "conflict selection",
-        "displayName": "Selected conflict"
-      },
-      "conflict": {
-        "role": "status",
-        "displayName": "Conflict"
-      },
-      "ready": {
-        "role": "status",
-        "displayName": "Ready"
-      }
+      "ground": { "role": "neutral background", "displayName": "Workspace ground" },
+      "sidebar": { "role": "neutral navigation", "displayName": "Sidebar" },
+      "surface": { "role": "neutral panel", "displayName": "Panel surface" },
+      "raised": { "role": "neutral control", "displayName": "Raised control" },
+      "text": { "role": "primary text", "displayName": "Primary text" },
+      "secondary": { "role": "secondary text", "displayName": "Secondary text" },
+      "muted": { "role": "metadata", "displayName": "Muted text" },
+      "cyan": { "role": "selection and incoming edit", "displayName": "Selection cyan" },
+      "conflict": { "role": "conflict status", "displayName": "Conflict amber" },
+      "ready": { "role": "ready status", "displayName": "Ready green" }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Editorial heading",
-        "purpose": "Large contact-sheet masthead and view titles."
-      },
-      "interface": {
-        "displayName": "Operating text",
-        "purpose": "Navigation, controls, explanations."
-      },
-      "data": {
-        "displayName": "Identifiers",
-        "purpose": "Revision IDs, clip IDs, and timecodes."
-      }
+      "interface": { "displayName": "Operating text", "purpose": "Navigation, controls, explanatory copy, and metadata in IBM Plex Sans." }
     },
     "shadows": [],
-    "motion": [
-      {
-        "name": "state-feedback",
-        "value": "150ms",
-        "purpose": "Button hover and selection feedback only."
-      }
-    ],
-    "breakpoints": [
-      {
-        "name": "tablet",
-        "value": "1100px"
-      },
-      {
-        "name": "phone",
-        "value": "700px"
-      }
-    ]
+    "motion": [{ "name": "control-feedback", "value": "160ms ease-out", "purpose": "Short hover and selection feedback with reduced-motion support." }],
+    "breakpoints": [{ "name": "top-navigation", "value": "800px" }, { "name": "stacked-review", "value": "600px" }]
   },
   "components": [
     {
-      "name": "Film contact sheet",
-      "kind": "timeline",
-      "refersTo": "film-section",
-      "description": "Illustrative three-frame V1 sequence, time ruler, and A1 waveform; selection links to the three-way diff.",
-      "html": "<section class=\"film-section\">\u2026</section>",
-      "css": ".film-section{background:var(--ink);color:var(--white)}"
+      "name": "Primary action", "kind": "button", "refersTo": "head-actions button",
+      "description": "Solid light action for choosing a project file.",
+      "html": "<button class=\"ds-primary\" type=\"button\">Choose file</button>",
+      "css": ".ds-primary{min-height:36px;padding:8px 12px;border:0;border-radius:6px;background:#ededee;color:#141415;font:500 14px/1.5 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-primary:hover{background:#9eeaf0}.ds-primary:focus-visible{outline:2px solid #9eeaf0;outline-offset:3px}.ds-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Secondary action", "kind": "button", "refersTo": "resolve-toolbar button",
+      "description": "Quiet raised action for inspection and recovery controls.",
+      "html": "<button class=\"ds-secondary\" type=\"button\">Review report</button>",
+      "css": ".ds-secondary{min-height:38px;padding:8px 14px;border:0;border-radius:6px;background:#27272a;color:#ededee;font:400 14px/1.5 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-secondary:hover{background:#303034}.ds-secondary:focus-visible{outline:2px solid #9eeaf0;outline-offset:3px}.ds-secondary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Text field", "kind": "input", "refersTo": "revision-form input",
+      "description": "Compact field for revision messages and identifiers.",
+      "html": "<label class=\"ds-field-label\">Revision message<input class=\"ds-field\" placeholder=\"What changed in this cut?\"></label>",
+      "css": ".ds-field-label{display:grid;gap:8px;color:#b4b4ba;font:500 12px/1.5 'IBM Plex Sans',sans-serif}.ds-field{min-height:38px;padding:8px 12px;border:1px solid #313135;border-radius:6px;background:#141415;color:#ededee;font:400 14px/1.5 'IBM Plex Sans',sans-serif}.ds-field:focus-visible{outline:2px solid #9eeaf0;outline-offset:2px}.ds-field::placeholder{color:#96969e}"
+    },
+    {
+      "name": "Sidebar navigation", "kind": "nav", "refersTo": "main-nav button",
+      "description": "Quiet navigation item with a raised current state.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item ds-active\" aria-current=\"page\">Review</button><button class=\"ds-nav-item\">History</button></nav>",
+      "css": ".ds-nav{display:grid;gap:4px;padding:8px;background:#101011}.ds-nav-item{height:40px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:#b4b4ba;text-align:left;font:400 14px/1.5 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-nav-item:hover{background:#1b1b1d}.ds-nav-item.ds-active{background:#27272a;color:#ededee}.ds-nav-item:focus-visible{outline:2px solid #9eeaf0;outline-offset:2px}"
+    },
+    {
+      "name": "Status chip", "kind": "chip", "refersTo": "history-state strong",
+      "description": "Text status on a restrained surface; color supports the label.",
+      "html": "<span class=\"ds-status\">Local ahead</span>",
+      "css": ".ds-status{display:inline-block;padding:3px 7px;border-radius:999px;background:#27272a;color:#edb977;font:500 12px/1.5 'IBM Plex Sans',sans-serif}"
+    },
+    {
+      "name": "Revision row", "kind": "card", "refersTo": "history-item revision-history-button",
+      "description": "Dense, selectable history item with revision, message, and status.",
+      "html": "<button class=\"ds-revision\" type=\"button\"><span class=\"ds-revision-id\">04</span><span>Fine cut saved</span><span class=\"ds-revision-state\">Local ahead</span></button>",
+      "css": ".ds-revision{display:grid;grid-template-columns:48px 1fr auto;align-items:center;gap:16px;min-height:96px;width:100%;padding:16px 8px;border:0;border-bottom:1px solid #313135;background:#1b1b1d;color:#ededee;text-align:left;font:400 14px/1.5 'IBM Plex Sans',sans-serif;cursor:pointer}.ds-revision:hover{background:#27272a}.ds-revision:focus-visible{outline:2px solid #9eeaf0;outline-offset:-2px}.ds-revision-id{color:#b4b4ba;font-variant-numeric:tabular-nums}.ds-revision-state{color:#edb977;font-size:12px}"
     }
   ],
   "narrative": {
-    "northStar": "See the affected cut first",
-    "overview": "An editor locates an incoming edit in an illustrative contact sheet, compares three revision values, and chooses a future pull destination.",
-    "keyCharacteristics": [
-      "image-led sequence",
-      "oversized condensed typography",
-      "flat color fields",
-      "three-way diff",
-      "honest sample data"
-    ],
+    "northStar": "See which incoming edits affect the cut and where they differ",
+    "overview": "A calm graphite editing workspace keeps the sequence visible while editors compare incoming changes with the local cut and common base. Review, History, and Media share the same restrained shell. Sample footage is identified as illustrative; a selected FCPXML export is scanned read only.",
+    "keyCharacteristics": ["sequence-first review", "graphite surfaces", "Plex Sans operating text", "cyan selection", "worded status", "honest sample data"],
     "rules": [
-      {
-        "name": "Show location first",
-        "body": "The selected change remains visible in the sequence above its property comparison.",
-        "section": "components"
-      }
+      { "name": "Show location first", "body": "Keep the selected clip or track visible above its comparison values.", "section": "components" },
+      { "name": "State the safety boundary", "body": "Explain when content is illustrative, read only, or unavailable for apply.", "section": "components" }
     ],
-    "dos": [
-      "Show status with words.",
-      "Keep base, local, and incoming adjacent.",
-      "Label the storyboard as illustrative."
-    ],
-    "donts": [
-      "Imply generated frames came from a chosen file.",
-      "Enable pull without an editor adapter.",
-      "Use ornamental panel borders."
-    ]
+    "dos": ["Show status with words as well as color.", "Keep base, local, and incoming values adjacent.", "Use visible cyan keyboard focus."],
+    "donts": ["Imply sample photographs came from a selected project.", "Enable pull before editor write safety is proven.", "Add decorative gradients or shadows."]
   }
 }
