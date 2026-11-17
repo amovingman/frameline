@@ -233,24 +233,24 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Create a job queue for hashing, thumbnails, proxies, and asset checks. A durable local queue now accepts these typed jobs plus timeline previews; worker hosting and desktop integration remain open.
 - [ ] Make jobs observable, retryable, and safe to repeat. The local queue now deduplicates exact inputs, records status/progress/failure, retries explicitly, and requeues interrupted work; distributed worker leases remain open.
 - [ ] Generate clip thumbnails and lightweight timeline previews where rights and editor APIs allow. Optional handlers now require rights confirmation and an injected renderer, validate bounded image output, and mark it noncanonical; no editor renderer is bundled. See `MEDIA_LIFECYCLE_JOBS.md`.
-- [ ] Keep preview generation optional and separate from canonical edit data.
-- [ ] Monitor worker backlog, failures, storage costs, and processing time.
+- [ ] Keep preview generation optional and separate from canonical edit data. A per-project opt-in now gates preview jobs, and preview output is marked noncanonical; hosted policy and desktop controls remain open.
+- [ ] Monitor worker backlog, failures, storage costs, and processing time. The local queue now reports backlog, failures, processing duration, stored bytes, and estimated monthly cost; production worker and billing telemetry remain open.
 
 **Exit:** Required assets can be located or transferred reliably, and the app clearly communicates storage and availability.
 
 ## Phase 5 — Hardening, release, and expansion
 
 ### 5.1 Product quality and support
-- [ ] Add first-run onboarding for choosing an editor, project, and workspace.
-- [ ] Add accessible keyboard navigation and screen-reader labels for dense timeline and conflict UI.
-- [ ] Handle large projects with virtualized lists, incremental scans, caching, and cancellation.
-- [ ] Add crash recovery and restartable scans/uploads/applies.
-- [ ] Create diagnostics export with explicit privacy review and path redaction.
-- [ ] Establish support process and compatibility issue templates.
+- [ ] Add first-run onboarding for choosing an editor, project, and workspace. A first-run panel now records the experimental Resolve target and local workspace label, then opens the real project picker; choosing a storage location remains open.
+- [ ] Add accessible keyboard navigation and screen-reader labels for dense timeline and conflict UI. Arrow navigation and labels were added to working lists; a full keyboard and assistive-technology audit remains open.
+- [ ] Handle large projects with virtualized lists, incremental scans, caching, and cancellation. Revision history is windowed; FCPXML scans reuse hash-bound parsed inventory, refresh media in batches, and can be cancelled. Larger editor-backed performance evidence remains open.
+- [ ] Add crash recovery and restartable scans/uploads/applies. A path-free recovery journal now describes reselect/rescan, verified chunk resume, and manual restore; automatic app integration and a safe apply transaction remain open.
+- [ ] Create diagnostics export with explicit privacy review and path redaction. The desktop now previews a counts-and-codes-only report and saves only the reviewed hash; a broader production diagnostics package remains open.
+- [x] Establish support process and compatibility issue templates. See `SUPPORT.md` and `.github/ISSUE_TEMPLATE/compatibility.yml`.
 
 ### 5.2 Release engineering
-- [ ] Sign and notarize desktop installers for supported operating systems.
-- [ ] Add secure automatic updates with staged rollout and rollback.
+- [ ] Sign and notarize desktop installers for supported operating systems. A fail-closed evidence checker and release procedure now exist; signing identity, installer, and notarization remain open.
+- [ ] Add secure automatic updates with staged rollout and rollback. A signed-manifest policy verifier now checks HTTPS, hash, version, channel, and rollout eligibility; download, install, health check, and rollback remain open. See `RELEASE_SECURITY.md`.
 - [ ] Establish release channels, version compatibility policy, and change notes.
 - [ ] Add CI for unit, integration, adapter-fixture, security, and packaging checks.
 - [ ] Test upgrade, downgrade prevention, interrupted update, and local database migration.

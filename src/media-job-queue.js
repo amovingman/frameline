@@ -57,7 +57,7 @@ function createMediaJobQueue({ directory, handlers, now = () => Date.now(), maxA
       const existing = data.jobs.find(job => job.id === id);
       if (existing) return { id, created: false, status: existing.status };
       data.jobs.push({ ...payload, id, status: 'queued', attempts: 0, progress: 0,
-        createdAt: now(), updatedAt: now(), result: null, error: null });
+        createdAt: now(), updatedAt: now(), startedAt: null, completedAt: null, result: null, error: null });
       await atomicWrite(filename, data); return { id, created: true, status: 'queued' };
     });
   }
@@ -76,7 +76,7 @@ function createMediaJobQueue({ directory, handlers, now = () => Date.now(), maxA
         job.status = 'failed'; job.error = 'handler-unavailable'; job.updatedAt = now();
         await atomicWrite(filename, data); return { id: job.id, status: job.status, error: job.error };
       }
-      job.status = 'running'; job.attempts++; job.updatedAt = now(); await atomicWrite(filename, data);
+      job.status = 'running'; job.attempts++; job.startedAt = now(); job.updatedAt = now(); await atomicWrite(filename, data);
       try {
         const result = await handler(structuredClone({ kind: job.kind, projectId: job.projectId,
           sourceId: job.sourceId, options: job.options }), { signal, progress: async value => {
@@ -86,6 +86,7 @@ function createMediaJobQueue({ directory, handlers, now = () => Date.now(), maxA
         if (signal?.aborted) throw fail('media-job-cancelled');
         if (!result || typeof result !== 'object' || Array.isArray(result) || JSON.stringify(result).length > 4096) throw fail('media-job-result-invalid');
         job.status = 'completed'; job.progress = 100; job.result = structuredClone(result); job.error = null;
+        job.completedAt = now();
       } catch (error) {
         job.status = error.code === 'media-job-cancelled' ? 'queued' : 'failed';
         job.error = typeof error.code === 'string' ? error.code : 'media-job-failed';
@@ -111,7 +112,18 @@ function createMediaJobQueue({ directory, handlers, now = () => Date.now(), maxA
       return { id, status: 'cancelled' };
     });
   }
-  return { enqueue, inspect, runNext, retry, cancel };
+  async function metrics({ storedBytes = 0, costPerGbMonth = 0 } = {}) {
+    if (!Number.isSafeInteger(storedBytes) || storedBytes < 0 || !Number.isFinite(costPerGbMonth) || costPerGbMonth < 0) throw fail('media-job-metrics-invalid');
+    const jobs = (await read()).jobs;
+    const counts = { queued: 0, running: 0, failed: 0, completed: 0, cancelled: 0 };
+    for (const job of jobs) counts[job.status]++;
+    const durations = jobs.filter(job => Number.isSafeInteger(job.startedAt) && Number.isSafeInteger(job.completedAt))
+      .map(job => job.completedAt - job.startedAt);
+    return { counts, backlog: counts.queued + counts.running, failureCount: counts.failed,
+      averageProcessingMs: durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null,
+      storedBytes, estimatedMonthlyStorageCost: Number((storedBytes / (1024 ** 3) * costPerGbMonth).toFixed(4)) };
+  }
+  return { enqueue, inspect, runNext, retry, cancel, metrics };
 }
 
 module.exports = { createMediaJobQueue, KINDS };

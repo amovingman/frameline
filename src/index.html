@@ -7,6 +7,7 @@
   <title>Frameline — Launch film</title>
   <link rel="stylesheet" href="./styles.css">
   <script defer src="./sample-data.js"></script>
+  <script defer src="./windowed-list.js"></script>
   <script defer src="./renderer.js"></script>
 </head>
 <body>
@@ -19,11 +20,13 @@
         <button type="button" data-view="history">History</button>
         <button type="button" data-view="media">Media</button>
       </nav>
-      <div class="sidebar-note"><span class="connection-dot"></span> Local prototype<p>Your project stays on your device.</p></div><div class="head-actions"><span class="sample-mark">Sample workspace</span><button id="choose-file" type="button">Choose file</button><button id="rescan-project" type="button" hidden>Rescan project</button></div>
+      <div class="sidebar-note"><span class="connection-dot"></span> Local prototype<p>Your project stays on your device.</p></div><div class="head-actions"><span class="sample-mark">Sample workspace</span><button id="choose-file" type="button">Choose file</button><button id="rescan-project" type="button" hidden>Rescan project</button><button id="cancel-scan" type="button" hidden>Cancel scan</button></div>
     </header>
 
     <main class="page"><div class="workspace-bar"><span>Launch film <span class="breadcrumb-separator">/</span> <strong id="view-label">Review changes</strong></span><span class="branch-label">main <span class="branch-dot"></span> Sample project</span></div>
       <div id="file-notice" class="file-notice" role="status" hidden></div>
+      <section id="first-run" class="first-run" aria-labelledby="first-run-title" hidden><div><h2 id="first-run-title">Start with a timeline export</h2><p>Frameline can scan FCPXML 1.10 from Resolve Free 21.1.2 on macOS. The scan is read only.</p></div><form id="first-run-form"><label for="first-run-editor">Editor</label><select id="first-run-editor"><option value="resolve-free-21.1.2">Resolve Free 21.1.2</option></select><label for="first-run-workspace">Workspace label</label><input id="first-run-workspace" maxlength="60" value="Local workspace" required><p>Revisions remain in Frameline’s local app storage. This label does not move files.</p><div><button type="submit">Continue to project picker</button><button id="first-run-skip" type="button">Skip for now</button></div></form></section>
+      <section id="diagnostics-panel" class="diagnostics-panel" aria-labelledby="diagnostics-title"><div><h2 id="diagnostics-title">Diagnostics</h2><p>Review the exact path-free report before saving it. No media or source files are included.</p></div><button id="diagnostics-review" type="button">Review report</button><div id="diagnostics-preview" hidden><pre id="diagnostics-content"></pre><button id="diagnostics-export" type="button">Export reviewed report</button><p id="diagnostics-status" role="status"></p></div></section>
       <section id="view-workspace" class="view active" aria-label="Workspace">
         <div class="masthead">
           <div class="masthead-main"><h1>Review incoming changes</h1><p id="workspace-finding">3 proposed edits. 1 overlapping trim needs your attention.</p></div>

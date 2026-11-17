@@ -12,6 +12,7 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
   let state = createAppState();
   let selectedPath = null;
   let generation = 0;
+  let scanController = null;
 
   const getState = () => structuredClone(state);
 
@@ -34,9 +35,9 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
     return { revisions: describeHistory(revisions, branch, syncBase), syncBase };
   }
 
-  async function runScan(filePath, currentGeneration) {
+  async function runScan(filePath, currentGeneration, signal) {
     try {
-      const result = await scan(filePath);
+      const result = await scan(filePath, { signal });
       if (currentGeneration === generation) state = { ...state, scan: result, scanStatus: 'ready', error: null, relinkCandidates: [], relinkError: null };
       if (currentGeneration === generation && state.selectedProject?.id && metadataStore?.listRelinkCandidates) {
         try {
@@ -54,12 +55,19 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
 
   function startScan(filePath) {
     const currentGeneration = ++generation;
+    scanController?.abort(); scanController = new AbortController();
     state = { ...state, scan: null, scanStatus: 'scanning', revisionStatus: 'idle', error: null };
-    return runScan(filePath, currentGeneration);
+    return runScan(filePath, currentGeneration, scanController.signal);
   }
 
   return {
     getState,
+    cancelScan() {
+      if (state.scanStatus !== 'scanning') return getState();
+      ++generation; scanController?.abort();
+      state = { ...state, scan: null, scanStatus: 'error', error: 'scan-cancelled' };
+      return getState();
+    },
     async select(filePath) {
       const selectionGeneration = ++generation;
       const next = selectProject(state, filePath);

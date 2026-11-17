@@ -55,6 +55,26 @@ test('rescan with no selected file does not invoke the adapter', async () => {
   assert.deepEqual(await session.rescan(), session.getState());
 });
 
+test('cancelled scan aborts work and a retry can finish', async () => {
+  let aborted = false;
+  let finishScan;
+  let calls = 0;
+  const session = createProjectSession((_filePath, { signal }) => {
+    calls += 1;
+    if (calls > 1) return Promise.resolve({ clips: [], media: [], warnings: [] });
+    signal.addEventListener('abort', () => { aborted = true; finishScan(); }, { once: true });
+    return new Promise(resolve => { finishScan = () => resolve({ clips: [], media: [], warnings: [] }); });
+  });
+  const pending = session.select('/private/cut.fcpxml');
+  await Promise.resolve();
+  assert.equal(session.getState().scanStatus, 'scanning');
+  assert.equal(session.cancelScan().error, 'scan-cancelled');
+  assert.equal(aborted, true);
+  await pending;
+  assert.equal(session.getState().scanStatus, 'error');
+  assert.equal((await session.rescan()).scanStatus, 'ready');
+});
+
 test('selection exposes a stable project ID but never its path', async () => {
   const session = createProjectSession(async () => ({ clips: [], media: [], warnings: [] }), {
     getProjectId: async () => ({ id: 'local-project-id', recovered: false })

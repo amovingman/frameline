@@ -7,6 +7,8 @@ const { validateScanManifest } = require('./scan-manifest');
 
 const MAX_XML_BYTES = 20 * 1024 * 1024;
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', processEntities: false });
+const inventoryCache = new Map();
+function checkAbort(signal) { if (signal?.aborted) throw new ScanError('scan-cancelled'); }
 const asArray = value => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const displayName = value => path.basename(String(value || 'Untitled').replaceAll('\\', '/'));
 
@@ -150,7 +152,8 @@ async function checkMedia(source) {
   }
 }
 
-async function scanFcpXml(selectedPath) {
+async function scanFcpXml(selectedPath, { signal } = {}) {
+  checkAbort(signal);
   const extension = path.extname(selectedPath).toLowerCase();
   if (!['.fcpxml', '.fcpxmld'].includes(extension)) throw new ScanError('unsupported-format');
   const xmlPath = extension === '.fcpxmld' ? path.join(selectedPath, 'Info.fcpxml') : selectedPath;
@@ -160,9 +163,24 @@ async function scanFcpXml(selectedPath) {
   if (stat.size > MAX_XML_BYTES) throw new ScanError('file-too-large');
   let xmlBytes;
   try { xmlBytes = await fs.readFile(xmlPath); } catch (error) { throw new ScanError(fileErrorCode(error)); }
+  checkAbort(signal);
   if (xmlBytes.length > MAX_XML_BYTES) throw new ScanError('file-too-large');
-  const { scan, referencedAssets } = buildInventory(xmlBytes.toString('utf8'), createHash('sha256').update(xmlBytes).digest('hex'));
-  scan.media = await Promise.all(referencedAssets.map(async ({ name, source }) => ({ name, availability: await checkMedia(source) })));
+  const sourceHash = createHash('sha256').update(xmlBytes).digest('hex');
+  let inventory = inventoryCache.get(sourceHash);
+  if (!inventory) {
+    inventory = buildInventory(xmlBytes.toString('utf8'), sourceHash);
+    inventoryCache.set(sourceHash, inventory);
+    if (inventoryCache.size > 4) inventoryCache.delete(inventoryCache.keys().next().value);
+  }
+  const { scan, referencedAssets } = structuredClone(inventory);
+  scan.media = [];
+  for (let start = 0; start < referencedAssets.length; start += 64) {
+    checkAbort(signal);
+    scan.media.push(...await Promise.all(referencedAssets.slice(start, start + 64)
+      .map(async ({ name, source }) => ({ name, availability: await checkMedia(source) }))));
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  checkAbort(signal);
   return validateScanManifest(scan);
 }
 

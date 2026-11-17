@@ -30,6 +30,7 @@ const scanRecovery = {
   'metadata-invalid': 'Local project metadata is damaged and no valid backup was found. Keep the metadata files for recovery before trying again. The export was not changed.',
   'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.',
   'revision-source-changed': 'The export changed since the last scan. Rescan it before saving a revision.',
+  'scan-cancelled': 'Scan cancelled. The export was not changed. Rescan when ready.',
   'revision-head-changed': 'Revision history changed while saving. Choose the project again and retry.',
   'revision-message-invalid': 'Enter a revision message of 1 to 120 characters.',
   'revision-scan-required': 'Scan the selected export before saving a revision.',
@@ -364,17 +365,35 @@ async function inviteCollaborator(event) {
   }
 }
 
+let displayedRevisions = [];
+let displayedRevisionId = null;
+let historyWindow = null;
 function renderRealHistory(revisions, selectedId) {
+  displayedRevisions = revisions; displayedRevisionId = selectedId;
+  historyWindow = null;
+  drawHistoryWindow();
+}
+function drawHistoryWindow() {
+  if (!currentAppState?.selectedProject) return;
   const list = document.getElementById('history-list');
-  list.replaceChildren();
+  const revisions = displayedRevisions;
   if (!revisions.length) {
+    list.replaceChildren(); historyWindow = null;
     list.append(make('p', 'history-empty', 'No saved revisions yet. Scan this export, then save the current cut above.'));
     return;
   }
-  revisions.forEach((revision, index) => {
+  const { start, end, beforePx, afterPx } = window.visibleRange(revisions.length, list.scrollTop, list.clientHeight || 600, 96);
+  if (historyWindow?.start === start && historyWindow.end === end) return;
+  historyWindow = { start, end };
+  list.replaceChildren();
+  const before = make('div', 'history-spacer'); before.style.height = `${beforePx}px`; before.setAttribute('aria-hidden', 'true'); list.append(before);
+  revisions.slice(start, end).forEach((revision, offset) => {
+    const index = start + offset;
     const row = make('button', 'history-item revision-history-button');
     row.type = 'button';
-    row.setAttribute('aria-pressed', String(revision.id === selectedId));
+    row.dataset.revisionIndex = String(index);
+    row.setAttribute('aria-pressed', String(revision.id === displayedRevisionId));
+    row.setAttribute('aria-label', `Revision ${revisions.length - index} of ${revisions.length}: ${revision.message}`);
     row.addEventListener('click', () => openRevision(revision.id));
     const main = make('div', 'history-main');
     main.append(make('strong', '', revision.message),
@@ -388,7 +407,25 @@ function renderRealHistory(revisions, selectedId) {
     row.append(make('span', 'history-id', String(revisions.length - index).padStart(2, '0')), main, state);
     list.append(row);
   });
+  const after = make('div', 'history-spacer'); after.style.height = `${afterPx}px`; after.setAttribute('aria-hidden', 'true'); list.append(after);
 }
+document.getElementById('history-list').addEventListener('scroll', drawHistoryWindow);
+document.getElementById('history-list').addEventListener('keydown', event => {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  const index = Number(document.activeElement?.dataset.revisionIndex);
+  if (!Number.isSafeInteger(index) || !displayedRevisions[index]) return;
+  event.preventDefault();
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? displayedRevisions.length - 1
+    : Math.max(0, Math.min(displayedRevisions.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+  let target = document.querySelector(`#history-list [data-revision-index="${next}"]`);
+  if (!target) {
+    const list = document.getElementById('history-list');
+    list.scrollTop = next * 96;
+    drawHistoryWindow();
+    target = list.querySelector(`[data-revision-index="${next}"]`);
+  }
+  target?.focus();
+});
 
 function renderRevisionDetail(revision, error, comparison = null, comparisonError = null) {
   const section = document.getElementById('revision-detail');
@@ -575,6 +612,7 @@ function setScanBusy(busy) {
   document.getElementById('choose-file').disabled = busy;
   document.getElementById('rescan-project').disabled = busy;
   document.getElementById('rescan-project').textContent = busy ? 'Scanning…' : 'Rescan project';
+  document.getElementById('cancel-scan').hidden = !busy;
   document.getElementById('view-workspace').setAttribute('aria-busy', String(busy));
 }
 
@@ -645,7 +683,46 @@ selectChange(selectedChangeId);
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => chooseMode(button)));
 document.getElementById('choose-file').addEventListener('click', chooseFile);
+window.desktop?.getFirstRun?.().then(state => {
+  const panel = document.getElementById('first-run');
+  panel.hidden = state?.completed === true || !!currentAppState?.selectedProject;
+  if (state?.workspaceName) document.getElementById('first-run-workspace').value = state.workspaceName;
+}).catch(() => {});
+document.getElementById('first-run-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true;
+  try {
+    await window.desktop.saveFirstRun({ editor: document.getElementById('first-run-editor').value,
+      workspaceName: document.getElementById('first-run-workspace').value });
+    document.getElementById('first-run').hidden = true;
+    await chooseFile();
+  } catch { document.getElementById('file-notice').textContent = 'Could not save first-run choices. Try again.';
+    document.getElementById('file-notice').hidden = false; }
+  finally { button.disabled = false; }
+});
+document.getElementById('first-run-skip').addEventListener('click', () => { document.getElementById('first-run').hidden = true; });
+let reviewedDiagnosticsHash = null;
+document.getElementById('diagnostics-review').addEventListener('click', async () => {
+  const panel = document.getElementById('diagnostics-preview');
+  try {
+    const preview = await window.desktop.previewDiagnostics();
+    reviewedDiagnosticsHash = preview.sha256;
+    document.getElementById('diagnostics-content').textContent = JSON.stringify(preview.report, null, 2);
+    panel.hidden = false;
+  } catch { document.getElementById('diagnostics-status').textContent = 'Diagnostics are unavailable. Retry after the app starts.'; panel.hidden = false; }
+});
+document.getElementById('diagnostics-export').addEventListener('click', async () => {
+  const status = document.getElementById('diagnostics-status');
+  try {
+    const result = await window.desktop.exportDiagnostics(reviewedDiagnosticsHash);
+    status.textContent = result.saved ? 'Reviewed diagnostics saved.' : result.cancelled ? 'Export cancelled.'
+      : result.error === 'diagnostics-changed' ? 'App state changed. Review the report again before exporting.' : 'Could not save diagnostics. Choose a new filename.';
+  } catch { status.textContent = 'Could not save diagnostics. Try again.'; }
+});
 document.getElementById('rescan-project').addEventListener('click', rescanProject);
+document.getElementById('cancel-scan').addEventListener('click', async () => {
+  const state = await window.desktop.cancelScan(); renderAppState(state); setScanBusy(false);
+});
 document.getElementById('revision-form').addEventListener('submit', saveRevision);
 document.getElementById('invite-form').addEventListener('submit', inviteCollaborator);
 document.getElementById('branch-form').addEventListener('submit', event => {
@@ -679,6 +756,16 @@ document.addEventListener('keydown', event => {
     showView(['workspace', 'history', 'media'][Number(event.key) - 1]);
   }
 });
+for (const listId of ['video-track', 'change-queue', 'resolve-queue']) {
+  document.getElementById(listId)?.addEventListener('keydown', event => {
+    if (!['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(event.key)) return;
+    const buttons = [...event.currentTarget.querySelectorAll('button:not(:disabled)')];
+    const index = buttons.indexOf(document.activeElement);
+    if (index < 0 || buttons.length < 2) return;
+    const next = (index + (['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : -1) + buttons.length) % buttons.length;
+    event.preventDefault(); buttons[next].focus();
+  });
+}
 
 let resolveState = null;
 let resolveSelected = null;

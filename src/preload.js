@@ -4,6 +4,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
   appName: 'Git for Video Editing',
   getAppState: () => ipcRenderer.invoke('app:get-state'),
+  getFirstRun: () => ipcRenderer.invoke('onboarding:get'),
+  saveFirstRun: selection => ipcRenderer.invoke('onboarding:save', selection),
+  previewDiagnostics: () => ipcRenderer.invoke('diagnostics:preview'),
+  exportDiagnostics: hash => ipcRenderer.invoke('diagnostics:export', hash),
   getSyncState: () => ipcRenderer.invoke('sync:get-state'),
   retrySync: id => ipcRenderer.invoke('sync:retry', id),
   cancelSync: id => ipcRenderer.invoke('sync:cancel', id),
@@ -11,6 +15,7 @@ contextBridge.exposeInMainWorld('desktop', {
   inviteCollaborator: (email, role) => ipcRenderer.invoke('collaboration:invite', email, role),
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   rescanProject: () => ipcRenderer.invoke('project:rescan'),
+  cancelScan: () => ipcRenderer.invoke('project:cancel-scan'),
   saveRevision: message => ipcRenderer.invoke('project:save-revision', message),
   openRevision: revisionId => ipcRenderer.invoke('project:open-revision', revisionId),
   createBranch: name => ipcRenderer.invoke('project:create-branch', name),

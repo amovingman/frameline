@@ -15,6 +15,8 @@ const { resolveFolderCandidates, sanitizeResolutionReport,
   carryObservedIdentity, evaluateMediaRequirements } = require('./local-media-readiness');
 const { createSyncQueue } = require('./sync-queue');
 const { createAccessControl } = require('./access-control');
+const { createFirstRun } = require('./first-run');
+const { createDiagnosticsReport } = require('./diagnostics-report');
 
 let projectSession;
 let resolveReviewSession;
@@ -35,6 +37,7 @@ let privateMediaAudits = {};
 let syncQueue;
 let collaborationAccess;
 let collaborationTeam;
+let firstRun;
 const collaborationProjects = new Set();
 const LOCAL_OWNER_ID = 'local-owner';
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
@@ -152,10 +155,27 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   collaborationAccess = createAccessControl();
   collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
+  firstRun = createFirstRun({ directory: path.join(app.getPath('userData'), 'onboarding') });
   const resolveArtifactDirectory = path.join(app.getPath('userData'), 'resolve-previews');
   resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
+  ipcMain.handle('onboarding:get', () => firstRun.read());
+  ipcMain.handle('onboarding:save', (_event, selection) => firstRun.save(selection));
+  const diagnostic = () => createDiagnosticsReport({ appVersion: app.getVersion(), state: projectSession.getState(),
+    syncState: { connected: false, operations: syncQueue.inspect() } });
+  ipcMain.handle('diagnostics:preview', () => {
+    const { report, sha256 } = diagnostic(); return { report, sha256 };
+  });
+  ipcMain.handle('diagnostics:export', async (_event, expectedHash) => {
+    const current = diagnostic();
+    if (typeof expectedHash !== 'string' || expectedHash !== current.sha256) return { saved: false, error: 'diagnostics-changed' };
+    const choice = await dialog.showSaveDialog({ title: 'Export reviewed diagnostics', defaultPath: 'frameline-diagnostics.json',
+      filters: [{ name: 'JSON report', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePath) return { saved: false, cancelled: true };
+    try { await fs.writeFile(choice.filePath, current.bytes, { flag: 'wx', mode: 0o600 }); return { saved: true }; }
+    catch { return { saved: false, error: 'diagnostics-save-failed' }; }
+  });
   ipcMain.handle('sync:get-state', () => ({ connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }));
   ipcMain.handle('sync:retry', (_event, id) => {
     try { syncQueue.retry(id); return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }; }
@@ -317,6 +337,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
     return state;
   });
+  ipcMain.handle('project:cancel-scan', () => projectSession.cancelScan());
   ipcMain.handle('project:prepare-review-copy', async () => {
     if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
     const state = projectSession.getState();
