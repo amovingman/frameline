@@ -7,7 +7,7 @@ async function prepare(directory, expectedProjectName) {
   if (typeof directory !== 'string' || !path.isAbsolute(directory)) throw new Error('invalid-directory');
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const request = await createCaptureRequest({ directory, expectedProjectName });
-  const companion = path.join(__dirname, 'resolve-internal-companion.py');
+  const companion = path.join(__dirname, '..', 'src', 'companion', 'resolve-internal.py');
   const consoleCommand = `import runpy; bridge = runpy.run_path(${JSON.stringify(companion)}); bridge['capture_request'](resolve, ${JSON.stringify(request.requestFile)})`;
   return { ...request, consoleCommand, readOnly: true, safeToApply: false };
 }

@@ -63,7 +63,7 @@ def capture_request(resolve, request_path):
     project = resolve.GetProjectManager().GetCurrentProject()
     if project is None or project.GetName() != expected:
         raise ValueError("Open the named disposable project before capturing")
-    capture = runpy.run_path(str(Path(__file__).with_name("resolve-xml-proof").joinpath("resolve_api_identity.py")))["capture"]
+    capture = runpy.run_path(str(Path(__file__).with_name("resolve_snapshot.py")))["capture"]
     snapshot = capture(resolve)
     if snapshot.get("resolve_version") != "21.1.2.10" or not _path_free(snapshot):
         raise ValueError("Unsupported or path-bearing Resolve snapshot")

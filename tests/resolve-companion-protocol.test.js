@@ -8,7 +8,7 @@ const { execFileSync } = require('node:child_process');
 const { createCaptureRequest, readCaptureResponse } = require('../src/resolve-companion-protocol');
 
 const fixture = path.join(__dirname, '../phase-0/resolve-xml-proof/live-mapping-before-schema3.json');
-const companion = path.join(__dirname, '../phase-0/resolve-internal-companion.py');
+const companion = path.join(__dirname, '../src/companion/resolve-internal.py');
 const expectedProjectName = 'Frameline API Relink Test';
 const fakeResolve = `import json, runpy, sys
 bridge = runpy.run_path(sys.argv[1])
