@@ -6,6 +6,8 @@ On November 17, 2026, `python3 phase-0/probe-external-resolve.py` returned `conn
 
 The paired capture retains five API item IDs across an edit. One corresponding FCPXML spine position changes from 5 to 6. `src/resolve-candidate-ledger.js` records those observations and verifies a saved ledger against all four exact source byte streams. A collision makes its result unresolved and suppresses retained-ID claims. The ledger is **candidate evidence**, not a persistent clip/track sidecar or an API-to-FCPXML identity proof.
 
+The read-only `phase-0/compare-bound-exports.js` diagnostic combines that candidate context with an API-ID field diff. Run it with `before-snapshot.json before.fcpxmld after-snapshot.json after.fcpxmld TIMELINE_ID`. On the paired capture it reports one retained item with changed start/end frames and XML spine candidates 5 → 6. Ambiguous signatures leave the API differences visible but remove their XML candidate positions. The report never claims XML identity or enables apply.
+
 The structure capture still shows two API audio items versus one explicit XML audio entry. The paired coverage report leaves effect parameters, linked identity, nested contents, and Resolve track-to-XML lane mapping unobservable. The API field diff reports two observed item-field changes; it cannot compare fields the snapshot does not contain. Those facts keep complete enumeration, lossless round trip, and safe write blocked.
 
 | Gate | Current result | Evidence to close it |

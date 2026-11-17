@@ -97,7 +97,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 1.4 Change detection and comparison
 - [ ] Match objects using stable IDs, not names or timeline positions alone. The audit confirms five retained API IDs in one project; FCPXML pairing remains candidate-only.
-- [ ] Compare additions, deletions, and property changes at the smallest safe level. The audit recomputes two observed API-field differences from paired captures; unrepresented editor constructs remain outside this diagnostic.
+- [ ] Compare additions, deletions, and property changes at the smallest safe level. A new read-only paired-export diagnostic joins API-ID field differences to exact-source XML candidate positions and drops those positions on ambiguity; unrepresented constructs and durable revision comparison remain open.
 - [ ] Normalize equivalent values so unchanged edits do not appear as differences.
 - [ ] Present sequence, track, clip, timecode, property, and before/after values.
 - [ ] Filter and group changes by sequence, track, status, and change type.
