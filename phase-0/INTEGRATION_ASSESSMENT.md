@@ -1,6 +1,6 @@
 # Resolve integration assessment
 
-Evidence reviewed through 2026-11-11. Initial target: DaVinci Resolve Free 21.1.2, build 21.1.20010, on macOS. This is a feasibility assessment, not a release support declaration.
+Evidence reviewed through 2026-11-17. Initial target: DaVinci Resolve Free 21.1.2, build 21.1.20010, on macOS. This is a feasibility assessment, not a release support declaration.
 
 ## 1. First-user hypothesis
 
@@ -14,7 +14,7 @@ The installed developer `Developer/Scripting/README.md` distinguishes internal s
 
 On November 17, 2026, a read-only external Python `scriptapp("Resolve")` probe returned no connection while Free 21.1.2/build 21.1.20010 was open on a disposable performance project. The result was the same inside and outside the workspace sandbox. `probe-external-resolve.py` reproduces the check and `external-api-observation.json` records the outside-sandbox result. This does not prove all Free configurations are unable to connect. For this installation, an Electron-controlled live API path remains unavailable; any safe apply design must prove an internal-script bridge or revisit the first editor/edition target.
 
-The user selected the Free internal-script path for continued work. `INTERNAL_COMPANION.md` describes a five-minute, private request/response prototype for read-only schema-3 captures. Its Python writer and Node validator are tested together using a disposable capture; the scripts are package inputs. A live console execution, desktop controls, and any write transaction remain open.
+The user selected the Free internal-script path for continued work. `INTERNAL_COMPANION.md` describes a five-minute, private request/response prototype for read-only schema-3 captures. Its Console command, desktop capture controls, and Node validator completed live disposable captures, including a 53-item mixed timeline transferred in parts. A write transaction remains open.
 
 ## 3. Integration paths and test assets
 
@@ -22,7 +22,7 @@ The user selected the Free internal-script path for continued work. `INTERNAL_CO
 |---|---|---|---|
 | FCPXML import/export | Scanner reads top-level picture `<asset-clip>`, `<video>`, and single-picture-source `<clip>` wrappers; FCPXML omits Resolve item IDs. | A copied export with one duration edit reimported. | Proven in Free 21.1.2 on a synthetic still-image project. A thousand-clip Free export scans all 1,001 primary picture clips. FCPXML resource refs changed after reorder, so they cannot supply stable identity alone. |
 | Resolve scripting API | `Project`, `Timeline`, and `TimelineItem` expose unique IDs; the API enumerates tracks and items. | `SetPosition`, `SetRightOffset`, and `DeleteClips` are documented and were exercised on duplicate timelines. | Free internal console worked. Studio external scripting is documented; an Electron bridge and full safety transaction are unproven. |
-| Native `.drp`/project format | No documented stable on-disk edit schema was found in the installed scripting reference. | A `.drp` import copy was unusable for the planned relink test. | Keep this path out of scope until a documented write surface and a valid copy/reopen proof exist. |
+| Native `.drp`/project format | No documented stable on-disk edit schema was found in the installed scripting reference. | One older `.drp` import copy was unusable for relinking; a later disposable export/import created a separate project with a valid database, but its timeline has not been reopened and compared. | Treat `.drp` as a candidate backup format only. Never patch native project bytes; a semantic copy/reopen and recovery drill remain required. |
 
 Untouched synthetic and Resolve-exported fixtures live in [the proof](resolve-xml-proof/README.md) and [the compatibility corpus](compatibility-corpus/README.md). The live Free structure fixture covers moving footage, linked audio, extra tracks, a transition, an OFX effect, and a compound clip; the scanner still omits most of those constructs. No release-supported minimum has been declared.
 

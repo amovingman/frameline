@@ -21,3 +21,11 @@ node phase-0/prepare-review-copy.js source.fcpxml copies Review.fcpxml EXPECTED_
 ```
 
 The review-copy helper accepts regular `.fcpxml` files up to the scanner's 20 MB limit; bundles and symlink path components are refused. `checkApplyPreflight` is a main-process diagnostic only. The current Resolve API snapshots cannot authenticate a project file, media requirements are not bound to verified file paths, and the FCPXML adapter lacks safe apply and editor validation. It therefore always returns `safeToApply: false`. No project file is modified by these preflights.
+
+## Native Resolve export and import probe (2026-11-17)
+
+On the disposable `Frameline Lua Capture Fixture` in Resolve Free 21.1.2, `ProjectManager.ExportProject(projectName, filePath, false)` returned `true` and created a 66,084-byte `.drp`. Its SHA-256 is `d2d32919cf785eec4c7ecddf76d8741039f1ad54b63477f5fb69024ccc30af04`. ZIP integrity checks passed for `project.xml`, `MediaPool/Master/MpFolder.xml`, one `SeqContainer` XML member, and `Gallery.xml`. Resolve initially created the export with mode `0666`; the probe set it to `0600` before further inspection. Any backup service must create exports in a private directory and verify restrictive permissions before treating them as restore points.
+
+`ProjectManager.ImportProject` was then invoked with the exported path and a distinct name, `Frameline Restore Probe`. Resolve created a separate local project at that name. Its `Project.db` passes SQLite `PRAGMA integrity_check`. The original project remains present. This proves an export/import copy exists for this fixture. The imported timeline has not yet been opened and compared with the source through Resolve, so semantic recovery and an apply/rollback transaction remain unproven.
+
+`inspectResolveProjectExport` is a read-only verifier for private `.drp` files. It fingerprints the file before and after ZIP member and CRC checks, requires a project XML, media-pool XML, and at least one sequence XML, and rejects group/world-readable exports, symlinks, and changed files. Its result is evidence about an archive, not permission to write to an editor project.
