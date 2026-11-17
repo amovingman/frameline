@@ -203,17 +203,17 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 ### 3.4 Sharing and team workflow
 - [x] Add owner-only project invitations for editor/viewer roles, token-free member and pending-invite listings, and a desktop access panel. Invitations remain local until hosted delivery exists.
 - [x] Show author, time, message, selected branch, and sync state in revision history, deriving local-only, local-ahead, and synced labels from each branch's recorded sync base.
-- [ ] Copy a read-only share link with configurable expiration/permissions where appropriate.
-- [ ] Notify users about incoming revisions and permission changes.
-- [ ] Add activity history for commits, branch changes, pulls, and membership changes.
-- [ ] Define ownership transfer, member removal, and project deletion behavior.
+- [ ] Copy a read-only share link with configurable expiration/permissions where appropriate. A service-only, owner-issued link now supports bounded expiration, read-only revision redemption, revocation, and a trusted clipboard callback; hosted redemption and desktop controls remain open.
+- [ ] Notify users about incoming revisions and permission changes. Recipient-scoped local inbox records and read receipts now exist; delivery across devices and desktop notification remain open.
+- [ ] Add activity history for commits, branch changes, pulls, and membership changes. Hash-linked local events cover commits/branches and membership hooks; a real pull transaction and durable hosted history remain open.
+- [x] Define ownership transfer, member removal, and project deletion behavior. Access control now transfers to an existing member, revokes removed members immediately, and tombstones deleted projects while retaining immutable history. See `COLLABORATION_FOUNDATIONS.md`.
 
 **Exit:** Two authorized accounts can share project history, work offline, reconnect without losing revisions, and cannot access projects outside their permissions.
 
 ## Phase 4 — Media sync and team operations
 
 ### 4.1 Content-addressed asset service
-- [ ] Define media asset identity using cryptographic hashes and metadata.
+- [x] Define media asset identity using cryptographic hashes and metadata. A path-free SHA-256 content ID, byte count, asset class, and media type are defined in `src/media-asset-identity.js`; storage and transfer remain open.
 - [ ] Hash files incrementally using streaming I/O.
 - [ ] Upload and download in resumable, integrity-checked chunks.
 - [ ] Deduplicate identical assets across revisions and projects within the chosen privacy boundary.
