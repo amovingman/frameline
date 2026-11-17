@@ -38,6 +38,9 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.equal(report.sources.effectGuardReport, 'dae8e1491cf1f4fb116249a5e2b4b34f8cfd1fb1c4a412bea9e2f08619ca7b2a');
   assert.deepEqual(report.observations.effectGuard, { staleCommandRejected: true, staleSchema3Changes: 0,
     staleEffectChanges: 1, rollbackEffectBytesMatch: true, desktopIntegrated: false, fullProjectApplyVerified: false });
+  assert.equal(report.sources.desktopEffectGuardReport, '7239b53ade532f4ab646033164292cb9ab5959813e951da216fa74dc73cb6a69');
+  assert.deepEqual(report.observations.desktopEffectGuard, { desktopIntegrated: true, rollbackEffectBytesMatch: true,
+    invalidResultRejected: true, outcomeRevisionRecorded: true, fullProjectApplyVerified: false });
   assert(report.gates.every(gate => ['open', 'blocked', 'partial'].includes(gate.status)));
   assert(!JSON.stringify(report).includes('/Users/'));
 });

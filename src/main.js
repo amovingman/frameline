@@ -145,9 +145,10 @@ async function currentResolveSources() {
 }
 
 async function runResolveAction(action) {
-  if (['backup-command', 'rollback-command'].includes(resolveTrialSession?.getState().phase)) {
+  const trial = resolveTrialSession?.getState();
+  if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
-      message: 'Finish the active drill or cancel its backup preparation before changing the review.' } });
+      message: 'Finish the active drill or cancel its preparation before changing the review.' } });
   }
   if (resolveBusy) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-review-busy', message: 'A Resolve review action is already running.' } });
   resolveBusy = true;

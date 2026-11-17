@@ -158,6 +158,25 @@ function readEffectGuardEvidence(effects, recovery) {
     rollbackEffectBytesMatch: true, desktopIntegrated: false, fullProjectApplyVerified: false };
 }
 
+function readDesktopEffectEvidence(effects, recovery) {
+  const bytes = fs.readFileSync(path.join(__dirname, 'desktop-effect-guard-live-observation.json'));
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (hash !== '7239b53ade532f4ab646033164292cb9ab5959813e951da216fa74dc73cb6a69') throw new Error('desktop-effect-evidence-changed');
+  const report = JSON.parse(bytes);
+  if (report.schemaVersion !== 1 || report.desktopIntegrated !== true || report.forcedFailure !== true
+    || report.safeToApply !== false || report.losslessValidated !== false || report.status !== 'rolled-back'
+    || report.sourceSha256 !== recovery.sourceHash || report.resultingSnapshotSha256 !== recovery.sourceHash
+    || report.effectObservation.sourceSha256 !== effects.hashes.enabled
+    || report.effectObservation.resultingSha256 !== effects.hashes.restored
+    || report.effectObservation.validation !== 'observed-effect-metadata-only'
+    || report.invalidResultRejected !== true || report.backup.archiveVerified !== true || report.backup.mode !== 0o600
+    || !/^[a-f0-9-]{36}$/.test(report.revisionId) || !/^[a-f0-9]{64}$/.test(report.revisionRecordHash)) {
+    throw new Error('desktop-effect-evidence-mismatch');
+  }
+  return { hash, desktopIntegrated: true, rollbackEffectBytesMatch: true, invalidResultRejected: true,
+    outcomeRevisionRecorded: true, fullProjectApplyVerified: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -183,6 +202,7 @@ function auditFirstEditor() {
   const native = readNativeControlEvidence();
   const effects = readEffectEvidence();
   const effectGuard = readEffectGuardEvidence(effects, recovery);
+  const desktopEffects = readDesktopEffectEvidence(effects, recovery);
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
@@ -199,7 +219,7 @@ function auditFirstEditor() {
   return { schemaVersion: 1, readOnly: true, safeToApply: false, releaseSupported: false,
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
     sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes,
-      effectGuardReport: effectGuard.hash, structureExport: structureCoverage.sourceHash,
+      effectGuardReport: effectGuard.hash, desktopEffectGuardReport: desktopEffects.hash, structureExport: structureCoverage.sourceHash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
@@ -212,6 +232,9 @@ function auditFirstEditor() {
       effectGuard: { staleCommandRejected: effectGuard.staleCommandRejected, staleSchema3Changes: effectGuard.staleSchema3Changes,
         staleEffectChanges: effectGuard.staleEffectChanges, rollbackEffectBytesMatch: effectGuard.rollbackEffectBytesMatch,
         desktopIntegrated: false, fullProjectApplyVerified: false },
+      desktopEffectGuard: { desktopIntegrated: desktopEffects.desktopIntegrated, rollbackEffectBytesMatch: desktopEffects.rollbackEffectBytesMatch,
+        invalidResultRejected: desktopEffects.invalidResultRejected, outcomeRevisionRecorded: desktopEffects.outcomeRevisionRecorded,
+        fullProjectApplyVerified: false },
       nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
         editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };

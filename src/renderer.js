@@ -793,7 +793,7 @@ function renderResolveState(state) {
   renderResolveTrial();
   const items = resolveChanges();
   const ready = state?.status === 'ready' && !!state.plan;
-  const locked = resolveBusy || ['backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
+  const locked = resolveBusy || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
   document.getElementById('resolve-refresh').disabled = locked || !ready;
   document.getElementById('resolve-save').disabled = locked || !ready;
   document.getElementById('resolve-choose').disabled = locked;
@@ -886,7 +886,7 @@ function renderResolveDetail() {
     const selected = resolveChoice(conflict);
     for (const choice of conflict.options || ['keep-local', 'take-incoming']) {
       const button = make('button', selected === choice ? 'selected' : '', choice === 'keep-local' ? 'Keep local' : 'Take incoming');
-      button.type = 'button'; button.disabled = resolveBusy || ['backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
+      button.type = 'button'; button.disabled = resolveBusy || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
       button.setAttribute('aria-pressed', String(selected === choice));
       button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
       controls.append(button);
@@ -1227,29 +1227,41 @@ function renderResolveTrial() {
   document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit
     || !['idle', 'saved'].includes(phase) || !document.getElementById('resolve-trial-ack').checked;
   document.getElementById('resolve-trial-issue').disabled = blocked || phase !== 'backup-command';
-  document.getElementById('resolve-trial-copy').disabled = blocked || !['backup-command', 'rollback-command'].includes(phase);
-  document.getElementById('resolve-trial-cancel').disabled = blocked || phase !== 'backup-command';
-  document.getElementById('resolve-trial-read').disabled = blocked || phase !== 'rollback-command';
+  document.getElementById('resolve-trial-copy').disabled = blocked || !['effect-command', 'backup-command', 'rollback-command'].includes(phase);
+  document.getElementById('resolve-trial-cancel').disabled = blocked || !['effect-command', 'backup-command'].includes(phase);
+  document.getElementById('resolve-trial-read').disabled = blocked || !['effect-command', 'rollback-command'].includes(phase);
+  document.getElementById('resolve-trial-read').textContent = ['idle', 'effect-command'].includes(phase) ? 'Read effect capture' : 'Read drill result';
   document.getElementById('resolve-trial-save').disabled = blocked || phase !== 'verified' || state?.outcome?.status === 'recovery-required';
   document.getElementById('resolve-trial-reveal').disabled = blocked || !state?.backup;
   document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
   const messages = { idle: 'Review one rename and acknowledge the disposable project to begin.',
-    'backup-command': 'Backup command copied. Run it in Resolve’s Lua Console, then verify the backup here.',
+    'effect-command': 'Read-only effect capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the effect capture here.',
+    'backup-command': 'Effect capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
     'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
     verified: `Verified outcome: ${state?.outcome?.status || 'unknown'}. Save an observation revision to retain the history link.`,
     saved: `Outcome revision saved on ${state?.branch || 'the selected branch'}: ${state?.revisionId || ''}.` };
   document.getElementById('resolve-trial-status').textContent = blocked ? 'Verifying drill records…' : state?.error
     || [messages[phase] || messages.idle, state?.backup ? `Retained backup: ${state.backup.size.toLocaleString()} bytes · SHA-256 ${state.backup.sha256.slice(0, 12)}` : '',
-      state?.outcome ? 'Validation covers captured fields. Full editor-property validation remains incomplete.' : ''].filter(Boolean).join('\n');
+      state?.effectGuard ? `Effect capture bound: SHA-256 ${state.effectGuard.sourceSha256.slice(0, 12)}` : '',
+      state?.outcome ? state.outcome.effectObservation
+        ? 'Validation includes effect type, name, index, and enabled state. Effect parameters and full editor properties remain unverified.'
+        : 'This older drill checked snapshot fields only. Effect metadata and full editor properties were not verified.' : ''].filter(Boolean).join('\n');
 }
 async function resolveTrialAction(method, ...args) {
   if (resolveTrialBusy) return;
+  const previousPhase = resolveTrialState?.phase;
   resolveTrialBusy = true; renderResolveTrial();
   try {
     resolveTrialState = await window.desktop[method](...args);
     if (method === 'saveResolveTrialRevision' && !resolveTrialState.error) await refreshResolveHistory();
   } catch { resolveTrialState = { ...resolveTrialState, error: 'Could not complete the drill action. Keep the backup and retry.' }; }
-  finally { resolveTrialBusy = false; renderResolveState(resolveState); }
+  finally {
+    resolveTrialBusy = false; renderResolveState(resolveState);
+    if (!resolveTrialState?.error && resolveTrialState?.phase !== previousPhase) {
+      const next = { 'effect-command': 'read', 'backup-command': 'issue', 'rollback-command': 'read', verified: 'save' }[resolveTrialState?.phase];
+      if (next && !document.getElementById(`resolve-trial-${next}`).disabled) document.getElementById(`resolve-trial-${next}`).focus();
+    }
+  }
 }
 document.getElementById('resolve-trial-form').addEventListener('submit', event => {
   event.preventDefault(); resolveTrialAction('prepareResolveTrial', document.getElementById('resolve-trial-name').value.trim(), document.getElementById('resolve-trial-ack').checked);
