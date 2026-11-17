@@ -146,7 +146,7 @@ async function currentResolveSources() {
 
 async function runResolveAction(action) {
   const trial = resolveTrialSession?.getState();
-  if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command'].includes(trial?.phase)) {
+  if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
       message: 'Finish the active drill or cancel its preparation before changing the review.' } });
   }
@@ -246,10 +246,11 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve-trial:copy', () => resolveTrialSession.copyCommand());
   ipcMain.handle('resolve-trial:cancel', () => resolveTrialSession.cancelPreparation());
   ipcMain.handle('resolve-trial:read', () => resolveTrialSession.read());
+  ipcMain.handle('resolve-trial:inspect', () => resolveTrialSession.inspectRecovery());
   ipcMain.handle('resolve-trial:save-revision', () => resolveTrialSession.saveRevision());
   ipcMain.handle('resolve-trial:recover', async () => {
     if (!resolveTrialSession.getState().enabled) return resolveTrialSession.getState();
-    const choice = await dialog.showOpenDialog({ title: 'Recover a completed rename drill', defaultPath: trialDirectory, properties: ['openDirectory'] });
+    const choice = await dialog.showOpenDialog({ title: 'Recover a rename drill', defaultPath: trialDirectory, properties: ['openDirectory'] });
     return choice.canceled ? resolveTrialSession.getState() : resolveTrialSession.recover(choice.filePaths[0]);
   });
   ipcMain.handle('resolve-trial:reveal-backup', async () => {

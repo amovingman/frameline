@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('desktop', {
   readResolveTrial: () => ipcRenderer.invoke('resolve-trial:read'),
   saveResolveTrialRevision: () => ipcRenderer.invoke('resolve-trial:save-revision'),
   recoverResolveTrial: () => ipcRenderer.invoke('resolve-trial:recover'),
+  inspectResolveTrialRecovery: () => ipcRenderer.invoke('resolve-trial:inspect'),
   revealResolveTrialBackup: () => ipcRenderer.invoke('resolve-trial:reveal-backup'),
   prepareResolveCapture: projectName => ipcRenderer.invoke('resolve-companion:prepare', projectName),
   readResolveCapture: () => ipcRenderer.invoke('resolve-companion:read'),

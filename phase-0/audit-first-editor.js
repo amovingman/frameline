@@ -14,6 +14,7 @@ const { compareResolveManifests } = require('../src/resolve-id-diff');
 const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator');
 const { compareResolveRecovery } = require('../src/resolve-recovery-comparison');
 const { parseEffectObservation, compareEffectObservations } = require('../src/resolve-effect-observation');
+const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
 
 const root = path.join(__dirname, 'resolve-xml-proof');
 const structure = path.join(__dirname, 'compatibility-corpus');
@@ -177,6 +178,36 @@ function readDesktopEffectEvidence(effects, recovery) {
     outcomeRevisionRecorded: true, fullProjectApplyVerified: false };
 }
 
+function readInterruptionEvidence(effects, recovery) {
+  const files = [
+    ['interrupted-rename-recovery-live-observation.json', '3e5e7bc1cb58c9fee8b74681cae46b78689b75687d773d199bcb4b43bbe5fc66', 'restored', 'restore-name'],
+    ['unrun-rename-recovery-live-observation.json', '4cb4684783f0fa193b91958d24c81c47e4f476060f2e29de6094cf672ba623db', 'source-verified', 'verify-source']
+  ];
+  const expectedContentHash = createResolveRevisionManifest(JSON.parse(fs.readFileSync(path.join(root, 'live-rename-before-schema3.json')))).sourceHash;
+  const reports = files.map(([name, hash, status, operation]) => {
+    const bytes = fs.readFileSync(path.join(__dirname, name));
+    if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('interruption-evidence-changed');
+    const report = JSON.parse(bytes);
+    if (report.schemaVersion !== 1 || report.status !== status || report.recovery.operation !== operation
+      || report.desktopIntegrated !== true || report.desktopRestartedBeforeRecovery !== true || report.reviewFilesReloaded !== false
+      || report.safeToApply !== false || report.losslessValidated !== false || report.sourceSha256 !== recovery.sourceHash
+      || report.resultingSnapshotSha256 !== recovery.sourceHash || report.effectObservation.sourceSha256 !== effects.hashes.enabled
+      || report.effectObservation.resultingSha256 !== effects.hashes.restored || report.inspectedEffectChanges !== 0
+      || report.revisionContentHash !== expectedContentHash || !/^[a-f0-9-]{36}$/.test(report.revisionId)
+      || !/^[a-f0-9]{64}$/.test(report.revisionRecordHash) || !/^[a-f0-9]{64}$/.test(report.recovery.revocationSha256)
+      || report.backup.archiveVerified !== true || report.backup.mode !== 0o600) throw new Error('interruption-evidence-mismatch');
+    return report;
+  });
+  if (reports[0].inspectedNameChanges !== 1 || reports[0].interruptionInjectedAfterSavedRename !== true
+    || reports[0].originalCommandRejectedAfterClearingLuaGuard !== true || reports[1].inspectedNameChanges !== 0
+    || reports[1].originalCommandExecuted !== false || reports[1].rendererReloadedDuringRecovery !== true
+    || reports[1].recovery.inspectionSha256 !== effects.hashes.enabled
+    || reports[0].transactionId === reports[1].transactionId) throw new Error('interruption-evidence-mismatch');
+  return { hashes: { renamed: files[0][1], unrun: files[1][1] }, desktopRestartCases: reports.length,
+    restoredObservedSource: true, verifiedUnrunSource: true, persistentRetirementProbe: true,
+    fullProjectApplyVerified: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -203,6 +234,7 @@ function auditFirstEditor() {
   const effects = readEffectEvidence();
   const effectGuard = readEffectGuardEvidence(effects, recovery);
   const desktopEffects = readDesktopEffectEvidence(effects, recovery);
+  const interruptions = readInterruptionEvidence(effects, recovery);
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
@@ -220,6 +252,7 @@ function auditFirstEditor() {
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
     sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes,
       effectGuardReport: effectGuard.hash, desktopEffectGuardReport: desktopEffects.hash, structureExport: structureCoverage.sourceHash,
+      interruptionReports: interruptions.hashes,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
@@ -234,6 +267,9 @@ function auditFirstEditor() {
         desktopIntegrated: false, fullProjectApplyVerified: false },
       desktopEffectGuard: { desktopIntegrated: desktopEffects.desktopIntegrated, rollbackEffectBytesMatch: desktopEffects.rollbackEffectBytesMatch,
         invalidResultRejected: desktopEffects.invalidResultRejected, outcomeRevisionRecorded: desktopEffects.outcomeRevisionRecorded,
+        fullProjectApplyVerified: false },
+      interruptedRecovery: { desktopRestartCases: interruptions.desktopRestartCases, restoredObservedSource: interruptions.restoredObservedSource,
+        verifiedUnrunSource: interruptions.verifiedUnrunSource, persistentRetirementProbe: interruptions.persistentRetirementProbe,
         fullProjectApplyVerified: false },
       nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,

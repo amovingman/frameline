@@ -190,3 +190,60 @@ test('completed counts-only drills remain recoverable without claiming an effect
   assert.equal(recovered.outcome.effectObservation, null);
   assert.equal((await session.saveRevision()).phase, 'saved');
 });
+
+function recoveryOutput(id, bytes, status) {
+  return captureOutput(id, bytes, 'trial').replaceAll('FRAMELINE_RENAME_TRIAL_CAPTURE_V1:', 'FRAMELINE_RENAME_RECOVERY_CAPTURE_V1:')
+    + `\nFRAMELINE_RENAME_RECOVERY_RESULT_V1:${id}:${status}`;
+}
+
+test('a restarted desktop inspects an issued drill, restores the expected rename, and saves its verified outcome', async t => {
+  const context = await setup(t), { session, options, effects, sources } = context;
+  await startBackup(context);
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder); await session.issue();
+  const restarted = createResolveTrialSession({ ...options, getReview: async () => { throw new Error('No review is loaded after restart'); } });
+  const initial = await restarted.recover(folder);
+  assert.equal(initial.phase, 'recovery-capture');
+  assert.equal(initial.projectName, 'Frameline Restore Probe');
+  assert.ok(initial.recovery.attemptId);
+  const renamed = JSON.parse(effects); renamed.snapshot = JSON.parse(sources.incoming);
+  options.clipboard.writeText(captureOutput(initial.captureId, JSON.stringify(renamed)));
+  const inspected = await restarted.read();
+  assert.equal(inspected.phase, 'recovery-ready');
+  assert.equal(inspected.recovery.classification, 'renamed');
+  assert.equal((await restarted.issue()).phase, 'recovery-command');
+  assert.equal((await restarted.cancelPreparation()).phase, 'recovery-command');
+  assert.ok(restarted.getState().error);
+  options.clipboard.writeText(recoveryOutput(initial.recovery.attemptId, effects, 'restored'));
+  assert.equal((await restarted.read()).outcome.status, 'restored');
+  const saved = await restarted.saveRevision();
+  assert.equal(saved.phase, 'saved');
+  assert.ok(saved.revisionId);
+  assert(!JSON.stringify(saved).includes(folder));
+  assert(!JSON.stringify(saved).includes('Gaussian Blur'));
+  const again = createResolveTrialSession(options);
+  assert.equal((await again.recover(folder)).outcome.status, 'restored');
+  assert.equal((await again.saveRevision()).revisionId, saved.revisionId);
+});
+
+test('a restarted recovery retires prior attempts and requires another live inspection', async t => {
+  const context = await setup(t), { session, options, effects } = context;
+  await startBackup(context);
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder); await session.issue();
+  const first = createResolveTrialSession(options);
+  const pending = await first.recover(folder);
+  options.clipboard.writeText(captureOutput(pending.captureId, effects));
+  assert.equal((await first.read()).phase, 'recovery-ready');
+  await first.issue();
+  const second = createResolveTrialSession(options);
+  const fresh = await second.recover(folder);
+  assert.equal(fresh.phase, 'recovery-capture');
+  assert.notEqual(fresh.recovery.attemptId, pending.recovery.attemptId);
+  const changed = JSON.parse(effects); changed.items.flatMap(item => item.effects)[0].enabled = false;
+  options.clipboard.writeText(captureOutput(fresh.captureId, JSON.stringify(changed)));
+  assert.equal((await second.read()).phase, 'recovery-required');
+  assert.ok((await second.issue()).error);
+  assert.ok((await second.saveRevision()).error);
+  assert.equal((await second.inspectRecovery()).phase, 'recovery-capture');
+});

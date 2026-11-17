@@ -3,7 +3,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { constants } = require('node:fs');
 const { prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialConsoleResult,
-  readRenameTrialResult } = require('./resolve-rename-trial');
+  readRenameTrialResult, prepareRenameTrialRecovery, readRenameTrialRecoveryCapture,
+  issueRenameTrialRecovery, recordRenameTrialRecoveryResult } = require('./resolve-rename-trial');
 const { saveRenameTrialRevision } = require('./resolve-trial-history');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
@@ -15,8 +16,10 @@ const { createHash } = require('node:crypto');
 function createResolveTrialSession({ enabled = false, directory, store, getReview, clipboard } = {}) {
   let pending = null, phase = 'idle', error = null, busy = false, outcome = null, revision = null;
   function getState() {
-    return { enabled, phase, busy, transactionId: pending?.transactionId || null,
+    return { enabled, phase, busy, transactionId: pending?.transactionId || null, projectName: pending?.projectName || null,
       captureId: pending?.captureId || null, effectGuard: pending?.effectGuard || null,
+      recovery: pending?.attemptId ? { attemptId: pending.attemptId,
+        classification: pending.classification || null, operation: pending.operation || null } : null,
       backup: pending?.backup || null, outcome: outcome ? { status: outcome.status,
         snapshotSha256: outcome.resultingSnapshotSha256, auditHash: outcome.review?.auditHash || null,
         effectObservation: outcome.effectObservation || null } : null,
@@ -32,6 +35,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         : ['reviewed-trial-requires-one-rename', 'unsupported-reviewed-operation'].includes(failure.message) ? 'This drill requires a completed review with exactly one clip rename.'
         : failure.message === 'effect-source-snapshot-mismatch' ? 'The live capture differs from the reviewed local snapshot. Cancel preparation, refresh the snapshots, and review again.'
         : phase === 'effect-command' ? 'The effect capture could not be verified. Run the copied capture in Resolve’s Lua Console, copy all output, and read it again.'
+        : failure.message === 'trial-does-not-support-interrupted-recovery' ? 'This older or unsupported drill cannot retire its copied command. Keep the backup and inspect the disposable project manually.'
         : 'The trial action could not be verified. Keep the backup and trial records; check the Console output and retry.';
     } finally { busy = false; }
     return getState();
@@ -69,13 +73,18 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     }
     const target = { branch, expectedHeadId: head };
     await fs.writeFile(path.join(trial.directory, 'history-target.json'), JSON.stringify(target), { flag: 'wx', mode: 0o600 });
-    pending = { ...trial, target, auditHash: review.audit.auditHash,
+    pending = { ...trial, target, projectName: before.snapshot.project_name, auditHash: review.audit.auditHash,
       effectGuard: { sourceSha256: createHash('sha256').update(effectObservationBytes).digest('hex') } };
     outcome = revision = null; phase = 'backup-command';
     clipboard.writeText(trial.command);
   }
   async function issue() {
     return run(async () => {
+      if (phase === 'recovery-ready') {
+        const issued = await issueRenameTrialRecovery({ directory: pending.directory, attemptId: pending.attemptId });
+        pending.command = issued.command; pending.operation = issued.operation;
+        phase = 'recovery-command'; clipboard.writeText(issued.command); return;
+      }
       if (phase !== 'backup-command') throw new Error('trial-not-ready');
       const review = await getReview();
       if (review.audit.auditHash !== pending.auditHash) throw new Error('complete-current-review-required');
@@ -90,6 +99,19 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   async function read() {
     return run(async () => {
       if (phase === 'effect-command') { await prepareBackup(); return; }
+      if (phase === 'recovery-capture') {
+        const inspection = await readRenameTrialRecoveryCapture({ directory: pending.directory,
+          attemptId: pending.attemptId, consoleOutput: clipboard.readText() });
+        pending.classification = inspection.classification;
+        phase = inspection.classification === 'diverged' ? 'recovery-required' : 'recovery-ready'; return;
+      }
+      if (phase === 'recovery-command') {
+        const recorded = await recordRenameTrialRecoveryResult({ directory: pending.directory,
+          attemptId: pending.attemptId, consoleOutput: clipboard.readText() });
+        if (recorded.completed) { outcome = recorded.result; phase = 'verified'; }
+        else phase = 'recovery-required';
+        return;
+      }
       if (phase !== 'rollback-command') throw new Error('trial-not-ready');
       outcome = await recordRenameTrialConsoleResult({ directory: pending.directory, consoleOutput: clipboard.readText() });
       phase = 'verified';
@@ -106,7 +128,9 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     return run(async () => {
       if (pending && phase !== 'saved') throw new Error('trial-already-active');
       if (typeof selected !== 'string' || path.dirname(selected) !== path.resolve(directory)) throw new Error('invalid-trial-directory');
-      const { result } = await readRenameTrialResult(selected);
+      let result, snapshot;
+      try { ({ result, snapshot } = await readRenameTrialResult(selected)); }
+      catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
       const handle = await fs.open(path.join(selected, 'history-target.json'), constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
       let target;
       try {
@@ -115,10 +139,24 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         target = JSON.parse(await handle.readFile('utf8'));
       } finally { await handle.close(); }
       if (typeof target.branch !== 'string' || typeof target.expectedHeadId !== 'string') throw new Error('invalid-history-target');
+      if (!result) {
+        const recovery = await prepareRenameTrialRecovery({ directory: selected });
+        pending = { ...recovery, target }; outcome = revision = null;
+        phase = 'recovery-capture'; clipboard.writeText(recovery.command); return;
+      }
       pending = { directory: selected, transactionId: result.transactionId, backup: result.backup,
-        backupPath: result.backupPath, target, auditHash: result.review?.auditHash,
+        backupPath: result.backupPath, target, projectName: snapshot.project_name, auditHash: result.review?.auditHash,
+        ...(result.recovery ? { attemptId: result.recovery.attemptId, operation: result.recovery.operation } : {}),
         effectGuard: result.effectObservation ? { sourceSha256: result.effectObservation.sourceSha256 } : null };
       outcome = result; revision = null; phase = 'verified';
+    });
+  }
+  async function inspectRecovery() {
+    return run(async () => {
+      if (!['recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(phase)) throw new Error('trial-not-recovering');
+      const recovery = await prepareRenameTrialRecovery({ directory: pending.directory });
+      pending = { ...recovery, target: pending.target }; outcome = revision = null;
+      phase = 'recovery-capture'; clipboard.writeText(recovery.command);
     });
   }
   async function backupPath() {
@@ -128,7 +166,8 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   }
   async function copyCommand() {
     return run(async () => {
-      if (!['effect-command', 'backup-command', 'rollback-command'].includes(phase) || !pending?.command) throw new Error('trial-command-unavailable');
+      if (!['effect-command', 'backup-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase)
+        || !pending?.command) throw new Error('trial-command-unavailable');
       clipboard.writeText(pending.command);
     });
   }
@@ -143,7 +182,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       pending = null; outcome = revision = null; phase = 'idle';
     });
   }
-  return { getState, prepare, issue, read, saveRevision, recover, backupPath, copyCommand, cancelPreparation };
+  return { getState, prepare, issue, read, saveRevision, recover, inspectRecovery, backupPath, copyCommand, cancelPreparation };
 }
 
 module.exports = { createResolveTrialSession };

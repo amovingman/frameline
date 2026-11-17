@@ -41,6 +41,11 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.equal(report.sources.desktopEffectGuardReport, '7239b53ade532f4ab646033164292cb9ab5959813e951da216fa74dc73cb6a69');
   assert.deepEqual(report.observations.desktopEffectGuard, { desktopIntegrated: true, rollbackEffectBytesMatch: true,
     invalidResultRejected: true, outcomeRevisionRecorded: true, fullProjectApplyVerified: false });
+  assert.deepEqual(report.sources.interruptionReports, {
+    renamed: '3e5e7bc1cb58c9fee8b74681cae46b78689b75687d773d199bcb4b43bbe5fc66',
+    unrun: '4cb4684783f0fa193b91958d24c81c47e4f476060f2e29de6094cf672ba623db' });
+  assert.deepEqual(report.observations.interruptedRecovery, { desktopRestartCases: 2, restoredObservedSource: true,
+    verifiedUnrunSource: true, persistentRetirementProbe: true, fullProjectApplyVerified: false });
   assert(report.gates.every(gate => ['open', 'blocked', 'partial'].includes(gate.status)));
   assert(!JSON.stringify(report).includes('/Users/'));
 });

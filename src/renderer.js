@@ -793,12 +793,14 @@ function renderResolveState(state) {
   renderResolveTrial();
   const items = resolveChanges();
   const ready = state?.status === 'ready' && !!state.plan;
-  const locked = resolveBusy || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
+  const locked = resolveBusy || activeResolveTrial();
   document.getElementById('resolve-refresh').disabled = locked || !ready;
   document.getElementById('resolve-save').disabled = locked || !ready;
   document.getElementById('resolve-choose').disabled = locked;
   document.getElementById('resolve-recover').disabled = locked;
-  document.getElementById('resolve-notice').textContent = state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
+  document.getElementById('resolve-notice').textContent = resolveTrialState?.phase?.startsWith('recovery-')
+    ? 'Recovering a retained disposable drill. Snapshot review controls are locked until recovery is resolved.'
+    : state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
   const sources = document.getElementById('resolve-sources');
   sources.replaceChildren();
   const counts = items.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
@@ -886,7 +888,7 @@ function renderResolveDetail() {
     const selected = resolveChoice(conflict);
     for (const choice of conflict.options || ['keep-local', 'take-incoming']) {
       const button = make('button', selected === choice ? 'selected' : '', choice === 'keep-local' ? 'Keep local' : 'Take incoming');
-      button.type = 'button'; button.disabled = resolveBusy || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command'].includes(resolveTrialState?.phase);
+      button.type = 'button'; button.disabled = resolveBusy || activeResolveTrial();
       button.setAttribute('aria-pressed', String(selected === choice));
       button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
       controls.append(button);
@@ -1219,25 +1221,44 @@ window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {
 
 var resolveTrialState = null;
 var resolveTrialBusy = false;
+function activeResolveTrial() {
+  return resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command',
+    'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialState?.phase);
+}
 function renderResolveTrial() {
   const state = resolveTrialState;
   document.getElementById('resolve-trial').hidden = !state?.enabled;
   const blocked = resolveTrialBusy || state?.busy;
   const phase = state?.phase;
+  document.getElementById('resolve-trial-name').disabled = Boolean(activeResolveTrial());
+  document.getElementById('resolve-trial-ack').disabled = Boolean(activeResolveTrial());
+  if (state?.recovery && !['idle', 'saved'].includes(phase) && state.projectName) document.getElementById('resolve-trial-name').value = state.projectName;
   document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit
     || !['idle', 'saved'].includes(phase) || !document.getElementById('resolve-trial-ack').checked;
-  document.getElementById('resolve-trial-issue').disabled = blocked || phase !== 'backup-command';
-  document.getElementById('resolve-trial-copy').disabled = blocked || !['effect-command', 'backup-command', 'rollback-command'].includes(phase);
+  document.getElementById('resolve-trial-issue').disabled = blocked || !['backup-command', 'recovery-ready'].includes(phase);
+  document.getElementById('resolve-trial-issue').textContent = phase === 'recovery-ready'
+    ? state.recovery?.classification === 'source' ? 'Verify saved source' : 'Restore original name' : 'Verify backup and copy drill';
+  document.getElementById('resolve-trial-copy').disabled = blocked || !['effect-command', 'backup-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase);
   document.getElementById('resolve-trial-cancel').disabled = blocked || !['effect-command', 'backup-command'].includes(phase);
-  document.getElementById('resolve-trial-read').disabled = blocked || !['effect-command', 'rollback-command'].includes(phase);
-  document.getElementById('resolve-trial-read').textContent = ['idle', 'effect-command'].includes(phase) ? 'Read effect capture' : 'Read drill result';
+  document.getElementById('resolve-trial-read').disabled = blocked || !['effect-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase);
+  document.getElementById('resolve-trial-read').textContent = phase?.startsWith('recovery-')
+    ? phase === 'recovery-capture' ? 'Read recovery capture' : 'Read recovery result'
+    : ['idle', 'effect-command'].includes(phase) ? 'Read effect capture' : 'Read drill result';
   document.getElementById('resolve-trial-save').disabled = blocked || phase !== 'verified' || state?.outcome?.status === 'recovery-required';
   document.getElementById('resolve-trial-reveal').disabled = blocked || !state?.backup;
   document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
+  document.getElementById('resolve-trial-inspect').hidden = !phase?.startsWith('recovery-');
+  document.getElementById('resolve-trial-inspect').disabled = blocked;
   const messages = { idle: 'Review one rename and acknowledge the disposable project to begin.',
     'effect-command': 'Read-only effect capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the effect capture here.',
     'backup-command': 'Effect capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
     'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
+    'recovery-capture': 'Original drill command retired. Read-only inspection copied: run it in Resolve’s Lua Console, copy all output, then read the recovery capture here.',
+    'recovery-ready': state?.recovery?.classification === 'source'
+      ? 'The captured state matches the original. Verify it by saving and reopening Resolve; no rename is needed.'
+      : 'The captured state matches the interrupted rename. Restore the original clip name, then save, reopen, and verify the captured fields.',
+    'recovery-command': 'Recovery command copied. Run it in Resolve, copy all Console output, then read the recovery result here.',
+    'recovery-required': 'The original state could not be verified. Keep the retained backup and inspect the disposable project manually. Choose Inspect again for a fresh capture after inspection.',
     verified: `Verified outcome: ${state?.outcome?.status || 'unknown'}. Save an observation revision to retain the history link.`,
     saved: `Outcome revision saved on ${state?.branch || 'the selected branch'}: ${state?.revisionId || ''}.` };
   document.getElementById('resolve-trial-status').textContent = blocked ? 'Verifying drill records…' : state?.error
@@ -1258,7 +1279,8 @@ async function resolveTrialAction(method, ...args) {
   finally {
     resolveTrialBusy = false; renderResolveState(resolveState);
     if (!resolveTrialState?.error && resolveTrialState?.phase !== previousPhase) {
-      const next = { 'effect-command': 'read', 'backup-command': 'issue', 'rollback-command': 'read', verified: 'save' }[resolveTrialState?.phase];
+      const next = { 'effect-command': 'read', 'backup-command': 'issue', 'rollback-command': 'read',
+        'recovery-capture': 'read', 'recovery-ready': 'issue', 'recovery-command': 'read', 'recovery-required': 'inspect', verified: 'save' }[resolveTrialState?.phase];
       if (next && !document.getElementById(`resolve-trial-${next}`).disabled) document.getElementById(`resolve-trial-${next}`).focus();
     }
   }
@@ -1268,10 +1290,10 @@ document.getElementById('resolve-trial-form').addEventListener('submit', event =
 });
 document.getElementById('resolve-trial-ack').addEventListener('change', renderResolveTrial);
 for (const [id, method] of [['issue', 'issueResolveTrial'], ['copy', 'copyResolveTrialCommand'], ['cancel', 'cancelResolveTrialPreparation'], ['read', 'readResolveTrial'],
-  ['save', 'saveResolveTrialRevision'], ['reveal', 'revealResolveTrialBackup'], ['recover', 'recoverResolveTrial']]) {
+  ['save', 'saveResolveTrialRevision'], ['reveal', 'revealResolveTrialBackup'], ['recover', 'recoverResolveTrial'], ['inspect', 'inspectResolveTrialRecovery']]) {
   document.getElementById(`resolve-trial-${id}`).addEventListener('click', () => resolveTrialAction(method));
 }
-window.desktop?.getResolveTrialState?.().then(state => { resolveTrialState = state; renderResolveTrial(); }).catch(() => {});
+window.desktop?.getResolveTrialState?.().then(state => { resolveTrialState = state; renderResolveState(resolveState); }).catch(() => {});
 
 async function reviewCopyAction(method) {
   if (reviewCopyBusy || mediaAuditBusy || document.getElementById('review-copy-panel').hidden) return;

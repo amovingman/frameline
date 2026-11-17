@@ -1,7 +1,8 @@
 'use strict';
 
 const fs = require('node:fs/promises');
-const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult } = require('../src/resolve-rename-trial');
+const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult,
+  prepareRenameTrialRecovery, readRenameTrialRecoveryCapture, issueRenameTrialRecovery, recordRenameTrialRecoveryResult } = require('../src/resolve-rename-trial');
 const { createResolvePreviewPlan } = require('../src/resolve-preview-plan');
 
 async function readBounded(filename) {
@@ -40,6 +41,14 @@ async function readBounded(filename) {
       ...(args.length === 4 ? { effectObservationBytes: await readBounded(args[3]) } : {}) });
   } else if (operation === 'record-console' && args.length === 2) {
     result = await recordRenameTrialConsoleResult({ directory: args[0], consoleOutput: (await readBounded(args[1])).toString('utf8') });
+  } else if (operation === 'prepare-recovery' && args.length === 1) {
+    result = await prepareRenameTrialRecovery({ directory: args[0] });
+  } else if (operation === 'read-recovery' && args.length === 3) {
+    result = await readRenameTrialRecoveryCapture({ directory: args[0], attemptId: args[1], consoleOutput: (await readBounded(args[2])).toString('utf8') });
+  } else if (operation === 'issue-recovery' && args.length === 2) {
+    result = await issueRenameTrialRecovery({ directory: args[0], attemptId: args[1] });
+  } else if (operation === 'record-recovery' && args.length === 3) {
+    result = await recordRenameTrialRecoveryResult({ directory: args[0], attemptId: args[1], consoleOutput: (await readBounded(args[2])).toString('utf8') });
   } else throw new Error('usage');
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 })().catch(() => { process.stderr.write('resolve-rename-trial-failed\n'); process.exitCode = 1; });
