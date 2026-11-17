@@ -111,4 +111,10 @@ The initial UI automation attempts failed to navigate the file picker, but did n
 
 ## Next checks
 
+### Mixed internal-Console capture (2026-11-17)
+
+[`live-mixed-audio-video-transition-schema3.json`](live-mixed-audio-video-transition-schema3.json) is an untouched JSON file saved by Frameline after validating a three-part Lua Console capture from the disposable `Frameline Lua Capture Fixture` project in Resolve Free 21.1.2.10. Its SHA-256 is `4f2b6420e03d0123cfeeff93ce8ed299ff27d0b9518be5ea22498c529f372b12`. The one timeline contains 48 one-second audio items, two picture items from the same still, and one Cross Dissolve transition. The two picture items have different API item IDs and share a media-pool ID. The transition has its own API item ID and a null source interval and media-pool ID. Frameline's desktop validator accepted all 51 items. This establishes readout of those constructs in this one project; effects, linked audio/video, nested content, and complete project coverage remain untested.
+
+[`live-mixed-linked-effect-schema3.json`](live-mixed-linked-effect-schema3.json) is the next untouched capture of the same saved project, SHA-256 `21b11d8ffe6ec71635936e6b8fbffbbee2cc31486ceb42d026900a25da81a2b2`. A generated three-second video with tone was appended once. Resolve returned separate video and audio items, with reciprocal `GetLinkedItems()` IDs and one shared media-pool ID. A Gaussian Blur OFX was added to the first still; the snapshot reports its OFX count changing from zero to one. Frameline verified 53 items through three Console parts. A source-bound read-only preview of these two files reports two additions and one effect-count change. The schema records counts, so it cannot distinguish effect identities, settings, enabled state, or order. Those remain outside safe merge coverage.
+
 Next, test stable identity strategies and broaden the fixture corpus to include moving footage, audio, trims, and multiple tracks. Confirm whether the same exchange path is available in the Free edition, then test across supported Resolve versions. Do not write to the original fixture or mountain images.

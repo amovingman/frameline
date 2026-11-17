@@ -33,7 +33,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Narrow the initial integration target to the tested Free 21.1.2 build on macOS. Studio and other versions are outside this target.
 - [x] Resolve 21.1.2 (build 21.1.20010) imported a disposable three-clip FCPXML fixture, exported it, and reimported a modified copy. See `phase-0/resolve-xml-proof/README.md`.
 - [x] Compare FCPXML, Resolve scripting, and native project paths, licensing, and available fixtures in `phase-0/INTEGRATION_ASSESSMENT.md`; the final choice remains open.
-- [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video. `phase-0/audit-first-editor.js` recomputes the observed two-API-audio versus one-XML-audio gap; complete coverage remains blocked.
+- [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video. Paired live Free Console fixtures now verify picture and audio items, one Cross Dissolve, one OFX count change, and reciprocal linked video/audio IDs. `phase-0/audit-first-editor.js` recomputes the observed API/XML audio gap; effect identity/settings, other transition kinds, nested content, and complete coverage remain open.
 - [x] Add a Free-only, read-only FCPXML diagnostic for serialized sequences, lanes/gaps, explicit audio, transitions, and effects. It preserves unresolved timing and link semantics and does not close the complete-enumeration gate. See `phase-0/READ_ONLY_INVENTORY.md`.
 - [x] Reconcile the paired Free API observation with its untouched XML export by construct counts, without guessing item IDs or track mappings. The report confirms missing explicit audio and unobservable effect/link semantics; complete enumeration remains open.
 - [x] Add an aggregate normalized API/XML coverage matrix with explicit omissions, unobservable constructs, source hashes, and no guessed track or clip mapping. Complete enumeration remains open.
@@ -46,7 +46,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Create synthetic FCPXML fixtures covering common timeline structures in `phase-0/compatibility-corpus/`; editor-backed projects remain open.
 - [x] Include synthetic trims, moves, insertions, deletions, connected audio, transitions, effects, and nested-clip placeholders; Resolve-backed coverage remains open.
 - [x] Keep untouched synthetic originals and expected parsed manifests under a fixture policy; Resolve exports and broader structures remain to be added.
-- [ ] Add projects saved from every editor version in the declared support range. The audit reports that only the exact experimental Free build is editor-backed and no release range is declared.
+- [ ] Add projects saved from every editor version in the declared support range. The corpus now includes a mixed audio/picture/transition capture from the exact experimental Free build; no release range is declared or covered.
 
 ### 0.3 Prove safe read and write access
 - [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>`, Resolve-exported `<video>`, and single-picture-source `<clip>` wrappers. The Free editor-backed thousand-clip export yields 1,001 primary picture clips; audio, effects, and additional tracks remain omitted with warnings.
