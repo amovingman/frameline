@@ -214,11 +214,11 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 4.1 Content-addressed asset service
 - [x] Define media asset identity using cryptographic hashes and metadata. A path-free SHA-256 content ID, byte count, asset class, and media type are defined in `src/media-asset-identity.js`; storage and transfer remain open.
-- [ ] Hash files incrementally using streaming I/O.
-- [ ] Upload and download in resumable, integrity-checked chunks.
-- [ ] Deduplicate identical assets across revisions and projects within the chosen privacy boundary.
-- [ ] Support cancellation, retry, bandwidth limits, and progress reporting.
-- [ ] Encrypt assets at rest and protect signed download/upload URLs.
+- [x] Hash files incrementally using streaming I/O. `fingerprintFile` already streams SHA-256, checks file stability, and rejects symlinks; `identifyMediaFile` now uses that result as a path-free asset identity.
+- [ ] Upload and download in resumable, integrity-checked chunks. A local reference service persists encrypted chunks and transfer state, verifies each chunk and the final content hash, and supports restart by chunk index; hosted transfer remains open.
+- [ ] Deduplicate identical assets across revisions and projects within the chosen privacy boundary. The reference service deduplicates within an explicit namespace; team privacy boundaries and hosted storage policy remain open.
+- [ ] Support cancellation, retry, bandwidth limits, and progress reporting. The reference service has AbortSignal cancellation, idempotent retry, byte pacing, and callbacks; network transfer controls and desktop progress remain open.
+- [ ] Encrypt assets at rest and protect signed download/upload URLs. The reference service uses AES-256-GCM chunks and method-bound, expiring HMAC URLs; hosted key management and HTTP redemption remain open. See `ASSET_SERVICE_FOUNDATION.md`.
 
 ### 4.2 Media availability and storage policy
 - [ ] Distinguish cloud-present, collaborator-only, local-only, missing, excluded, and archived media.

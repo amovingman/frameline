@@ -1,0 +1,11 @@
+# Content-addressed asset service foundation
+
+`src/content-asset-service.js` is a local, single-process reference service. It stores encrypted chunks and a small transfer index under a caller-owned directory. It requires a caller-provided project authorization function. It is not a hosted media service and no desktop upload control or network route is wired to it.
+
+- `identifyMediaFile` and the existing `fingerprintFile` stream SHA-256 over regular files and reject symlinks or mid-read changes. The identity exposes a content hash, size, asset class, and optional media type without a local path.
+- `beginUpload`, `putChunk`, `uploadStatus`, and `completeUpload` support out-of-order chunk upload, restart from a persisted index, idempotent chunk retry and completion retry, per-chunk checksums, and final whole-file size and SHA-256 verification. `readChunk` lets a client resume a download by index and verifies each returned chunk.
+- Assets are keyed by SHA-256 within a caller-chosen namespace. A second project in that namespace can reference identical content without a second copy. A different namespace uses a separate index and storage location. The deployment must decide which projects may share a namespace before enabling cross-project deduplication.
+- Each chunk is encrypted with the existing AES-256-GCM keyring before it is written. The index contains hashes, sizes, project IDs, and transfer state, not media bytes or source paths. The keyring must retain old keys until chunks are re-encrypted or deleted.
+- `AbortSignal` stops transfer calls while retaining completed chunks for resume. Idempotent retries, byte-rate pacing, and progress callbacks are available. Signed URL creation and verification bind method, namespace, project, asset ID, and expiry with HMAC, and require an HTTPS origin. A future HTTP service must perform authorization at redemption and map PUT requests to a validated upload session and chunk index.
+
+The reference service assumes one writer process and a trusted storage root. It does not provide cross-process locks, atomic multi-object transactions, hosted TLS, authenticated HTTP routes, object-store multipart transfer, key management, quota enforcement, garbage collection, or a storage usage interface. Those remain release gates for the Phase 4 roadmap items.
