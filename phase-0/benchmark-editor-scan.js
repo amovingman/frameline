@@ -33,7 +33,12 @@ async function benchmark(selectedPath, runs = 5, scan = scanFcpXml) {
   const sorted = [...samplesMs].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   const medianMs = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
-  return { ...EXPECTED, runs, samplesMs, minMs: sorted[0], medianMs, maxMs: sorted.at(-1), warnings };
+  const rescans = [...samplesMs.slice(1)].sort((a, b) => a - b);
+  const rescanMiddle = Math.floor(rescans.length / 2);
+  const rescanMedianMs = rescans.length ? rescans.length % 2 ? rescans[rescanMiddle]
+    : (rescans[rescanMiddle - 1] + rescans[rescanMiddle]) / 2 : null;
+  return { ...EXPECTED, runs, samplesMs, firstScanMs: samplesMs[0], rescanMedianMs,
+    minMs: sorted[0], medianMs, maxMs: sorted.at(-1), warnings };
 }
 
 async function main() {

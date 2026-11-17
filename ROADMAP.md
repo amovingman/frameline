@@ -28,12 +28,12 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 ## Phase 0 — Editor choice and integration proof
 
 ### 0.1 Select the initial editor and format
-- [ ] List likely first users and the editor/version they use most.
+- [ ] List likely first users and the editor/version they use most. The evidence audit records this as missing; a consented pilot cohort is needed before a release target can be chosen.
 - [x] Research Free Resolve 21.1.2 timeline exchange feasibility: FCPXML timeline import/export is available in the installed build.
 - [x] Narrow the initial integration target to the tested Free 21.1.2 build on macOS. Studio and other versions are outside this target.
 - [x] Resolve 21.1.2 (build 21.1.20010) imported a disposable three-clip FCPXML fixture, exported it, and reimported a modified copy. See `phase-0/resolve-xml-proof/README.md`.
 - [x] Compare FCPXML, Resolve scripting, and native project paths, licensing, and available fixtures in `phase-0/INTEGRATION_ASSESSMENT.md`; the final choice remains open.
-- [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video.
+- [ ] Confirm whether the integration can enumerate sequences, tracks, clips, transitions, effects, and linked audio/video. `phase-0/audit-first-editor.js` recomputes the observed two-API-audio versus one-XML-audio gap; complete coverage remains blocked.
 - [x] Add a Free-only, read-only FCPXML diagnostic for serialized sequences, lanes/gaps, explicit audio, transitions, and effects. It preserves unresolved timing and link semantics and does not close the complete-enumeration gate. See `phase-0/READ_ONLY_INVENTORY.md`.
 - [x] Reconcile the paired Free API observation with its untouched XML export by construct counts, without guessing item IDs or track mappings. The report confirms missing explicit audio and unobservable effect/link semantics; complete enumeration remains open.
 - [x] Add an aggregate normalized API/XML coverage matrix with explicit omissions, unobservable constructs, source hashes, and no guessed track or clip mapping. Complete enumeration remains open.
@@ -45,20 +45,20 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Create synthetic FCPXML fixtures covering common timeline structures in `phase-0/compatibility-corpus/`; editor-backed projects remain open.
 - [x] Include synthetic trims, moves, insertions, deletions, connected audio, transitions, effects, and nested-clip placeholders; Resolve-backed coverage remains open.
 - [x] Keep untouched synthetic originals and expected parsed manifests under a fixture policy; Resolve exports and broader structures remain to be added.
-- [ ] Add projects saved from every editor version in the declared support range.
+- [ ] Add projects saved from every editor version in the declared support range. The audit reports that only the exact experimental Free build is editor-backed and no release range is declared.
 
 ### 0.3 Prove safe read and write access
 - [x] Implement a disposable FCPXML spike that scans timeline clips into a normalized, frame-aware inventory; it accepts fixture `<asset-clip>`, Resolve-exported `<video>`, and single-picture-source `<clip>` wrappers. The Free editor-backed thousand-clip export yields 1,001 primary picture clips; audio, effects, and additional tracks remain omitted with warnings.
-- [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. The repeated-media Resolve import/export proof shows resource refs and clip names are unstable; a sidecar mapping or supported API identity is still required.
+- [ ] Identify stable clip and track IDs; test persistence after rename, move, and save. A source-bound candidate ledger now confirms five retained API IDs across paired live captures, including a changed XML spine position; durable export mapping, track identity, and relink remain unproven.
 - [x] Locate Resolve 21.1.2's documented `TimelineItem.GetUniqueId()` API and add a read-only snapshot/comparison probe. A live Free-edition check found distinct IDs for repeated media and retained all five IDs through save/reopen and a full Resolve restart. IDs also survived rename, move, and trim on duplicate timelines; deletion removed only the deleted occurrence's ID. FCPXML exports still omit those IDs and leave repeated-media mapping ambiguous. Relink and safe API-to-export mapping remain open; this does not close the stable-ID gate.
 - [x] Validate exact Free 21.1.2 schema-3 API snapshots, normalize them into path-free read-only manifests, compare retained items by API ID, summarize field changes, and expose a local comparison command. The paired live captures show one retained-ID position change. Track identity and API-to-FCPXML mapping remain unresolved; this diagnostic does not enable app clip diffs or apply. See `phase-0/RESOLVE_SNAPSHOT_COMPARE.md`.
 - [x] Add a read-only API snapshot ↔ flat FCPXML timing matcher that returns candidates and rejects ambiguity; it always refuses to authorize apply and does not establish persistent IDs.
 - [x] Extend the read-only matcher to flat single-picture-source Resolve `<clip>` wrappers, reject mixed/nested/gap-lane structures and timing collisions, and bind candidate reports to snapshot and export hashes. Full performance exports remain unsupported by this matcher.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
-- [ ] Measure scan, write, and reopen behavior on realistically sized projects. A synthetic 1k–10k-clip scanner baseline is recorded in `phase-0/SCAN_BENCHMARK.md`; real projects and write/reopen remain open.
+- [ ] Measure scan, write, and reopen behavior on realistically sized projects. The benchmark now separates first-scan and cached-rescan timing on the pinned 1,001-picture-clip export; representative projects and app write/reopen remain open.
 - [x] Repeat the read-only scanner benchmark ten times on the exact editor-backed 1,001-picture-clip export and assert its hash, byte count, clip count, frames, and warnings each run. This does not measure editor write/reopen or complete coverage.
-- [ ] Stop or revisit editor choice if stable IDs and safe validation are not achievable.
+- [ ] Stop or revisit editor choice if stable IDs and safe validation are not achievable. `phase-0/FIRST_EDITOR_READINESS.md` names external Free API access, complete enumeration, persistent identity, and recoverable write as revisit triggers; none is resolved by the current proof.
 
 **Exit:** A repeatable test demonstrates scan → normalized manifest → one edit to a copy → editor reopen, with no collateral changes.
 
@@ -73,11 +73,11 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 1.2 Project adapter and normalized manifest
 - [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
-- [ ] Preserve editor-specific fields required for lossless round-trip writing.
+- [ ] Preserve editor-specific fields required for lossless round-trip writing. The first-editor audit now reports six unobservable construct/identity categories in paired coverage; a full round-trip field inventory is still required.
 - [x] Define and use an adapter contract for scan, source verification, stable-ID mapping, apply, save, and editor validation; the FCPXML adapter explicitly refuses unproven operations.
 - [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
 - [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.
-- [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping.
+- [ ] Persist generated IDs in supported project metadata or a robust sidecar mapping. The new source-bound candidate ledger can be serialized and reverified, but it refuses a persistent-ID or safe-apply claim when exports change or candidates collide.
 - [x] Represent scanned timeline timing as integer frames and exact rational frame duration.
 - [x] Give clear recovery instructions for malformed, unsupported, missing, permission-denied, and busy FCPXML exports; rescan retries after the underlying issue is fixed. An open Resolve project cannot be detected from an exported FCPXML file.
 - [x] Validate the read-only v2 scan manifest against the current FCPXML compatibility corpus; reject unknown versions and extra fields before handing scan data to the interface.
@@ -96,8 +96,8 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Provide local revision export/import for backup and transfer before cloud sync exists.
 
 ### 1.4 Change detection and comparison
-- [ ] Match objects using stable IDs, not names or timeline positions alone.
-- [ ] Compare additions, deletions, and property changes at the smallest safe level.
+- [ ] Match objects using stable IDs, not names or timeline positions alone. The audit confirms five retained API IDs in one project; FCPXML pairing remains candidate-only.
+- [ ] Compare additions, deletions, and property changes at the smallest safe level. The audit recomputes two observed API-field differences from paired captures; unrepresented editor constructs remain outside this diagnostic.
 - [ ] Normalize equivalent values so unchanged edits do not appear as differences.
 - [ ] Present sequence, track, clip, timecode, property, and before/after values.
 - [ ] Filter and group changes by sequence, track, status, and change type.
@@ -291,7 +291,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 3. Which platforms and editor versions must the first release support? No release row is declared. The exact tested macOS/Free build is a pilot boundary pending intended-user corpus and release drills.
 4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests? Pilot planning uses local/shared media and metadata-only history; pricing and hosted media remain research decisions.
 5. What project metadata and media are uploaded, and what privacy, retention, and deletion controls do users require? A validated bundle and explicit asset-byte review describe the proposed transfer; hosted region, retention and deletion policy remain open.
-6. What constitutes a safe automatic merge for ripple edits, linked media, transitions, and nested sequences?
+6. What constitutes a safe automatic merge for ripple edits, linked media, transitions, and nested sequences? None is currently proven; `EARLY_DECISIONS.md` records the per-construct evidence needed before an automatic rule can be enabled.
 
 ## Current status
 

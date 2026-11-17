@@ -26,7 +26,7 @@ The Free-only scanner update recognizes a top-level Resolve `<clip>` containing 
 
 ## Repeated read-only scan observation
 
-On November 12, 2026, on this macOS development host, `node phase-0/benchmark-editor-scan.js phase-0/performance-live.fcpxmld 10` ran ten scans sequentially in one Node process. Wall-clock scan times were 58.33, 52.06, 45.77, 53.52, 38.77, 32.30, 37.69, 38.70, 32.69, and 33.70 ms: minimum **32.30 ms**, median **38.73 ms**, maximum **58.33 ms**. These are host-specific observations, not a performance threshold; later runs may benefit from process and filesystem warm-up. The initial independent fixture read and hash check are outside the timed scans. Each timed scan includes the production scanner's file read and parsing.
+On November 12, 2026, on this macOS development host, `node phase-0/benchmark-editor-scan.js phase-0/performance-live.fcpxmld 10` ran ten scans sequentially in one Node process. Wall-clock scan times were 58.33, 52.06, 45.77, 53.52, 38.77, 32.30, 37.69, 38.70, 32.69, and 33.70 ms: minimum **32.30 ms**, median **38.73 ms**, maximum **58.33 ms**. These are host-specific observations, not a performance threshold. The initial independent fixture read and hash check are outside the timed scans. Each timed scan reads and hashes XML; after the first parse, the scanner can reuse its in-process, hash-bound inventory cache, so this mixed median is not a cold-parse latency distribution.
 
 The benchmark independently checks the XML byte count and SHA-256 against the known export before timing, then asserts the scanner's source hash, 24,240 sequence frames, and 1,001 scanned clips on every run. It requires identical warning lists across runs and reports them in full:
 
@@ -34,3 +34,5 @@ The benchmark independently checks the XML byte count and SHA-256 against the kn
 - `Content attached to a gap, including additional tracks, is not scanned`
 
 The count is the expected primary picture-clip count for this export, not proof of full timeline coverage. Nested content and additional tracks remain omitted. These scanner timings do not include export, project reopen, media handling, or any write/apply transaction; the earlier editor reopen observation is a separate UI measurement. The benchmark only reads the existing export and does not interact with the editor.
+
+On November 17, 2026, a further 10-run check of the same pinned export reported **62.87 ms** for the first scan and **1.92 ms** median for the nine following rescans. The faster rescans reflect the in-process inventory cache and should not be used as cold-project performance evidence. The benchmark now reports `firstScanMs` and `rescanMedianMs` separately to make this distinction visible. This still does not measure a representative user project or an editor write/reopen cycle.

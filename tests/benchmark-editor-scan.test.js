@@ -24,6 +24,8 @@ test('checks every result and reports ordered summary with all warnings', async 
   const report = await benchmark(fixture, 4, async () => { calls++; return result; });
   assert.equal(calls, 4);
   assert.equal(report.samplesMs.length, 4);
+  assert.equal(report.firstScanMs, report.samplesMs[0]);
+  assert.notEqual(report.rescanMedianMs, null);
   assert.ok(report.minMs <= report.medianMs && report.medianMs <= report.maxMs);
   assert.deepEqual(report.warnings, result.warnings);
   await assert.rejects(benchmark(fixture, 2, async () => ({ ...result, clips: [] })), /Scan 1 did not match/);

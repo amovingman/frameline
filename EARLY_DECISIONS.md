@@ -11,3 +11,7 @@ These are working defaults for local experiments, not release or pricing decisio
 | Uploaded data and lifecycle | Revision transfer includes messages/authors, display names, availability, hashes and branch heads. It excludes project source files and media bytes; path-like labels and free-text paths are rejected. Media upload review names each asset class, action and byte count before explicit consent. | Hosted processing region, retention periods, account export and deletion semantics, data-subject needs and a user-reviewed disclosure in the desktop app. |
 
 The upload disclosure in `src/upload-disclosure.js` is a review artifact only. Its fingerprint detects a changed estimate; a future executor must re-estimate authoritative assets after consent. The metadata disclosure in `src/metadata-disclosure.js` describes a validated revision bundle and does not start a transfer. Local and service retention reports are foundations; they do not establish a hosted deletion policy.
+
+## Automatic merge boundary
+
+For ripple edits, linked clips, transitions, and nested sequences, no automatic merge is currently safe to claim. The read-only Resolve risk gate marks observed timing or link interactions as blocked and keeps unobserved construct coverage unknown. A merge can become automatic only for an individually proven field rule after complete enumeration, stable identity, editor-backed write/reopen validation, and recovery tests for that construct. Conflict review choices record intent; they do not authorize an apply.
