@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "readOnly": true,
+  "safeToApply": false,
+  "losslessValidated": false,
+  "before": {
+    "sha256": "9f500586d7c205ceae5d939bd69f6c60dc2e86dc643e36cf87442b5d59c8ae34",
+    "size": 69294
+  },
+  "after": {
+    "sha256": "81cecf61b161fa0069822955d06329d186bbd201a5a74d5fc4f2b7cae2652422",
+    "size": 69296
+  },
+  "memberBytesMatch": false,
+  "changedMembers": 3,
+  "members": [
+    {
+      "memberNameSha256": "fa62ee93a82512b319eea18ffaa35b6cfab32668394a938c0db72119e359f2e1",
+      "kind": "gallery",
+      "status": "unchanged",
+      "beforeSha256": "8b6422db9a4ea20f0e48796505f9c9518b5e7cf23e1c9528d26ddb0f815dc2bb",
+      "afterSha256": "8b6422db9a4ea20f0e48796505f9c9518b5e7cf23e1c9528d26ddb0f815dc2bb",
+      "changedLineTags": {}
+    },
+    {
+      "memberNameSha256": "0395bb3008801245eb201aca2825c544075e9bcb6fd0198332f26f3ca4e3faf6",
+      "kind": "media-pool",
+      "status": "changed",
+      "beforeSha256": "d0ac9721f19d32953e97396badb768986f4358901200208bcd95e69efe5eb754",
+      "afterSha256": "33343ad282d5a26fac372871dcba784f234f003da1a602d0387f52c99a10de6a",
+      "changedLineTags": {
+        "Body": {
+          "removed": 1,
+          "added": 1
+        },
+        "FieldsBlob": {
+          "removed": 1,
+          "added": 1
+        }
+      }
+    },
+    {
+      "memberNameSha256": "41a216f94a45e4ef90e3bd71887b14eef1ab6598ff3db6ef1835099c70017362",
+      "kind": "sequence",
+      "status": "changed",
+      "beforeSha256": "d66243cde0c65ba48d3bb0ead80d4157648faa91a5ea6c2ba1f5a00195862dd2",
+      "afterSha256": "349c3fadab9330644d349a11a247baf5732aadffa949dccbd6b955371723688f",
+      "changedLineTags": {
+        "BtThumnail": {
+          "removed": 3,
+          "added": 3
+        },
+        "FieldsBlob": {
+          "removed": 1,
+          "added": 1
+        }
+      }
+    },
+    {
+      "memberNameSha256": "a8d5e2a5cbeb500e59aca88e0613283c57d530c6df7630555d5a08bc5c3a660f",
+      "kind": "project",
+      "status": "changed",
+      "beforeSha256": "9856e15124f88790d3ccde9135eae3eeac024dbb7e239fb872446e7f5aa5cee4",
+      "afterSha256": "d365e5eefe21c47278d76f1801ca984b1a8ff75865f018e9a8985c2e178d4c92",
+      "changedLineTags": {
+        "DbSavedTime": {
+          "removed": 1,
+          "added": 1
+        },
+        "FieldsBlob": {
+          "removed": 1,
+          "added": 1
+        },
+        "LastModTimeInSecs": {
+          "removed": 1,
+          "added": 1
+        },
+        "ProjectAgeInMs": {
+          "removed": 1,
+          "added": 1
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Native serialization is undocumented; line tags are diagnostic labels only.",
+    "No changed fields or opaque blobs are ignored.",
+    "Matching bytes cannot prove editor behavior or referenced media identity."
+  ],
+  "experiment": "save-close-reopen-save-without-edit",
+  "observedSnapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+  "observedFieldsUnchanged": true
+}

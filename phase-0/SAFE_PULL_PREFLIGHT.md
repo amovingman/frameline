@@ -127,3 +127,17 @@ python3 phase-0/compare-native-resolve-exports.py /absolute/before.drp /absolute
 ```
 
 `native-rename-difference-live-observation.json` pins the actual export hashes and changed-tag evidence. Automated tests cover bounds, traversal, duplicate members, symlinks, nonregular files, private-value omission, unchanged archives, and preservation of opaque differences. A no-edit save/reopen control and further editor-property evidence are still required to understand the serialization changes. Ordinary product apply remains disabled.
+
+### No-edit save/reopen control
+
+A subsequent internal Console probe on the same disposable copy saved and exported the current state, closed/reopened the project, saved/exported again, and asserted equality of the complete captured API snapshot before and after. The resulting snapshot SHA-256 remained `654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850`. No timeline edit API was invoked. The two native exports nevertheless have three changed members: project, media-pool, and sequence. `native-no-edit-control-live-observation.json` records their hashes and changed-tag counts; gallery bytes remained identical.
+
+The control and rename both change project/media/sequence `FieldsBlob` data, media-pool `Body` data, and sequence thumbnail identifiers. Only the rename run changes the sequence `Name` tag. Other project metadata tags also differ between the runs. `native-rename-control-comparison-live-observation.json` preserves this comparison. A shared tag category does not establish that the same underlying property changed, and the control is not used to suppress or normalize away opaque data.
+
+Passing four paths to the native comparison CLI produces the edit/control matrix:
+
+```sh
+python3 phase-0/compare-native-resolve-exports.py /absolute/edit-before.drp /absolute/edit-after.drp /absolute/control-before.drp /absolute/control-after.drp
+```
+
+The matrix retains both complete byte reports and lists common, edit-only, and control-only known line tags per hashed member name. Unknown tags remain counted as `other-tag`. `audit-first-editor.js` verifies the checked-in report hashes, recomputes change counts and tag overlap, and retains the blocked lossless-fields gate. The no-edit control shows that opaque serialization changes are not specific to a rename, but their meaning and full editor-property preservation remain unresolved.

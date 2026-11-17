@@ -120,11 +120,37 @@ def compare_exports(before_path, after_path):
                             'Matching bytes cannot prove editor behavior or referenced media identity.']}
 
 
+def compare_with_control(edit_before, edit_after, control_before, control_after):
+    edit = compare_exports(edit_before, edit_after)
+    control = compare_exports(control_before, control_after)
+    by_edit = {member['memberNameSha256']: member for member in edit['members']}
+    by_control = {member['memberNameSha256']: member for member in control['members']}
+    evidence = []
+    for key in sorted(set(by_edit) | set(by_control)):
+        changed = by_edit.get(key)
+        unchanged = by_control.get(key)
+        edit_tags = changed['changedLineTags'] if changed else {}
+        control_tags = unchanged['changedLineTags'] if unchanged else {}
+        evidence.append({'memberNameSha256': key, 'kind': (changed or unchanged)['kind'],
+                         'editStatus': changed['status'] if changed else 'not-observed',
+                         'controlStatus': unchanged['status'] if unchanged else 'not-observed',
+                         'editLineTags': edit_tags, 'controlLineTags': control_tags,
+                         'commonTags': sorted(set(edit_tags) & set(control_tags)),
+                         'editOnlyTags': sorted(set(edit_tags) - set(control_tags)),
+                         'controlOnlyTags': sorted(set(control_tags) - set(edit_tags))})
+    return {'schemaVersion': 1, 'readOnly': True, 'safeToApply': False, 'losslessValidated': False,
+            'edit': edit, 'control': control, 'tagEvidence': evidence,
+            'limitations': ['A common line tag does not prove the same semantic property changed.',
+                            'No native fields or blobs are ignored based on the control.',
+                            'This comparison does not prove editor state, media identity, or lossless writing.']}
+
+
 if __name__ == '__main__':
     try:
-        if len(sys.argv) != 3:
+        if len(sys.argv) not in (3, 5):
             raise ValueError('usage')
-        print(json.dumps(compare_exports(*sys.argv[1:]), indent=2))
+        compare = compare_exports if len(sys.argv) == 3 else compare_with_control
+        print(json.dumps(compare(*sys.argv[1:]), indent=2))
     except Exception:
         print('native-resolve-comparison-failed', file=sys.stderr)
         sys.exit(1)

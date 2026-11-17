@@ -27,7 +27,12 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.equal(report.observations.recovery.observedAppliedChanges, 1);
   assert.equal(report.observations.recovery.changedField, 'name');
   assert.equal(report.observations.recovery.rollbackObservedBytesMatch, true);
-  assert.equal(report.observations.recovery.liveAppTransactionVerified, false);
+  assert.equal(report.observations.recovery.desktopRollbackDrillVerified, true);
+  assert.equal(report.observations.recovery.fullProjectApplyVerified, false);
+  assert.deepEqual(report.observations.nativeContent, { changedDuringEdit: 3, changedDuringNoEditControl: 3,
+    commonOpaqueKinds: ['media-pool', 'project', 'sequence'], editOnlyNameKinds: ['sequence'], semanticEquivalenceProven: false });
+  assert.equal(report.sources.nativeControlReport, 'a37bc5a77cc0897a000d315b98d63e0721efcfdb40cff7561654020fb1e00f97');
+  assert.equal(report.gates.find(gate => gate.id === 'lossless-editor-fields').status, 'blocked');
   assert(report.gates.every(gate => ['open', 'blocked', 'partial'].includes(gate.status)));
   assert(!JSON.stringify(report).includes('/Users/'));
 });

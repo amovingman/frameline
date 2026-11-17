@@ -30,3 +30,19 @@ test('successful live forward/reverse transactions retain the unresolved native-
   assert.ok(native.members.find(member => member.kind === 'sequence').changedLineTags.FieldsBlob);
   assert.ok(native.members.find(member => member.kind === 'sequence').changedLineTags.Name);
 });
+
+test('live no-edit control preserves the source observation while native opaque data still changes', () => {
+  const read = name => JSON.parse(fs.readFileSync(path.join(__dirname, '../phase-0', name)));
+  const control = read('native-no-edit-control-live-observation.json');
+  const comparison = read('native-rename-control-comparison-live-observation.json');
+  assert.equal(control.observedSnapshotSha256, '654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850');
+  assert.equal(control.observedFieldsUnchanged, true);
+  assert.equal(control.changedMembers, 3);
+  assert.deepEqual(comparison.control.before, control.before);
+  assert.deepEqual(comparison.control.after, control.after);
+  const sequence = comparison.tagEvidence.find(member => member.kind === 'sequence');
+  assert.deepEqual(sequence.commonTags, ['BtThumnail', 'FieldsBlob']);
+  assert.deepEqual(sequence.editOnlyTags, ['Name']);
+  assert.equal(comparison.losslessValidated, false);
+  assert.equal(comparison.safeToApply, false);
+});

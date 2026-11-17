@@ -56,6 +56,21 @@ class NativeComparisonTests(unittest.TestCase):
         self.assertFalse(report['losslessValidated'])
         self.assertEqual(report['before'], report['after'])
 
+    def test_control_tag_overlap_does_not_ignore_opaque_changes(self):
+        before = self.archive('before.drp')
+        edit = self.archive('edit.drp', blob='1111', sequence_name='Renamed clip')
+        control = self.archive('control.drp', blob='2222')
+        report = probe.compare_with_control(before, edit, before, control)
+        self.assertFalse(report['safeToApply'])
+        self.assertFalse(report['losslessValidated'])
+        project = next(member for member in report['tagEvidence'] if member['kind'] == 'project')
+        self.assertEqual(project['commonTags'], ['SM_Project'])
+        sequence = next(member for member in report['tagEvidence'] if member['kind'] == 'sequence')
+        self.assertEqual(sequence['editOnlyTags'], ['Name'])
+        self.assertEqual(sequence['controlStatus'], 'unchanged')
+        self.assertEqual(report['edit']['changedMembers'], 2)
+        self.assertEqual(report['control']['changedMembers'], 1)
+
     def test_rejects_symlink_traversal_duplicate_and_expansion_limits(self):
         source = self.archive('source.drp')
         link = self.root / 'link.drp'

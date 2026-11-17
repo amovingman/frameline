@@ -74,7 +74,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 1.2 Project adapter and normalized manifest
 - [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
-- [ ] Preserve editor-specific fields required for lossless round-trip writing. The first-editor audit now reports six unobservable construct/identity categories in paired coverage; a full round-trip field inventory is still required.
+- [ ] Preserve editor-specific fields required for lossless round-trip writing. The first-editor audit reports six unobservable construct/identity categories and compares native rename evidence with a no-edit save/reopen control. Both runs change opaque project/media/sequence blobs, so those categories are not rename-specific; semantic equivalence and the full field inventory remain unproven.
 - [x] Define and use an adapter contract for scan, source verification, stable-ID mapping, apply, save, and editor validation; the FCPXML adapter explicitly refuses unproven operations.
 - [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
 - [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.

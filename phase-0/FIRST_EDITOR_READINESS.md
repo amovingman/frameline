@@ -16,7 +16,7 @@ The structure capture still shows two API audio items versus one explicit XML au
 | Complete enumeration | Blocked | Paired API/export inventory of sequences, tracks, clips, transitions, effects, links, and nested content with no unexplained omissions. |
 | Release version corpus | Open | Saved projects from every proposed edition/build/OS row; no range is declared yet. |
 | Stable clip and track identity | Blocked | IDs through rename, move, trim, delete, relink, save/reopen, plus an unambiguous project/export mapping and stable track identity. |
-| Representative performance | Open | Intended-user sized projects and measured scan, write, editor reopen, recovery, and memory behavior. |
+| Representative performance | Partial | Disposable rename/save/reopen and rollback are verified; intended-user sized projects and measured scan, write, recovery, and memory behavior remain required. |
 | Stop or revisit choice | Blocked | External access is unavailable on this installation. Evaluate a supported internal-script bridge or a different release target, then prove complete enumeration, identity, and recoverable write. |
 | Lossless editor fields | Blocked | A round-trip field inventory showing every relevant construct preserved or explicitly unsupported. |
 | Durable sidecar IDs | Blocked | A sidecar mapping that survives export changes and relink without guessing by name or position. |
@@ -24,3 +24,5 @@ The structure capture still shows two API audio items versus one explicit XML au
 | Smallest safe diff | Partial | Observed API fields can be compared; full project constructs and side effects are not represented. |
 
 The editor choice is an experimental target. The app's apply path stays disabled until the same representative project can be scanned, edited on a verified copy, reopened in Resolve, checked for collateral changes, and recovered after failure. The evidence audit cannot close that gate by itself.
+
+The audit also verifies the later desktop rollback-drill observation and the native no-edit control. Its recovery section distinguishes `desktopRollbackDrillVerified: true` from `fullProjectApplyVerified: false`. A no-edit save/close/reopen/save retains the exact original API snapshot hash but changes three native archive members. The rename and control share opaque `FieldsBlob` changes in project, media-pool, and sequence data, as well as media-pool `Body` and sequence thumbnail changes. The sequence `Name` tag changes only in the rename run. These categories are recomputed from hash-pinned path-free reports; common tags are not interpreted as semantic equivalence, and no native field is ignored. This keeps the lossless-fields gate blocked while providing a repeatable baseline for further investigation.

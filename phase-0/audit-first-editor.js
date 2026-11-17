@@ -67,9 +67,49 @@ function readRecoveryEvidence() {
   const changes = compareResolveRecovery(original, reopenedApplied).changes;
   if (changes.length !== 1 || changes[0].kind !== 'item-changed' || changes[0].field !== 'name'
     || !original.equals(reopenedRollback)) throw new Error('recovery-evidence-mismatch');
+  const desktopBytes = fs.readFileSync(path.join(__dirname, 'desktop-rename-drill-live-observation.json'));
+  if (createHash('sha256').update(desktopBytes).digest('hex') !== 'b5d41651bee1efb3e46a157e96b4deca6160b2be4bc96cf634bd34d31206f612') throw new Error('desktop-drill-evidence-changed');
+  const desktop = JSON.parse(desktopBytes);
+  if (desktop.desktopIntegrated !== true || desktop.forcedFailure !== true || desktop.status !== 'rolled-back'
+    || desktop.sourceSha256 !== originalHash || desktop.resultingSnapshotSha256 !== originalHash || !desktop.revisionId) throw new Error('desktop-drill-evidence-mismatch');
   return { sourceHash: originalHash, reopenedAppliedHash: appliedHash, reopenedRollbackHash: originalHash,
     observedAppliedChanges: changes.length, changedField: changes[0].field,
-    rollbackObservedBytesMatch: true, liveAppTransactionVerified: false };
+    rollbackObservedBytesMatch: true, desktopRollbackDrillVerified: true, fullProjectApplyVerified: false };
+}
+
+function readNativeControlEvidence() {
+  const files = [
+    ['native-no-edit-control-live-observation.json', 'a37bc5a77cc0897a000d315b98d63e0721efcfdb40cff7561654020fb1e00f97'],
+    ['native-rename-control-comparison-live-observation.json', 'e00ff1771f4911e2a2be13940e82b2066f236544ca8e3f7757b584a3f0b6d5ce']
+  ];
+  const [control, comparison] = files.map(([name, hash]) => {
+    const bytes = fs.readFileSync(path.join(__dirname, name));
+    if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('native-control-evidence-changed');
+    const report = JSON.parse(bytes);
+    if (report.readOnly !== true || report.safeToApply !== false || report.losslessValidated !== false) throw new Error('invalid-native-evidence');
+    return report;
+  });
+  const count = report => report.members.filter(member => member.status !== 'unchanged').length;
+  if (count(control) !== control.changedMembers || count(comparison.edit) !== comparison.edit.changedMembers
+    || control.before.sha256 !== comparison.control.before.sha256 || control.after.sha256 !== comparison.control.after.sha256) {
+    throw new Error('native-control-evidence-mismatch');
+  }
+  const commonOpaqueKinds = [];
+  const editOnlyNameKinds = [];
+  for (const member of comparison.tagEvidence) {
+    const edit = comparison.edit.members.find(value => value.memberNameSha256 === member.memberNameSha256);
+    const noEdit = comparison.control.members.find(value => value.memberNameSha256 === member.memberNameSha256);
+    const editTags = Object.keys(edit?.changedLineTags || {});
+    const controlTags = Object.keys(noEdit?.changedLineTags || {});
+    const common = editTags.filter(tag => controlTags.includes(tag)).sort();
+    if (JSON.stringify(common) !== JSON.stringify(member.commonTags)) throw new Error('native-control-tags-mismatch');
+    if (common.includes('FieldsBlob') || common.includes('Body')) commonOpaqueKinds.push(member.kind);
+    if (editTags.includes('Name') && !controlTags.includes('Name')) editOnlyNameKinds.push(member.kind);
+  }
+  return { hashes: { nativeControlReport: files[0][1], nativeComparisonReport: files[1][1] },
+    changedDuringEdit: count(comparison.edit), changedDuringNoEditControl: count(control),
+    commonOpaqueKinds: commonOpaqueKinds.sort(), editOnlyNameKinds: editOnlyNameKinds.sort(),
+    observedControlSnapshotSha256: control.observedSnapshotSha256, semanticEquivalenceProven: false };
 }
 
 function auditFirstEditor() {
@@ -94,6 +134,8 @@ function auditFirstEditor() {
     .map(kind => [kind, diff.changes.filter(change => change.kind === kind).length]));
   const mixed = readMixedEvidence();
   const recovery = readRecoveryEvidence();
+  const native = readNativeControlEvidence();
+  if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
     gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair, ${mixed.ofxCountChanges} OFX count change; effect settings, nested content, and complete XML coverage remain unresolved.`),
@@ -101,21 +143,23 @@ function auditFirstEditor() {
     gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures; XML association is candidate-only and track identity is index-only.`),
     gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open.'),
     gate('editor-choice-stop-or-revisit', 'blocked', `External Free connection was unavailable in the ${external.observedOn} local probe; the internal Lua Console bridge now captures read-only fixtures, but safe apply and full coverage remain unproven.`),
-    gate('lossless-editor-fields', 'blocked', `Paired coverage leaves ${pairedCoverage.timelines[0].unobservable.length} construct/identity categories unobservable.`),
+    gate('lossless-editor-fields', 'blocked', `Paired coverage leaves ${pairedCoverage.timelines[0].unobservable.length} construct/identity categories unobservable. Native edit and no-edit control each change ${native.changedDuringNoEditControl} members; common opaque line tags do not prove semantic equivalence.`),
     gate('durable-sidecar-identity', 'blocked', 'No generated ID mapping survives a changed export; candidate ledger is exact-source-bound.'),
     gate('stable-id-object-matching', 'partial', `${ledger.retained.length} API IDs are retained in one project; API-to-export identity remains unproven.`),
     gate('smallest-safe-change-detection', 'partial', `${diff.changes.length} observed API-field differences; unrepresented editor fields cannot be compared.`)
   ];
   return { schemaVersion: 1, readOnly: true, safeToApply: false, releaseSupported: false,
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
-    sources: { ...ledger.sourceHashes, ...mixed.hashes, structureExport: structureCoverage.sourceHash,
+    sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, structureExport: structureCoverage.sourceHash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
       mixedConstructs: { ...mixed.itemCounts, reciprocalLinkedPairs: mixed.reciprocalLinkedPairs,
         ofxCountChanges: mixed.ofxCountChanges },
       retainedApiItems: ledger.retained.length, candidateStatus: ledger.status,
-      recovery, observedDifferenceKinds: diffKinds }, gates };
+      recovery, nativeContent: { changedDuringEdit: native.changedDuringEdit,
+        changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
+        editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };
 }
 
 if (require.main === module) {
