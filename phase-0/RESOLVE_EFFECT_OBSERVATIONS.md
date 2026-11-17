@@ -1,0 +1,31 @@
+# Resolve effect observations
+
+The read-only effect supplement captures effect type IDs, display names, enabled states, and 1-based indices through the installed Free 21.1.2.10 API. It includes a schema-3 snapshot and an effect list for every enumerated item. This preserves the existing schema-3 contract; ordinary desktop captures and revision manifests remain unchanged.
+
+The installed `DaVinciResolveScript.pyi` documents `TimelineItem.GetEffects`, `Effect.GetInfo`, `GetIsEnabled`, and `GetIndex`. `GetInfo().id` identifies an effect catalogue entry, not an applied instance. Category/index is an observation location and can change after insertion or reordering. It is never treated as persistent effect identity.
+
+## Capture and compare
+
+```sh
+node phase-0/capture-resolve-effects.js prepare 'Exact disposable project name'
+node phase-0/capture-resolve-effects.js read CAPTURE_ID copied-console-output.txt > observation.json
+node phase-0/capture-resolve-effects.js compare before.json after.json
+```
+
+Run the returned `command` in Resolve's Lua Console, then copy the Console output into a local text file. Each capture has an opaque ID and bounded ordered parts. The reader rejects missing, duplicate, reordered, different-ID, failed, or oversized transfers. The ID prevents accidental mixing; copied Console text is not authenticated editor provenance.
+
+The Lua supplement enumerates every item and effect category, checks the catalogue category and available enabled/index values, and rejects sparse effect lists. It captures the base snapshot again to detect changes to the represented schema-3 fields during enumeration. The Node validator requires exactly one record per snapshot item, unique category/index slots, contiguous indices, and counts equal to the snapshot's effect counts. Unknown keys, missing items, unsupported versions, malformed values, and accessor properties are rejected.
+
+Snapshots and display names retain their path restrictions. Slash-containing type IDs are allowed only under the known `Resolve FX/`, `Fusion/`, and `Audio FX/` catalogue prefixes; absolute paths, traversal segments, backslashes, and URL forms are rejected. The capture contains display metadata and opaque IDs, stays local, and does not collect media paths or effect parameters.
+
+## Live Free evidence
+
+On November 17 the supplement captured all 53 items in `Frameline Restore Probe`. It found one enabled OFX effect named `Gaussian Blur` at index 1 with catalogue ID `Resolve FX/Resolve FX Blur/Gaussian Blur`. The Console transferred four parts, which the Node reader validated. The untouched result is `resolve-xml-proof/live-effects-enabled.json`, SHA-256 `696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585`.
+
+On this disposable copy only, a guarded Console command checked the exact project, item, and effect type, disabled the effect through `SetIsEnabled(false)`, saved, and closed/reopened the project. The disabled state persisted. `live-effects-disabled.json` hashes to `7b5cbe4ebe91f915e58b060f86a6f4eacf3daeb7750f3e9a78ce3a0e50b4728d`. The standard schema-3 snapshots are identical, including all effect counts. The supplement comparison detects exactly one `enabled: true → false` change.
+
+A second guarded command restored the enabled state, saved, and closed/reopened again. `live-effects-restored.json` is byte-identical to the original enabled supplement. The original observed project state and enabled effect are restored. Tests pin the fixture bytes and recompute the difference and restoration. The first-editor audit also verifies these results.
+
+## Remaining validation
+
+The comparison reports changes by project/timeline/item ID and effect category/index, with both exact source hashes. It always returns `safeToApply: false`. Effect parameter values, Fusion graph contents, nested content, automation, and persistent effect-instance IDs remain unobserved. Complete effect preservation cannot be inferred from one matched catalogue ID or enabled state. The schema-3 rename trial still validates counts rather than this supplement; binding richer observations into product apply remains required. Ordinary apply remains disabled.

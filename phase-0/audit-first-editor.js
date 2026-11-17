@@ -13,6 +13,7 @@ const { normalizeResolveSnapshot } = require('../src/resolve-snapshot-normalizer
 const { compareResolveManifests } = require('../src/resolve-id-diff');
 const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator');
 const { compareResolveRecovery } = require('../src/resolve-recovery-comparison');
+const { parseEffectObservation, compareEffectObservations } = require('../src/resolve-effect-observation');
 
 const root = path.join(__dirname, 'resolve-xml-proof');
 const structure = path.join(__dirname, 'compatibility-corpus');
@@ -112,6 +113,27 @@ function readNativeControlEvidence() {
     observedControlSnapshotSha256: control.observedSnapshotSha256, semanticEquivalenceProven: false };
 }
 
+function readEffectEvidence() {
+  const hashes = { enabled: '696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585',
+    disabled: '7b5cbe4ebe91f915e58b060f86a6f4eacf3daeb7750f3e9a78ce3a0e50b4728d',
+    restored: '696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585' };
+  const bytes = Object.fromEntries(Object.entries(hashes).map(([phase, hash]) => {
+    const source = fs.readFileSync(path.join(root, `live-effects-${phase}.json`));
+    if (createHash('sha256').update(source).digest('hex') !== hash) throw new Error('effect-evidence-changed');
+    parseEffectObservation(source);
+    return [phase, source];
+  }));
+  const observation = parseEffectObservation(bytes.enabled);
+  const diff = compareEffectObservations(bytes.enabled, bytes.disabled);
+  if (diff.snapshotChanges.length !== 0 || diff.effectChanges.length !== 1
+    || diff.effectChanges[0].field !== 'enabled' || diff.effectChanges[0].before !== true
+    || diff.effectChanges[0].after !== false || !bytes.enabled.equals(bytes.restored)) throw new Error('effect-evidence-mismatch');
+  return { hashes, observedItems: observation.items.length,
+    observedEffects: observation.items.reduce((sum, item) => sum + item.effects.length, 0),
+    enabledStateChanges: diff.effectChanges.length, schema3Changes: diff.snapshotChanges.length,
+    restoredBytesMatch: true, effectParametersObserved: false, persistentEffectIdentityProven: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -135,10 +157,11 @@ function auditFirstEditor() {
   const mixed = readMixedEvidence();
   const recovery = readRecoveryEvidence();
   const native = readNativeControlEvidence();
+  const effects = readEffectEvidence();
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
-    gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair, ${mixed.ofxCountChanges} OFX count change; effect settings, nested content, and complete XML coverage remain unresolved.`),
+    gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair. A supplement observes ${effects.observedEffects} effect type ID, enabled state, and index; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved.`),
     gate('release-version-corpus', 'open', 'Only the named Free 21.1.2 build is editor-backed; no release support range is declared.'),
     gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures; XML association is candidate-only and track identity is index-only.`),
     gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open.'),
@@ -150,14 +173,17 @@ function auditFirstEditor() {
   ];
   return { schemaVersion: 1, readOnly: true, safeToApply: false, releaseSupported: false,
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
-    sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, structureExport: structureCoverage.sourceHash,
+    sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes, structureExport: structureCoverage.sourceHash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
       mixedConstructs: { ...mixed.itemCounts, reciprocalLinkedPairs: mixed.reciprocalLinkedPairs,
         ofxCountChanges: mixed.ofxCountChanges },
       retainedApiItems: ledger.retained.length, candidateStatus: ledger.status,
-      recovery, nativeContent: { changedDuringEdit: native.changedDuringEdit,
+      recovery, effectMetadata: { observedItems: effects.observedItems, observedEffects: effects.observedEffects,
+        enabledStateChanges: effects.enabledStateChanges, schema3Changes: effects.schema3Changes,
+        restoredBytesMatch: effects.restoredBytesMatch, effectParametersObserved: false, persistentEffectIdentityProven: false },
+      nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
         editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };
 }
