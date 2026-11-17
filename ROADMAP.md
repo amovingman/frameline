@@ -202,7 +202,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 3.4 Sharing and team workflow
 - [x] Add owner-only project invitations for editor/viewer roles, token-free member and pending-invite listings, and a desktop access panel. Invitations remain local until hosted delivery exists.
-- [ ] Show author, time, message, branch, and sync state in revision history.
+- [x] Show author, time, message, selected branch, and sync state in revision history, deriving local-only, local-ahead, and synced labels from each branch's recorded sync base.
 - [ ] Copy a read-only share link with configurable expiration/permissions where appropriate.
 - [ ] Notify users about incoming revisions and permission changes.
 - [ ] Add activity history for commits, branch changes, pulls, and membership changes.

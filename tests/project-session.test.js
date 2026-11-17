@@ -97,7 +97,31 @@ test('saving a revision updates real history without exposing the selected path'
   assert.equal(saved.message, 'First cut');
   assert.equal(saved.parent, null);
   assert.equal(state.revisions[0].id, 'revision-id');
+  assert.equal(state.revisions[0].branch, 'main');
+  assert.equal(state.revisions[0].syncState, 'local-only');
   assert.doesNotMatch(JSON.stringify(state), /\/private\/project/);
+});
+
+test('revision history describes branch and sync state from the recorded base', async () => {
+  const revisions = [
+    { id: 'local-head', parentRevisionId: 'synced-base', author: 'Local editor', message: 'Local polish' },
+    { id: 'synced-base', parentRevisionId: 'first', author: 'Alex', message: 'Shared cut' },
+    { id: 'first', parentRevisionId: null, author: 'Alex', message: 'Assembly' }
+  ];
+  const store = {
+    getProjectId: async () => ({ id: 'local-project-id', recovered: false }),
+    getBranchState: async () => ({ currentBranch: 'festival-cut', branches: ['main', 'festival-cut'] }),
+    listRevisions: async () => revisions,
+    getSyncBase: async () => 'synced-base'
+  };
+  const session = createProjectSession(async () => ({ clips: [], media: [], warnings: [] }), store);
+  const state = await session.select('/private/project/cut.fcpxml');
+  assert.deepEqual(state.revisions.map(({ id, branch, syncState }) => ({ id, branch, syncState })), [
+    { id: 'local-head', branch: 'festival-cut', syncState: 'local-ahead' },
+    { id: 'synced-base', branch: 'festival-cut', syncState: 'synced' },
+    { id: 'first', branch: 'festival-cut', syncState: 'synced' }
+  ]);
+  assert.equal(state.syncBase, 'synced-base');
 });
 
 test('revisions persist across sessions and require a fresh scan after source changes', async () => {

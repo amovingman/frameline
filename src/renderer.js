@@ -377,9 +377,14 @@ function renderRealHistory(revisions, selectedId) {
     row.setAttribute('aria-pressed', String(revision.id === selectedId));
     row.addEventListener('click', () => openRevision(revision.id));
     const main = make('div', 'history-main');
-    main.append(make('strong', '', revision.message), make('small', '', `${revision.manifestVersion === 2 ? 'Read-only scan' : 'Scan'} · ${revision.contentHash.slice(0, 10)} · ${revision.id.slice(0, 8)}`));
+    main.append(make('strong', '', revision.message),
+      make('small', '', `${revision.author} · ${revision.branch}`),
+      make('small', 'history-reference', `${revision.manifestVersion === 2 ? 'Read-only scan' : 'Scan'} · ${revision.contentHash.slice(0, 10)} · ${revision.id.slice(0, 8)}`));
     const state = make('div', 'history-state');
-    state.append(make('strong', '', 'Saved locally'), make('span', '', new Date(revision.createdAt).toLocaleString()));
+    const syncLabels = { synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local only' };
+    const saved = make('time', '', new Date(revision.createdAt).toLocaleString());
+    saved.dateTime = revision.createdAt;
+    state.append(make('strong', `revision-sync-state ${revision.syncState}`, syncLabels[revision.syncState] || 'Local only'), saved);
     row.append(make('span', 'history-id', String(revisions.length - index).padStart(2, '0')), main, state);
     list.append(row);
   });
@@ -424,6 +429,8 @@ function renderRevisionDetail(revision, error, comparison = null, comparisonErro
   const facts = [
     ['Saved', new Date(revision.createdAt).toLocaleString()],
     ['Author', revision.author],
+    ['Branch', revision.branch || 'Unknown'],
+    ['Sync state', ({ synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local only' })[revision.syncState] || 'Local only'],
     ['Sequence', manifest.sequence.name],
     ['Timing', `${manifest.sequence.durationFrames} frames · ${manifest.sequence.frameDuration} per frame`],
     ['Parent', revision.parentRevisionId || 'First revision'],
