@@ -65,6 +65,13 @@
           <form id="resolve-companion-revision-form"><label for="resolve-companion-message">Local observation revision</label><div><input id="resolve-companion-message" type="text" maxlength="120" required autocomplete="off" placeholder="What changed in this capture?"><button id="resolve-companion-revision" type="submit" disabled>Save local revision</button></div></form>
           <p id="resolve-companion-status" role="status" aria-live="polite">No capture request prepared. This does not change the open project.</p>
         </section>
+        <section class="resolve-history" aria-labelledby="resolve-history-title">
+          <div class="section-head"><h2 id="resolve-history-title">Local Resolve observations</h2><button id="resolve-history-refresh" type="button">Refresh history</button></div>
+          <p>Browse saved read-only API captures, including after restarting Frameline. These revisions record observed fields; they do not permit apply.</p>
+          <label for="resolve-history-project">Project</label><select id="resolve-history-project"><option value="">No saved Resolve projects</option></select>
+          <p id="resolve-history-status" role="status" aria-live="polite">Checking local observations…</p>
+          <div class="resolve-history-work"><div id="resolve-history-list" aria-label="Local Resolve revisions"></div><div id="resolve-history-detail" aria-label="Selected Resolve revision"></div></div>
+        </section>
         <section class="resolve-export" aria-labelledby="resolve-export-title">
           <div class="section-head"><h2 id="resolve-export-title">Optional FCPXML comparison</h2><span>Candidates only</span></div>
           <p>Compare a fourth export with the local snapshot to inspect possible clip matches. Candidates do not establish clip identity; applying changes remains unavailable.</p>

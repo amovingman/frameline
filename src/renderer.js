@@ -990,9 +990,86 @@ document.getElementById('resolve-companion-revision-form').addEventListener('sub
     if (!result?.saved) throw new Error(result?.error || 'Could not save the observation.');
     status.textContent = `Read-only observation saved on ${result.branch}: revision ${result.revisionId}${result.changeCount === null ? '' : ` · ${result.changeCount} observed field changes`}. The Resolve project was not changed.`;
     document.getElementById('resolve-companion-message').value = '';
+    await refreshResolveHistory();
   } catch (error) { status.textContent = error.message || 'Could not save the observation.'; }
   finally { companionBusy = false; }
 });
+let resolveHistoryGeneration = 0;
+let resolveHistoryOpenToken = 0;
+async function refreshResolveHistory(preferredProjectId = null) {
+  const generation = ++resolveHistoryGeneration;
+  const select = document.getElementById('resolve-history-project');
+  const status = document.getElementById('resolve-history-status');
+  const previous = preferredProjectId || select.value;
+  status.textContent = 'Checking local observations…';
+  try {
+    const result = await window.desktop.listResolveProjects();
+    if (generation !== resolveHistoryGeneration) return;
+    if (!result?.ready) throw new Error(result?.error || 'Could not read local Resolve history.');
+    select.replaceChildren();
+    if (!result.projects.length) {
+      const option = make('option', '', 'No saved Resolve projects'); option.value = ''; select.append(option);
+      document.getElementById('resolve-history-list').replaceChildren();
+      document.getElementById('resolve-history-detail').replaceChildren();
+      status.textContent = 'No Resolve observation revisions saved yet.';
+      return;
+    }
+    for (const project of result.projects) {
+      const option = make('option', '', `${project.displayName || 'Unnamed project'} · ${project.revisionCount} revisions`);
+      option.value = project.id; select.append(option);
+    }
+    select.value = result.projects.some(project => project.id === previous) ? previous : result.projects[0].id;
+    await loadResolveHistory(select.value, generation);
+  } catch (error) { if (generation === resolveHistoryGeneration) status.textContent = error.message || 'Could not read local Resolve history.'; }
+}
+async function loadResolveHistory(projectId, generation = ++resolveHistoryGeneration) {
+  const status = document.getElementById('resolve-history-status');
+  const list = document.getElementById('resolve-history-list');
+  const detail = document.getElementById('resolve-history-detail');
+  resolveHistoryOpenToken++;
+  list.replaceChildren(); detail.replaceChildren();
+  status.textContent = 'Reading local revisions…';
+  try {
+    const result = await window.desktop.listResolveRevisions(projectId);
+    if (generation !== resolveHistoryGeneration) return;
+    if (!result?.ready) throw new Error(result?.error || 'Could not read local revisions.');
+    status.textContent = `${result.total} saved observation${result.total === 1 ? '' : 's'} on ${result.branch}${result.total > result.revisions.length ? ` · newest ${result.revisions.length} shown` : ''}.`;
+    if (!result.revisions.length) { list.append(make('p', '', 'No revisions on this branch.')); return; }
+    for (const revision of result.revisions) {
+      const button = make('button', 'resolve-history-entry'); button.type = 'button';
+      button.setAttribute('aria-pressed', 'false');
+      button.append(make('strong', '', revision.message), make('small', '', `${revision.createdAt} · ${revision.id.slice(0, 12)}`));
+      button.addEventListener('click', () => openResolveHistoryRevision(projectId, revision.id, generation, button));
+      list.append(button);
+    }
+    detail.append(make('p', '', 'Choose a revision to inspect its observed field changes.'));
+  } catch (error) { if (generation === resolveHistoryGeneration) status.textContent = error.message || 'Could not read local revisions.'; }
+}
+async function openResolveHistoryRevision(projectId, revisionId, generation, button) {
+  if (generation !== resolveHistoryGeneration) return;
+  const openToken = ++resolveHistoryOpenToken;
+  const detail = document.getElementById('resolve-history-detail');
+  detail.replaceChildren(make('p', '', 'Verifying revision…'));
+  try {
+    const result = await window.desktop.openResolveRevision(projectId, revisionId);
+    if (generation !== resolveHistoryGeneration || openToken !== resolveHistoryOpenToken) return;
+    if (!result?.ready) throw new Error(result?.error || 'Could not verify this revision.');
+    for (const entry of document.querySelectorAll('#resolve-history-list button')) entry.setAttribute('aria-pressed', String(entry === button));
+    detail.replaceChildren();
+    detail.append(make('h3', '', result.message), make('p', '', `${result.createdAt} · ${result.changeCount === null ? 'First observation' : `${result.changeCount} observed field changes`} · SHA-256 ${result.sourceHash.slice(0, 12)}`));
+    if (result.changeCount === 0) detail.append(make('p', '', 'No observed fields changed.'));
+    for (const change of result.changes) {
+      const row = make('div', 'resolve-history-change');
+      row.append(make('strong', '', `${change.timelineId || 'Timeline'} · ${change.itemId || change.kind} · ${change.field || change.kind}`),
+        make('span', '', `${resolveValue(change.before)} → ${resolveValue(change.after)}`));
+      detail.append(row);
+    }
+    if (result.changeCount > result.changes.length) detail.append(make('p', '', `Showing the first ${result.changes.length} changes.`));
+  } catch (error) { if (generation === resolveHistoryGeneration && openToken === resolveHistoryOpenToken) detail.replaceChildren(make('p', '', error.message || 'Could not verify this revision.')); }
+}
+document.getElementById('resolve-history-refresh').addEventListener('click', () => refreshResolveHistory());
+document.getElementById('resolve-history-project').addEventListener('change', event => loadResolveHistory(event.target.value));
+if (window.desktop?.listResolveProjects) refreshResolveHistory();
 document.getElementById('resolve-companion-save').addEventListener('click', async () => {
   if (companionBusy) return;
   companionBusy = true;

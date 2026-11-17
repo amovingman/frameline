@@ -95,7 +95,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
 - [x] Provide local revision export/import for backup and transfer before cloud sync exists.
-- [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. Live Console capture, branch browsing, and apply remain open.
+- [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. The desktop can browse saved project histories and inspect bounded parent differences after restart. Live Console capture and apply remain open.
 
 ### 1.4 Change detection and comparison
 - [ ] Match objects using stable IDs, not names or timeline positions alone. The audit confirms five retained API IDs in one project; FCPXML pairing remains candidate-only.

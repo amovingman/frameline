@@ -16,8 +16,11 @@ test('API observations form durable, source-bound local revisions without exposi
   const before = createResolveRevisionManifest(JSON.parse(await fs.readFile(fixture('before'), 'utf8')));
   const after = createResolveRevisionManifest(JSON.parse(await fs.readFile(fixture('after'), 'utf8')));
   const store = createLocalMetadataStore(directory);
-  const project = await store.getResolveProjectId(before.snapshot.project_id);
+  const project = await store.getResolveProjectId(before.snapshot.project_id, before.snapshot.project_name);
   assert.equal(project.id, (await createLocalMetadataStore(directory).getResolveProjectId(before.snapshot.project_id)).id);
+  assert.deepEqual((await store.listResolveProjects()).map(entry => ({ id: entry.id,
+    displayName: entry.displayName, revisionCount: entry.revisionCount })),
+  [{ id: project.id, displayName: before.snapshot.project_name, revisionCount: 0 }]);
   assert.equal(before.sourceHash !== after.sourceHash, true);
   const first = await store.saveRevision(project.id, before, 'Before move');
   const second = await store.saveRevision(project.id, after, 'Move on copy', first.id);
@@ -27,8 +30,9 @@ test('API observations form durable, source-bound local revisions without exposi
   assert.deepEqual(loaded.manifest, after);
   assert.equal(compareResolveRevisionManifests(before, loaded.manifest).changes.length, 2);
   assert.deepEqual((await store.listRevisions(project.id)).map(revision => revision.id), [second.id, first.id]);
+  assert.equal((await store.listResolveProjects())[0].revisionCount, 2);
   const metadata = await fs.readFile(path.join(directory, 'metadata.json'), 'utf8');
-  assert.doesNotMatch(metadata, /Frameline API Relink Test|\/Users\//);
+  assert.doesNotMatch(metadata, /\/Users\//);
   const transfer = await store.exportRevisions(project.id);
   assert.equal(transfer.version, 2);
   const otherDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-resolve-import-'));
@@ -42,6 +46,8 @@ test('API observations form durable, source-bound local revisions without exposi
   await assert.rejects(other.saveRevision(unrelated.id, before, 'Wrong project'), { code: 'metadata-project-invalid' });
   await assert.rejects(other.importRevisions(destination.id, { ...transfer, version: 1 }),
     { code: 'revision-transfer-invalid' });
+  await assert.rejects(store.getResolveProjectId(before.snapshot.project_id, '/private/name'),
+    { code: 'metadata-project-invalid' });
 });
 
 test('Resolve revision manifests reject extra fields and changed captured observations', async () => {

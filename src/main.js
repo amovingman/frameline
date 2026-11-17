@@ -270,7 +270,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         || /[\\/\x00-\x1f\x7f]/.test(message) || /^[a-z]:/i.test(message)) {
         return { saved: false, error: 'Enter a revision message of 1 to 120 characters.' };
       }
-      const project = await localMetadataStore.getResolveProjectId(manifest.snapshot.project_id);
+      const project = await localMetadataStore.getResolveProjectId(manifest.snapshot.project_id,
+        manifest.snapshot.project_name);
       const branch = (await localMetadataStore.getBranchState(project.id)).currentBranch;
       const revisions = await localMetadataStore.listRevisions(project.id, branch);
       const parent = revisions[0] ? await localMetadataStore.getRevision(project.id, revisions[0].id) : null;
@@ -285,6 +286,50 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } catch (error) {
       logger.warn('resolve.companion-revision-failed', { code: error.code || 'resolve-companion-revision-failed' });
       return { saved: false, error: 'Could not save the observation. Refresh history and retry.' };
+    }
+  });
+  ipcMain.handle('resolve-history:list-projects', async () => {
+    try {
+      const projects = await localMetadataStore.listResolveProjects();
+      return { ready: true, projects: projects.map(({ id, displayName, currentBranch, revisionCount }) =>
+        ({ id, displayName, currentBranch, revisionCount })) };
+    }
+    catch (error) {
+      logger.warn('resolve.history-list-failed', { code: error.code || 'resolve-history-error' });
+      return { ready: false, error: 'Could not read local Resolve history.' };
+    }
+  });
+  ipcMain.handle('resolve-history:list-revisions', async (_event, projectId) => {
+    try {
+      const project = (await localMetadataStore.listResolveProjects()).find(item => item.id === projectId);
+      if (!project) return { ready: false, error: 'Choose a local Resolve project.' };
+      const revisions = await localMetadataStore.listRevisions(projectId, project.currentBranch);
+      return { ready: true, projectId, branch: project.currentBranch, total: revisions.length,
+        revisions: revisions.slice(0, 100).map(({ id, parentRevisionId, createdAt, message, contentHash }) =>
+          ({ id, parentRevisionId, createdAt, message, contentHash })) };
+    } catch (error) {
+      logger.warn('resolve.history-revisions-failed', { code: error.code || 'resolve-history-error' });
+      return { ready: false, error: 'Could not read local Resolve revisions.' };
+    }
+  });
+  ipcMain.handle('resolve-history:open-revision', async (_event, projectId, revisionId) => {
+    try {
+      const project = (await localMetadataStore.listResolveProjects()).find(item => item.id === projectId);
+      if (!project || typeof revisionId !== 'string' || !/^[a-f0-9-]{36}$/.test(revisionId)) {
+        return { ready: false, error: 'Choose a local Resolve revision.' };
+      }
+      const revision = await localMetadataStore.getRevision(projectId, revisionId);
+      if (revision.manifest.format !== 'resolve-api-observation') throw new Error('resolve-history-invalid');
+      const parent = revision.parentRevisionId
+        ? await localMetadataStore.getRevision(projectId, revision.parentRevisionId) : null;
+      const comparison = parent ? compareResolveRevisionManifests(parent.manifest, revision.manifest) : null;
+      return { ready: true, revisionId, parentRevisionId: revision.parentRevisionId,
+        message: revision.message, createdAt: revision.createdAt,
+        sourceHash: revision.manifest.sourceHash, changeCount: comparison?.changes.length ?? null,
+        changes: comparison?.changes.slice(0, 100) || [], readOnly: true, safeToApply: false };
+    } catch (error) {
+      logger.warn('resolve.history-open-failed', { code: error.code || 'resolve-history-error' });
+      return { ready: false, error: 'This revision could not be verified.' };
     }
   });
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {

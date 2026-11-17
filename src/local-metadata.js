@@ -40,6 +40,9 @@ function validateMetadata(value) {
           || project.editorProjectId.length > 160 || /[\\/\x00-\x1f\x7f]/.test(project.editorProjectId)
           || /^[a-z]:/i.test(project.editorProjectId)
           || fingerprint !== createHash('sha256').update(`resolve-api:${project.editorProjectId}`).digest('hex')) throw new MetadataError('metadata-invalid');
+        if (project.displayName !== undefined && (typeof project.displayName !== 'string'
+          || !project.displayName.trim() || project.displayName.length > 160
+          || /[\\/\x00-\x1f\x7f]/.test(project.displayName) || /^[a-z]:/i.test(project.displayName))) throw new MetadataError('metadata-invalid');
       } else if (project.editorProjectId !== undefined) throw new MetadataError('metadata-invalid');
       if (projectIds.has(project.id)) throw new MetadataError('metadata-invalid');
       projectIds.add(project.id);
@@ -190,23 +193,40 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  async function getResolveProjectId(resolveProjectId) {
+  async function getResolveProjectId(resolveProjectId, displayName = null) {
     if (typeof resolveProjectId !== 'string' || !resolveProjectId.trim() || resolveProjectId.length > 160
       || /[\\/\x00-\x1f\x7f]/.test(resolveProjectId) || /^[a-z]:/i.test(resolveProjectId)) {
       throw new MetadataError('metadata-project-invalid');
     }
+    if (displayName !== null && (typeof displayName !== 'string' || !displayName.trim()
+      || displayName.length > 160 || /[\\/\x00-\x1f\x7f]/.test(displayName)
+      || /^[a-z]:/i.test(displayName))) throw new MetadataError('metadata-project-invalid');
     const fingerprint = createHash('sha256').update(`resolve-api:${resolveProjectId}`).digest('hex');
     return transact(async (metadata, recovered) => {
       if (!metadata.projects[fingerprint]) {
         metadata.projects[fingerprint] = { id: randomUUID(), sourceKind: 'resolve-api', editorProjectId: resolveProjectId,
+          ...(displayName ? { displayName } : {}),
           revisions: [], branches: { main: null },
           currentBranch: 'main', syncBases: { main: null } };
         await writeMetadata(directory, metadata);
       }
       if (projectKind(metadata.projects[fingerprint]) !== 'resolve-api'
         || metadata.projects[fingerprint].editorProjectId !== resolveProjectId) throw new MetadataError('metadata-invalid');
+      if (displayName && metadata.projects[fingerprint].displayName !== displayName) {
+        metadata.projects[fingerprint].displayName = displayName;
+        await writeMetadata(directory, metadata);
+      }
       return { id: metadata.projects[fingerprint].id, recovered };
     });
+  }
+
+  function listResolveProjects() {
+    return transact(async metadata => Object.values(metadata.projects)
+      .filter(project => projectKind(project) === 'resolve-api')
+      .map(project => ({ id: project.id, editorProjectId: project.editorProjectId,
+        displayName: project.displayName || null, currentBranch: project.currentBranch,
+        revisionCount: project.revisions.length }))
+      .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '') || a.id.localeCompare(b.id)));
   }
 
   function listRevisions(projectId, branchName = null) {
@@ -471,7 +491,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  return { getProjectId, getResolveProjectId, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
+  return { getProjectId, getResolveProjectId, listResolveProjects, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };
