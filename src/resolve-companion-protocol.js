@@ -60,7 +60,7 @@ async function createCaptureRequest({ directory, expectedProjectName, now = () =
   return { requestId, requestSha256: sha(bytes), requestFile: filename };
 }
 
-async function readCaptureResponse({ directory, requestId, requestSha256, now = () => Date.now() } = {}) {
+async function readCaptureResponse({ directory, requestId, requestSha256, now = () => Date.now(), includeSnapshot = false } = {}) {
   const root = await privateDirectory(directory);
   if (!ID.test(requestId || '') || !SHA.test(requestSha256 || '')) fail();
   const requestBytes = await readPrivateFile(path.join(root, `${requestId}.request.json`));
@@ -83,7 +83,8 @@ async function readCaptureResponse({ directory, requestId, requestSha256, now = 
   try { validateResolveSnapshot(response.snapshot); } catch { fail(); }
   if (response.snapshot.project_name !== request.expectedProjectName) fail();
   return { requestId, snapshotSha256: sha(Buffer.from(JSON.stringify(response.snapshot))),
-    manifest: normalizeResolveSnapshot(response.snapshot), readOnly: true, safeToApply: false };
+    manifest: normalizeResolveSnapshot(response.snapshot), readOnly: true, safeToApply: false,
+    ...(includeSnapshot ? { snapshot: response.snapshot } : {}) };
 }
 
 module.exports = { createCaptureRequest, readCaptureResponse };

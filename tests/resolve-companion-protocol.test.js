@@ -33,6 +33,11 @@ test('private internal companion handoff validates exact request and Resolve sna
   assert.equal(read.manifest.projectId, 'f9d4820a-47a6-42ba-b097-86a7fc23cfaf');
   assert.equal(read.manifest.readOnly, true);
   assert.equal(read.safeToApply, false);
+  assert.equal(Object.hasOwn(read, 'snapshot'), false);
+  const withSnapshot = await readCaptureResponse({ directory, ...created, now: () => now + 1000,
+    includeSnapshot: true });
+  assert.equal(withSnapshot.snapshot.project_id, read.manifest.projectId);
+  assert.equal(withSnapshot.snapshotSha256, read.snapshotSha256);
   await assert.rejects(readCaptureResponse({ directory, ...created, now: () => now + 300001 }),
     { code: 'resolve-companion-invalid' });
   const responseFile = path.join(directory, `${created.requestId}.response.json`);

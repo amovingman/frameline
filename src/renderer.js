@@ -950,6 +950,7 @@ document.getElementById('resolve-companion-form').addEventListener('submit', asy
   companionBusy = true;
   const status = document.getElementById('resolve-companion-status');
   const read = document.getElementById('resolve-companion-read');
+  document.getElementById('resolve-companion-save').disabled = true;
   read.disabled = true;
   status.textContent = 'Preparing a private capture request…';
   try {
@@ -968,8 +969,20 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
   try {
     const result = await window.desktop.readResolveCapture();
     if (!result?.ready) throw new Error(result?.error || 'No valid capture is ready.');
-    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Snapshot SHA-256: ${result.snapshotSha256}. Apply remains unavailable.`;
+    document.getElementById('resolve-companion-save').disabled = false;
+    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Save it as JSON, then choose it for the three snapshot preview. SHA-256: ${result.snapshotSha256}.`;
   } catch (error) { status.textContent = error.message || 'Could not read the capture.'; }
+  finally { companionBusy = false; }
+});
+document.getElementById('resolve-companion-save').addEventListener('click', async () => {
+  if (companionBusy) return;
+  companionBusy = true;
+  const status = document.getElementById('resolve-companion-status');
+  try {
+    const result = await window.desktop.saveResolveCapture();
+    if (result?.saved) status.textContent = 'Verified snapshot saved. Choose it as base, local, or incoming in the three snapshot preview.';
+    else if (!result?.cancelled) status.textContent = result?.error || 'Could not save the snapshot.';
+  } catch { status.textContent = 'Could not save the snapshot.'; }
   finally { companionBusy = false; }
 });
 document.getElementById('resolve-export-refresh').addEventListener('click', () => resolveAction('refreshResolveExport'));

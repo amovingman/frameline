@@ -33,6 +33,7 @@ let resolveExportComparison = null;
 let resolveExportError = null;
 let resolveExportLocalHash = null;
 let companionPending = null;
+let companionVerifiedSnapshot = null;
 let verifiedCopyPath = null;
 let verifiedCopySourcePath = null;
 let verifiedCopyHash = null;
@@ -208,6 +209,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
     companionPending = null;
+    companionVerifiedSnapshot = null;
     try {
       const installed = await installResolveCompanion({
         bundledDirectory: path.join(__dirname, 'companion'),
@@ -227,14 +229,32 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve-companion:read', async () => {
     if (!companionPending) return { ready: false, error: 'Prepare a new capture first.' };
     try {
-      const result = await readCaptureResponse(companionPending);
+      const result = await readCaptureResponse({ ...companionPending, includeSnapshot: true });
+      companionVerifiedSnapshot = { snapshot: result.snapshot, snapshotSha256: result.snapshotSha256 };
       return { ready: true, requestId: result.requestId, projectId: result.manifest.projectId,
         timelineCount: result.manifest.timelines.length,
         itemCount: result.manifest.timelines.reduce((sum, timeline) => sum + timeline.items.length, 0),
         snapshotSha256: result.snapshotSha256, readOnly: true, safeToApply: false };
     } catch (error) {
+      companionVerifiedSnapshot = null;
       logger.warn('resolve.companion-read-failed', { code: error.code || 'resolve-companion-error' });
       return { ready: false, error: 'No valid capture is ready. Run the copied command in Resolve’s Python Console, then retry within five minutes.' };
+    }
+  });
+  ipcMain.handle('resolve-companion:save-snapshot', async () => {
+    const verified = companionVerifiedSnapshot;
+    if (!verified) return { saved: false, error: 'Verify a capture before saving it.' };
+    const choice = await dialog.showSaveDialog({ title: 'Save verified Resolve snapshot',
+      defaultPath: `frameline-resolve-${verified.snapshotSha256.slice(0, 12)}.json`,
+      filters: [{ name: 'Resolve snapshot JSON', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePath) return { saved: false, cancelled: true };
+    try {
+      const bytes = Buffer.from(JSON.stringify(verified.snapshot));
+      await fs.writeFile(choice.filePath, bytes, { flag: 'wx', mode: 0o600 });
+      return { saved: true, snapshotSha256: verified.snapshotSha256 };
+    } catch (error) {
+      logger.warn('resolve.companion-save-failed', { code: error.code || 'resolve-companion-save-failed' });
+      return { saved: false, error: 'Could not save the snapshot. Choose a new filename and try again.' };
     }
   });
   ipcMain.handle('resolve:choose-snapshots', () => runResolveAction(async () => {
