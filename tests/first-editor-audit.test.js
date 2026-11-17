@@ -23,6 +23,11 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.deepEqual(report.observations.mixedConstructs,
     { video: 3, audio: 49, transition: 1, reciprocalLinkedPairs: 1, ofxCountChanges: 1 });
   assert.deepEqual(report.observations.observedDifferenceKinds, { 'item-changed': 2 });
+  assert.equal(report.gates.find(gate => gate.id === 'representative-scan-write-reopen').status, 'partial');
+  assert.equal(report.observations.recovery.observedAppliedChanges, 1);
+  assert.equal(report.observations.recovery.changedField, 'name');
+  assert.equal(report.observations.recovery.rollbackObservedBytesMatch, true);
+  assert.equal(report.observations.recovery.liveAppTransactionVerified, false);
   assert(report.gates.every(gate => ['open', 'blocked', 'partial'].includes(gate.status)));
   assert(!JSON.stringify(report).includes('/Users/'));
 });

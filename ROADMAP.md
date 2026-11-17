@@ -147,7 +147,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Check that the file still matches the plan's source hash before writing.
 - [ ] Apply changes through the supported editor API/adapter; never patch arbitrary bytes. A guarded Console rename/save/forced-failure/rollback probe now changes exactly one captured name field and restores the exact before snapshot hash on a disposable imported project; desktop transaction integration remains open.
 - [ ] Write atomically where supported and preserve permissions/metadata.
-- [ ] Reopen or validate the resulting project with the target editor integration. A live post-import capture confirms regenerated project/timeline/item/media IDs; all other captured values, link edges, and media-sharing groups match for the known fixture. Source plans cannot reuse those IDs. Full content validation and post-apply reopen remain open.
+- [ ] Reopen or validate the resulting project with the target editor integration. A saved rename and its rollback now each survive project close/reopen with exact matching observed snapshot bytes, verified by the evidence audit. Import regenerates project/timeline/item/media IDs, so source plans cannot reuse those IDs. Desktop transaction and full content validation remain open.
 - [ ] Keep the backup until validation succeeds and the user can recover it.
 - [ ] On any failure, restore or retain the original and report the exact recovery path.
 - [ ] Record success, failure, chosen resolutions, and resulting revision.

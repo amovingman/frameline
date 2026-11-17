@@ -12,6 +12,7 @@ const { createCandidateLedger } = require('../src/resolve-candidate-ledger');
 const { normalizeResolveSnapshot } = require('../src/resolve-snapshot-normalizer');
 const { compareResolveManifests } = require('../src/resolve-id-diff');
 const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator');
+const { compareResolveRecovery } = require('../src/resolve-recovery-comparison');
 
 const root = path.join(__dirname, 'resolve-xml-proof');
 const structure = path.join(__dirname, 'compatibility-corpus');
@@ -51,6 +52,26 @@ function readMixedEvidence() {
     reciprocalLinkedPairs: reciprocalPairs, ofxCountChanges };
 }
 
+function readRecoveryEvidence() {
+  const read = (filename, expectedHash) => {
+    const bytes = fs.readFileSync(path.join(root, filename));
+    if (createHash('sha256').update(bytes).digest('hex') !== expectedHash) throw new Error('recovery-evidence-changed');
+    validateResolveSnapshot(JSON.parse(bytes));
+    return bytes;
+  };
+  const originalHash = '654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850';
+  const appliedHash = '7655ea985e1033860f194f3e94b3e4f4c32147d71af4a98552d1cebf2021c9a9';
+  const original = read('live-rename-before-schema3.json', originalHash);
+  const reopenedApplied = read('live-rename-reopened-applied-schema3.json', appliedHash);
+  const reopenedRollback = read('live-rename-reopened-rolled-back-schema3.json', originalHash);
+  const changes = compareResolveRecovery(original, reopenedApplied).changes;
+  if (changes.length !== 1 || changes[0].kind !== 'item-changed' || changes[0].field !== 'name'
+    || !original.equals(reopenedRollback)) throw new Error('recovery-evidence-mismatch');
+  return { sourceHash: originalHash, reopenedAppliedHash: appliedHash, reopenedRollbackHash: originalHash,
+    observedAppliedChanges: changes.length, changedField: changes[0].field,
+    rollbackObservedBytesMatch: true, liveAppTransactionVerified: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -72,12 +93,13 @@ function auditFirstEditor() {
   const diffKinds = Object.fromEntries([...new Set(diff.changes.map(change => change.kind))].sort()
     .map(kind => [kind, diff.changes.filter(change => change.kind === kind).length]));
   const mixed = readMixedEvidence();
+  const recovery = readRecoveryEvidence();
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
     gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair, ${mixed.ofxCountChanges} OFX count change; effect settings, nested content, and complete XML coverage remain unresolved.`),
     gate('release-version-corpus', 'open', 'Only the named Free 21.1.2 build is editor-backed; no release support range is declared.'),
     gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures; XML association is candidate-only and track identity is index-only.`),
-    gate('representative-scan-write-reopen', 'open', 'Scanner observations exist; representative-project and app write/reopen measurements do not.'),
+    gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open.'),
     gate('editor-choice-stop-or-revisit', 'blocked', `External Free connection was unavailable in the ${external.observedOn} local probe; the internal Lua Console bridge now captures read-only fixtures, but safe apply and full coverage remain unproven.`),
     gate('lossless-editor-fields', 'blocked', `Paired coverage leaves ${pairedCoverage.timelines[0].unobservable.length} construct/identity categories unobservable.`),
     gate('durable-sidecar-identity', 'blocked', 'No generated ID mapping survives a changed export; candidate ledger is exact-source-bound.'),
@@ -93,7 +115,7 @@ function auditFirstEditor() {
       mixedConstructs: { ...mixed.itemCounts, reciprocalLinkedPairs: mixed.reciprocalLinkedPairs,
         ofxCountChanges: mixed.ofxCountChanges },
       retainedApiItems: ledger.retained.length, candidateStatus: ledger.status,
-      observedDifferenceKinds: diffKinds }, gates };
+      recovery, observedDifferenceKinds: diffKinds }, gates };
 }
 
 if (require.main === module) {

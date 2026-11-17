@@ -72,3 +72,12 @@ test('live saved rename changes one observed field and forced-failure rollback r
     before: 'mountain-alps.jpg', after: 'Frameline disposable rename' }]);
   assert.equal(compareResolveRecovery(before, rolledBack).status, 'observed-fields-match');
 });
+
+test('live rename and rollback survive project close/reopen with exact observed bytes and IDs', () => {
+  for (const phase of ['applied', 'rolled-back']) {
+    const saved = fs.readFileSync(path.join(directory, `live-rename-${phase}-schema3.json`));
+    const reopened = fs.readFileSync(path.join(directory, `live-rename-reopened-${phase}-schema3.json`));
+    assert.deepEqual(reopened, saved);
+    assert.equal(compareResolveRecovery(saved, reopened).status, 'observed-fields-match');
+  }
+});
