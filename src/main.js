@@ -6,6 +6,7 @@ const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
 const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
+const { describeResolveHistoryChanges } = require('./resolve-history-detail');
 const { readResolveHistoryPreviewSources, readResolveLiveHistoryPreviewSources } = require('./resolve-history-preview');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
@@ -327,7 +328,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { ready: false, error: 'Could not read local Resolve revisions.' };
     }
   });
-  ipcMain.handle('resolve-history:open-revision', async (_event, projectId, revisionId) => {
+  ipcMain.handle('resolve-history:open-revision', async (_event, projectId, revisionId, filters) => {
     try {
       const project = (await localMetadataStore.listResolveProjects()).find(item => item.id === projectId);
       if (!project || typeof revisionId !== 'string' || !/^[a-f0-9-]{36}$/.test(revisionId)) {
@@ -337,11 +338,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       if (revision.manifest.format !== 'resolve-api-observation') throw new Error('resolve-history-invalid');
       const parent = revision.parentRevisionId
         ? await localMetadataStore.getRevision(projectId, revision.parentRevisionId) : null;
-      const comparison = parent ? compareResolveRevisionManifests(parent.manifest, revision.manifest) : null;
+      const detail = parent ? describeResolveHistoryChanges(parent.manifest, revision.manifest, filters) : null;
       return { ready: true, revisionId, parentRevisionId: revision.parentRevisionId,
         message: revision.message, createdAt: revision.createdAt,
-        sourceHash: revision.manifest.sourceHash, changeCount: comparison?.changes.length ?? null,
-        changes: comparison?.changes.slice(0, 100) || [], readOnly: true, safeToApply: false };
+        sourceHash: revision.manifest.sourceHash, changeCount: detail?.changeCount ?? null,
+        filteredCount: detail?.filteredCount ?? null, options: detail?.options || null,
+        changes: detail?.changes || [], readOnly: true, safeToApply: false };
     } catch (error) {
       logger.warn('resolve.history-open-failed', { code: error.code || 'resolve-history-error' });
       return { ready: false, error: 'This revision could not be verified.' };

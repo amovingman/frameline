@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld('desktop', {
   saveResolveCaptureRevision: message => ipcRenderer.invoke('resolve-companion:save-revision', message),
   listResolveProjects: () => ipcRenderer.invoke('resolve-history:list-projects'),
   listResolveRevisions: projectId => ipcRenderer.invoke('resolve-history:list-revisions', projectId),
-  openResolveRevision: (projectId, revisionId) => ipcRenderer.invoke('resolve-history:open-revision', projectId, revisionId),
+  openResolveRevision: (projectId, revisionId, filters) => ipcRenderer.invoke('resolve-history:open-revision', projectId, revisionId, filters),
   getResolveRevisionGraph: projectId => ipcRenderer.invoke('resolve-history:graph', projectId),
   previewResolveHistory: (projectId, ids) => ipcRenderer.invoke('resolve-history:preview', projectId, ids),
   createResolveBranch: (projectId, name) => ipcRenderer.invoke('resolve-history:create-branch', projectId, name),

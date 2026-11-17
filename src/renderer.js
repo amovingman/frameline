@@ -1094,26 +1094,54 @@ async function loadResolveHistoryGraph(projectId, generation) {
   }
   document.getElementById('resolve-history-preview').disabled = result.revisions.length < 1;
 }
-async function openResolveHistoryRevision(projectId, revisionId, generation, button) {
+async function openResolveHistoryRevision(projectId, revisionId, generation, button, filters = {}) {
   if (generation !== resolveHistoryGeneration) return;
   const openToken = ++resolveHistoryOpenToken;
   const detail = document.getElementById('resolve-history-detail');
   detail.replaceChildren(make('p', '', 'Verifying revision…'));
   try {
-    const result = await window.desktop.openResolveRevision(projectId, revisionId);
+    const result = await window.desktop.openResolveRevision(projectId, revisionId, filters);
     if (generation !== resolveHistoryGeneration || openToken !== resolveHistoryOpenToken) return;
     if (!result?.ready) throw new Error(result?.error || 'Could not verify this revision.');
     for (const entry of document.querySelectorAll('#resolve-history-list button')) entry.setAttribute('aria-pressed', String(entry === button));
     detail.replaceChildren();
     detail.append(make('h3', '', result.message), make('p', '', `${result.createdAt} · ${result.changeCount === null ? 'First observation' : `${result.changeCount} observed field changes`} · SHA-256 ${result.sourceHash.slice(0, 12)}`));
     if (result.changeCount === 0) detail.append(make('p', '', 'No observed fields changed.'));
+    if (result.options && result.changeCount > 0) {
+      const controls = make('div', 'resolve-history-filters');
+      const fields = [
+        ['timelineId', 'Timeline', result.options.timelines.map(item => [item.value, item.label])],
+        ['track', 'Track index', result.options.tracks.map(item => [item, item])],
+        ['status', 'Status', result.options.statuses.map(item => [item, item])],
+        ['kind', 'Change type', result.options.kinds.map(item => [item, item.replaceAll('-', ' ')])]
+      ];
+      for (const [key, labelText, choices] of fields) {
+        const label = make('label', '', labelText);
+        const select = make('select'); select.dataset.filter = key;
+        const all = make('option', '', `All ${labelText.toLowerCase()}`); all.value = ''; select.append(all);
+        for (const [value, text] of choices) { const option = make('option', '', text); option.value = value; select.append(option); }
+        select.value = filters[key] || '';
+        select.addEventListener('change', () => {
+          const selected = Object.fromEntries([...controls.querySelectorAll('select')]
+            .map(input => [input.dataset.filter, input.value]));
+          openResolveHistoryRevision(projectId, revisionId, generation, button, selected);
+        });
+        label.append(select); controls.append(label);
+      }
+      detail.append(controls);
+      detail.append(make('p', '', `Showing ${Math.min(result.filteredCount, result.changes.length)} of ${result.filteredCount} matching changes. Track labels use observed indexes.`));
+    }
+    let lastTimeline = null;
     for (const change of result.changes) {
+      if (change.timelineId !== lastTimeline) {
+        detail.append(make('h4', 'resolve-history-timeline', change.timelineName));
+        lastTimeline = change.timelineId;
+      }
       const row = make('div', 'resolve-history-change');
-      row.append(make('strong', '', `${change.timelineId || 'Timeline'} · ${change.itemId || change.kind} · ${change.field || change.kind}`),
+      row.append(make('strong', '', `${change.tracks.join(' / ') || 'Timeline'} · ${change.itemName || change.itemId || change.kind} · ${change.field || change.kind}`),
         make('span', '', `${resolveValue(change.before)} → ${resolveValue(change.after)}`));
       detail.append(row);
     }
-    if (result.changeCount > result.changes.length) detail.append(make('p', '', `Showing the first ${result.changes.length} changes.`));
   } catch (error) { if (generation === resolveHistoryGeneration && openToken === resolveHistoryOpenToken) detail.replaceChildren(make('p', '', error.message || 'Could not verify this revision.')); }
 }
 document.getElementById('resolve-history-refresh').addEventListener('click', () => refreshResolveHistory());
