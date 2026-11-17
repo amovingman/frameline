@@ -226,13 +226,13 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Download only assets required for a selected revision or pull. A reference executor rechecks authoritative revision assets, downloads required chunks only, and verifies final hashes; canonical manifest integration and hosted transfer remain open.
 - [ ] Support proxies and relinking without confusing them with camera originals. Class- and hash-verified relink decisions now reject proxy substitution; editor project rewriting remains open.
 - [ ] Explain storage use before upload and show per-project usage. A path-free estimate and local project usage report now count upload, reuse, exclusion, logical, and exclusive bytes; desktop presentation and hosted accounting remain open. See `MEDIA_POLICY_FOUNDATION.md`.
-- [ ] Add retention, deletion, and garbage-collection rules that preserve assets referenced by retained revisions.
-- [ ] Provide export and deletion reports for project owners.
+- [ ] Add retention, deletion, and garbage-collection rules that preserve assets referenced by retained revisions. The local asset service now records verified immutable revision references and refuses to collect retained or cross-project content; hosted retention and orphan cleanup remain open.
+- [ ] Provide export and deletion reports for project owners. An owner-only path-free report now lists content IDs, revision references, shared status, and eligible bytes; hosted account export and deletion reporting remain open.
 
 ### 4.3 Background jobs and previews
-- [ ] Create a job queue for hashing, thumbnails, proxies, and asset checks.
-- [ ] Make jobs observable, retryable, and safe to repeat.
-- [ ] Generate clip thumbnails and lightweight timeline previews where rights and editor APIs allow.
+- [ ] Create a job queue for hashing, thumbnails, proxies, and asset checks. A durable local queue now accepts these typed jobs plus timeline previews; worker hosting and desktop integration remain open.
+- [ ] Make jobs observable, retryable, and safe to repeat. The local queue now deduplicates exact inputs, records status/progress/failure, retries explicitly, and requeues interrupted work; distributed worker leases remain open.
+- [ ] Generate clip thumbnails and lightweight timeline previews where rights and editor APIs allow. Optional handlers now require rights confirmation and an injected renderer, validate bounded image output, and mark it noncanonical; no editor renderer is bundled. See `MEDIA_LIFECYCLE_JOBS.md`.
 - [ ] Keep preview generation optional and separate from canonical edit data.
 - [ ] Monitor worker backlog, failures, storage costs, and processing time.
 

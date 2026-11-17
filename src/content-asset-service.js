@@ -23,11 +23,13 @@ async function writeJsonAtomic(filename, value) {
 // Local reference service. Each encrypted chunk and the small transfer index are
 // durable on disk; only the caller-selected namespace can deduplicate content.
 function createContentAssetService({ directory, namespaceId, keyring, urlSecret, origin,
-  authorize, chunkSize = 1024 * 1024, now = () => Date.now(),
+  authorize, authorizeOwner = () => false, verifyRevision = () => false,
+  chunkSize = 1024 * 1024, now = () => Date.now(),
   maxBytesPerSecond = null, onProgress = () => {} } = {}) {
   if (!path.isAbsolute(directory || '') || !ID.test(namespaceId || '') || !keyring
     || typeof keyring.encrypt !== 'function' || typeof keyring.decrypt !== 'function'
     || typeof urlSecret !== 'string' || urlSecret.length < 32 || typeof authorize !== 'function'
+    || typeof authorizeOwner !== 'function' || typeof verifyRevision !== 'function'
     || !Number.isSafeInteger(chunkSize) || chunkSize < 1 || chunkSize > 8 * 1024 * 1024
     || maxBytesPerSecond !== null && (!Number.isSafeInteger(maxBytesPerSecond) || maxBytesPerSecond < 1024)) throw fail('asset-service-invalid');
   const { origin: secureOrigin } = requireSecureTransport(origin);
@@ -41,15 +43,19 @@ function createContentAssetService({ directory, namespaceId, keyring, urlSecret,
     try {
       const value = JSON.parse(await fs.readFile(indexPath, 'utf8'));
       if (value.version !== 1 || value.namespace !== namespace || !value.uploads || !value.assets) throw fail('asset-index-invalid');
-      value.completed ||= {};
+      value.completed ||= {}; value.revisions ||= {};
       return value;
     } catch (error) {
-      if (error.code === 'ENOENT') return { version: 1, namespace, uploads: {}, assets: {}, completed: {} };
+      if (error.code === 'ENOENT') return { version: 1, namespace, uploads: {}, assets: {}, completed: {}, revisions: {} };
       throw fail(error.code === 'asset-index-invalid' ? error.code : 'asset-index-invalid');
     }
   }
   function checkProject(projectId, action) {
     if (!ID.test(projectId || '') || authorize(projectId, action) !== true) throw fail('asset-forbidden');
+  }
+  function checkOwner(projectId) {
+    checkProject(projectId, 'read');
+    if (authorizeOwner(projectId) !== true) throw fail('asset-owner-required');
   }
   function chunkCount(size) { return Math.max(1, Math.ceil(size / chunkSize)); }
   function expectedLength(size, index) { return Math.min(chunkSize, Math.max(0, size - index * chunkSize)); }
@@ -171,6 +177,68 @@ function createContentAssetService({ directory, namespaceId, keyring, urlSecret,
     const hash = parseIdentity({ version: 1, algorithm: 'sha256', contentId: assetId, size: 0 });
     return !!(await state()).assets[hash];
   }
+  async function retainRevisionAssets(projectId, revisionId, assetIds) {
+    return locked(async () => {
+      checkProject(projectId, 'write');
+      if (!ID.test(revisionId || '') || !Array.isArray(assetIds) || new Set(assetIds).size !== assetIds.length
+        || assetIds.some(id => typeof id !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(id))
+        || verifyRevision(projectId, revisionId, assetIds) !== true) throw fail('asset-revision-invalid');
+      const data = await state();
+      for (const id of assetIds) if (!data.assets[id.slice(7)]?.projects.includes(projectId)) throw fail('asset-not-found');
+      const revisions = data.revisions[projectId] ||= {};
+      if (revisions[revisionId]) {
+        if (JSON.stringify(revisions[revisionId]) !== JSON.stringify([...assetIds].sort())) throw fail('asset-revision-immutable');
+        return { projectId, revisionId, retained: assetIds.length, created: false };
+      }
+      revisions[revisionId] = [...assetIds].sort();
+      await writeJsonAtomic(indexPath, data);
+      return { projectId, revisionId, retained: assetIds.length, created: true };
+    });
+  }
+  function projectReport(data, projectId) {
+    const revisions = data.revisions[projectId] || {};
+    const assets = Object.entries(data.assets).filter(([, asset]) => asset.projects.includes(projectId))
+      .map(([hash, asset]) => {
+        const referencedBy = Object.entries(revisions).filter(([, ids]) => ids.includes(`sha256:${hash}`)).map(([id]) => id).sort();
+        return { assetId: `sha256:${hash}`, size: asset.size, referencedBy,
+          sharedProjects: asset.projects.length > 1, eligible: referencedBy.length === 0 };
+      }).sort((a, b) => a.assetId.localeCompare(b.assetId));
+    return { schemaVersion: 1, projectId, revisionCount: Object.keys(revisions).length, assets,
+      logicalBytes: assets.reduce((sum, item) => sum + item.size, 0),
+      deletableBytes: assets.filter(item => item.eligible && !item.sharedProjects).reduce((sum, item) => sum + item.size, 0),
+      deletionPerformed: false };
+  }
+  async function exportProjectReport(projectId) {
+    checkOwner(projectId); return projectReport(await state(), projectId);
+  }
+  async function garbageCollect(projectId, assetIds) {
+    return locked(async () => {
+      checkOwner(projectId);
+      if (!Array.isArray(assetIds) || new Set(assetIds).size !== assetIds.length
+        || assetIds.some(id => typeof id !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(id))) throw fail('asset-delete-invalid');
+      const data = await state(); const report = projectReport(data, projectId);
+      const candidates = new Map(report.assets.map(item => [item.assetId, item]));
+      for (const id of assetIds) {
+        const candidate = candidates.get(id);
+        if (!candidate) throw fail('asset-not-found');
+        if (!candidate.eligible) throw fail('asset-retained-by-revision');
+      }
+      const physicallyDeleted = [];
+      for (const id of assetIds) {
+        const asset = data.assets[id.slice(7)];
+        asset.projects = asset.projects.filter(id => id !== projectId);
+        if (!asset.projects.length) { delete data.assets[id.slice(7)]; physicallyDeleted.push(id); }
+      }
+      for (const [uploadId, completed] of Object.entries(data.completed)) {
+        if (completed.projectId === projectId && assetIds.includes(completed.result.assetId)) delete data.completed[uploadId];
+      }
+      // Drop references before removing bytes. A crash may leave orphaned encrypted
+      // files, but cannot remove content still referenced by a retained revision.
+      await writeJsonAtomic(indexPath, data);
+      for (const id of physicallyDeleted) await fs.rm(assetDir(id.slice(7)), { recursive: true, force: true });
+      return { projectId, released: assetIds, physicallyDeleted, retained: report.assets.filter(item => !item.eligible).length };
+    });
+  }
   function signedUrl({ projectId, assetId, method, expiresAt }) {
     checkProject(projectId, method === 'GET' ? 'read' : 'write');
     if (!['GET', 'PUT'].includes(method) || typeof assetId !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(assetId)
@@ -196,7 +264,8 @@ function createContentAssetService({ directory, namespaceId, keyring, urlSecret,
     return { projectId, assetId, method, expiresAt };
   }
   return { beginUpload, putChunk, uploadStatus, completeUpload, readChunk,
-    storageUsage, hasContent, signedUrl, verifySignedUrl };
+    storageUsage, hasContent, retainRevisionAssets, exportProjectReport, garbageCollect,
+    signedUrl, verifySignedUrl };
 }
 
 module.exports = { createContentAssetService };
