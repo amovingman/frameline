@@ -31,7 +31,7 @@ async function readResolveHistoryPreviewSources(store, projectId, revisionIds) {
     if (record.manifest.format !== 'resolve-api-observation'
       || record.manifest.snapshot.project_id !== graph.editorProjectId) invalid();
     const bytes = Buffer.from(JSON.stringify(record.manifest.snapshot));
-    if (createHash('sha256').update(bytes).digest('hex') !== record.contentHash) invalid();
+    if (createHash('sha256').update(bytes).digest('hex') !== (record.manifest.snapshotHash || record.contentHash)) invalid();
     sources[role] = bytes;
   }
   return sources;

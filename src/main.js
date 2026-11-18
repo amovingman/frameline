@@ -4,8 +4,8 @@ const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 const { createProjectSession } = require('./project-session');
 const { createLocalMetadataStore } = require('./local-metadata');
-const { createResolveRevisionManifest } = require('./resolve-revision-manifest');
-const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
+const { createResolveRevisionManifest, createResolveObservationManifest } = require('./resolve-revision-manifest');
+const { compareResolveRevisionManifests, describeResolveRevisionCoverage } = require('./resolve-revision-comparison');
 const { describeResolveHistoryChanges, describeResolveHistoryAudit } = require('./resolve-history-detail');
 const { readResolveHistoryPreviewSources, readResolveLiveHistoryPreviewSources } = require('./resolve-history-preview');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
@@ -276,9 +276,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         dataDirectory: path.join(app.getPath('userData'), 'resolve-companion')
       });
       const request = await createCaptureRequest({ directory: installed.requestsDirectory,
-        expectedProjectName });
+        expectedProjectName, includeProperties: true });
       const command = createLuaCaptureCommand({ luaScriptPath: installed.luaScriptPath,
-        luaSource: await fs.readFile(installed.luaScriptPath, 'utf8'), request, expectedProjectName });
+        luaSource: await fs.readFile(installed.luaScriptPath, 'utf8'),
+        effectSource: await fs.readFile(installed.effectScriptPath, 'utf8'), request, expectedProjectName });
       clipboard.writeText(command);
       companionPending = { directory: installed.requestsDirectory,
         requestId: request.requestId, requestSha256: request.requestSha256 };
@@ -302,11 +303,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       }
       const result = await readCaptureResponse({ ...companionPending,
         responseText: transfer.responseText, includeSnapshot: true });
-      companionVerifiedSnapshot = { snapshot: result.snapshot, snapshotSha256: result.snapshotSha256 };
+      companionVerifiedSnapshot = { snapshot: result.snapshot, snapshotSha256: result.snapshotSha256,
+        observation: result.observation };
       return { ready: true, requestId: result.requestId, projectId: result.manifest.projectId,
         timelineCount: result.manifest.timelines.length,
         itemCount: result.manifest.timelines.reduce((sum, timeline) => sum + timeline.items.length, 0),
-        snapshotSha256: result.snapshotSha256, readOnly: true, safeToApply: false };
+        snapshotSha256: result.snapshotSha256, coverage: result.coverage, readOnly: true, safeToApply: false };
     } catch (error) {
       companionVerifiedSnapshot = null;
       logger.warn('resolve.companion-read-failed', { code: error.code || 'resolve-companion-error' });
@@ -333,7 +335,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     const verified = companionVerifiedSnapshot;
     if (!verified) return { saved: false, error: 'Verify a capture before saving a revision.' };
     try {
-      const manifest = createResolveRevisionManifest(verified.snapshot);
+      const manifest = verified.observation ? createResolveObservationManifest(verified.observation)
+        : createResolveRevisionManifest(verified.snapshot);
       if (typeof message !== 'string' || !message.trim() || message.trim().length > 120
         || /[\\/\x00-\x1f\x7f]/.test(message) || /^[a-z]:/i.test(message)) {
         return { saved: false, error: 'Enter a revision message of 1 to 120 characters.' };
@@ -344,7 +347,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       const revisions = await localMetadataStore.listRevisions(project.id, branch);
       const parent = revisions[0] ? await localMetadataStore.getRevision(project.id, revisions[0].id) : null;
       const comparison = parent ? compareResolveRevisionManifests(parent.manifest, manifest) : null;
-      if (comparison && comparison.changes.length === 0) {
+      if (comparison && comparison.changes.length === 0 && !comparison.coverageChanged) {
         return { saved: false, unchanged: true, branch, message: 'No observed fields changed from the branch head.' };
       }
       const revision = await localMetadataStore.saveRevision(project.id, manifest, message.trim(), revisions[0]?.id || null, branch);
@@ -427,6 +430,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { ready: true, revisionId, parentRevisionId: revision.parentRevisionId,
         message: revision.message, createdAt: revision.createdAt,
         sourceHash: revision.manifest.sourceHash, changeCount: detail?.changeCount ?? null,
+        observationCoverage: describeResolveRevisionCoverage(revision.manifest), comparisonCoverage: detail?.coverage || null,
         filteredCount: detail?.filteredCount ?? null, options: detail?.options || null,
         changes: detail?.changes || [], trialAudit: describeResolveHistoryAudit(revision.manifest, auditOffset),
         readOnly: true, safeToApply: false };

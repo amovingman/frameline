@@ -6,6 +6,7 @@ const { constants } = require('node:fs');
 const { createHash, randomBytes } = require('node:crypto');
 const { validateResolveSnapshot } = require('./resolve-snapshot-validator');
 const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
+const { validateEffectObservation, describeEffectCoverage } = require('./resolve-effect-observation');
 
 const ID = /^[a-f0-9]{32}$/;
 const SHA = /^[a-f0-9]{64}$/;
@@ -44,13 +45,13 @@ async function readPrivateFile(filename) {
 
 // The main process prepares a private, time-limited request for Resolve's
 // internal Console; no external API connection is required.
-async function createCaptureRequest({ directory, expectedProjectName, now = () => Date.now() } = {}) {
+async function createCaptureRequest({ directory, expectedProjectName, includeProperties = false, now = () => Date.now() } = {}) {
   const root = await privateDirectory(directory);
-  if (!projectName(expectedProjectName)) fail();
+  if (!projectName(expectedProjectName) || typeof includeProperties !== 'boolean') fail();
   const createdAt = now();
   if (!Number.isSafeInteger(createdAt) || createdAt < 0) fail();
   const requestId = randomBytes(16).toString('hex');
-  const request = { schemaVersion: 1, operation: 'capture', requestId,
+  const request = { schemaVersion: includeProperties ? 2 : 1, operation: includeProperties ? 'capture-properties' : 'capture', requestId,
     createdAt, expiresAt: createdAt + 5 * 60 * 1000, expectedProjectName };
   if (!Number.isSafeInteger(request.expiresAt)) fail();
   const bytes = Buffer.from(`${JSON.stringify(request)}\n`);
@@ -58,7 +59,7 @@ async function createCaptureRequest({ directory, expectedProjectName, now = () =
   try { await fs.writeFile(filename, bytes, { flag: 'wx', mode: 0o600 }); }
   catch { fail(); }
   return { requestId, requestSha256: sha(bytes), requestFile: filename,
-    expiresAt: request.expiresAt };
+    expiresAt: request.expiresAt, includeProperties };
 }
 
 async function readCaptureResponse({ directory, requestId, requestSha256, now = () => Date.now(),
@@ -77,19 +78,26 @@ async function readCaptureResponse({ directory, requestId, requestSha256, now = 
   } catch { fail(); }
   const checkedAt = now();
   if (!exactKeys(request, ['schemaVersion', 'operation', 'requestId', 'createdAt', 'expiresAt', 'expectedProjectName'])
-    || request.schemaVersion !== 1 || request.operation !== 'capture' || request.requestId !== requestId
+    || ![1, 2].includes(request.schemaVersion)
+    || request.operation !== (request.schemaVersion === 2 ? 'capture-properties' : 'capture') || request.requestId !== requestId
     || !projectName(request.expectedProjectName) || !Number.isSafeInteger(request.createdAt)
     || request.createdAt < 0
     || request.expiresAt !== request.createdAt + 5 * 60 * 1000
     || !Number.isSafeInteger(checkedAt) || checkedAt > request.expiresAt
-    || !exactKeys(response, ['schemaVersion', 'operation', 'requestId', 'requestSha256', 'snapshot'])
-    || response.schemaVersion !== 1 || response.operation !== 'capture-result'
+    || !exactKeys(response, ['schemaVersion', 'operation', 'requestId', 'requestSha256', request.schemaVersion === 2 ? 'observation' : 'snapshot'])
+    || response.schemaVersion !== request.schemaVersion || response.operation !== 'capture-result'
     || response.requestId !== requestId || response.requestSha256 !== requestSha256) fail();
-  try { validateResolveSnapshot(response.snapshot); } catch { fail(); }
-  if (response.snapshot.project_name !== request.expectedProjectName) fail();
-  return { requestId, snapshotSha256: sha(Buffer.from(JSON.stringify(response.snapshot))),
-    manifest: normalizeResolveSnapshot(response.snapshot), readOnly: true, safeToApply: false,
-    ...(includeSnapshot ? { snapshot: response.snapshot } : {}) };
+  const observation = request.schemaVersion === 2 ? response.observation : null;
+  const snapshot = observation ? observation.snapshot : response.snapshot;
+  try {
+    if (observation) { validateEffectObservation(observation); if (observation.schemaVersion !== 2) fail(); }
+    validateResolveSnapshot(snapshot);
+  } catch { fail(); }
+  if (snapshot.project_name !== request.expectedProjectName) fail();
+  return { requestId, snapshotSha256: sha(Buffer.from(JSON.stringify(snapshot))),
+    manifest: normalizeResolveSnapshot(snapshot), readOnly: true, safeToApply: false,
+    coverage: observation ? describeEffectCoverage(observation) : null,
+    ...(includeSnapshot ? { snapshot, ...(observation ? { observation } : {}) } : {}) };
 }
 
 module.exports = { createCaptureRequest, readCaptureResponse };

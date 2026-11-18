@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { constants } = require('node:fs');
 const { randomBytes } = require('node:crypto');
+const { propertyCaptureConfig } = require('./resolve-property-observation');
 
 const MENU_NAME = 'Frameline Read Only Capture.py';
 function fail() { const error = new Error('resolve-menu-companion-invalid'); error.code = 'resolve-menu-companion-invalid'; throw error; }
@@ -64,7 +65,7 @@ async function activateResolveMenuRequest({ pointerPath, requestFile, requestsDi
   return pointerPath;
 }
 
-function createLuaCaptureCommand({ luaScriptPath, luaSource, request, expectedProjectName } = {}) {
+function createLuaCaptureCommand({ luaScriptPath, luaSource, effectSource, request, expectedProjectName } = {}) {
   if (typeof luaScriptPath !== 'string' || !path.isAbsolute(luaScriptPath)
     || typeof luaSource !== 'string' || !luaSource.includes('return { capture_request = capture_request }')
     || !request || typeof request.requestFile !== 'string' || !path.isAbsolute(request.requestFile)
@@ -75,8 +76,14 @@ function createLuaCaptureCommand({ luaScriptPath, luaSource, request, expectedPr
     || !Number.isSafeInteger(request.expiresAt) || request.expiresAt < 0
     || typeof expectedProjectName !== 'string' || !expectedProjectName.trim()
     || /[\\/\x00-\x1f\x7f]/.test(expectedProjectName)) fail();
-  const oneLineSource = luaSource.split('\n').filter(line => !/^\s*--/.test(line)).join(' ');
-  return `local ok,err=pcall(function() local companion=(function() ${oneLineSource} end)(); companion.capture_request(resolve, ${JSON.stringify(request.requestId)}, ${JSON.stringify(request.requestSha256)}, ${JSON.stringify(expectedProjectName)}, ${request.expiresAt}) end); if not ok then print('FRAMELINE_CAPTURE_ERROR_V1:'..tostring(err)) end`;
+  if (request.includeProperties !== undefined && typeof request.includeProperties !== 'boolean') fail();
+  if (request.includeProperties && (typeof effectSource !== 'string' || !effectSource.includes('return {capture = capture_effects, encode = encode}'))) fail();
+  const line = source => source.split('\n').filter(row => !/^\s*--/.test(row)).join(' ');
+  const source = request.includeProperties ? luaSource.replace('return { capture_request = capture_request }',
+    'return { capture_request=capture_request, capture=capture, encode=encode, array=array }') : luaSource;
+  const supplement = request.includeProperties ? `local effects=(function() ${line(effectSource)} end)();` : '';
+  const callbacks = request.includeProperties ? `,function() return effects.capture(resolve,companion,${propertyCaptureConfig()}) end,effects.encode` : '';
+  return `local ok,err=pcall(function() local companion=(function() ${line(source)} end)();${supplement} companion.capture_request(resolve, ${JSON.stringify(request.requestId)}, ${JSON.stringify(request.requestSha256)}, ${JSON.stringify(expectedProjectName)}, ${request.expiresAt}${callbacks}) end); if not ok then print('FRAMELINE_CAPTURE_ERROR_V1:'..tostring(err)) end`;
 }
 
 module.exports = { installResolveMenuCompanion, activateResolveMenuRequest,

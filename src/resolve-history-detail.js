@@ -58,7 +58,7 @@ function describeResolveHistoryChanges(before, after, selected = {}) {
     && (!selected.status || change.status === selected.status)
     && (!selected.kind || change.kind === selected.kind));
   return { changeCount: changes.length, filteredCount: filtered.length,
-    changes: filtered.slice(0, 100), options };
+    changes: filtered.slice(0, 100), options, coverage: comparison.coverage };
 }
 function describeResolveHistoryAudit(manifest, offset = 0) {
   validateResolveRevisionManifest(manifest);

@@ -2,6 +2,7 @@
 const { createHash } = require('node:crypto');
 const { validateResolveSnapshot } = require('./resolve-snapshot-validator');
 const { validatePortableTrialAudit, portableTrialAuditHash } = require('./resolve-portable-trial-audit');
+const { validateEffectObservation, parseEffectObservation } = require('./resolve-effect-observation');
 
 const SHA = /^[a-f0-9]{64}$/;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -24,15 +25,34 @@ function createResolveRevisionManifest(snapshot, transactionAudit = null) {
         transactionAuditHash: portableTrialAuditHash(transactionAudit) }) };
   } catch { invalid(); }
 }
+function createResolveObservationManifest(observation) {
+  try {
+    validateEffectObservation(observation);
+    const bytes = JSON.stringify(observation);
+    const copy = parseEffectObservation(bytes);
+    if (copy.schemaVersion !== 2) invalid();
+    return { schemaVersion: 3, format: 'resolve-api-observation', readOnly: true, safeToApply: false,
+      sourceHash: sha(bytes), snapshotHash: sha(JSON.stringify(copy.snapshot)),
+      snapshot: structuredClone(copy.snapshot), observation: copy };
+  } catch { invalid(); }
+}
 function validateResolveRevisionManifest(value) {
   try {
     const version = Object.getOwnPropertyDescriptor(value, 'schemaVersion')?.value;
     if (!exactKeys(value, ['schemaVersion', 'format', 'readOnly', 'safeToApply', 'sourceHash', 'snapshot',
-      ...(version === 2 ? ['transactionAudit', 'transactionAuditHash'] : [])])
-      || ![1, 2].includes(value.schemaVersion) || value.format !== 'resolve-api-observation'
+      ...(version === 2 ? ['transactionAudit', 'transactionAuditHash'] : []),
+      ...(version === 3 ? ['snapshotHash', 'observation'] : [])])
+      || ![1, 2, 3].includes(value.schemaVersion) || value.format !== 'resolve-api-observation'
       || value.readOnly !== true || value.safeToApply !== false || !SHA.test(value.sourceHash)) invalid();
     validateResolveSnapshot(value.snapshot);
-    if (sha(Buffer.from(JSON.stringify(value.snapshot))) !== value.sourceHash) invalid();
+    if (sha(Buffer.from(JSON.stringify(value.snapshot))) !== (version === 3 ? value.snapshotHash : value.sourceHash)) invalid();
+    if (version === 3) {
+      validateEffectObservation(value.observation);
+      const bytes = JSON.stringify(value.observation);
+      parseEffectObservation(bytes);
+      if (value.observation.schemaVersion !== 2 || sha(bytes) !== value.sourceHash
+        || JSON.stringify(value.observation.snapshot) !== JSON.stringify(value.snapshot)) invalid();
+    }
     if (value.schemaVersion === 2) {
       validatePortableTrialAudit(value.transactionAudit, value.snapshot);
       if (!SHA.test(value.transactionAuditHash) || portableTrialAuditHash(value.transactionAudit) !== value.transactionAuditHash) invalid();
@@ -40,4 +60,4 @@ function validateResolveRevisionManifest(value) {
     return value;
   } catch { invalid(); }
 }
-module.exports = { createResolveRevisionManifest, validateResolveRevisionManifest };
+module.exports = { createResolveRevisionManifest, createResolveObservationManifest, validateResolveRevisionManifest };

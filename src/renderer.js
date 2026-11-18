@@ -777,7 +777,23 @@ let resolveActionNotice = '';
 const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
 function resolveValue(value) {
   if (value === undefined || value === null) return 'Not present';
+  if (typeof value === 'object' && Object.keys(value).join(',') === 'decimal' && typeof value.decimal === 'string') {
+    const match = /^(-?)(\d)\.(\d{16})e([+-]\d{2,3})$/.exec(value.decimal);
+    if (match) {
+      const digits = (match[2] + match[3]).replace(/0+$/, '');
+      if (!digits) return '0';
+      const exponent = Number(match[4]), position = exponent + 1;
+      if (Math.abs(exponent) > 12) return value.decimal;
+      return match[1] + (position <= 0 ? `0.${'0'.repeat(-position)}${digits}`
+        : position >= digits.length ? digits.padEnd(position, '0') : `${digits.slice(0, position)}.${digits.slice(position)}`);
+    }
+  }
   return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+}
+function resolveCoverageText(coverage) {
+  if (!coverage) return 'Snapshot fields only. Clip properties, effect metadata and track enabled/locked states were not captured.';
+  if (coverage.schemaVersion !== 2) return `${coverage.effectCount} ${coverage.effectCount === 1 ? 'effect' : 'effects'} observed across ${coverage.itemCount} items. Clip properties and track states were not captured.`;
+  return `${coverage.propertyKeyCount} returned clip property keys (${coverage.propertyValueCount} values), ${coverage.trackCount} ${coverage.trackCount === 1 ? 'track' : 'tracks'} and ${coverage.effectCount} ${coverage.effectCount === 1 ? 'effect' : 'effects'}. Unavailable reads: ${coverage.unavailablePropertyReads} for clip properties, ${coverage.unavailableTrackStateReads} for track state.`;
 }
 function resolveChanges() {
   return resolveState?.plan?.classification?.decisions || [];
@@ -985,7 +1001,7 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
     verifiedResolveCaptureAvailable = true;
     document.getElementById('resolve-companion-save').disabled = false;
     document.getElementById('resolve-companion-revision').disabled = false;
-    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. Save it as JSON or use it as the local side of a history preview. SHA-256: ${result.snapshotSha256}.`;
+    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. ${resolveCoverageText(result.coverage)} Save a local revision to retain these observations. Snapshot JSON contains timeline and clip fields for previews. Missing properties and effect parameters remain unobserved.`;
   } catch (error) { verifiedResolveCaptureAvailable = false; status.textContent = error.message || 'Could not read the capture.'; }
   finally { companionBusy = false; refreshResolveHistory(); }
 });
@@ -999,7 +1015,7 @@ document.getElementById('resolve-companion-revision-form').addEventListener('sub
     const result = await window.desktop.saveResolveCaptureRevision(document.getElementById('resolve-companion-message').value);
     if (result?.unchanged) { status.textContent = result.message; return; }
     if (!result?.saved) throw new Error(result?.error || 'Could not save the observation.');
-    status.textContent = `Read-only observation saved on ${result.branch}: revision ${result.revisionId}${result.changeCount === null ? '' : ` · ${result.changeCount} observed field changes`}. The Resolve project was not changed.`;
+    status.textContent = `Read-only observation saved on ${result.branch}: revision ${result.revisionId}${result.changeCount === null ? '' : ` · ${result.changeCount} observed field ${result.changeCount === 1 ? 'change' : 'changes'}`}. The Resolve project was not changed.`;
     document.getElementById('resolve-companion-message').value = '';
     await refreshResolveHistory();
   } catch (error) { status.textContent = error.message || 'Could not save the observation.'; }
@@ -1230,8 +1246,11 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
     if (!result?.ready) throw new Error(result?.error || 'Could not verify this revision.');
     for (const entry of document.querySelectorAll('#resolve-history-list button')) entry.setAttribute('aria-pressed', String(entry === button));
     detail.replaceChildren();
-    detail.append(make('h3', '', result.message), make('p', '', `${result.createdAt} · ${result.changeCount === null ? 'First observation' : `${result.changeCount} observed field changes`} · SHA-256 ${result.sourceHash.slice(0, 12)}`));
-    if (result.changeCount === 0) detail.append(make('p', '', 'No observed fields changed.'));
+    detail.append(make('h3', '', result.message), make('p', '', `${result.createdAt} · ${result.changeCount === null ? 'First observation' : `${result.changeCount} observed field ${result.changeCount === 1 ? 'change' : 'changes'}`} · SHA-256 ${result.sourceHash.slice(0, 12)}`));
+    detail.append(make('p', 'resolve-history-coverage', resolveCoverageText(result.observationCoverage)));
+    if (result.observationCoverage?.schemaVersion === 2) detail.append(make('p', '', 'Only returned properties are represented. Missing keys and effect parameters remain unobserved; track indexes and effect slots are not persistent identities.'));
+    if (result.comparisonCoverage && !result.comparisonCoverage.comparableProperties) detail.append(make('p', '', 'Clip properties and track states cannot be compared with this parent. Missing coverage does not mean those values were unchanged.'));
+    if (result.changeCount === 0) detail.append(make('p', '', result.comparisonCoverage?.comparableProperties ? 'No observed fields changed.' : 'No changes in the fields both observations can compare.'));
     renderResolveHistoryAudit(detail, result.trialAudit, offset => openResolveHistoryRevision(projectId, revisionId, generation, button, filters, offset));
     if (auditOffset) detail.querySelector('.resolve-history-audit h4')?.focus();
     if (result.options && result.changeCount > 0) {
@@ -1245,7 +1264,7 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
       for (const [key, labelText, choices] of fields) {
         const label = make('label', '', labelText);
         const select = make('select'); select.dataset.filter = key;
-        const all = make('option', '', `All ${labelText.toLowerCase()}`); all.value = ''; select.append(all);
+        const all = make('option', '', { timelineId: 'All timelines', track: 'All track indexes', status: 'All statuses', kind: 'All change types' }[key]); all.value = ''; select.append(all);
         for (const [value, text] of choices) { const option = make('option', '', text); option.value = value; select.append(option); }
         select.value = filters[key] || '';
         select.addEventListener('change', () => {
@@ -1265,8 +1284,10 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
         lastTimeline = change.timelineId;
       }
       const row = make('div', 'resolve-history-change');
-      row.append(make('strong', '', `${change.tracks.join(' / ') || 'Timeline'} · ${change.itemName || change.itemId || change.kind} · ${change.field || change.kind}`),
-        make('span', '', `${resolveValue(change.before)} → ${resolveValue(change.after)}`));
+      const slot = change.category ? `${change.category} slot ${change.index} · ` : '';
+      const value = input => input === null && ['item-property-changed', 'track-state-changed'].includes(change.kind) ? 'Not observed' : resolveValue(input);
+      row.append(make('strong', '', `${change.tracks.join(' / ') || 'Timeline'} · ${change.itemName || change.itemId || (change.kind === 'track-state-changed' ? 'Track' : change.kind)} · ${slot}${change.field || change.kind}`),
+        make('span', '', `${value(change.before)} → ${value(change.after)}`));
       detail.append(row);
     }
   } catch (error) { if (generation === resolveHistoryGeneration && openToken === resolveHistoryOpenToken) detail.replaceChildren(make('p', '', error.message || 'Could not verify this revision.')); }

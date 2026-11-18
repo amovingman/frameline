@@ -84,3 +84,31 @@ test('Lua Console command embeds only the matching private request and prints a 
       requestFile: path.join(root, 'other.request.json') }, expectedProjectName: projectName }),
   { code: 'resolve-menu-companion-invalid' });
 });
+
+const luaLibrary = process.env.FRAMELINE_LUA_LIBRARY || '/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/libluajit-5.1.2.dylib';
+test('generated richer Console command executes the bundled modules and completes the bound response protocol',
+  { skip: !require('node:fs').existsSync(luaLibrary) && 'Set FRAMELINE_LUA_LIBRARY to execute the Lua mock on this host' }, async t => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-rich-lua-companion-'));
+    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const installed = await installResolveCompanion({ bundledDirectory: path.join(__dirname, '../src/companion'), dataDirectory: root });
+    const request = await createCaptureRequest({ directory: installed.requestsDirectory,
+      expectedProjectName: 'Frameline Empty Capture', includeProperties: true });
+    const command = createLuaCaptureCommand({ luaScriptPath: installed.luaScriptPath,
+      luaSource: await fs.readFile(installed.luaScriptPath, 'utf8'), effectSource: await fs.readFile(installed.effectScriptPath, 'utf8'),
+      request, expectedProjectName: 'Frameline Empty Capture' });
+    const script = `local timeline={};function timeline:GetUniqueId()return 'empty-timeline' end;function timeline:GetName()return 'Empty timeline' end;
+      function timeline:GetStartFrame()return 86400 end;function timeline:GetTrackCount()return 0 end;
+      local project={};function project:GetName()return 'Frameline Empty Capture' end;function project:GetUniqueId()return 'empty-project' end;
+      function project:GetTimelineCount()return 1 end;function project:GetTimelineByIndex()return timeline end;function project:GetCurrentTimeline()return timeline end;
+      local manager={};function manager:GetCurrentProject()return project end;resolve={};function resolve:GetProjectManager()return manager end;
+      function resolve:GetVersionString()return '21.1.2.10' end;${command}`;
+    const output = execFileSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), luaLibrary], { input: script, encoding: 'utf8' });
+    const { acceptConsoleOutput } = require('../src/resolve-console-transfer');
+    const response = acceptConsoleOutput({ output, requestId: request.requestId, requestSha256: request.requestSha256 });
+    assert.equal(response.complete, true);
+    const read = await readCaptureResponse({ directory: installed.requestsDirectory, ...request, responseText: response.responseText, includeSnapshot: true });
+    assert.equal(read.observation.schemaVersion, 2); assert.equal(read.coverage.propertyValueCount, 0);
+    assert.equal(read.observation.activeTimelineId, 'empty-timeline'); assert.deepEqual(read.observation.items, []);
+    assert.equal(read.safeToApply, false);
+    assert.doesNotMatch(command, /SetName|SetProperties|SaveProject|ExportProject/);
+  });

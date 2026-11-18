@@ -116,7 +116,7 @@ local function capture(resolve)
     project_name = safe_text(project:GetName(), true), timelines = timelines }
 end
 
-local function capture_request(resolve, request_id, request_sha, expected_name, expires_at)
+local function capture_request(resolve, request_id, request_sha, expected_name, expires_at, capture_observation, encode_observation)
   if not request_id:match('^[0-9a-f]+$') or #request_id ~= 32
     or not request_sha:match('^[0-9a-f]+$') or #request_sha ~= 64
     or type(expires_at) ~= 'number' or (os and os.time and os.time() * 1000 > expires_at) then
@@ -125,9 +125,15 @@ local function capture_request(resolve, request_id, request_sha, expected_name, 
   if resolve:GetProjectManager():GetCurrentProject():GetName() ~= expected_name then
     error('Open the named disposable project before capturing')
   end
-  local snapshot = capture(resolve)
-  local response = encode({ schemaVersion = 1, operation = 'capture-result',
-    requestId = request_id, requestSha256 = request_sha, snapshot = snapshot })
+  local response
+  if capture_observation ~= nil then
+    if type(capture_observation) ~= 'function' or type(encode_observation) ~= 'function' then error('Invalid observation capture') end
+    response = encode_observation({ schemaVersion = 2, operation = 'capture-result',
+      requestId = request_id, requestSha256 = request_sha, observation = capture_observation() })
+  else
+    response = encode({ schemaVersion = 1, operation = 'capture-result',
+      requestId = request_id, requestSha256 = request_sha, snapshot = capture(resolve) })
+  end
   if #response > 20 * 1024 * 1024 then error('Capture exceeds Frameline transfer limit') end
   if #response <= 16384 then
     FRAMELINE_CAPTURE_BUFFER_V1 = nil
