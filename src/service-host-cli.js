@@ -23,7 +23,8 @@ async function main(args = process.argv.slice(2)) {
     let assets;
     try {
       if (config.assets) assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring,
-        authorize: (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action), initialize: true });
+        authorize: (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action),
+        authorizePolicy: (context, projectId, action) => runtime.service.authorizeAssetPolicy(context, projectId, action), initialize: true });
     } finally { await assets?.close(); await runtime.close(); }
     log(process.stdout, { event: 'service-initialized' }); return;
   }

@@ -16,7 +16,8 @@ const ERROR_STATUS = new Map([
   ['asset-service-busy', 503], ['asset-storage-unavailable', 503], ['asset-storage-uncertain', 503], ['asset-request-timeout', 408],
   ['asset-chunk-corrupt', 500], ['asset-state-invalid', 500], ['service-unavailable', 500],
   ['asset-key-rotation-required', 409], ['asset-capacity-exceeded', 413], ['asset-request-invalid', 400],
-  ['asset-state-newer-version', 500], ['asset-service-closed', 503]
+  ['asset-state-newer-version', 500], ['asset-service-closed', 503], ['asset-policy-excluded', 403], ['asset-policy-forbidden', 403],
+  ['asset-policy-invalid', 400], ['asset-policy-version-conflict', 409], ['asset-archived', 403], ['asset-archive-invalid', 400], ['asset-archive-conflict', 409]
 ]);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -58,6 +59,30 @@ function validateProgress(value) {
     || !integer(value.receivedBytes, value.totalBytes) || value.complete !== false) throw fail('asset-response-invalid');
   return structuredClone(value);
 }
+const ASSET_CLASSES = ['audio', 'graphics', 'original', 'other', 'proxy'];
+function validClasses(value) { return Array.isArray(value) && value.length <= 5 && value.every(item => ASSET_CLASSES.includes(item)) && new Set(value).size === value.length; }
+function validatePolicy(value) {
+  if (!exact(value, ['projectId', 'version', 'syncClasses']) || !ID.test(value.projectId || '') || !integer(value.version)
+    || !validClasses(value.syncClasses) || value.version === 0 && value.syncClasses.length !== 0
+    || JSON.stringify(value.syncClasses) !== JSON.stringify([...value.syncClasses].sort())) throw fail('asset-response-invalid');
+  return structuredClone(value);
+}
+function validateUsage(value) {
+  const fields = ['assetCount', 'logicalBytes', 'availableBytes', 'archivedBytes', 'excludedBytes', 'inProgressUploads', 'inProgressReceivedBytes', 'inProgressDeclaredBytes'];
+  if (!exact(value, ['projectId', ...fields]) || !ID.test(value.projectId || '') || fields.some(key => !integer(value[key]))
+    || value.assetCount > 10000 || value.inProgressUploads > 10000 || value.availableBytes > value.logicalBytes
+    || value.archivedBytes > value.logicalBytes || value.excludedBytes > value.logicalBytes || value.inProgressReceivedBytes > value.inProgressDeclaredBytes
+    || value.availableBytes + value.archivedBytes + value.excludedBytes !== value.logicalBytes
+    || value.assetCount === 0 && value.logicalBytes !== 0 || value.inProgressUploads === 0 && value.inProgressDeclaredBytes !== 0) throw fail('asset-response-invalid');
+  return structuredClone(value);
+}
+function validateAvailability(value) {
+  if (!exact(value, ['projectId', 'assetId', 'cloudPresent', 'excluded', 'archived', 'assetClass', 'size']) || !ID.test(value.projectId || '')
+    || !ASSET.test(value.assetId || '') || ['cloudPresent', 'excluded', 'archived'].some(key => typeof value[key] !== 'boolean')
+    || value.cloudPresent && (!ASSET_CLASSES.includes(value.assetClass) || !integer(value.size, MAX_ASSET_BYTES))
+    || !value.cloudPresent && (value.excluded || value.archived || value.assetClass !== null || value.size !== null)) throw fail('asset-response-invalid');
+  return structuredClone(value);
+}
 function header(req, name) {
   let count = 0; for (let i = 0; i < (req.rawHeaders?.length || 0); i += 2) if (req.rawHeaders[i].toLowerCase() === name) count++;
   const value = req.headers[name];
@@ -77,6 +102,10 @@ function parseRoute(raw) {
   const projectId = parts[1]; let result;
   if (parts.length === 4 && parts[3] === 'uploads') result = { kind: 'begin', methods: ['POST'] };
   else if (parts.length === 4 && parts[3] === 'tickets') result = { kind: 'ticket', methods: ['POST'] };
+  else if (parts.length === 4 && parts[3] === 'policy') result = { kind: 'policy', methods: ['GET', 'PUT'] };
+  else if (parts.length === 4 && parts[3] === 'usage') result = { kind: 'usage', methods: ['GET'] };
+  else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'availability') result = { kind: 'availability', id: parts[3], methods: ['GET'] };
+  else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'archive') result = { kind: 'archive', id: parts[3], methods: ['PUT'] };
   else if (parts[3] === 'uploads' && ID.test(parts[4] || '') && parts.length === 5) result = { kind: 'status', id: parts[4], methods: ['GET'] };
   else if (parts[3] === 'uploads' && ID.test(parts[4] || '') && parts.length === 6 && parts[5] === 'complete') result = { kind: 'complete', id: parts[4], methods: ['POST', 'DELETE'] };
   else if (parts[3] === 'uploads' && ID.test(parts[4] || '') && parts.length === 7 && parts[5] === 'chunks') result = { kind: 'put', id: parts[4], rawIndex: parts[6], methods: ['PUT'] };
@@ -121,9 +150,10 @@ async function readBody(req, { kind = 'json', max = MAX_JSON_REQUEST_BYTES, writ
   if (!writing) return null; if (kind === 'binary') return bytes;
   try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw fail('body-invalid'); }
 }
-function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
+function createAssetHttpHandler({ assets, authorize, authorizePolicy = null, signingKey } = {}) {
   if (!assets || !['beginUpload', 'uploadStatus', 'putChunk', 'completeUpload', 'getAsset', 'readChunk'].every(name => typeof assets[name] === 'function')
-    || typeof authorize !== 'function' || !Buffer.isBuffer(signingKey) || signingKey.length !== 32) throw fail('asset-http-invalid');
+    || typeof authorize !== 'function' || authorizePolicy !== null && typeof authorizePolicy !== 'function'
+    || !Buffer.isBuffer(signingKey) || signingKey.length !== 32) throw fail('asset-http-invalid');
   const key = Buffer.from(signingKey); let active = 0, closing = false;
   const verifications = new Map();
   function pruneVerifications() {
@@ -158,6 +188,20 @@ function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
     if (result !== true && result?.allowed !== true) throw fail('asset-forbidden');
     return result === true ? { allowed: true } : result;
   }
+  async function ownerAllowed(context, projectId) {
+    const result = await authorizePolicy?.(context, projectId, 'write');
+    if (result?.allowed !== true || typeof result.actorId !== 'string' || !ID.test(result.actorId)) throw fail('asset-policy-forbidden');
+  }
+  async function uploadAllowed(context, projectId, uploadId) {
+    if (typeof assets.assertUploadAllowed !== 'function') throw fail('asset-policy-forbidden');
+    const result = await assets.assertUploadAllowed(context, projectId, uploadId);
+    if (result?.allowed !== true) throw fail('asset-policy-forbidden');
+  }
+  async function downloadAllowed(context, projectId, assetId) {
+    const value = validateAvailability(await assets.getAvailability(context, projectId, assetId));
+    if (value.projectId !== projectId || value.assetId !== assetId) throw fail('service-unavailable');
+    if (value.excluded) throw fail('asset-policy-excluded'); if (value.archived) throw fail('asset-archived');
+  }
   function verifyTicket(target, method) {
     if (target.query === null || !/^expires=[0-9]+&signature=[a-f0-9]{64}$/.test(target.query)) throw fail('asset-ticket-invalid');
     const [expires, signed] = target.query.split('&').map(value => value.split('=')[1]); const expiresAt = Number(expires), now = Date.now();
@@ -187,10 +231,26 @@ function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
       if (!target.methods.includes(req.method)) { res.setHeader('Allow', target.methods.join(', ')); throw fail('method-not-allowed'); }
       if (closing) throw fail('asset-service-busy');
       if (active >= 8) throw fail('asset-service-busy'); active++; admitted = true;
-      await allowed(context, target.projectId, ['metadata', 'read', 'ticket'].includes(target.kind) ? 'read' : 'write');
+      await allowed(context, target.projectId, ['metadata', 'read', 'ticket', 'policy', 'usage', 'availability', 'archive'].includes(target.kind) ? 'read' : 'write');
+      if (target.kind === 'archive' || target.kind === 'policy' && req.method === 'PUT') await ownerAllowed(context, target.projectId);
       let result;
       if (target.kind === 'put' || target.kind === 'read') verifyTicket(target, req.method);
-      if (target.kind === 'begin') {
+      if (target.kind === 'policy') {
+        if (req.method === 'GET') { await readBody(req, { writing: false, signal: controller.signal }); result = validatePolicy(await assets.getPolicy(context, target.projectId)); }
+        else {
+          const body = await readBody(req, { signal: controller.signal });
+          if (!exact(body, ['expectedVersion', 'syncClasses']) || !integer(body.expectedVersion) || !validClasses(body.syncClasses)) throw fail('asset-policy-invalid');
+          await ownerAllowed(context, target.projectId); result = validatePolicy(await assets.setPolicy(context, target.projectId, body));
+        }
+      } else if (target.kind === 'usage') {
+        await readBody(req, { writing: false, signal: controller.signal }); result = validateUsage(await assets.getUsage(context, target.projectId));
+      } else if (target.kind === 'availability') {
+        await readBody(req, { writing: false, signal: controller.signal }); result = validateAvailability(await assets.getAvailability(context, target.projectId, target.id));
+      } else if (target.kind === 'archive') {
+        const body = await readBody(req, { signal: controller.signal });
+        if (!exact(body, ['expectedArchived', 'archived']) || typeof body.expectedArchived !== 'boolean' || typeof body.archived !== 'boolean') throw fail('asset-archive-invalid');
+        await ownerAllowed(context, target.projectId); result = validateAvailability(await assets.setArchived(context, target.projectId, target.id, body));
+      } else if (target.kind === 'begin') {
         const body = await readBody(req, { signal: controller.signal }); if (!exact(body, ['identity'])) throw fail('body-invalid');
         result = validateUpload(await assets.beginUpload(context, target.projectId, validateIdentity(body.identity)));
       } else if (target.kind === 'status') {
@@ -221,9 +281,11 @@ function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
         if (body.method === 'PUT') {
           if (!ID.test(body.uploadId || '')) throw fail('body-invalid');
           await allowed(context, target.projectId, 'write'); id = body.uploadId;
+          await uploadAllowed(context, target.projectId, id);
           metadata = validateUpload(await assets.uploadStatus(context, target.projectId, id));
         } else {
           if (!ASSET.test(body.assetId || '')) throw fail('body-invalid'); id = body.assetId;
+          await downloadAllowed(context, target.projectId, id);
           metadata = validateMetadata(await assets.getAsset(context, target.projectId, id));
         }
         if (body.index >= metadata.chunks) throw fail('asset-chunk-invalid');
@@ -231,6 +293,7 @@ function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
         result = { path: `${pathname}?expires=${expiresAt}&signature=${signature(body.method, pathname, expiresAt)}`, expiresAt };
       } else if (target.kind === 'put') {
         const checksum = header(req, 'x-chunk-sha256'); if (!SHA.test(checksum || '')) throw fail('asset-chunk-invalid');
+        await uploadAllowed(context, target.projectId, target.id);
         const status = validateUpload(await assets.uploadStatus(context, target.projectId, target.id));
         if (target.index >= status.chunks) throw fail('asset-chunk-invalid');
         const expected = Math.min(status.chunkSize, Math.max(0, status.size - target.index * status.chunkSize));
@@ -239,6 +302,7 @@ function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
         result = validateProgress(await assets.putChunk(context, target.projectId, target.id, target.index, bytes, checksum, { signal: controller.signal }));
       } else {
         await readBody(req, { writing: false, signal: controller.signal });
+        await downloadAllowed(context, target.projectId, target.id);
         const metadata = validateMetadata(await assets.getAsset(context, target.projectId, target.id));
         if (target.index >= metadata.chunks) throw fail('asset-chunk-invalid');
         const chunk = await assets.readChunk(context, target.projectId, target.id, target.index, { signal: controller.signal });
@@ -267,4 +331,5 @@ function createAssetHttpHandler({ assets, authorize, signingKey } = {}) {
   return handler;
 }
 module.exports = { createAssetHttpHandler, isAssetRequest, chunkPath, validateIdentity, validateUpload, validateMetadata,
-  validateComplete, validateProgress, MAX_CHUNK_BYTES, MAX_JSON_REQUEST_BYTES, MAX_JSON_RESPONSE_BYTES, MAX_ASSET_BYTES, TICKET_TTL_MS };
+  validateComplete, validateProgress, validatePolicy, validateUsage, validateAvailability, validClasses,
+  MAX_CHUNK_BYTES, MAX_JSON_REQUEST_BYTES, MAX_JSON_RESPONSE_BYTES, MAX_ASSET_BYTES, TICKET_TTL_MS };

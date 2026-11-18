@@ -32,6 +32,11 @@ const PROJECT_API_CONTRACTS = Object.freeze([
   ['GET', '/projects/:projectId/assets/:assetId', 'GetAsset', 'Asset'],
   ['GET', '/projects/:projectId/assets/:assetId/chunks/:index', 'GetAssetChunk', 'AssetChunkBytes'],
   ['POST', '/projects/:projectId/assets/tickets', 'CreateAssetChunkTicket', 'AssetChunkTicket'],
+  ['GET', '/projects/:projectId/assets/policy', 'GetProjectMediaPolicy', 'ProjectMediaPolicy'],
+  ['PUT', '/projects/:projectId/assets/policy', 'SetProjectMediaPolicy', 'ProjectMediaPolicy'],
+  ['GET', '/projects/:projectId/assets/usage', 'GetProjectMediaUsage', 'ProjectMediaUsage'],
+  ['GET', '/projects/:projectId/assets/:assetId/availability', 'GetAssetAvailability', 'AssetAvailability'],
+  ['PUT', '/projects/:projectId/assets/:assetId/archive', 'SetAssetArchived', 'AssetAvailability'],
   ['POST', '/projects/:projectId/pull-plans', 'CreatePullPlan', 'PullPlan'],
   ['GET', '/projects/:projectId/activity', 'ListActivity', 'ActivityPage'],
   ['DELETE', '/users/:userId', 'DeleteAccount', 'DeletionReport']

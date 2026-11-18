@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld('desktop', {
   downloadServiceAsset: input => ipcRenderer.invoke('asset-transfer:download', input),
   resumeAssetTransfer: id => ipcRenderer.invoke('asset-transfer:resume', id),
   cancelAssetTransfer: id => ipcRenderer.invoke('asset-transfer:cancel', id),
+  refreshAssetStorage: () => ipcRenderer.invoke('asset-transfer:refresh-storage'),
+  saveAssetStoragePolicy: input => ipcRenderer.invoke('asset-transfer:save-policy', input),
+  checkServiceAssetAvailability: id => ipcRenderer.invoke('asset-transfer:availability', id),
+  setServiceAssetArchived: input => ipcRenderer.invoke('asset-transfer:archive', input),
   onAssetTransferState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);

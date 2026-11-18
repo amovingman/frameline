@@ -21,7 +21,12 @@ async function fixture(t, extra = {}) {
       throw Object.assign(new Error('denied'), { code: 'forbidden' });
     return { allowed: true };
   };
-  const opts = { directory, keyring, authorize, chunkSize: 4, ...extra }; let store = await createDurableAssetService({ ...opts, initialize: true });
+  const opts = { directory, keyring, authorize, authorizePolicy: async context => {
+    if (context.user !== 'owner') throw Object.assign(new Error('denied'), { code: 'forbidden' });
+    return { allowed: true, actorId: 'fixture-owner' };
+  }, chunkSize: 4, ...extra }; let store = await createDurableAssetService({ ...opts, initialize: true });
+  if (extra.defaultNone !== true) for (const projectId of ['project-a', 'project-b']) await store.setPolicy(owner, projectId,
+    { expectedVersion: 0, syncClasses: ['audio', 'graphics', 'original', 'other', 'proxy'] });
   t.after(() => store.close());
   return { directory, keyring, opts, get store() { return store; }, async reopen(changes = {}) {
     await store.close(); store = await createDurableAssetService({ ...opts, ...changes }); return store;
@@ -134,7 +139,7 @@ test('tampered chunks and corrupt encrypted index references are refused before 
   await assert.rejects(f.store.readChunk(viewer, 'project-a', a.identity.contentId, 0), { code: 'asset-chunk-corrupt' }); await fs.writeFile(filename, chunk);
   const indexPath = path.join(f.directory, 'assets.enc.json'); const original = JSON.parse(await fs.readFile(indexPath));
   const edits = [value => { value.uploads[0].id = '../private'; }, value => { value.uploads.push(structuredClone(value.uploads[0])); },
-    value => { value.assets[0].projectId = 'project-b'; }, value => { value.uploads[0].identity.localPath = '/Users/private'; }, value => { value.schemaVersion = 2; }];
+    value => { value.assets[0].projectId = 'project-b'; }, value => { value.uploads[0].identity.localPath = '/Users/private'; }, value => { value.schemaVersion = 3; }];
   for (const edit of edits) { const envelope = structuredClone(original); const value = f.keyring.decrypt(envelope.record); edit(value); envelope.record = f.keyring.encrypt(value); await fs.writeFile(indexPath, JSON.stringify(envelope));
     await assert.rejects(createDurableAssetService(f.opts), error => ['asset-state-invalid', 'asset-state-newer-version'].includes(error.code)); }
   await fs.writeFile(indexPath, JSON.stringify(original));
@@ -210,4 +215,132 @@ test('hostile encryption output and undeclared key changes cannot replace a read
   await f.reopen({ keyring: nextRing });
   await assert.rejects(f.store.beginUpload(owner, 'project-a', valid), { code: 'asset-key-rotation-required' });
   assert.deepEqual(await fs.readFile(path.join(f.directory, 'assets.enc.json')), original);
+});
+
+test('new projects default to no enabled media classes and policy writes require an explicit owner authority', async t => {
+  const f = await fixture(t, { defaultNone: true }); const bytes = Buffer.from('safe'); const identity = identify(bytes);
+  assert.deepEqual(await f.store.getPolicy(viewer, 'project-a'), { projectId: 'project-a', version: 0, syncClasses: [] });
+  await assert.rejects(f.store.beginUpload(owner, 'project-a', identity), { code: 'asset-policy-excluded' });
+  await assert.rejects(f.store.setPolicy({ user: 'editor' }, 'project-a', { expectedVersion: 0, syncClasses: ['other'] }), { code: 'forbidden' });
+  const enabled = await f.store.setPolicy(owner, 'project-a', { expectedVersion: 0, syncClasses: ['proxy', 'other', 'audio'] });
+  assert.deepEqual(enabled, { projectId: 'project-a', version: 1, syncClasses: ['audio', 'other', 'proxy'] });
+  await assert.rejects(f.store.setPolicy(owner, 'project-a', { expectedVersion: 0, syncClasses: [] }), { code: 'asset-policy-version-conflict' });
+  for (const syncClasses of [['other', 'other'], ['unsupported'], 'all'])
+    await assert.rejects(f.store.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses }), { code: 'asset-policy-invalid' });
+  await f.reopen({ authorizePolicy: null });
+  await assert.rejects(f.store.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses: [] }), { code: 'asset-policy-forbidden' });
+  for (const response of [true, false, { allowed: 'true', actorId: 'owner' }, { allowed: true }, { allowed: true, actorId: '/private' }]) {
+    await f.reopen({ authorizePolicy: async () => response });
+    await assert.rejects(f.store.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses: [] }), { code: 'asset-policy-forbidden' });
+  }
+  assert.equal((await f.store.getPolicy(owner, 'project-a')).version, 1);
+});
+
+test('disabled policy blocks new writes, pending chunks, publication and download bytes while preserving metadata and receipts', async t => {
+  const f = await fixture(t); const bytes = Buffer.from('abcdefgh'); const identity = identify(bytes);
+  const pending = await f.store.beginUpload(owner, 'project-a', identity); await f.store.putChunk(owner, 'project-a', pending.uploadId, 0, bytes.subarray(0, 4), sha(bytes.subarray(0, 4)));
+  const completed = await upload(f.store, Buffer.from('done'));
+  await f.store.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses: [] });
+  assert.deepEqual((await f.store.uploadStatus(owner, 'project-a', pending.uploadId)).received, [true, false]);
+  assert.equal((await f.store.getAsset(viewer, 'project-a', completed.identity.contentId)).size, 4);
+  assert.deepEqual(await f.store.getAvailability(viewer, 'project-a', completed.identity.contentId), {
+    projectId: 'project-a', assetId: completed.identity.contentId, cloudPresent: true, excluded: true, archived: false, assetClass: 'other', size: 4 });
+  for (const operation of [() => f.store.beginUpload(owner, 'project-a', identity), () => f.store.assertUploadAllowed(owner, 'project-a', pending.uploadId),
+    () => f.store.putChunk(owner, 'project-a', pending.uploadId, 1, bytes.subarray(4), sha(bytes.subarray(4))),
+    () => f.store.completeUpload(owner, 'project-a', pending.uploadId),
+    () => f.store.readChunk(viewer, 'project-a', completed.identity.contentId, 0)]) await assert.rejects(operation(), { code: 'asset-policy-excluded' });
+  assert.deepEqual(await f.store.completeUpload(owner, 'project-a', completed.begin.uploadId), completed.receipt);
+  await f.reopen(); assert.equal((await f.store.getPolicy(owner, 'project-a')).version, 2);
+  await f.store.setPolicy(owner, 'project-a', { expectedVersion: 2, syncClasses: ['other'] });
+  await f.store.putChunk(owner, 'project-a', pending.uploadId, 1, bytes.subarray(4), sha(bytes.subarray(4)));
+  assert.equal((await f.store.completeUpload(owner, 'project-a', pending.uploadId)).verified, true);
+  assert.deepEqual(await f.store.completeUpload(owner, 'project-a', completed.begin.uploadId), completed.receipt);
+});
+
+test('owner archive CAS blocks bytes and upload reuse without deleting metadata or stored encrypted chunks', async t => {
+  const f = await fixture(t); const asset = await upload(f.store, Buffer.from('safe')); const folder = path.join(f.directory, 'uploads', asset.begin.uploadId);
+  const before = await fs.readFile(path.join(folder, '0.enc.json'));
+  await assert.rejects(f.store.setArchived({ user: 'editor' }, 'project-a', asset.identity.contentId, { expectedArchived: false, archived: true }), { code: 'forbidden' });
+  const archived = await f.store.setArchived(owner, 'project-a', asset.identity.contentId, { expectedArchived: false, archived: true }); assert.equal(archived.archived, true); assert.equal(archived.cloudPresent, true);
+  await assert.rejects(f.store.setArchived(owner, 'project-a', asset.identity.contentId, { expectedArchived: false, archived: false }), { code: 'asset-archive-conflict' });
+  await assert.rejects(f.store.setArchived(owner, 'project-a', asset.identity.contentId, { expectedArchived: true, archived: 'false' }), { code: 'asset-archive-invalid' });
+  for (const operation of [() => f.store.beginUpload(owner, 'project-a', asset.identity), () => f.store.putChunk(owner, 'project-a', asset.begin.uploadId, 0, Buffer.from('safe'), sha(Buffer.from('safe'))),
+    () => f.store.readChunk(viewer, 'project-a', asset.identity.contentId, 0)]) await assert.rejects(operation(), { code: 'asset-archived' });
+  assert.deepEqual(await f.store.completeUpload(owner, 'project-a', asset.begin.uploadId), asset.receipt);
+  assert.equal((await f.store.getAsset(viewer, 'project-a', asset.identity.contentId)).assetId, asset.identity.contentId);
+  assert.deepEqual(await fs.readFile(path.join(folder, '0.enc.json')), before); await f.reopen();
+  const available = await f.store.setArchived(owner, 'project-a', asset.identity.contentId, { expectedArchived: true, archived: false }); assert.equal(available.archived, false);
+  assert.deepEqual((await f.store.readChunk(viewer, 'project-a', asset.identity.contentId, 0)).bytes, Buffer.from('safe'));
+});
+
+test('index-only usage partitions excluded before archived and counts only incomplete uploads in progress', async t => {
+  const f = await fixture(t);
+  const original = await upload(f.store, Buffer.from('12345'), 'project-a', { assetClass: 'original' });
+  const proxy = await upload(f.store, Buffer.from('1234567'), 'project-a', { assetClass: 'proxy' });
+  const audio = await upload(f.store, Buffer.from('123'), 'project-a', { assetClass: 'audio' });
+  await f.store.setArchived(owner, 'project-a', proxy.identity.contentId, { expectedArchived: false, archived: true });
+  await f.store.setArchived(owner, 'project-a', audio.identity.contentId, { expectedArchived: false, archived: true });
+  const partialBytes = Buffer.from('abcdefghij'); const partial = await f.store.beginUpload(owner, 'project-a', identify(partialBytes));
+  await f.store.putChunk(owner, 'project-a', partial.uploadId, 0, partialBytes.subarray(0, 4), sha(partialBytes.subarray(0, 4)));
+  await f.store.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses: ['original', 'audio'] });
+  assert.deepEqual(await f.store.getUsage(viewer, 'project-a'), { projectId: 'project-a', assetCount: 3, logicalBytes: 15,
+    availableBytes: 5, archivedBytes: 3, excludedBytes: 7, inProgressUploads: 1, inProgressReceivedBytes: 4, inProgressDeclaredBytes: 10 });
+  const missing = `sha256:${'0'.repeat(64)}`;
+  assert.deepEqual(await f.store.getAvailability(viewer, 'project-b', original.identity.contentId), {
+    projectId: 'project-b', assetId: original.identity.contentId, cloudPresent: false, excluded: false, archived: false, assetClass: null, size: null });
+  assert.equal((await f.store.getAvailability(viewer, 'project-a', missing)).cloudPresent, false);
+  for (const operation of [() => f.store.getPolicy(outsider, 'project-a'), () => f.store.getUsage(outsider, 'project-a'),
+    () => f.store.getAvailability(outsider, 'project-a', missing)]) await assert.rejects(operation(), { code: 'forbidden' });
+  await fs.unlink(path.join(f.directory, 'uploads', original.begin.uploadId, '0.enc.json'));
+  assert.equal((await f.store.getUsage(viewer, 'project-a')).logicalBytes, 15); // Counts use the index, not a filesystem walk or integrity claim.
+});
+
+test('policy CAS is fresh across instances and a policy update linearizes after an already accepted completion', async t => {
+  let armed = false, releaseRead, started; const entered = new Promise(resolve => { started = resolve; });
+  const storage = { ...fs, async open(filename, ...args) { const handle = await fs.open(filename, ...args);
+    if (armed && filename.endsWith('0.enc.json')) { armed = false; started(); await new Promise(resolve => { releaseRead = resolve; }); } return handle; } };
+  const f = await fixture(t, { storage }); const other = await createDurableAssetService(f.opts); t.after(() => other.close());
+  const bytes = Buffer.from('safe'); const begin = await f.store.beginUpload(owner, 'project-a', identify(bytes)); await f.store.putChunk(owner, 'project-a', begin.uploadId, 0, bytes, sha(bytes));
+  armed = true; const completing = f.store.completeUpload(owner, 'project-a', begin.uploadId); await entered; let policyFinished = false;
+  const changing = other.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses: [] }).then(value => { policyFinished = true; return value; });
+  await new Promise(resolve => setTimeout(resolve, 20)); assert.equal(policyFinished, false); releaseRead();
+  assert.equal((await completing).verified, true); assert.equal((await changing).version, 2);
+  await assert.rejects(f.store.readChunk(viewer, 'project-a', begin.assetId, 0), { code: 'asset-policy-excluded' });
+  await assert.rejects(f.store.setPolicy(owner, 'project-a', { expectedVersion: 1, syncClasses: ['other'] }), { code: 'asset-policy-version-conflict' });
+});
+
+async function downgradeToV1(f) {
+  await f.store.close(); const filename = path.join(f.directory, 'assets.enc.json'); const envelope = JSON.parse(await fs.readFile(filename));
+  const value = f.keyring.decrypt(envelope.record); value.schemaVersion = 1; delete value.policies; value.assets = value.assets.map(({ archived, ...asset }) => asset);
+  envelope.record = f.keyring.encrypt(value); const bytes = Buffer.from(JSON.stringify(envelope)); await fs.writeFile(filename, bytes);
+  return { filename, bytes, generation: value.generation, value };
+}
+
+test('schema1 migration atomically preserves upload IDs, encrypted bytes and publication receipts while defaulting classes off', async t => {
+  const f = await fixture(t); const published = await upload(f.store, Buffer.from('safe')); const partialBytes = Buffer.from('abcdefgh');
+  const partial = await f.store.beginUpload(owner, 'project-a', identify(partialBytes)); await f.store.putChunk(owner, 'project-a', partial.uploadId, 1, partialBytes.subarray(4), sha(partialBytes.subarray(4)));
+  const chunkPath = path.join(f.directory, 'uploads', published.begin.uploadId, '0.enc.json'); const chunkBefore = await fs.readFile(chunkPath); const old = await downgradeToV1(f);
+  await f.reopen(); const envelope = JSON.parse(await fs.readFile(old.filename)); const migrated = f.keyring.decrypt(envelope.record);
+  assert.equal(migrated.schemaVersion, 2); assert.equal(migrated.generation, old.generation + 1); assert.deepEqual(migrated.uploads, old.value.uploads);
+  assert.deepEqual(migrated.assets, old.value.assets.map(asset => ({ ...asset, archived: false }))); assert.deepEqual(migrated.policies, []);
+  assert.deepEqual(await fs.readFile(chunkPath), chunkBefore); assert.deepEqual((await f.store.uploadStatus(owner, 'project-a', partial.uploadId)).received, [false, true]);
+  assert.equal((await f.store.getAvailability(viewer, 'project-a', published.identity.contentId)).excluded, true);
+  await assert.rejects(f.store.readChunk(viewer, 'project-a', published.identity.contentId, 0), { code: 'asset-policy-excluded' });
+  await f.store.setPolicy(owner, 'project-a', { expectedVersion: 0, syncClasses: ['other'] });
+  assert.deepEqual(await f.store.completeUpload(owner, 'project-a', published.begin.uploadId), published.receipt);
+  assert.deepEqual((await f.store.readChunk(viewer, 'project-a', published.identity.contentId, 0)).bytes, Buffer.from('safe'));
+});
+
+test('failed migration never resets evidence and an ambiguous migrated-index publication can be safely reopened', async t => {
+  const f = await fixture(t); await upload(f.store, Buffer.from('safe')); const old = await downgradeToV1(f);
+  const beforeWriteFailure = { ...fs, async open(filename, ...args) { const handle = await fs.open(filename, ...args);
+    if (!filename.endsWith('.tmp')) return handle; return { writeFile: (...args) => handle.writeFile(...args), close: () => handle.close(), async sync() { throw Object.assign(new Error('disk'), { code: 'EIO' }); } }; } };
+  await assert.rejects(createDurableAssetService({ ...f.opts, storage: beforeWriteFailure }), { code: 'asset-storage-unavailable' });
+  assert.deepEqual(await fs.readFile(old.filename), old.bytes);
+  const afterRenameFailure = { ...fs, async rename(from, to) { await fs.rename(from, to); throw Object.assign(new Error('uncertain'), { code: 'EIO' }); } };
+  await assert.rejects(createDurableAssetService({ ...f.opts, storage: afterRenameFailure }), { code: 'asset-storage-uncertain' });
+  const committed = await fs.readFile(old.filename); assert.notDeepEqual(committed, old.bytes); await f.reopen(); assert.deepEqual(await fs.readFile(old.filename), committed);
+  const envelope = JSON.parse(committed); const future = f.keyring.decrypt(envelope.record); future.schemaVersion = 3; envelope.record = f.keyring.encrypt(future);
+  await fs.writeFile(old.filename, JSON.stringify(envelope)); const malformed = await fs.readFile(old.filename);
+  await assert.rejects(createDurableAssetService(f.opts), { code: 'asset-state-newer-version' }); assert.deepEqual(await fs.readFile(old.filename), malformed);
 });

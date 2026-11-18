@@ -357,8 +357,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('service:fetch', () => serviceAction(() => desktopRevisionSync.fetch()));
   ipcMain.handle('asset-transfer:state', () => assetTransferAction(() => desktopAssetTransfers.getState()));
   ipcMain.handle('asset-transfer:prepare-upload', (_event, input) => assetTransferAction(async () => {
-    const options = assetTransferOptions(input), state = await desktopAssetTransfers.getState(), selection = await assetTransferSelection();
+    const options = assetTransferOptions(input);
+    await desktopAssetTransfers.refreshStorage();
+    const state = await desktopAssetTransfers.getState(), selection = await assetTransferSelection();
     if (!state.available || !state.canUpload || state.busy || !selection) throw Object.assign(new Error('asset-transfer-unavailable'), { code: 'asset-transfer-unavailable' });
+    if (state.storage?.status !== 'ready') throw Object.assign(new Error('asset-transfer-unavailable'), { code: 'asset-transfer-unavailable' });
+    if (!state.storage.policy.syncClasses.includes(options.assetClass)) throw Object.assign(new Error('asset-policy-excluded'), { code: 'asset-policy-excluded' });
     const choice = await dialog.showOpenDialog({ title: 'Choose media to upload', properties: ['openFile'] });
     if (choice.canceled || choice.filePaths.length !== 1) return desktopAssetTransfers.getState();
     if (fingerprint(selection) !== fingerprint(await assetTransferSelection())) throw Object.assign(new Error('asset-selection-changed'), { code: 'asset-selection-changed' });
@@ -367,8 +371,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('asset-transfer:confirm-upload', (_event, id) => assetTransferAction(() => desktopAssetTransfers.confirmUpload(id)));
   ipcMain.handle('asset-transfer:clear-review', () => assetTransferAction(() => desktopAssetTransfers.clearReview()));
   ipcMain.handle('asset-transfer:download', (_event, input) => assetTransferAction(async () => {
-    const options = assetTransferOptions(input, true), state = await desktopAssetTransfers.getState(), selection = await assetTransferSelection();
+    const options = assetTransferOptions(input, true);
+    await desktopAssetTransfers.checkAvailability(options.assetId);
+    const state = await desktopAssetTransfers.getState(), selection = await assetTransferSelection();
     if (!state.available || state.busy || !selection) throw Object.assign(new Error('asset-transfer-unavailable'), { code: 'asset-transfer-unavailable' });
+    if (state.availability?.assetId !== options.assetId) throw Object.assign(new Error('asset-transfer-unavailable'), { code: 'asset-transfer-unavailable' });
+    if (!state.availability.cloudPresent) throw Object.assign(new Error('asset-not-found'), { code: 'asset-not-found' });
+    if (state.availability.excluded) throw Object.assign(new Error('asset-policy-excluded'), { code: 'asset-policy-excluded' });
+    if (state.availability.archived) throw Object.assign(new Error('asset-archived'), { code: 'asset-archived' });
     const name = `${options.assetId.slice(7, 23)}.media`;
     const choice = await dialog.showSaveDialog({ title: 'Download verified media', defaultPath: name });
     if (choice.canceled || !choice.filePath) return desktopAssetTransfers.getState();
@@ -377,6 +387,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   }));
   ipcMain.handle('asset-transfer:resume', (_event, id) => assetTransferAction(() => desktopAssetTransfers.resume(id)));
   ipcMain.handle('asset-transfer:cancel', (_event, id) => assetTransferAction(() => desktopAssetTransfers.cancel(id)));
+  ipcMain.handle('asset-transfer:refresh-storage', () => assetTransferAction(() => desktopAssetTransfers.refreshStorage()));
+  ipcMain.handle('asset-transfer:save-policy', (_event, input) => assetTransferAction(() => desktopAssetTransfers.savePolicy(input)));
+  ipcMain.handle('asset-transfer:availability', (_event, id) => assetTransferAction(() => desktopAssetTransfers.checkAvailability(id)));
+  ipcMain.handle('asset-transfer:archive', (_event, input) => assetTransferAction(() => desktopAssetTransfers.setArchived(input)));
   ipcMain.handle('collaboration:get-state', () => getCollaborationState());
   ipcMain.handle('collaboration:invite', (_event, email, role) => {
     const projectId = projectSession.getState().selectedProject?.id;

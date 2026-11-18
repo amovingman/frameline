@@ -89,6 +89,30 @@ test('authorized history wrapper checks writes, reads, assets, rate limits and a
   assert.equal(audit.verify(), true); assert.equal(audit.list().length, 6);
 });
 
+test('media policy authority derives the actor from authentication and reserves writes for project owners', () => {
+  const history = createCloudHistoryStore(); history.createProject({ projectId: 'film', name: 'Film' });
+  const access = createAccessControl(), team = access.createTeam('policy-owner', 'Team');
+  access.registerProject('policy-owner', 'film', team.id);
+  for (const role of ['editor', 'viewer']) {
+    const invitation = access.inviteProject('policy-owner', 'film', `${role}@example.test`, role);
+    access.acceptInvitation(invitation.token, `policy-${role}`, `${role}@example.test`);
+  }
+  const identity = { authenticate: token => {
+    if (!['policy-owner', 'policy-editor', 'policy-viewer'].includes(token)) throw Object.assign(new Error('invalid'), { code: 'access-token-invalid' });
+    return { userId: token };
+  } };
+  const service = createAuthorizedProjectService({ history, access, identity });
+  assert.deepEqual(service.authorizeAssetPolicy({ accessToken: 'policy-owner', actorId: 'policy-viewer' }, 'film', 'write'),
+    { allowed: true, actorId: 'policy-owner' });
+  for (const role of ['editor', 'viewer']) {
+    const context = { accessToken: `policy-${role}`, actorId: 'policy-owner' };
+    assert.deepEqual(service.authorizeAssetPolicy(context, 'film', 'read'), { allowed: true, actorId: `policy-${role}` });
+    assert.throws(() => service.authorizeAssetPolicy(context, 'film', 'write'), { code: 'forbidden' });
+  }
+  assert.throws(() => service.authorizeAssetPolicy({ accessToken: 'policy-owner' }, 'other', 'read'), { code: 'forbidden' });
+  assert.throws(() => service.authorizeAssetPolicy({ accessToken: 'policy-owner' }, 'film', 'delete'), { code: 'authorization-request-invalid' });
+});
+
 test('credential vault encrypts at rest, rotates, and is absent from renderer preload', async t => {
   const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'credential-vault-')));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));

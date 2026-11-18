@@ -3,6 +3,7 @@ const { randomUUID, createHash } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const { API_VERSION } = require('./project-api-contracts');
 const { chunkPath, validateIdentity, validateUpload, validateMetadata, validateComplete, validateProgress,
+  validatePolicy, validateUsage, validateAvailability, validClasses,
   MAX_CHUNK_BYTES, MAX_JSON_REQUEST_BYTES, MAX_JSON_RESPONSE_BYTES, MAX_ASSET_BYTES, TICKET_TTL_MS } = require('./asset-http-transport');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, ASSET = /^sha256:[a-f0-9]{64}$/, SHA = /^[a-f0-9]{64}$/;
@@ -10,7 +11,8 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'asset-forbidden', 
   'asset-upload-not-found', 'asset-ticket-invalid', 'asset-identity-collision', 'asset-chunk-conflict', 'upload-incomplete',
   'asset-upload-incomplete', 'asset-content-mismatch', 'asset-identity-invalid', 'asset-chunk-invalid', 'asset-chunk-corrupt',
   'asset-state-invalid', 'asset-state-newer-version', 'asset-key-rotation-required', 'asset-capacity-exceeded', 'asset-request-invalid',
-  'asset-storage-unavailable', 'asset-storage-uncertain', 'asset-cancelled', 'request-too-large', 'body-invalid', 'request-invalid', 'invalid-request-headers']);
+  'asset-storage-unavailable', 'asset-storage-uncertain', 'asset-cancelled', 'request-too-large', 'body-invalid', 'request-invalid', 'invalid-request-headers',
+  'asset-policy-excluded', 'asset-policy-forbidden', 'asset-policy-invalid', 'asset-policy-version-conflict', 'asset-archived', 'asset-archive-invalid', 'asset-archive-conflict']);
 const exact = (value, fields) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join('|') === fields.slice().sort().join('|');
 const number = (value, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= 0 && value <= max;
@@ -116,6 +118,31 @@ function createAssetHttpClient({ origin, getAccessToken, fetch: send = globalThi
     return result.path;
   }
   return {
+    getPolicy: async (pid, options = {}) => {
+      const result = await checked(validatePolicy, request('GET', `${project(pid)}/policy`, options));
+      if (result.projectId !== pid) throw fail('asset-response-invalid'); return result;
+    },
+    setPolicy: async (pid, input, options = {}) => {
+      if (!exact(input, ['expectedVersion', 'syncClasses']) || !number(input.expectedVersion) || !validClasses(input.syncClasses)) throw fail('asset-policy-invalid');
+      const body = { expectedVersion: input.expectedVersion, syncClasses: [...input.syncClasses] };
+      const result = await checked(validatePolicy, request('PUT', `${project(pid)}/policy`, { ...options, body }));
+      if (result.projectId !== pid || result.version !== body.expectedVersion + 1 || JSON.stringify(result.syncClasses) !== JSON.stringify([...body.syncClasses].sort())) throw fail('asset-response-invalid');
+      return result;
+    },
+    getUsage: async (pid, options = {}) => {
+      const result = await checked(validateUsage, request('GET', `${project(pid)}/usage`, options));
+      if (result.projectId !== pid) throw fail('asset-response-invalid'); return result;
+    },
+    getAvailability: async (pid, aid, options = {}) => {
+      const result = await checked(validateAvailability, request('GET', `${project(pid)}/${asset(aid)}/availability`, options));
+      if (result.projectId !== pid || result.assetId !== aid) throw fail('asset-response-invalid'); return result;
+    },
+    setArchived: async (pid, aid, input, options = {}) => {
+      if (!exact(input, ['expectedArchived', 'archived']) || typeof input.expectedArchived !== 'boolean' || typeof input.archived !== 'boolean') throw fail('asset-archive-invalid');
+      const body = { expectedArchived: input.expectedArchived, archived: input.archived };
+      const result = await checked(validateAvailability, request('PUT', `${project(pid)}/${asset(aid)}/archive`, { ...options, body }));
+      if (result.projectId !== pid || result.assetId !== aid || !result.cloudPresent || result.archived !== body.archived) throw fail('asset-response-invalid'); return result;
+    },
     beginUpload: async (pid, identity, options = {}) => {
       const valid = validateIdentity(identity), result = await checked(validateUpload, request('POST', `${project(pid)}/uploads`, { ...options, body: { identity: valid } }));
       if (result.assetId !== valid.contentId || result.size !== valid.size) throw fail('asset-response-invalid');

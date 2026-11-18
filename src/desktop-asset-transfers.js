@@ -6,7 +6,7 @@ const { randomUUID } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { fingerprint } = require('./project-api-contracts');
-const { validateIdentity, MAX_ASSET_BYTES } = require('./asset-http-transport');
+const { validateIdentity, validatePolicy, validateUsage, validateAvailability, validClasses, MAX_ASSET_BYTES } = require('./asset-http-transport');
 const defaultEngine = require('./asset-file-transfer');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, SHA = /^[a-f0-9]{64}$/, ASSET = /^sha256:[a-f0-9]{64}$/;
@@ -23,7 +23,8 @@ const ERRORS = new Set(['asset-transfer-input-invalid', 'asset-transfer-unavaila
   'asset-chunk-conflict', 'upload-incomplete', 'asset-upload-incomplete', 'asset-content-mismatch', 'asset-identity-invalid',
   'asset-chunk-invalid', 'asset-chunk-corrupt', 'asset-state-invalid', 'asset-state-newer-version', 'asset-key-rotation-required',
   'asset-capacity-exceeded', 'asset-storage-unavailable', 'asset-storage-uncertain', 'asset-verification-timeout',
-  'service-sign-in-required', 'service-credential-storage-unavailable', 'service-offline', 'forbidden', 'access-token-invalid', 'project-not-found']);
+  'service-sign-in-required', 'service-credential-storage-unavailable', 'service-offline', 'forbidden', 'access-token-invalid', 'project-not-found',
+  'asset-policy-excluded', 'asset-policy-forbidden', 'asset-policy-invalid', 'asset-policy-version-conflict', 'asset-archived', 'asset-archive-invalid', 'asset-archive-conflict']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 function safeAssetTransferError(error) { return ERRORS.has(error?.code) ? error.code : 'asset-local-io-failed'; }
 const clone = value => structuredClone(value);
@@ -43,7 +44,8 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     || !['inspectAssetFile', 'uploadAssetFile', 'downloadAssetFile'].every(key => typeof engine[key] === 'function')) throw fail('asset-transfer-input-invalid');
   const journal = path.join(directory, 'transfers.json'), marker = path.join(directory, 'initialized.json');
   let version = 0, active = null, preparation = null, review = null, error = null, starting = false, closed = false, uncertain = false, journalObserved = false;
-  const tasks = new Set(), notifications = new Set();
+  const tasks = new Set(), notifications = new Set(), metadata = new Set();
+  let storage = { key: null, status: 'idle', policy: null, usage: null, error: null }, availability = null, storageRequest = 0, availabilityRequest = 0;
   function track(task) { tasks.add(task); task.then(() => tasks.delete(task), () => tasks.delete(task)); return task; }
   async function privateDirectory() {
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
@@ -138,29 +140,32 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     if (!validScope(scope) || scope.originHash !== fingerprint(state.origin) || scope.accountId !== state.account.id) return null;
     const project = state.projects?.find(item => item.id === scope.remoteProjectId && item.branches.includes(scope.remoteBranch));
     const available = state.connected === true && state.status === 'connected' && !!project;
-    return { scope, key: scopeKey(scope), available, canUpload: available && ['owner', 'editor'].includes(project.role),
+    return { scope, key: scopeKey(scope), available, canUpload: available && ['owner', 'editor'].includes(project.role), canManage: available && project.role === 'owner',
       name: project && safeName(project.name) ? project.name : 'Service project' };
   }
-  async function assertCurrent(expected, { upload = false, allowOffline = false } = {}) {
+  async function assertCurrent(expected, { upload = false, manage = false, allowOffline = false } = {}) {
     const current = await context();
     if (closed || !current || current.key !== expected.key) throw fail('asset-selection-changed');
     if (!allowOffline && !current.available) throw fail('asset-transfer-unavailable');
     if (upload && !current.canUpload) throw fail('asset-viewer-read-only');
+    if (manage && !current.canManage) throw fail('asset-policy-forbidden');
     return current;
   }
   async function getState() {
     let ctx = null, value = { jobs: [] }, failure = null;
     try { ctx = await context(); } catch (problem) { failure = safeAssetTransferError(problem); }
     try { value = await read(); } catch (problem) { failure = safeAssetTransferError(problem); }
-    try { const latest = await context(); if (latest?.key !== ctx?.key || latest?.available !== ctx?.available || latest?.canUpload !== ctx?.canUpload) ctx = latest; }
+    try { const latest = await context(); if (latest?.key !== ctx?.key || latest?.available !== ctx?.available || latest?.canUpload !== ctx?.canUpload || latest?.canManage !== ctx?.canManage) ctx = latest; }
     catch (problem) { ctx = null; failure = safeAssetTransferError(problem); }
     const jobs = ctx ? value.jobs.filter(job => scopeKey(job.scope) === ctx.key).slice().reverse().map(job => {
       const own = active?.id === job.id ? active.latest : null, interrupted = job.status === 'running' && active?.id !== job.id;
       const status = interrupted ? 'paused' : job.status;
+      const checkedAvailability = availability?.key === ctx.key && availability.value.assetId === job.assetId ? availability.value : null;
+      const blocked = checkedAvailability && (checkedAvailability.excluded || checkedAvailability.archived || job.direction === 'download' && !checkedAvailability.cloudPresent);
       return { id: job.id, direction: job.direction, name: job.name, assetId: job.assetId, size: own?.totalBytes ?? job.size,
         status, stage: own?.phase || (interrupted ? 'paused' : job.stage), bytes: own?.bytes ?? job.bytes, totalBytes: own ? own.totalBytes : job.totalBytes,
         error: interrupted ? 'asset-transfer-interrupted' : job.error, completedAt: job.completedAt,
-        canResume: !closed && !uncertain && ctx.available && (job.direction !== 'upload' || ctx.canUpload) && ['queued', 'paused', 'failed', 'cancelled'].includes(status),
+        canResume: !!(!closed && !uncertain && !blocked && ctx.available && (job.direction !== 'upload' || ctx.canUpload && storage.key === ctx.key && storage.policy?.syncClasses.includes(job.identity.assetClass)) && ['queued', 'paused', 'failed', 'cancelled'].includes(status)),
         canCancel: !closed && ['queued', 'running', 'paused'].includes(status) };
     }) : [];
     const shownReview = ctx && review?.key === ctx.key ? { id: review.id, name: review.name, identity: clone(review.identity),
@@ -168,7 +173,10 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     return { version: ++version, available: !!ctx?.available, canUpload: !!ctx?.canUpload,
       scope: ctx ? { remoteProjectId: ctx.scope.remoteProjectId, remoteProjectName: ctx.name } : null,
       busy: starting || !!active || !!preparation, preparing: preparation && ctx?.key === preparation.key ? clone(preparation.progress) : null,
-      review: shownReview, jobs, error: error || failure };
+      review: shownReview, jobs, error: error || failure,
+      storage: { status: storage.key === ctx?.key ? storage.status : 'idle', policy: storage.key === ctx?.key ? clone(storage.policy) : null,
+        usage: storage.key === ctx?.key ? clone(storage.usage) : null, canManage: !!ctx?.canManage, error: storage.key === ctx?.key ? storage.error : null },
+      availability: availability && ctx && availability.key === ctx.key ? clone(availability.value) : null };
   }
   function notify() {
     if (closed) return;
@@ -181,9 +189,139 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     }
     if (preparation?.key && (preparation.key !== key || !current?.canUpload)) preparation.controller.abort();
     if (review && (review.key !== key || !current?.canUpload)) review = null;
+    for (const request of metadata) if (request.key !== key || !current?.available || request.manage && !current.canManage) {
+      request.controller.abort();
+      if (request.key === key && request.kind === 'storage' && request.serial === storageRequest && storage.status === 'loading') {
+        storageRequest++; storage.status = 'error'; storage.error = !current?.available ? 'asset-transfer-unavailable' : 'asset-policy-forbidden';
+      }
+    }
+    if (storage.key !== key) { storageRequest++; availabilityRequest++; storage = { key, status: 'idle', policy: null, usage: null, error: null }; availability = null; }
     notify();
   }
   function lifecycle() { return closed ? Promise.resolve() : track(reconcile().catch(problem => { error = safeAssetTransferError(problem); notify(); })); }
+  function acceptPolicy(ctx, value) {
+    const policy = validatePolicy(value); if (policy.projectId !== ctx.scope.remoteProjectId) throw fail('asset-response-invalid');
+    if (storage.key !== ctx.key) storage = { key: ctx.key, status: 'idle', policy: null, usage: null, error: null };
+    if (storage.policy && (policy.version < storage.policy.version || policy.version === storage.policy.version
+      && JSON.stringify(policy.syncClasses) !== JSON.stringify(storage.policy.syncClasses))) throw fail('asset-response-invalid');
+    if (storage.policy && policy.version !== storage.policy.version) storage.usage = null;
+    storage.policy = policy; storage.error = null;
+    if (review?.key === ctx.key && !policy.syncClasses.includes(review.identity.assetClass)) { review = null; error = 'asset-policy-excluded'; }
+    if (preparation?.key === ctx.key && !policy.syncClasses.includes(preparation.assetClass)) { error = 'asset-policy-excluded'; preparation.controller.abort(); }
+    if (active?.key === ctx.key && active.assetClass && !policy.syncClasses.includes(active.assetClass)) {
+      active.reason = 'asset-policy-excluded'; active.controller.abort();
+    }
+    return policy;
+  }
+  async function freshPolicy(ctx, signal) {
+    const policy = validatePolicy(await connection.getAssetClient().getPolicy(ctx.scope.remoteProjectId, { signal }));
+    await assertCurrent(ctx); if (signal?.aborted) throw fail('asset-cancelled');
+    const accepted = acceptPolicy(ctx, policy); if (storage.status !== 'loading') storage.status = 'ready'; return accepted;
+  }
+  async function requireClass(ctx, assetClass, signal) {
+    const policy = await freshPolicy(ctx, signal);
+    if (!policy.syncClasses.includes(assetClass)) throw fail('asset-policy-excluded');
+    return policy;
+  }
+  async function inspectAvailability(ctx, assetId, signal) {
+    const value = validateAvailability(await connection.getAssetClient().getAvailability(ctx.scope.remoteProjectId, assetId, { signal }));
+    await assertCurrent(ctx); if (signal?.aborted) throw fail('asset-cancelled');
+    if (value.projectId !== ctx.scope.remoteProjectId || value.assetId !== assetId) throw fail('asset-response-invalid');
+    return value;
+  }
+  async function uploadGate(ctx, identity, suppliedSignal = null) {
+    const request = suppliedSignal ? null : { key: ctx.key, manage: false, controller: new AbortController() };
+    if (request) metadata.add(request);
+    const signal = suppliedSignal || request.controller.signal;
+    try {
+      await requireClass(ctx, identity.assetClass, signal);
+      const value = await inspectAvailability(ctx, identity.contentId, signal);
+      if (value.excluded) throw fail('asset-policy-excluded'); if (value.archived) throw fail('asset-archived');
+      return value;
+    } finally { if (request) metadata.delete(request); }
+  }
+  async function downloadGate(ctx, assetId, suppliedSignal = null) {
+    const request = suppliedSignal ? null : { key: ctx.key, manage: false, controller: new AbortController() };
+    if (request) metadata.add(request);
+    try {
+      const value = await inspectAvailability(ctx, assetId, suppliedSignal || request.controller.signal);
+      if (!value.cloudPresent) throw fail('asset-not-found'); if (value.excluded) throw fail('asset-policy-excluded'); if (value.archived) throw fail('asset-archived');
+      return value;
+    } finally { if (request) metadata.delete(request); }
+  }
+  function publicAvailability(value) {
+    return { assetId: value.assetId, state: !value.cloudPresent ? 'not-on-service' : value.excluded ? 'excluded' : value.archived ? 'archived' : 'cloud-present',
+      cloudPresent: value.cloudPresent, excluded: value.excluded, archived: value.archived, assetClass: value.assetClass, size: value.size };
+  }
+  function metadataAction(action, { manage = false, kind = 'storage' } = {}) { return control(async () => {
+    const ctx = await context(); if (!ctx?.available) throw fail('asset-transfer-unavailable'); if (manage && !ctx.canManage) throw fail('asset-policy-forbidden');
+    const request = { key: ctx.key, manage, kind, controller: new AbortController() }; metadata.add(request);
+    const serial = kind === 'storage' ? ++storageRequest : ++availabilityRequest;
+    request.serial = serial;
+    if (kind === 'storage') { if (storage.key !== ctx.key) storage = { key: ctx.key, status: 'idle', policy: null, usage: null, error: null }; storage.status = 'loading'; storage.error = null; }
+    notify();
+    try { await action(ctx, connection.getAssetClient(), request.controller.signal, serial, request); }
+    catch (problem) {
+      const current = await context().catch(() => null);
+      if (!closed && current?.key === ctx.key && !request.controller.signal.aborted) {
+        const code = safeAssetTransferError(problem);
+        if (kind === 'storage' && request.serial === storageRequest) { storage.status = 'error'; storage.error = code; }
+        else if (kind === 'availability' && request.serial === availabilityRequest) { availability = null; error = code; }
+      }
+    } finally { metadata.delete(request); notify(); }
+    return getState();
+  }); }
+  async function storageSnapshot(ctx, client, signal, initialPolicy = null) {
+    let before = initialPolicy || validatePolicy(await client.getPolicy(ctx.scope.remoteProjectId, { signal }));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const usage = validateUsage(await client.getUsage(ctx.scope.remoteProjectId, { signal }));
+      const after = validatePolicy(await client.getPolicy(ctx.scope.remoteProjectId, { signal }));
+      if ([before.projectId, usage.projectId, after.projectId].some(id => id !== ctx.scope.remoteProjectId)) throw fail('asset-response-invalid');
+      if (before.version === after.version && JSON.stringify(before.syncClasses) === JSON.stringify(after.syncClasses)) return { policy: after, usage };
+      before = after;
+    }
+    throw fail('asset-policy-version-conflict');
+  }
+  function refreshStorage() { return metadataAction(async (ctx, client, signal, serial) => {
+    const { policy, usage } = await storageSnapshot(ctx, client, signal); await assertCurrent(ctx);
+    if (serial === storageRequest && !signal.aborted) { const accepted = acceptPolicy(ctx, policy); storage.usage = accepted.version === policy.version ? usage : null; storage.status = 'ready'; }
+  }); }
+  function savePolicy(input) { return metadataAction(async (ctx, client, signal, serial, request) => {
+    if (!exact(input, ['expectedVersion', 'syncClasses']) || !integer(input.expectedVersion) || !validClasses(input.syncClasses)) throw fail('asset-policy-invalid');
+    availabilityRequest++; availability = null;
+    const policy = validatePolicy(await client.setPolicy(ctx.scope.remoteProjectId, clone(input), { signal })); await assertCurrent(ctx, { manage: true });
+    if (policy.projectId !== ctx.scope.remoteProjectId || policy.version !== input.expectedVersion + 1
+      || JSON.stringify(policy.syncClasses) !== JSON.stringify([...input.syncClasses].sort())) throw fail('asset-response-invalid');
+    availabilityRequest++; availability = null;
+    if (signal.aborted) throw fail('asset-cancelled');
+    serial = ++storageRequest; request.serial = serial;
+    if (storage.key !== ctx.key || !storage.policy || policy.version >= storage.policy.version) acceptPolicy(ctx, policy);
+    storage.usage = null; storage.status = 'loading'; storage.error = null;
+    const snapshot = await storageSnapshot(ctx, client, signal, policy); await assertCurrent(ctx, { manage: true });
+    if (serial === storageRequest && !signal.aborted) { acceptPolicy(ctx, snapshot.policy); storage.usage = snapshot.usage; storage.status = 'ready'; }
+  }, { manage: true }); }
+  function checkAvailability(assetId) { return metadataAction(async (ctx, client, signal, serial) => {
+    if (typeof assetId !== 'string' || !ASSET.test(assetId)) throw fail('asset-transfer-input-invalid');
+    const value = validateAvailability(await client.getAvailability(ctx.scope.remoteProjectId, assetId, { signal })); await assertCurrent(ctx);
+    if (value.projectId !== ctx.scope.remoteProjectId || value.assetId !== assetId) throw fail('asset-response-invalid');
+    if (serial === availabilityRequest && !signal.aborted) { availability = { key: ctx.key, value: publicAvailability(value) }; error = null; }
+  }, { kind: 'availability' }); }
+  function setArchived(input) { return metadataAction(async (ctx, client, signal, serial, request) => {
+    if (!exact(input, ['assetId', 'expectedArchived', 'archived']) || !ASSET.test(input.assetId || '') || typeof input.expectedArchived !== 'boolean' || typeof input.archived !== 'boolean') throw fail('asset-archive-invalid');
+    availabilityRequest++; availability = null;
+    const value = validateAvailability(await client.setArchived(ctx.scope.remoteProjectId, input.assetId,
+      { expectedArchived: input.expectedArchived, archived: input.archived }, { signal })); await assertCurrent(ctx, { manage: true });
+    if (value.projectId !== ctx.scope.remoteProjectId || value.assetId !== input.assetId || !value.cloudPresent || value.archived !== input.archived) throw fail('asset-response-invalid');
+    availabilityRequest++;
+    if (signal.aborted) throw fail('asset-cancelled');
+    serial = ++storageRequest; request.serial = serial;
+    availability = { key: ctx.key, value: publicAvailability(value) }; storage.usage = null; storage.status = 'loading'; storage.error = null;
+    if (value.archived && review?.key === ctx.key && review.identity.contentId === value.assetId) { review = null; error = 'asset-archived'; }
+    if (value.archived && preparation?.key === ctx.key && preparation.assetId === value.assetId) { error = 'asset-archived'; preparation.controller.abort(); }
+    if (value.archived && active?.key === ctx.key && active.assetId === value.assetId) { active.reason = 'asset-archived'; active.controller.abort(); }
+    const snapshot = await storageSnapshot(ctx, client, signal); await assertCurrent(ctx, { manage: true });
+    if (serial === storageRequest && !signal.aborted) { acceptPolicy(ctx, snapshot.policy); storage.usage = snapshot.usage; storage.status = 'ready'; }
+  }, { manage: true }); }
   async function update(id, patch) { await edit(value => { const job = value.jobs.find(item => item.id === id); if (!job) throw fail('asset-transfer-journal-invalid'); Object.assign(job, patch, { updatedAt: Date.now() }); }); }
   function validateProgress(progress) {
     if (!exact(progress, ['phase', 'bytes', 'totalBytes']) || !PHASES.has(progress.phase)
@@ -194,6 +332,8 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     let lastWrite = 0, lastPhase = null, lastNotify = 0;
     try {
       await assertCurrent(ctx, { upload: job.direction === 'upload' });
+      if (job.direction === 'upload') await uploadGate(ctx, job.identity, run.controller.signal);
+      else run.assetClass = (await downloadGate(ctx, job.assetId, run.controller.signal)).assetClass;
       await update(job.id, { status: 'running', stage: 'queued', error: null });
       const client = connection.getAssetClient();
       if (job.direction === 'download') {
@@ -229,7 +369,8 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
   }
   function launch(job, ctx) {
     if (closed) throw fail('asset-transfer-unavailable');
-    const run = { id: job.id, key: ctx.key, direction: job.direction, controller: new AbortController(), latest: null, reason: null, cancelled: false, promise: null };
+    const run = { id: job.id, key: ctx.key, direction: job.direction, assetId: job.assetId, assetClass: job.identity?.assetClass || null,
+      controller: new AbortController(), latest: null, reason: null, cancelled: false, promise: null };
     active = run; run.promise = track(execute(job, ctx, run)); notify();
   }
   function control(action) {
@@ -240,21 +381,25 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     if (active || preparation || starting) throw fail('asset-transfer-busy');
     if (!filename(source) || !safeName(name) || !CLASSES.has(assetClass) || !rate(maxBytesPerSecond)) throw fail('asset-transfer-input-invalid');
     review = null; error = null;
-    const run = { key: null, controller: new AbortController(), progress: { phase: 'hashing', bytes: 0, totalBytes: null }, promise: null }; preparation = run; notify();
+    const run = { key: null, assetClass, assetId: null, controller: new AbortController(), progress: { phase: 'hashing', bytes: 0, totalBytes: null }, promise: null }; preparation = run; notify();
     run.promise = (async () => { try {
       const ctx = await context(); if (run.controller.signal.aborted || closed) throw fail('asset-cancelled');
       if (!ctx?.available) throw fail('asset-transfer-unavailable'); if (!ctx.canUpload) throw fail('asset-viewer-read-only');
       run.key = ctx.key; notify();
+      await requireClass(ctx, assetClass, run.controller.signal);
       const inspected = await engine.inspectAssetFile(source, { assetClass, signal: run.controller.signal, onProgress: async progress => {
         validateProgress(progress); await assertCurrent(ctx, { upload: true }); if (run.controller.signal.aborted) throw fail('asset-cancelled');
         run.progress = clone(progress); notify();
       } });
       const identity = validateIdentity(inspected.identity); await assertCurrent(ctx, { upload: true });
       if (run.controller.signal.aborted) throw fail('asset-cancelled');
-      let reused = false;
-      try { const found = await connection.getAssetClient().getAsset(ctx.scope.remoteProjectId, identity.contentId, { signal: run.controller.signal });
+      run.assetId = identity.contentId; await requireClass(ctx, assetClass, run.controller.signal);
+      const currentAvailability = await inspectAvailability(ctx, identity.contentId, run.controller.signal);
+      if (currentAvailability.excluded) throw fail('asset-policy-excluded'); if (currentAvailability.archived) throw fail('asset-archived');
+      let reused = currentAvailability.cloudPresent;
+      if (reused) { const found = await connection.getAssetClient().getAsset(ctx.scope.remoteProjectId, identity.contentId, { signal: run.controller.signal });
         if (!found || fingerprint(found.identity) !== fingerprint(identity)) throw fail('asset-identity-collision'); reused = true;
-      } catch (problem) { if (problem.code !== 'asset-not-found') throw problem; }
+      }
       await assertCurrent(ctx, { upload: true }); if (run.controller.signal.aborted) throw fail('asset-cancelled');
       review = { id: randomUUID(), key: ctx.key, scope: ctx.scope, name, filename: source, identity, maxBytesPerSecond, reused };
     } catch (problem) { if (!run.controller.signal.aborted) error = safeAssetTransferError(problem); }
@@ -279,7 +424,7 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     starting = true;
     try {
       const ctx = await context(); if (!ctx || ctx.key !== selected.key) throw fail('asset-selection-changed');
-      await assertCurrent(ctx, { upload: true }); review = null; error = null;
+      await assertCurrent(ctx, { upload: true }); await uploadGate(ctx, selected.identity); review = null; error = null;
       await persistAndLaunch(addJob('upload', { ...selected, assetId: selected.identity.contentId, size: selected.identity.size }, ctx), ctx);
     }
     finally { starting = false; }
@@ -290,6 +435,7 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     if (typeof assetId !== 'string' || !ASSET.test(assetId) || !filename(destination) || !safeName(name) || !rate(maxBytesPerSecond)) throw fail('asset-transfer-input-invalid');
     starting = true; error = null;
     try { const ctx = await context(); if (!ctx?.available) throw fail('asset-transfer-unavailable');
+      await downloadGate(ctx, assetId);
       await persistAndLaunch(addJob('download', { assetId, destination, name, maxBytesPerSecond, size: null }, ctx), ctx); }
     finally { starting = false; }
     return getState();
@@ -301,6 +447,8 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
       const ctx = await context(); if (!ctx?.available) throw fail('asset-transfer-unavailable');
       const job = (await read()).jobs.find(item => item.id === id && scopeKey(item.scope) === ctx.key);
       if (!job || job.status === 'completed') throw fail('asset-transfer-unavailable'); await assertCurrent(ctx, { upload: job.direction === 'upload' });
+      if (job.direction === 'upload') await uploadGate(ctx, job.identity);
+      else await downloadGate(ctx, job.assetId);
       await update(id, { status: 'queued', stage: 'queued', error: null }); await assertCurrent(ctx, { upload: job.direction === 'upload' }); launch(job, ctx);
     }
     finally { starting = false; }
@@ -316,8 +464,9 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
   function clearReview() { return control(async () => { review = null; const run = preparation; if (run) run.controller.abort();
     if (run?.promise) await run.promise; notify(); return getState(); }); }
   async function dispose() { closed = true; preparation?.controller.abort(); if (active) { active.reason = 'asset-transfer-interrupted'; active.controller.abort(); }
+    for (const request of metadata) request.controller.abort();
     while (tasks.size || notifications.size) { await Promise.allSettled([...tasks, ...notifications]); } }
-  return { getState, prepareUpload, confirmUpload, startDownload, resume, cancel, clearReview,
+  return { getState, prepareUpload, confirmUpload, startDownload, resume, cancel, clearReview, refreshStorage, savePolicy, checkAvailability, setArchived,
     selectionChanged: lifecycle, connectionChanged: lifecycle, dispose };
 }
 module.exports = { createDesktopAssetTransfers, safeAssetTransferError };

@@ -14,7 +14,10 @@ async function fixture(t, bytes = Buffer.from('abcdefghij')) {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-file-transfer-')));
   t.after(() => fs.rm(root, { recursive: true, force: true })); const filename = path.join(root, 'source.mov'); await fs.writeFile(filename, bytes);
   const keyring = createKeyring({ fixture: randomBytes(32) }, 'fixture');
-  const store = await createDurableAssetService({ directory: path.join(root, 'service'), keyring, authorize: async () => ({ allowed: true }), initialize: true, chunkSize: 4 }); t.after(() => store.close());
+  const store = await createDurableAssetService({ directory: path.join(root, 'service'), keyring,
+    authorize: async () => ({ allowed: true }), authorizePolicy: async () => ({ allowed: true, actorId: 'file-test-owner' }),
+    initialize: true, chunkSize: 4 }); t.after(() => store.close());
+  await store.setPolicy({}, 'film', { expectedVersion: 0, syncClasses: ['other'] });
   const calls = { put: [], read: [], cancel: 0 }; const client = Object.fromEntries(['beginUpload', 'uploadStatus', 'completeUpload', 'getAsset'].map(name => [name, (...args) => store[name]({}, ...args)]));
   client.putChunk = (...args) => { calls.put.push(args[2]); return store.putChunk({}, ...args); };
   client.readChunk = (...args) => { calls.read.push(args[2]); return store.readChunk({}, ...args); };
@@ -146,4 +149,20 @@ test('server whole-file verification stays indeterminate until a verified receip
   assert.equal(progress.some(value => value.phase === 'verifying' && value.totalBytes !== null), false);
   finish(); assert.equal((await pending).verified, true);
   assert.deepEqual(progress.at(-1), { phase: 'verifying', bytes: f.bytes.length, totalBytes: f.bytes.length });
+});
+
+test('file transfers preserve policy and archive errors while keeping the destination untouched', async t => {
+  const f = await fixture(t);
+  await f.store.setPolicy({}, 'film', { expectedVersion: 1, syncClasses: [] });
+  await assert.rejects(uploadAssetFile({ ...f, projectId: 'film' }), { code: 'asset-policy-excluded' });
+  assert.deepEqual(f.calls.put, []);
+  await f.store.setPolicy({}, 'film', { expectedVersion: 2, syncClasses: ['other'] });
+  await uploadAssetFile({ ...f, projectId: 'film' });
+  await f.store.setArchived({}, 'film', f.identity.contentId, { expectedArchived: false, archived: true });
+  await assert.rejects(downloadAssetFile({ ...f, projectId: 'film', assetId: f.identity.contentId }), { code: 'asset-archived' });
+  await assert.rejects(fs.access(f.destination), { code: 'ENOENT' });
+  await f.store.setArchived({}, 'film', f.identity.contentId, { expectedArchived: true, archived: false });
+  await f.store.setPolicy({}, 'film', { expectedVersion: 3, syncClasses: [] });
+  await assert.rejects(downloadAssetFile({ ...f, projectId: 'film', assetId: f.identity.contentId }), { code: 'asset-policy-excluded' });
+  await assert.rejects(fs.access(f.destination), { code: 'ENOENT' });
 });

@@ -4,7 +4,7 @@ History's Project media panel connects explicit file transfers to the optional [
 
 ## Upload
 
-Choose an asset class and a bandwidth limit, then choose a regular local file in the native picker. Frameline hashes it locally and asks the selected service whether that content ID already exists. This lookup discloses the content ID before confirmation; it does not send file bytes or the local filename/path. The panel states this beside the chooser.
+Choose an enabled asset class and a bandwidth limit, then choose a regular local file in the native picker. Frameline hashes it locally and asks the selected service whether that content ID already exists. This lookup discloses the content ID before confirmation; it does not send file bytes or the local filename/path. The panel states this beside the chooser. New service projects enable no classes; a project owner must first save the classes that may transfer.
 
 The review shows the selected name, byte count, class, content ID, and estimated bytes to upload. Existing exact content estimates zero transfer bytes. Confirm Upload media to persist a private job and begin transferring. Preparation can be cancelled before a job exists. Viewers cannot prepare or confirm uploads.
 
@@ -14,11 +14,21 @@ Local hashing has byte progress. Service verification is indeterminate, with no 
 
 ## Download
 
-Enter a published `sha256:` content ID and choose a destination with the native save dialog. The current account must have read access to that project. Viewers can download published assets but cannot inspect partial uploads or write media.
+Enter a published `sha256:` content ID and choose a destination with the native save dialog. The current account must have read access to that project. Viewers can download published assets in enabled classes when they are not archived, but cannot inspect partial uploads or write media.
+
+Check availability looks up that content ID in the linked service project. It shows On this service, Excluded by project policy, Archived, or Not on this service; both exclusion and archive remain visible when they apply together. A matching blocked result disables Download media. The server rechecks policy and permissions during transfer. This lookup does not inspect local files or collaborator machines, prove that media is globally missing, or discover assets required by a revision.
+
+Owners can archive or restore the checked published asset. Archive retains service bytes and prevents transfers. Restoring an asset does not override a disabled class. A conflicting archive state requires a fresh availability check before retry. This is separate from deletion, retention, and garbage collection.
 
 Downloads retain verified chunks and a checkpoint in the app's private working directory. Resume checks the checkpoint's project, content ID, size, and chunk geometry and hashes cached chunks before reuse. Final assembly streams the complete file hash, flushes a private temporary file in the destination directory, and publishes exclusively. A different existing file or a symlink is preserved. An identical existing destination can be verified and reused. Publication currently requires a destination filesystem that supports hard links; unsupported targets fail without replacing an existing file. An uncertain final flush is reported rather than treated as proof that nothing was written.
 
 A corrupt or mismatched checkpoint fails closed and is retained. Starting a new download creates a separate job; it does not erase the damaged cache or overwrite a destination. Completed downloads and private cached chunks are retained; automatic cache collection remains separate work.
+
+## Storage policy and usage
+
+The linked project's Storage policy and usage section lists original, proxy, audio, graphics, and other. Owners choose classes and explicitly Save classes; editors and viewers see the saved settings read only. Disabled classes cannot upload or download. Existing service bytes are retained. Saved classes and policy version remain visible while an owner edits a draft. Progress updates preserve the draft; account, project, branch, or role changes discard it. Stale versions require Refresh storage before another save, without silently overwriting the owner's choices.
+
+Refresh storage reads published asset count and logical bytes, partitioned into available, archived, and excluded bytes. Excluded assets take precedence over archived assets in this partition, so the three byte counts sum to published logical bytes. Partial uploads are shown separately with count, acknowledged bytes, and declared bytes. These figures come from service index records; they exclude filesystem/encryption overhead and are not billing, quota, or fresh content-integrity measurements. Policy and usage may need another refresh after other writers change the project.
 
 ## Scope and restart
 
@@ -30,9 +40,15 @@ The private transfer journal stores the source/destination paths required for ex
 
 Quit aborts and drains file work and its controllers before disposing the service connection, so cancellation can still use the active account. Each transfer has cancellable byte pacing; the limit applies to new network chunks, not cached or already-present bytes. The UI offers unlimited, 1 MiB/s, and 5 MiB/s.
 
-The journal is bounded to 100 retained jobs. The panel displays 20 at a time and can show older records. Hosted accounting, revision-selected media downloads, persistent class policies, preview workers, editor relinking, and job/cache retention controls remain open. A bandwidth setting is a local per-job limit, not a server billing policy.
+The journal is bounded to 100 retained jobs. The panel displays 20 at a time and can show older records. Billing and disk accounting, revision-selected media downloads, preview workers, editor relinking, and job/cache retention controls remain open. A bandwidth setting is a local per-job limit, not a server billing policy.
 
 ## Validation
+
+The [storage-policy desktop observation](phase-0/asset-storage-policy-desktop-observation.json) records current browser/native checks against an actual disposable loopback HTTPS service. A new project began with no enabled classes. The owner enabled Other, reviewed a 16 MiB + 31 byte upload, cancelled after 6 MiB of acknowledged chunks, and saw one partial upload with no published asset. Disabling the class hid Resume without discarding bytes; re-enabling allowed the same upload to complete. Published logical bytes moved between available, archived, and excluded partitions without changing their total. Availability retained both exclusion and archive flags. Editors could upload within policy but could not edit it or archive; viewers could read policy/usage/availability but could not upload or archive.
+
+Native Electron used the actual preload/IPC and service connection to save policy, switch project scope, read usage/availability, and archive/restore the browser-published asset. The viewer observed that native archive through its independent client. A concurrent native policy write caused the browser owner’s stale save to be refused; the draft survived and explicit Refresh storage showed the new saved version. Live QA found and fixed a signed-out null-usage rendering exception; two focused regressions and a normal signed-out native restart verified the repair. All 659 tests passed with no failures or skips, and packaging validation passed. Two bounded visual rounds at 1440, 768, and 390 px showed no horizontal overflow and at least 44 px phone buttons. No new suppressions were added.
+
+Both clients signed out, the disposable server exited successfully, the fixture and private locator were removed, the browser tab closed and viewport reset, and the ordinary desktop app reopened without the test CA. No native media jobs were created in this policy check; the transfer directory was absent before and after it. The browser used fixture chooser/vault adapters; native metadata controls used actual Electron IPC and OS-vault sign-in. The following results describe the preceding manual-transfer milestone.
 
 The [disposable live observation](phase-0/desktop-media-transfer-live-observation.json) records browser and native checks against an actual loopback HTTPS asset service using a 16 MiB + 31 byte synthetic file. Both upload reviews preceded any asset upload record or file bytes. The browser showed a full-size initial estimate and zero bytes for exact published content, uploaded successfully, cancelled a download after one verified chunk, then resumed it to the exact complete hash. Viewer upload controls were disabled; a separate viewer download matched the original bytes. Signing out or changing account hid unrelated jobs, and returning to the owner and reloading recovered its completed receipts.
 

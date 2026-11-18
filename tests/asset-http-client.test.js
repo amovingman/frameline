@@ -96,3 +96,32 @@ test('overall verification deadline is bounded and malformed polling receipts fa
   const malformed = factory(async (_url, options) => json(options, { uploadId: 'different', status: 'verifying' }, 202));
   await assert.rejects(malformed.completeUpload('film', uploadId), { code: 'asset-response-invalid' });
 });
+
+test('policy, usage and availability replies are strict and bound to the requested project and content', async () => {
+  const policy = { projectId: 'film', version: 1, syncClasses: ['original'] };
+  const usage = { projectId: 'film', assetCount: 1, logicalBytes: 4, availableBytes: 4, archivedBytes: 0, excludedBytes: 0,
+    inProgressUploads: 0, inProgressReceivedBytes: 0, inProgressDeclaredBytes: 0 };
+  const present = { projectId: 'film', assetId, cloudPresent: true, excluded: false, archived: false, assetClass: 'original', size: 4 };
+  assert.deepEqual(await factory(async (_url, options) => json(options, policy)).getPolicy('film'), policy);
+  await assert.rejects(factory(async (_url, options) => json(options, { ...policy, projectId: 'other' })).getPolicy('film'), { code: 'asset-response-invalid' });
+  await assert.rejects(factory(async (_url, options) => json(options, { ...usage, privatePath: '/private/source' })).getUsage('film'), { code: 'asset-response-invalid' });
+  await assert.rejects(factory(async (_url, options) => json(options, { ...usage, archivedBytes: 4 })).getUsage('film'), { code: 'asset-response-invalid' });
+  await assert.rejects(factory(async (_url, options) => json(options, { ...present, assetId: `sha256:${'0'.repeat(64)}` })).getAvailability('film', assetId), { code: 'asset-response-invalid' });
+  await assert.rejects(factory(async (_url, options) => json(options, { ...present, cloudPresent: false })).getAvailability('film', assetId), { code: 'asset-response-invalid' });
+});
+
+test('owner mutation requests validate CAS inputs and require matching version, classes and archive acknowledgment', async () => {
+  let calls = 0;
+  const client = factory(async (_url, options) => { calls++; return json(options, { projectId: 'film', version: 2, syncClasses: ['original'] }); });
+  await assert.rejects(client.setPolicy('film', { expectedVersion: 1, syncClasses: ['private-path'] }), { code: 'asset-policy-invalid' });
+  await assert.rejects(client.setPolicy('film', { expectedVersion: 1, syncClasses: ['original', 'original'] }), { code: 'asset-policy-invalid' });
+  await assert.rejects(client.setArchived('film', assetId, { expectedArchived: false, archived: true, token: 'secret' }), { code: 'asset-archive-invalid' });
+  assert.equal(calls, 0);
+  await assert.rejects(client.setPolicy('film', { expectedVersion: 0, syncClasses: ['original'] }), { code: 'asset-response-invalid' });
+  await assert.rejects(client.setPolicy('film', { expectedVersion: 1, syncClasses: [] }), { code: 'asset-response-invalid' });
+  const archive = factory(async (_url, options) => json(options, { projectId: 'film', assetId, cloudPresent: true, excluded: false,
+    archived: false, assetClass: 'original', size: 4 }));
+  await assert.rejects(archive.setArchived('film', assetId, { expectedArchived: false, archived: true }), { code: 'asset-response-invalid' });
+  const denied = factory(async (_url, options) => json(options, { code: 'asset-policy-forbidden' }, 403, true));
+  await assert.rejects(denied.setPolicy('film', { expectedVersion: 0, syncClasses: [] }), { code: 'asset-policy-forbidden', message: 'asset-policy-forbidden' });
+});

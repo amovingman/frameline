@@ -35,8 +35,9 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
   try {
     if (config.assets) {
       const authorize = (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action);
-      assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, initialize });
-      assetHandler = createAssetHttpHandler({ assets, authorize, signingKey: config.assets.signingKey });
+      const authorizePolicy = (context, projectId, action) => runtime.service.authorizeAssetPolicy(context, projectId, action);
+      assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, authorizePolicy, initialize });
+      assetHandler = createAssetHttpHandler({ assets, authorize, authorizePolicy, signingKey: config.assets.signingKey });
     }
   } catch (error) { await assets?.close(); await runtime.close(); throw error; }
   const sockets = new Set(), handlers = new Set(); let closing = false, closePromise = null;

@@ -199,3 +199,19 @@ test('asset request errors preserve safe protocol codes and update shared offlin
   assert.equal(value.getState().status, 'sign-in-required'); assert.throws(() => value.getAssetClient(), { code: 'service-sign-in-required' });
   assert.doesNotMatch(JSON.stringify(f.events), /\/private\/|access-token-secret/);
 });
+
+test('policy and archive private client methods preserve input positions, bound signals and safe permission errors', async t => {
+  const calls = [];
+  const f = fixture({ createAssetClient: ({ getAccessToken }) => ({
+    async getPolicy(pid, options) { await getAccessToken(); calls.push([pid, options.signal]); return { projectId: pid, version: 0, syncClasses: [] }; },
+    async setPolicy(pid, input, options) { calls.push([pid, input, options.signal]); throw error('asset-policy-forbidden'); },
+    async setArchived(pid, aid, input, options) { calls.push([pid, aid, input, options.signal]); return { archived: input.archived }; }
+  }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); await connect(value); const assets = value.getAssetClient();
+  await assets.getPolicy('film'); const input = { expectedVersion: 0, syncClasses: ['original'] };
+  await assert.rejects(assets.setPolicy('film', input), { code: 'asset-policy-forbidden', message: 'asset-policy-forbidden' });
+  const archive = { expectedArchived: false, archived: true }; await assets.setArchived('film', 'asset', archive);
+  assert.deepEqual(calls[1].slice(0, 2), ['film', input]); assert.deepEqual(calls[2].slice(0, 3), ['film', 'asset', archive]);
+  assert(calls[0][1] instanceof AbortSignal); assert(calls[1][2] instanceof AbortSignal); assert(calls[2][3] instanceof AbortSignal);
+  assert.equal(value.getState().status, 'connected'); await value.disconnect(); assert.equal(calls[2][3].aborted, true);
+});

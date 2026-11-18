@@ -18,7 +18,8 @@ const REQUEST_ERRORS = new Set([...AUTH_ERRORS, 'forbidden', 'rate-limit-exceede
   'asset-identity-collision', 'asset-chunk-conflict', 'upload-incomplete', 'asset-upload-incomplete', 'asset-content-mismatch',
   'asset-identity-invalid', 'asset-chunk-invalid', 'asset-chunk-corrupt', 'asset-state-invalid', 'asset-state-newer-version',
   'asset-key-rotation-required', 'asset-capacity-exceeded', 'asset-storage-unavailable', 'asset-storage-uncertain',
-  'asset-cancelled', 'asset-verification-timeout']);
+  'asset-cancelled', 'asset-verification-timeout', 'asset-policy-excluded', 'asset-policy-forbidden', 'asset-policy-invalid',
+  'asset-policy-version-conflict', 'asset-archived', 'asset-archive-invalid', 'asset-archive-conflict']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const clone = value => structuredClone(value);
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -124,7 +125,8 @@ function createDesktopServiceConnection({ directory, vault, createClient = creat
       })())])); }
     value.authenticated = protect(value.client, arities);
     value.assets = protect(createAssetClient({ origin: serviceOrigin, getAccessToken: () => accessToken(value) }), {
-      beginUpload: 2, uploadStatus: 2, putChunk: 5, completeUpload: 2, cancelVerification: 2, getAsset: 2, readChunk: 3 });
+      beginUpload: 2, uploadStatus: 2, putChunk: 5, completeUpload: 2, cancelVerification: 2, getAsset: 2, readChunk: 3,
+      getPolicy: 1, setPolicy: 2, getUsage: 1, getAvailability: 2, setArchived: 3 });
     return value;
   }
   async function accessToken(value) {

@@ -70,6 +70,10 @@ const workerScript = String.raw`
       let upload = config.upload, pendingTicket = config.pendingTicket, retainedTicket = config.retainedTicket;
       let completed = config.completed;
       if (config.phase === 'partial') {
+        assert.deepEqual(await clients.owner.getPolicy(config.projectId), { projectId: config.projectId, version: 0, syncClasses: [] });
+        await assert.rejects(clients.owner.beginUpload(config.projectId, config.identity), { code: 'asset-policy-excluded' });
+        await clients.owner.setPolicy(config.projectId, { expectedVersion: 0, syncClasses: ['original'] });
+        await assert.rejects(clients.viewer.setPolicy(config.projectId, { expectedVersion: 1, syncClasses: [] }), { code: 'forbidden' });
         upload = await clients.owner.beginUpload(config.projectId, config.identity);
         assert.equal(upload.chunks, 3); assert.equal(upload.chunkSize, 1024 * 1024);
         assert.equal(upload.complete, false); assert.deepEqual(upload.received, [false, false, false]);
@@ -97,9 +101,13 @@ const workerScript = String.raw`
           bytes.subarray(0, upload.chunkSize), { 'x-chunk-sha256': sha(bytes.subarray(0, upload.chunkSize)) });
         assert.equal(expiredResponse.status, 403); assert.equal(expiredResponse.json.error.code, 'asset-ticket-invalid');
         assert.deepEqual((await clients.owner.uploadStatus(config.projectId, upload.uploadId)).received, [false, true, false]);
+        const partialUsage = await clients.owner.getUsage(config.projectId);
+        assert.equal(partialUsage.assetCount, 0); assert.equal(partialUsage.inProgressUploads, 1);
+        assert.equal(partialUsage.inProgressReceivedBytes, 1024 * 1024);
         await denied(clients.viewer.beginUpload(config.projectId, config.identity));
         await denied(clients.outsider.beginUpload(config.projectId, config.identity));
       } else if (config.phase === 'finish') {
+        assert.deepEqual(await clients.owner.getPolicy(config.projectId), { projectId: config.projectId, version: 1, syncClasses: ['original'] });
         const status = await clients.owner.uploadStatus(config.projectId, upload.uploadId);
         assert.deepEqual(status.received, [false, true, false]); assert.equal(status.complete, false);
         const resumed = await clients.owner.beginUpload(config.projectId, config.identity);
@@ -128,9 +136,33 @@ const workerScript = String.raw`
         }
         const result = Buffer.concat(downloaded); assert.deepEqual(result, bytes);
         assert.equal('sha256:' + sha(result), config.identity.contentId);
+        const publishedUsage = await clients.viewer.getUsage(config.projectId);
+        assert.equal(publishedUsage.logicalBytes, bytes.length); assert.equal(publishedUsage.availableBytes, bytes.length);
+        assert.equal(publishedUsage.inProgressUploads, 0);
+        const beforePolicyTicket = await ticket('GET', { assetId: completed.assetId, index: 0 }, 'viewer');
+        await assert.rejects(clients.viewer.setArchived(config.projectId, completed.assetId, { expectedArchived: false, archived: true }), { code: 'forbidden' });
+        const archived = await clients.owner.setArchived(config.projectId, completed.assetId, { expectedArchived: false, archived: true });
+        assert.equal(archived.archived, true); assert.equal(archived.cloudPresent, true);
+        assert.equal((await clients.owner.getUsage(config.projectId)).archivedBytes, bytes.length);
+        const archivedRead = await raw('GET', beforePolicyTicket.path, sessions.viewer.accessToken);
+        assert.equal(archivedRead.status, 403); assert.equal(archivedRead.json.error.code, 'asset-archived');
+        await clients.owner.setPolicy(config.projectId, { expectedVersion: 1, syncClasses: [] });
+        const excluded = await clients.viewer.getAvailability(config.projectId, completed.assetId);
+        assert.equal(excluded.excluded, true); assert.equal(excluded.cloudPresent, true);
+        const excludedUsage = await clients.owner.getUsage(config.projectId);
+        assert.equal(excludedUsage.excludedBytes, bytes.length); assert.equal(excludedUsage.archivedBytes, 0);
+        await assert.rejects(clients.owner.setPolicy(config.projectId, { expectedVersion: 1, syncClasses: ['original'] }), { code: 'asset-policy-version-conflict' });
+        const excludedRead = await raw('GET', beforePolicyTicket.path, sessions.viewer.accessToken);
+        assert.equal(excludedRead.status, 403); assert.equal(excludedRead.json.error.code, 'asset-policy-excluded');
+        await clients.owner.setArchived(config.projectId, completed.assetId, { expectedArchived: true, archived: false });
+        await clients.owner.setPolicy(config.projectId, { expectedVersion: 2, syncClasses: ['original'] });
+        assert.equal((await clients.viewer.getAvailability(config.projectId, completed.assetId)).excluded, false);
+        assert.equal((await clients.owner.getUsage(config.projectId)).availableBytes, bytes.length);
         await denied(clients.viewer.beginUpload(config.projectId, config.identity));
         await denied(clients.outsider.getAsset(config.projectId, completed.assetId));
         await assert.rejects(clients.outsider.getAsset(config.otherProjectId, completed.assetId), { code: 'asset-not-found' });
+        assert.equal((await clients.outsider.getUsage(config.otherProjectId)).logicalBytes, 0);
+        assert.equal((await clients.outsider.getAvailability(config.otherProjectId, completed.assetId)).cloudPresent, false);
         retainedTicket = await ticket('GET', { assetId: completed.assetId, index: 1 }, 'viewer');
         const outsiderRedemption = await raw('GET', retainedTicket.path, sessions.outsider.accessToken);
         assert.equal(outsiderRedemption.status, 403); assert.equal(outsiderRedemption.json.error.code, 'forbidden');
@@ -138,6 +170,8 @@ const workerScript = String.raw`
         const otherProjectResponse = await raw('GET', wrongProject, sessions.outsider.accessToken);
         assert.equal(otherProjectResponse.status, 403); assert.equal(otherProjectResponse.json.error.code, 'asset-ticket-invalid');
       } else {
+        assert.deepEqual(await clients.owner.getPolicy(config.projectId), { projectId: config.projectId, version: 3, syncClasses: ['original'] });
+        assert.equal((await clients.owner.getUsage(config.projectId)).logicalBytes, bytes.length);
         assert(retainedTicket.expiresAt > Date.now(), 'Revocation is checked while the old capability is still unexpired');
         const revoked = await raw('GET', retainedTicket.path, sessions.viewer.accessToken);
         assert.equal(revoked.status, 403); assert.equal(revoked.json.error.code, 'forbidden');
@@ -149,6 +183,9 @@ const workerScript = String.raw`
       }
       process.send({ type: 'result', data: { sessions, upload, pendingTicket, retainedTicket, completed, requests } }, () => process.disconnect());
     } catch (error) {
+      const line = /\[eval\]:(\d+):\d+/.exec(error.stack || '')?.[1];
+      if (process.connected) process.send({ type: 'failure', data: {
+        code: /^[a-z0-9-]{1,80}$/.test(error.code || '') ? error.code : 'assertion-failed', line: line ? Number(line) : null } });
       process.stderr.write('asset-network-client-proof-failed\n'); process.exitCode = 1;
       if (process.connected) process.disconnect();
     }
@@ -227,10 +264,11 @@ async function runAssetNetworkProof() {
   async function worker(config) {
     const record = start(['-e', workerScript, path.resolve(__dirname, '../src/revision-http-client.js'),
       path.resolve(__dirname, '../src/asset-http-client.js'), path.resolve(__dirname, '../src/project-api-contracts.js')], { ipc: true, trust: true });
-    let result;
-    record.child.on('message', message => { if (message?.type === 'result') result = message.data; });
+    let result, failure;
+    record.child.on('message', message => { if (message?.type === 'result') result = message.data;
+      if (message?.type === 'failure') failure = message.data; });
     record.child.stdin.end(JSON.stringify(config)); await terminal(record, 30000);
-    assert.equal(record.exit.code, 0, 'Real HTTPS asset client must finish the requested proof phase'); assert(result);
+    assert.equal(record.exit.code, 0, `Real HTTPS asset client must finish ${config.phase}: ${failure?.code || 'unknown'} at worker line ${failure?.line || 'unknown'}`); assert(result);
     assert.equal(record.stdout, '');
     for (const session of Object.values(result.sessions)) {
       secrets.push(session.accessToken, session.refreshToken); receiptSecrets.push(session.accessToken, session.refreshToken);
@@ -306,6 +344,9 @@ async function runAssetNetworkProof() {
       outsiderAccessDenied: true, crossProjectContentIsolation: true, malformedChecksumRejected: true, oversizedChunkRejected: true,
       capabilityTamperingRejected: true, wrongMethodRejected: true, alteredExpiredCapabilityRejected: true,
       removedViewerOldTicketDeniedAfterRestart: true, retainedOwnerContentAvailable: true,
+      policyDefaultsDisabled: true, ownerPolicyPersistsAcrossRestart: true, viewerPolicyAndArchiveWritesDenied: true,
+      partialAndPublishedUsageVerified: true, archivedBytesRetainedAndBlocked: true, excludedBytesRetainedAndBlocked: true,
+      outstandingTicketsRecheckArchiveAndPolicy: true, stalePolicyUpdateRejected: true, restoredPolicyAllowsRead: true,
       encryptedChunksOmitPlaintext: true, privateFileMode: '0600', gracefulSigtermExit: true,
       priorOwnedProcessesTerminalBeforeRestart: true, allOwnedProcessesTerminated: true,
       publicLogsAndReceiptOmitCredentialsCapabilitiesAndPrivatePaths: true,

@@ -253,7 +253,7 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
       return value;
     }), delete: (context, projectId) => transact(world => world.access.deleteProject(world.actor(context), projectId)) },
     service: Object.fromEntries(['putManifest', 'createRevision', 'updateBranch', 'getManifest', 'getRevision',
-      'findRevisionBySource', 'listRevisions', 'getBranch', 'listActivity', 'listNotifications', 'markNotificationRead', 'authorizeAsset']
+      'findRevisionBySource', 'listRevisions', 'getBranch', 'listActivity', 'listNotifications', 'markNotificationRead', 'authorizeAsset', 'authorizeAssetPolicy']
       .map(method => [method, (...args) => transact(world => createAuthorizedProjectService(world)[method](...args))])),
     getStatus: () => transact(world => ({ schemaVersion: 1, generation: world.snapshot().generation })),
     rotateEncryption: next => validRing(next) ? transact(() => ({ rotated: true }), { rotate: next })

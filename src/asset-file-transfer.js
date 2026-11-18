@@ -19,7 +19,9 @@ const SAFE = new Set(['asset-file-invalid', 'asset-source-changed', 'asset-ident
   'asset-storage-unavailable', 'asset-storage-uncertain', 'asset-response-invalid', 'asset-response-too-large',
   'asset-request-invalid', 'asset-request-too-large', 'asset-service-failed', 'request-too-large', 'body-invalid',
   'request-invalid', 'invalid-request-headers', 'asset-service-busy', 'rate-limit-exceeded',
-  'service-sign-in-required', 'service-credential-storage-unavailable', 'asset-selection-changed']);
+  'service-sign-in-required', 'service-credential-storage-unavailable', 'asset-selection-changed',
+  'asset-policy-invalid', 'asset-policy-forbidden', 'asset-policy-version-conflict', 'asset-policy-excluded',
+  'asset-archive-invalid', 'asset-archive-conflict', 'asset-archived']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const safe = error => fail(SAFE.has(error?.code) ? error.code : 'asset-local-io-failed');
 const exact = (value, keys) => value !== null && typeof value === 'object' && !Array.isArray(value)

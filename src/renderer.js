@@ -43,6 +43,12 @@ let assetTransferActionNotice = '';
 let assetTransferVisibleJobs = 20;
 const assetTransferJobRows = new Map();
 const assetTransferJobActions = new Set();
+const assetPolicyClasses = ['original', 'proxy', 'audio', 'graphics', 'other'];
+let assetPolicyDraft = null;
+let assetStorageAction = null;
+let assetStorageAutoRefreshedScope = '';
+let assetStorageActionNotice = '';
+let assetAvailabilityNeedsCheck = false;
 let collaborationBusy = false;
 let collaborationProjectId = null;
 let currentCollaborationState = { available: false, members: [], invitations: [] };
@@ -574,6 +580,7 @@ function syncAssetTransferContext() {
   const context = currentAssetTransferContext();
   if (context === assetTransferContext) return;
   assetTransferContext = context; assetTransferState = null; assetTransferVisibleJobs = 20; assetTransferActionNotice = '';
+  assetPolicyDraft = null; assetStorageAutoRefreshedScope = ''; assetStorageActionNotice = ''; assetAvailabilityNeedsCheck = false;
   refreshAssetTransferState();
 }
 function assetTransferScopeMatches() {
@@ -582,6 +589,13 @@ function assetTransferScopeMatches() {
 }
 function assetTransferErrorLabel(code) {
   return ({
+    'asset-policy-excluded': 'This media class is disabled for the project. Ask a project owner to enable it before transferring these bytes.',
+    'asset-policy-invalid': 'Choose valid media classes and refresh the current policy before saving.',
+    'asset-policy-forbidden': 'Only a project owner can change the storage policy or archive state.',
+    'asset-policy-version-conflict': 'The storage policy changed while you were editing. Refresh storage and review the saved classes before saving again.',
+    'asset-archive-invalid': 'The archive change could not be validated. Check availability again before retrying.',
+    'asset-archive-conflict': 'The archive state changed. Check availability again before changing it.',
+    'asset-archived': 'This media is archived on the service. A project owner must restore it before it can be downloaded.',
     'asset-transfer-input-invalid': 'Check the content ID, media class and transfer speed limit, then try again.',
     'asset-transfer-unavailable': 'Sign in and link the matching service project before starting or resuming this transfer.',
     'asset-transfer-busy': 'Another media action is running. Cancel it or wait for it to finish.',
@@ -712,6 +726,119 @@ function renderAssetTransferJobs(jobs, available) {
   setServiceText(document.getElementById('asset-transfer-range'), jobs.length ? `Showing 1–${visible.length} of ${jobs.length}` : 'No transfers');
   document.getElementById('asset-transfer-more').hidden = visible.length >= jobs.length;
 }
+function assetClassLabel(value) {
+  return ({ original: 'Original', proxy: 'Proxy', audio: 'Audio', graphics: 'Graphics', other: 'Other' })[value] || 'Unknown class';
+}
+function sameAssetClasses(left, right) { return [...left].sort().join('|') === [...right].sort().join('|'); }
+function currentAssetPolicy() {
+  const policy = assetTransferScopeMatches() ? assetTransferState?.storage?.policy : null;
+  const projectId = assetTransferState?.scope?.remoteProjectId;
+  return projectId && policy && policy.projectId === projectId ? policy : null;
+}
+function adoptAssetPolicy(policy, preserveChanges = false) {
+  const context = currentAssetTransferContext();
+  const classes = preserveChanges && assetPolicyDraft?.context === context && assetPolicyDraft.dirty
+    ? [...assetPolicyDraft.classes] : [...policy.syncClasses];
+  assetPolicyDraft = { context, version: policy.version, classes, savedClasses: [...policy.syncClasses],
+    dirty: !sameAssetClasses(classes, policy.syncClasses), requiresRefresh: false };
+}
+function currentAssetStorageAction() {
+  return assetStorageAction?.context === currentAssetTransferContext() ? assetStorageAction.method : null;
+}
+function renderAssetStorage(available) {
+  const storage = assetTransferScopeMatches() ? assetTransferState?.storage : null;
+  const policy = currentAssetPolicy(), context = currentAssetTransferContext(), pending = currentAssetStorageAction();
+  const canManage = available && !!storage?.canManage && serviceState?.binding?.role === 'owner';
+  if (policy && (!assetPolicyDraft || assetPolicyDraft.context !== context)) adoptAssetPolicy(policy);
+  else if (policy && policy.version !== assetPolicyDraft.version) {
+    if (assetPolicyDraft.dirty && !sameAssetClasses(assetPolicyDraft.classes, policy.syncClasses)) assetPolicyDraft.requiresRefresh = true;
+    else adoptAssetPolicy(policy);
+  }
+  const draft = assetPolicyDraft?.context === context ? assetPolicyDraft : null;
+  document.getElementById('asset-policy-fields').disabled = !canManage || !policy || !!pending || storage?.status === 'loading';
+  for (const value of assetPolicyClasses) {
+    const checkbox = document.getElementById(`asset-policy-${value}`), checked = !!draft?.classes.includes(value);
+    if (checkbox.checked !== checked) checkbox.checked = checked;
+  }
+  setServiceText(document.getElementById('asset-policy-saved'), policy
+    ? `Saved classes: ${policy.syncClasses.length ? policy.syncClasses.map(assetClassLabel).join(', ') : 'none'}. Policy version ${policy.version}.`
+    : 'New projects begin with no media classes enabled. Refresh storage to load the current policy.');
+  setServiceText(document.getElementById('asset-policy-status'), draft?.requiresRefresh
+    ? 'The saved policy changed. Refresh storage and review its classes before saving again.'
+    : !policy ? 'Load the current policy before editing classes.'
+      : !canManage ? 'Read-only. Project owners manage the classes enabled for transfer.'
+        : draft?.dirty ? 'Unsaved class changes.' : 'Choose the classes this project may upload and download, then save.');
+  document.getElementById('asset-policy-save').disabled = !canManage || !policy || !!pending || !draft?.dirty || draft.requiresRefresh;
+  document.getElementById('asset-storage-refresh').disabled = !available || !!pending || !window.desktop?.refreshAssetStorage;
+  setServiceText(document.getElementById('asset-storage-refresh'), pending === 'refreshAssetStorage' ? 'Refreshing storage…' : 'Refresh storage');
+  const notice = assetStorageActionNotice || (storage?.error ? assetTransferErrorLabel(storage.error) : '');
+  const status = !available ? 'Sign in and link a service project to load its storage policy.'
+    : storage?.status === 'loading' || pending === 'refreshAssetStorage' ? 'Refreshing this project’s storage metadata…'
+      : notice || (storage?.status === 'ready' ? 'Storage metadata is loaded for this linked service project.' : 'Refresh storage to load this project’s policy and logical usage.');
+  setServiceText(document.getElementById('asset-storage-status'), status);
+  const projectId = assetTransferState?.scope?.remoteProjectId;
+  const usage = projectId && storage?.usage && storage.usage.projectId === projectId ? storage.usage : null;
+  setServiceText(document.getElementById('asset-usage-published'), usage
+    ? `${usage.assetCount.toLocaleString()} asset${usage.assetCount === 1 ? '' : 's'} · ${assetBytes(usage.logicalBytes, true)}` : 'Not loaded');
+  for (const kind of ['available', 'archived', 'excluded']) setServiceText(document.getElementById(`asset-usage-${kind}`),
+    usage ? assetBytes(usage[`${kind}Bytes`], true) : 'Not loaded');
+  setServiceText(document.getElementById('asset-usage-partial'), usage
+    ? `${usage.inProgressUploads.toLocaleString()} upload${usage.inProgressUploads === 1 ? '' : 's'} · ${assetBytes(usage.inProgressReceivedBytes, true)} received of ${assetBytes(usage.inProgressDeclaredBytes, true)} declared`
+    : 'Not loaded');
+  return policy;
+}
+function currentAssetAvailability() {
+  const input = document.getElementById('asset-content-id').value.trim().toLowerCase();
+  const value = assetTransferScopeMatches() ? assetTransferState?.availability : null;
+  return !assetAvailabilityNeedsCheck && value?.assetId === input ? value : null;
+}
+function renderAssetAvailability(available, busy) {
+  const availability = currentAssetAvailability(), pending = currentAssetStorageAction();
+  const canManage = available && !!assetTransferState?.storage?.canManage && serviceState?.binding?.role === 'owner';
+  const input = document.getElementById('asset-content-id').value.trim().toLowerCase();
+  document.getElementById('asset-availability-check').disabled = !available || !!pending;
+  setServiceText(document.getElementById('asset-availability-check'), pending === 'checkServiceAssetAvailability' ? 'Checking availability…' : 'Check availability');
+  document.getElementById('asset-availability-result').hidden = !availability && !assetAvailabilityNeedsCheck;
+  const labels = { 'cloud-present': 'On this service', excluded: 'Excluded by project policy', archived: 'Archived', 'not-on-service': 'Not on this service' };
+  setServiceText(document.getElementById('asset-availability-state'), availability ? labels[availability.state] || 'Availability could not be confirmed'
+    : 'Check availability again to load the current media state.');
+  setServiceText(document.getElementById('asset-availability-detail'), availability
+    ? `${availability.assetClass ? `${assetClassLabel(availability.assetClass)} · ` : ''}${availability.size === null ? 'No published media was found for this content ID in the linked project.' : assetBytes(availability.size, true)}${availability.excluded && availability.archived ? ' · Also archived.' : ''}`
+    : 'The previous availability result is no longer current.');
+  const archive = document.getElementById('asset-archive-toggle');
+  archive.hidden = !canManage || !availability?.cloudPresent;
+  archive.disabled = !!pending;
+  setServiceText(archive, availability?.archived ? 'Restore media' : 'Archive media');
+  document.getElementById('asset-archive-help').hidden = !availability?.cloudPresent;
+  const blocked = availability && (availability.state !== 'cloud-present' || availability.excluded || availability.archived || !availability.cloudPresent);
+  document.getElementById('asset-download').disabled = !available || busy || !!pending || !!blocked || currentAssetPolicy()?.syncClasses.length === 0;
+  if (!availability && !input) document.getElementById('asset-availability-result').hidden = true;
+}
+async function runAssetStorageAction(method, input, { automatic = false } = {}) {
+  if (currentAssetStorageAction() || typeof window.desktop?.[method] !== 'function') return;
+  const context = currentAssetTransferContext(), action = { method, context };
+  assetStorageAction = action; assetStorageActionNotice = ''; renderAssetTransferPanel();
+  try {
+    const state = await window.desktop[method](input);
+    if (context !== currentAssetTransferContext()) return;
+    renderAssetTransferState(state);
+    const storage = assetTransferState?.storage, policy = currentAssetPolicy();
+    const failure = method === 'checkServiceAssetAvailability'
+      ? assetTransferState?.availability?.assetId === input ? null : assetTransferState?.error || storage?.error
+      : storage?.status === 'ready' ? null : storage?.error || assetTransferState?.error;
+    if (failure === 'asset-policy-version-conflict' && assetPolicyDraft) assetPolicyDraft.requiresRefresh = true;
+    if (failure === 'asset-archive-conflict') assetAvailabilityNeedsCheck = true;
+    if (!failure) {
+      if (method === 'refreshAssetStorage' && policy) adoptAssetPolicy(policy, !automatic);
+      if (method === 'saveAssetStoragePolicy' && policy && sameAssetClasses(policy.syncClasses, input.syncClasses)) {
+        adoptAssetPolicy(policy); assetStorageActionNotice = 'Storage policy saved.';
+      }
+      if (method === 'checkServiceAssetAvailability') assetAvailabilityNeedsCheck = false;
+      if (method === 'setServiceAssetArchived') assetStorageActionNotice = input.archived ? 'Media archived. Its bytes are retained.' : 'Media restored. The project class policy still applies.';
+    }
+  } catch { if (context === currentAssetTransferContext()) assetStorageActionNotice = 'Storage metadata could not be updated. Refresh storage or check availability, then try again.'; }
+  finally { if (assetStorageAction === action) assetStorageAction = null; renderAssetTransferPanel(); }
+}
 function renderAssetTransferPanel() {
   const state = assetTransferState, matching = assetTransferScopeMatches();
   const available = matching && !!state?.available && !!serviceState?.connected;
@@ -728,13 +855,19 @@ function renderAssetTransferPanel() {
         : `${scopeName || 'Linked service project'}${jobs.length ? ` · ${jobs.length} transfer${jobs.length === 1 ? '' : 's'}${active ? ` · ${active} active` : ''}` : ' · No media transfers yet'}`);
   const notice = assetTransferActionNotice || (state?.error ? assetTransferErrorLabel(state.error) : '');
   document.getElementById('asset-transfer-notice').hidden = !notice; setServiceText(document.getElementById('asset-transfer-notice'), notice);
-  document.getElementById('asset-class').disabled = !canUpload || busy || !!review;
+  const policy = renderAssetStorage(available);
+  const selectedClass = document.getElementById('asset-class').value;
+  const selectedClassAllowed = !!policy?.syncClasses.includes(selectedClass);
+  for (const option of document.getElementById('asset-class').options) option.disabled = !policy?.syncClasses.includes(option.value);
+  document.getElementById('asset-class').disabled = !canUpload || busy || !!review || !policy?.syncClasses.length;
   document.getElementById('asset-bandwidth').disabled = !available || busy || !!review;
-  document.getElementById('asset-choose-upload').disabled = !canUpload || busy || !!review;
+  document.getElementById('asset-choose-upload').disabled = !canUpload || busy || !!review || !selectedClassAllowed;
   setServiceText(document.getElementById('asset-choose-upload'), assetTransferForeground === 'prepareAssetUpload' ? 'Choosing and reading…' : 'Choose media file');
   setServiceText(document.getElementById('asset-upload-help'), available && !canUpload
     ? 'Viewer access allows downloads. Uploading requires editor or owner access.'
-    : 'Checking for existing media shares its content ID with this service. File bytes are sent only after you confirm.');
+    : !policy ? 'Refresh storage to load the classes this project may transfer.'
+      : !selectedClassAllowed ? `${assetClassLabel(selectedClass)} is disabled for this project. ${serviceState?.binding?.role === 'owner' ? 'Enable it in Storage policy and usage, or choose an enabled class.' : 'Choose an enabled class or ask a project owner to enable it.'}`
+        : 'Checking for existing media shares its content ID with this service. File bytes are sent only after you confirm.');
   document.getElementById('asset-preparing').hidden = !preparing;
   if (preparing) {
     setServiceText(document.getElementById('asset-preparing-status'), 'Reading the selected file and calculating its content hash. No media bytes are uploaded during this review.');
@@ -754,16 +887,21 @@ function renderAssetTransferPanel() {
       : 'Service reuse has not been confirmed. The complete file may need to be uploaded.');
   document.getElementById('asset-review-controls').hidden = !review && !preparing;
   document.getElementById('asset-confirm-upload').hidden = !review;
-  document.getElementById('asset-confirm-upload').disabled = !canUpload || busy || assetReviewClearing;
+  document.getElementById('asset-confirm-upload').disabled = !canUpload || busy || assetReviewClearing || !policy?.syncClasses.includes(identity?.assetClass);
   document.getElementById('asset-dismiss-review').disabled = assetReviewClearing;
   setServiceText(document.getElementById('asset-dismiss-review'), preparing ? 'Cancel preparation' : 'Dismiss review');
   document.getElementById('asset-content-id').disabled = !available || busy;
-  document.getElementById('asset-download').disabled = !available || busy;
+  renderAssetAvailability(available, busy);
   renderAssetTransferJobs(jobs, available);
 }
 function renderAssetTransferState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < assetTransferStateVersion) return;
   assetTransferStateVersion = state.version; assetTransferState = state; renderAssetTransferPanel();
+  const context = currentAssetTransferContext();
+  if (assetTransferScopeMatches() && state.available && serviceState?.connected && (state.storage?.status || 'idle') === 'idle'
+    && context !== assetStorageAutoRefreshedScope && window.desktop?.refreshAssetStorage) {
+    assetStorageAutoRefreshedScope = context; runAssetStorageAction('refreshAssetStorage', undefined, { automatic: true });
+  }
 }
 async function refreshAssetTransferState() {
   if (!window.desktop?.getAssetTransferState) return;
@@ -1253,8 +1391,36 @@ document.getElementById('asset-confirm-upload').addEventListener('click', () => 
   if (assetTransferState?.review && assetTransferScopeMatches()) runAssetTransferAction('confirmAssetUpload', assetTransferState.review.id);
 });
 document.getElementById('asset-dismiss-review').addEventListener('click', clearAssetTransferReview);
+document.getElementById('asset-class').addEventListener('change', renderAssetTransferPanel);
+document.getElementById('asset-storage-refresh').addEventListener('click', () => runAssetStorageAction('refreshAssetStorage'));
+for (const value of assetPolicyClasses) document.getElementById(`asset-policy-${value}`).addEventListener('change', () => {
+  if (!assetPolicyDraft || assetPolicyDraft.context !== currentAssetTransferContext()) return;
+  assetPolicyDraft.classes = assetPolicyClasses.filter(item => document.getElementById(`asset-policy-${item}`).checked);
+  assetPolicyDraft.dirty = !sameAssetClasses(assetPolicyDraft.classes, assetPolicyDraft.savedClasses);
+  renderAssetTransferPanel();
+});
+document.getElementById('asset-policy-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (!assetPolicyDraft?.dirty || assetPolicyDraft.requiresRefresh || !assetTransferState?.storage?.canManage
+    || serviceState?.binding?.role !== 'owner') return;
+  runAssetStorageAction('saveAssetStoragePolicy', { expectedVersion: assetPolicyDraft.version, syncClasses: [...assetPolicyDraft.classes].sort() });
+});
+document.getElementById('asset-content-id').addEventListener('input', renderAssetTransferPanel);
+document.getElementById('asset-availability-check').addEventListener('click', () => {
+  const input = document.getElementById('asset-content-id');
+  if (input.reportValidity()) runAssetStorageAction('checkServiceAssetAvailability', input.value.trim().toLowerCase());
+});
+document.getElementById('asset-archive-toggle').addEventListener('click', () => {
+  const availability = currentAssetAvailability();
+  if (!availability?.cloudPresent || !assetTransferState?.storage?.canManage || serviceState?.binding?.role !== 'owner') return;
+  runAssetStorageAction('setServiceAssetArchived', { assetId: availability.assetId,
+    expectedArchived: availability.archived, archived: !availability.archived });
+});
 document.getElementById('asset-download-form').addEventListener('submit', event => {
   event.preventDefault();
+  const availability = currentAssetAvailability();
+  if (currentAssetPolicy()?.syncClasses.length === 0
+    || availability && (availability.state !== 'cloud-present' || availability.excluded || availability.archived || !availability.cloudPresent)) return;
   runAssetTransferAction('downloadServiceAsset', { assetId: document.getElementById('asset-content-id').value.trim().toLowerCase(),
     maxBytesPerSecond: assetTransferLimit() });
 });

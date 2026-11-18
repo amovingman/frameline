@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T08:01:15.741862+00:00",
+  "scope": "Disposable self-hosted media policy, logical usage, availability, and archive integration",
+  "transport": "Actual HTTPS numeric loopback with process-scoped TEST ONLY CA; HTTP renderer preview bridge",
+  "syntheticAssetBytes": 16777247,
+  "browserAccounts": 3,
+  "serviceProjects": 2,
+  "browser": {
+    "defaultPolicyVersion": 0,
+    "defaultClassesEnabled": 0,
+    "defaultUploadChooserDisabled": true,
+    "explicitOwnerSaveEnabledOther": true,
+    "reviewBeforeUpload": true,
+    "reviewUploadEstimateBytes": 16777247,
+    "cancelledUploadReceivedBytes": 6291456,
+    "partialUploadCount": 1,
+    "partialPublishedAssets": 0,
+    "disabledClassHidResume": true,
+    "reenabledClassResumedSameUpload": true,
+    "verifiedPublishedAssets": 1,
+    "publishedLogicalBytes": 16777247,
+    "publishedPartialUploads": 0,
+    "archiveRetainedPublishedBytesAndDisabledDownload": true,
+    "excludedTookPartitionPrecedenceOverArchived": true,
+    "availabilityPreservedBothExclusionAndArchive": true,
+    "restoreDidNotOverrideExcludedClass": true,
+    "reenabledRestoredAssetAvailable": true,
+    "editorPolicyReadOnlyAndUploadEnabled": true,
+    "editorArchiveControlsAbsent": true,
+    "viewerPolicyReadOnlyAndUploadDisabled": true,
+    "viewerArchiveControlsAbsent": true,
+    "unknownContentReportedNotOnThisService": true,
+    "nativeArchiveVisibleToViewer": true,
+    "accountChangesHidUnrelatedJobs": true,
+    "ownerReceiptRecoveredAfterReload": true,
+    "staleOwnerSaveRefusedAfterConcurrentNativeWrite": true,
+    "draftRetainedOnConflict": true,
+    "explicitRefreshShowedLatestSavedClassesAndVersion": true,
+    "signedOutReloadHasNoRefreshErrorAfterFix": true
+  },
+  "native": {
+    "actualElectronPreloadAndIpc": true,
+    "savedDefaultDisabledPolicyThroughIpc": true,
+    "projectSwitchReplacedUsageAndAvailability": true,
+    "sameContentAbsentInSeparateProject": true,
+    "publishedUsageMatchedBrowser": true,
+    "archiveAndRestoreThroughIpc": true,
+    "archiveDisabledDownloadAndUpdatedPartition": true,
+    "concurrentPolicyWriteAdvancedVersion": true,
+    "signedOutStateRenderedWithoutRefreshErrorsAfterFix": true,
+    "normalRestartWithoutTestCaShowedSignedOutSampleAndNoSelection": true,
+    "priorNormalProcessExitedBeforeQaLaunch": true,
+    "qaProcessExitedBeforeNormalRelaunch": true
+  },
+  "visual": {
+    "rounds": 2,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflowPixels": [
+      0,
+      0,
+      0
+    ],
+    "minimumPhoneButtonHeightPixels": 44,
+    "retainedIncumbentGraphitePlexDesign": true,
+    "repair": "Null-safe usage and policy guards; no layout changes",
+    "newSuppressions": 0
+  },
+  "validation": {
+    "fullSuiteTests": 659,
+    "passed": 659,
+    "failed": 0,
+    "skipped": 0,
+    "packagingPassed": true,
+    "networkProof": "asset-storage-policy-network-observation.json",
+    "networkRequests": 77,
+    "networkHostProcesses": 3
+  },
+  "cleanup": {
+    "browserSignedOutAndClosed": true,
+    "viewportReset": true,
+    "nativeSavedServiceEntries": 0,
+    "nativeTransferDirectoryAbsentBeforeAndAfter": true,
+    "disposableServerExitedSuccessfully": true,
+    "disposableFixtureAndPrivateLocatorRemoved": true,
+    "normalAppReopenedWithoutTestCa": true,
+    "systemTrustUnchanged": true
+  },
+  "limits": [
+    "Browser preview used the actual renderer/controllers with a fixture file chooser and encrypted test-vault adapter; native policy checks used actual Electron IPC and OS-vault sign-in.",
+    "This milestone did not repeat the preceding native media transfer/restart proof; native checks here covered metadata policy, usage, availability, archive, and concurrent policy edits.",
+    "Availability concerns one linked service project; no local/collaborator inventory, global absence, asset discovery, or canonical revision binding is inferred.",
+    "Usage is logical index accounting, not physical disk, billing, quota, or a fresh corruption scan.",
+    "Archiving and excluding retain bytes; deletion, retention, garbage collection, production hosting, crash/power-loss recovery, and signed-release credential policy remain open."
+  ]
+}

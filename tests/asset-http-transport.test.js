@@ -35,7 +35,7 @@ async function invoke(handler, method, url, body, token, headers, encrypted) {
   const req = request(method, url, body, token, headers, encrypted), res = new Reply(); await handler(req, res);
   return { status: res.status, headers: res.headers, bytes: res.bytes, json: res.headers['content-type']?.startsWith('application/json') ? JSON.parse(res.bytes) : null };
 }
-async function fixture(t) {
+async function fixture(t, { enable = true, ownerHelper = true } = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-asset-http-')), revoked = new Set();
   const authorize = async (ctx, pid, action) => {
     if (pid !== 'film' || revoked.has(ctx.accessToken) || ctx.accessToken !== owner && !(ctx.accessToken === viewer && action === 'read')) {
@@ -43,10 +43,15 @@ async function fixture(t) {
     }
     return { allowed: true };
   };
+  const authorizePolicy = async ctx => {
+    if (ctx.accessToken !== owner || revoked.has(owner)) throw Object.assign(new Error('private'), { code: 'asset-policy-forbidden' });
+    return { allowed: true, actorId: 'owner-id' };
+  };
   const assets = await createDurableAssetService({ directory, keyring: createKeyring({ fixture: randomBytes(32) }, 'fixture'), authorize,
-    initialize: true, chunkSize: 4 });
+    authorizePolicy, initialize: true, chunkSize: 4 });
+  if (enable) await assets.setPolicy({ accessToken: owner }, 'film', { expectedVersion: 0, syncClasses: ['original'] });
   t.after(async () => { await assets.close(); await fs.rm(directory, { recursive: true, force: true }); });
-  const handler = createAssetHttpHandler({ assets, authorize, signingKey: randomBytes(32) });
+  const handler = createAssetHttpHandler({ assets, authorize, authorizePolicy: ownerHelper ? authorizePolicy : null, signingKey: randomBytes(32) });
   const call = (...args) => invoke(handler, ...args);
   const client = token => createAssetHttpClient({ origin: 'https://fixture.example.test', getAccessToken: () => token,
     fetch: async (url, options) => {
@@ -54,7 +59,7 @@ async function fixture(t) {
         options.body === undefined ? undefined : Buffer.isBuffer(options.body) ? options.body : JSON.parse(options.body), token, options.headers);
       return new Response(result.bytes, { status: result.status, headers: result.headers });
     } });
-  return { handler, call, client, revoked, assets };
+  return { handler, call, client, revoked, assets, authorize, authorizePolicy };
 }
 
 test('asset protocol round trip preserves out-of-order status, complete publication and verified viewer bytes', async t => {
@@ -236,6 +241,7 @@ test('a chunk request disconnected while queued for status never waits for misse
     const waiting = new Promise(resolve => { entered = resolve; }), gate = new Promise(resolve => { release = resolve; });
     const assets = Object.fromEntries(['beginUpload', 'completeUpload', 'getAsset', 'readChunk'].map(name => [name, async () => { throw new Error('unused'); }]));
     assets.uploadStatus = async () => { if (blocked) { entered(); await gate; } return value; };
+    assets.assertUploadAllowed = async () => ({ allowed: true });
     assets.putChunk = async () => { writes++; throw new Error('aborted body must not be written'); };
     const handler = createAssetHttpHandler({ assets, authorize: async () => true, signingKey: randomBytes(32) });
     const issued = await invoke(handler, 'POST', '/projects/film/assets/tickets', { method: 'PUT', uploadId: value.uploadId, index: 0 });
@@ -263,4 +269,57 @@ test('an already-ended empty GET remains valid even after normal stream auto-des
   const consumed = request('POST', '/projects/film/assets/uploads', { identity: identity(bytes) }), rejected = new Reply();
   const consumedEnd = new Promise(resolve => consumed.once('end', resolve)); consumed.resume(); await consumedEnd;
   await handler(consumed, rejected); assert.equal(rejected.status, 400); await handler.close();
+});
+
+test('project policy defaults to none, owner CAS enables classes, and read metadata remains member scoped', async t => {
+  const f = await fixture(t, { enable: false }), api = f.client(owner), read = f.client(viewer), bytes = Buffer.from('abcd');
+  assert.deepEqual(await read.getPolicy('film'), { projectId: 'film', version: 0, syncClasses: [] });
+  assert.equal((await read.getUsage('film')).logicalBytes, 0);
+  await assert.rejects(api.beginUpload('film', identity(bytes)), { code: 'asset-policy-excluded' });
+  await assert.rejects(read.setPolicy('film', { expectedVersion: 0, syncClasses: ['original'] }), { code: 'asset-policy-forbidden' });
+  assert.deepEqual(await api.setPolicy('film', { expectedVersion: 0, syncClasses: ['original'] }), { projectId: 'film', version: 1, syncClasses: ['original'] });
+  await assert.rejects(api.setPolicy('film', { expectedVersion: 0, syncClasses: [] }), { code: 'asset-policy-version-conflict' });
+  for (const method of ['getPolicy', 'getUsage']) await assert.rejects(f.client(outsider)[method]('film'), { code: 'forbidden' });
+  const absent = await read.getAvailability('film', identity(bytes).contentId);
+  assert.deepEqual(absent, { projectId: 'film', assetId: identity(bytes).contentId, cloudPresent: false, excluded: false, archived: false, assetClass: null, size: null });
+});
+
+test('archive and class exclusion block old and new binary tickets while retaining historical metadata and receipts', async t => {
+  const f = await fixture(t), api = f.client(owner), read = f.client(viewer), bytes = Buffer.from('abcd');
+  const upload = await api.beginUpload('film', identity(bytes)); await api.putChunk('film', upload.uploadId, 0, bytes, sha(bytes));
+  await api.completeUpload('film', upload.uploadId);
+  const issued = await f.call('POST', '/projects/film/assets/tickets', { method: 'GET', assetId: upload.assetId, index: 0 }, viewer);
+  await assert.rejects(read.setArchived('film', upload.assetId, { expectedArchived: false, archived: true }), { code: 'asset-policy-forbidden' });
+  const archived = await api.setArchived('film', upload.assetId, { expectedArchived: false, archived: true }); assert.equal(archived.archived, true);
+  await assert.rejects(api.setArchived('film', upload.assetId, { expectedArchived: false, archived: false }), { code: 'asset-archive-conflict' });
+  assert.equal((await read.getAsset('film', upload.assetId)).assetId, upload.assetId);
+  assert.equal((await f.call('GET', issued.json.data.path, undefined, viewer)).json.error.code, 'asset-archived');
+  await assert.rejects(read.readChunk('film', upload.assetId, 0), { code: 'asset-archived' });
+  await api.setArchived('film', upload.assetId, { expectedArchived: true, archived: false });
+  assert.deepEqual((await read.readChunk('film', upload.assetId, 0)).bytes, bytes);
+  await api.setPolicy('film', { expectedVersion: 1, syncClasses: [] });
+  const usage = await read.getUsage('film'); assert.equal(usage.excludedBytes, 4); assert.equal(usage.availableBytes, 0); assert.equal(usage.logicalBytes, 4);
+  assert.equal((await read.getAvailability('film', upload.assetId)).excluded, true);
+  await assert.rejects(read.readChunk('film', upload.assetId, 0), { code: 'asset-policy-excluded' });
+  assert.equal((await api.completeUpload('film', upload.uploadId)).verified, true);
+  const fresh = createAssetHttpHandler({ assets: f.assets, authorize: f.authorize, authorizePolicy: f.authorizePolicy, signingKey: randomBytes(32) });
+  const route = `/projects/film/assets/uploads/${upload.uploadId}/complete`;
+  assert.equal((await invoke(fresh, 'POST', route, {})).status, 202); await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal((await invoke(fresh, 'POST', route, {})).json.data.verified, true); await fresh.close();
+});
+
+test('a policy change blocks a previously issued PUT ticket before reading any chunk bytes', async t => {
+  const f = await fixture(t), api = f.client(owner), bytes = Buffer.from('abcdefgh'), upload = await api.beginUpload('film', identity(bytes));
+  await api.putChunk('film', upload.uploadId, 0, bytes.subarray(0, 4), sha(bytes.subarray(0, 4)));
+  const issued = await f.call('POST', '/projects/film/assets/tickets', { method: 'PUT', uploadId: upload.uploadId, index: 1 });
+  await api.setPolicy('film', { expectedVersion: 1, syncClasses: [] });
+  const req = request('PUT', issued.json.data.path, undefined, owner, { 'content-type': 'application/octet-stream', 'content-length': '4', 'x-chunk-sha256': sha(bytes.subarray(4)) }, true, true), res = new Reply();
+  await f.handler(req, res); req.destroy(); assert.equal(JSON.parse(res.bytes).error.code, 'asset-policy-excluded');
+  assert.deepEqual((await api.uploadStatus('film', upload.uploadId)).received, [true, false]);
+});
+
+test('owner writes fail closed when the HTTP owner helper is absent', async t => {
+  const f = await fixture(t, { enable: false, ownerHelper: false });
+  await assert.rejects(f.client(owner).setPolicy('film', { expectedVersion: 0, syncClasses: ['original'] }), { code: 'asset-policy-forbidden' });
+  assert.equal((await f.assets.getPolicy({ accessToken: owner }, 'film')).version, 0);
 });
