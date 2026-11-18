@@ -27,6 +27,7 @@ const { createSyncQueue } = require('./sync-queue');
 const { createCredentialVault } = require('./credential-vault');
 const { createDesktopServiceConnection } = require('./desktop-service-connection');
 const { createDesktopRevisionSync } = require('./desktop-revision-sync');
+const { createDesktopResolveServiceSync, describeResolveServiceComparison } = require('./desktop-resolve-service-sync');
 const { createDesktopAssetTransfers, safeAssetTransferError } = require('./desktop-asset-transfers');
 const { createDesktopProjectActivity } = require('./desktop-project-activity');
 const { fingerprint } = require('./project-api-contracts');
@@ -64,6 +65,9 @@ let mediaAuditView;
 let syncQueue;
 let serviceConnection;
 let desktopRevisionSync;
+let desktopResolveServiceSync;
+let resolveServicePreview = null;
+let resolveCaptureGeneration = 0;
 let desktopAssetTransfers;
 let desktopProjectActivity;
 let latestServiceState = null;
@@ -135,7 +139,15 @@ function getResolveState(state = resolveReviewSession.getState()) {
     resolveExportError = null;
     resolveExportLocalHash = null;
   }
-  return { ...state, exportComparison: resolveExportComparison, exportError: resolveExportError };
+  return { ...state, exportComparison: resolveExportComparison, exportError: resolveExportError,
+    servicePreview: resolveServicePreview ? structuredClone(resolveServicePreview.summary) : null };
+}
+
+function invalidateResolveServicePreview() {
+  if (!resolveServicePreview) return;
+  resolveServicePreview = null;
+  resolveReviewSession?.clear('service-review-stale');
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('resolve:review-state', getResolveState());
 }
 
 async function readResolveExport(selectedPath) {
@@ -168,8 +180,9 @@ async function readResolveSources(paths) {
   return sources;
 }
 
-function hasResolveSources() { return !!resolveSourcePaths || !!resolveHistoryRevisionIds; }
+function hasResolveSources() { return !!resolveSourcePaths || !!resolveHistoryRevisionIds || !!resolveServicePreview; }
 async function currentResolveSources() {
+  if (resolveServicePreview) return desktopResolveServiceSync.readPreviewSources(resolveServicePreview.binding);
   if (resolveHistoryRevisionIds) {
     if (resolveHistoryRevisionIds.liveLocalSha256) return readResolveLiveHistoryPreviewSources(
       localMetadataStore, resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids,
@@ -286,7 +299,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   serviceConnection = createDesktopServiceConnection({ directory: path.join(app.getPath('userData'), 'service'),
     vault: createCredentialVault({ directory: path.join(app.getPath('userData'), 'service-secrets'), safeStorage }),
-    onChange: () => { desktopRevisionSync?.connectionChanged(); Promise.resolve(desktopAssetTransfers?.connectionChanged()).catch(() => {});
+    onChange: () => { desktopRevisionSync?.connectionChanged(); desktopResolveServiceSync?.connectionChanged(); Promise.resolve(desktopAssetTransfers?.connectionChanged()).catch(() => {});
       Promise.resolve(desktopProjectActivity?.connectionChanged()).catch(() => {}); } });
   desktopRevisionSync = createDesktopRevisionSync({ directory: path.join(app.getPath('userData'), 'service-sync'),
     connection: serviceConnection, store: localMetadataStore,
@@ -294,6 +307,16 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       const state = projectSession.getState();
       return state.selectedProject?.id ? { localProjectId: state.selectedProject.id, branch: state.currentBranch } : null;
     }, getLocalComparisonSource: options => projectSession.readComparisonSource(options), onChange: publishServiceState });
+  desktopResolveServiceSync = createDesktopResolveServiceSync({ directory: path.join(app.getPath('userData'), 'resolve-service-sync'),
+    connection: serviceConnection, store: localMetadataStore,
+    getCapture: () => companionVerifiedSnapshot ? {
+      manifest: companionVerifiedSnapshot.observation ? createResolveObservationManifest(companionVerifiedSnapshot.observation)
+        : createResolveRevisionManifest(companionVerifiedSnapshot.snapshot),
+      verification: { mode: 'verified-capture', generation: companionVerifiedSnapshot.generation,
+        requestId: companionVerifiedSnapshot.requestId, requestSha256: companionVerifiedSnapshot.requestSha256,
+        acceptedAt: companionVerifiedSnapshot.acceptedAt } } : null,
+    onInvalidate: invalidateResolveServicePreview,
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('resolve-service:state', state); } });
   desktopAssetTransfers = createDesktopAssetTransfers({ directory: path.join(app.getPath('userData'), 'asset-transfers'),
     connection: serviceConnection, getSelection: assetTransferSelection, onChange: publishAssetTransferState });
   desktopProjectActivity = createDesktopProjectActivity({ connection: serviceConnection,
@@ -333,7 +356,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   const trialDirectory = path.join(app.getPath('userData'), 'resolve-rename-trials');
   resolveTrialSession = createResolveTrialSession({ enabled: !app.isPackaged && process.env.FRAMELINE_RENAME_DRILL === '1',
     directory: trialDirectory, store: localMetadataStore, clipboard,
-    getReview: async () => resolveReviewSession.getVerifiedReview(await currentResolveSources()) });
+    getReview: async () => {
+      if (resolveServicePreview || resolveReviewSession.getState().sourceMode === 'service-history') {
+        throw Object.assign(new Error('Service reviews are read only.'), { code: 'service-review-read-only' });
+      }
+      return resolveReviewSession.getVerifiedReview(await currentResolveSources());
+    } });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('onboarding:get', () => firstRun.read());
@@ -365,6 +393,29 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('service:push', () => serviceAction(() => desktopRevisionSync.push()));
   ipcMain.handle('service:fetch', () => serviceAction(() => desktopRevisionSync.fetch()));
   ipcMain.handle('service:compare', () => serviceAction(() => desktopRevisionSync.compare()));
+  const resolveServiceAction = async action => {
+    try { return await action(); }
+    catch (error) { return { ...await desktopResolveServiceSync.getState(), error: error.code === 'service-selection-changed'
+      ? 'service-selection-changed' : 'service-sync-failed' }; }
+  };
+  ipcMain.handle('resolve-service:state', () => desktopResolveServiceSync.getState());
+  ipcMain.handle('resolve-service:select', (_event, projectId) => resolveServiceAction(() => desktopResolveServiceSync.select(projectId)));
+  for (const method of ['bind', 'unlink', 'check', 'push', 'fetch', 'retry', 'cancel']) {
+    ipcMain.handle(`resolve-service:${method}`, (_event, input) => resolveServiceAction(() => desktopResolveServiceSync[method](input)));
+  }
+  ipcMain.handle('resolve-service:preview', (_event, input) => runResolveAction(async () => {
+    const result = await desktopResolveServiceSync.preview(input);
+    const preview = await desktopResolveServiceSync.getPreview();
+    if (!preview) return { ...resolveReviewSession.getState(), error: { code: result.comparison?.error || result.error || 'service-resolve-preview-stale',
+      message: 'The service preview could not be verified. Check the linked history, fetch incoming revisions, and choose a valid local source.' } };
+    const state = resolveReviewSession.load(preview.sources, { sourceMode: 'service-history' });
+    if (state.status === 'ready') {
+      resolveServicePreview = { binding: structuredClone(preview.binding), summary: describeResolveServiceComparison(preview) };
+      resolveSourcePaths = resolveHistoryRevisionIds = null;
+      resolveExportComparison = resolveExportError = resolveExportPath = resolveExportTimelineId = resolveExportLocalHash = null;
+    }
+    return state;
+  }));
   ipcMain.handle('project-activity:state', () => desktopProjectActivity.getState());
   ipcMain.handle('project-activity:refresh', (_event, input) => desktopProjectActivity.refresh(input));
   ipcMain.handle('project-activity:older', () => desktopProjectActivity.loadOlder());
@@ -447,6 +498,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
     companionPending = null;
     companionVerifiedSnapshot = null;
+    resolveCaptureGeneration++; desktopResolveServiceSync.captureChanged();
     try {
       const installed = await installResolveCompanion({
         bundledDirectory: path.join(__dirname, 'companion'),
@@ -481,13 +533,16 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       const result = await readCaptureResponse({ ...companionPending,
         responseText: transfer.responseText, includeSnapshot: true });
       companionVerifiedSnapshot = { snapshot: result.snapshot, snapshotSha256: result.snapshotSha256,
-        observation: result.observation };
+        observation: result.observation, requestId: companionPending.requestId, requestSha256: companionPending.requestSha256,
+        acceptedAt: Date.now(), generation: ++resolveCaptureGeneration };
+      desktopResolveServiceSync.captureChanged();
       return { ready: true, requestId: result.requestId, projectId: result.manifest.projectId,
         timelineCount: result.manifest.timelines.length,
         itemCount: result.manifest.timelines.reduce((sum, timeline) => sum + timeline.items.length, 0),
         snapshotSha256: result.snapshotSha256, coverage: result.coverage, readOnly: true, safeToApply: false };
     } catch (error) {
       companionVerifiedSnapshot = null;
+      resolveCaptureGeneration++; desktopResolveServiceSync.captureChanged();
       logger.warn('resolve.companion-read-failed', { code: error.code || 'resolve-companion-error' });
       return { ready: false, error: 'No valid capture is ready. Copy the output from Resolve’s Lua Console, then retry within five minutes.' };
     }
@@ -545,6 +600,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         return { saved: false, unchanged: true, branch, message: 'No observed fields changed from the branch head.' };
       }
       const revision = await localMetadataStore.saveRevision(project.id, manifest, message.trim(), revisions[0]?.id || null, branch);
+      desktopResolveServiceSync.selectionChanged();
       return { saved: true, revisionId: revision.id, branch,
         contentHash: revision.contentHash, changeCount: comparison?.changes.length ?? null,
         readOnly: true, safeToApply: false };
@@ -646,9 +702,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle('resolve-history:create-branch', async (_event, projectId, name) => {
     try {
+      const serviceSelected = (await desktopResolveServiceSync.getState()).local?.projectId === projectId;
+      if (serviceSelected) desktopResolveServiceSync.selectionChanged();
       const graph = await localMetadataStore.getResolveRevisionGraph(projectId);
       const state = await localMetadataStore.createBranch(projectId, name,
         graph.branches[graph.currentBranch]);
+      if (serviceSelected) await desktopResolveServiceSync.select(projectId);
       return { ready: true, currentBranch: state.currentBranch, branches: state.branches };
     } catch (error) {
       logger.warn('resolve.history-create-branch-failed', { code: error.code || 'resolve-history-error' });
@@ -657,8 +716,11 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle('resolve-history:switch-branch', async (_event, projectId, name) => {
     try {
+      const serviceSelected = (await desktopResolveServiceSync.getState()).local?.projectId === projectId;
+      if (serviceSelected) desktopResolveServiceSync.selectionChanged();
       await localMetadataStore.getResolveRevisionGraph(projectId);
       const state = await localMetadataStore.switchBranch(projectId, name);
+      if (serviceSelected) await desktopResolveServiceSync.select(projectId);
       return { ready: true, currentBranch: state.currentBranch, branches: state.branches };
     } catch (error) {
       logger.warn('resolve.history-switch-branch-failed', { code: error.code || 'resolve-history-error' });
@@ -680,6 +742,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
     catch { return { ...resolveReviewSession.getState(), error: { code: 'resolve-history-preview-invalid',
       message: 'Choose verified sources from one Resolve project. The base must precede the incoming revision and the current branch head.' } }; }
+    resolveServicePreview = null;
     const state = resolveReviewSession.load(sources);
     if (state.status === 'ready') {
       resolveHistoryRevisionIds = { projectId, ids: liveLocalSha256
@@ -701,8 +764,9 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       paths[role] = result.filePaths[0];
     }
     const sources = await readResolveSources(paths);
+    resolveServicePreview = null;
     const state = resolveReviewSession.load(sources);
-    if (state.status === 'ready') { resolveSourcePaths = paths; resolveHistoryRevisionIds = null; }
+    if (state.status === 'ready') { resolveSourcePaths = paths; resolveHistoryRevisionIds = resolveServicePreview = null; }
     return state;
   }));
   ipcMain.handle('resolve:refresh-preview', () => runResolveAction(async () => {
@@ -733,8 +797,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     if (!hasResolveSources()) return resolveReviewSession.getState();
     return resolveReviewSession.recoverReview(artifactId, await currentResolveSources());
   }));
-  ipcMain.handle('resolve:set-decision', (_event, conflictId, choice) => runResolveAction(
-    () => resolveReviewSession.setDecision(conflictId, choice)));
+  ipcMain.handle('resolve:set-decision', (_event, conflictId, choice) => runResolveAction(async () => {
+    if (resolveServicePreview) await currentResolveSources();
+    return resolveReviewSession.setDecision(conflictId, choice);
+  }));
   ipcMain.handle('resolve:choose-export', (_event, requestedTimelineId) => runResolveAction(async () => {
     if (!hasResolveSources()) {
       resolveExportError = { code: 'resolve-export-unavailable', message: 'Choose the three Resolve snapshots before matching an export.' };
@@ -1031,6 +1097,6 @@ app.on('before-quit', event => {
   if (mediaShutdown) return;
   mediaShutdown = true;
   const finish = () => { mediaShutdownReady = true; app.quit(); };
-  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopRevisionSync?.dispose()])
+  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
     .then(() => serviceConnection?.dispose()).then(finish, finish);
 });

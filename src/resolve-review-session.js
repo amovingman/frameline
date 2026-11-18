@@ -10,6 +10,7 @@ const { createResolveConflictReview, createResolveDecisionAudit } = require('./r
 function createResolveReviewSession({ artifactDirectory }) {
   let plan = null, review = null, sources = null, decisions = [], audit = null, artifactId = null;
   let status = 'empty', error = null, reviewArtifactId = null, sourceVerification = null;
+  let sourceMode = 'local';
   const clone = value => value === null ? null : JSON.parse(JSON.stringify(value));
   function publicValue(value) {
     if (!value) return null;
@@ -18,7 +19,7 @@ function createResolveReviewSession({ artifactDirectory }) {
     return result;
   }
   function getState() {
-    return { status, plan: publicValue(plan), review: publicValue(review), decisions: clone(decisions),
+    return { status, sourceMode, plan: publicValue(plan), review: publicValue(review), decisions: clone(decisions),
       audit: publicValue(audit), artifactId, reviewArtifactId, sourceHashes: plan ? clone(plan.binding.hashes) : null,
       sourceVerification: clone(sourceVerification), error: clone(error) };
   }
@@ -45,13 +46,19 @@ function createResolveReviewSession({ artifactDirectory }) {
     status = 'ready'; error = null;
     return getState();
   }
-  function load(input) {
-    try { return install(createResolvePreviewPlan(input), input, false); }
+  function load(input, options = {}) {
+    try {
+      if (!options || typeof options !== 'object' || Array.isArray(options)
+        || Object.keys(options).some(key => key !== 'sourceMode')
+        || !['local', 'service-history'].includes(options.sourceMode ?? 'local')) throw new Error();
+      sourceMode = options.sourceMode ?? 'local';
+      return install(createResolvePreviewPlan(input), input, false);
+    }
     catch { return failure('invalid-resolve-preview', 'Unable to load Resolve review sources.', true); }
   }
   function refresh(input) {
     try {
-      if (!plan) return load(input);
+      if (!plan) return load(input, { sourceMode });
       const result = refreshResolvePreviewPlan(plan, input);
       install(result.plan, input, !result.refreshed);
       sourceVerification = { changed: result.refreshed, staleRoles: result.verification.staleRoles };
@@ -103,9 +110,19 @@ function createResolveReviewSession({ artifactDirectory }) {
     } catch { return failure('invalid-resolve-review-decisions', 'Unable to record Resolve review decision.'); }
   }
   function getVerifiedReview(input) {
+    if (sourceMode === 'service-history') throw new Error('service-review-read-only');
     if (!audit || !verifyResolvePreviewPlan(plan, input).valid) throw new Error('complete-current-review-required');
     return { sources: copySources(input), plan: clone(plan), audit: clone(audit) };
   }
-  return { load, refresh, save, recover, saveReview, recoverReview, setDecision, getState, getVerifiedReview };
+  function clear(reason = null) {
+    plan = review = sources = audit = artifactId = reviewArtifactId = sourceVerification = null; decisions = [];
+    sourceMode = 'local'; status = reason === null ? 'empty' : 'error';
+    const codes = ['service-selection-changed', 'service-sign-in-required', 'service-project-unavailable',
+      'service-review-stale', 'service-review-read-only', 'resolve-source-changed'];
+    error = reason === null ? null : { code: codes.includes(reason) ? reason : 'resolve-review-cleared',
+      message: 'Review sources changed. Load current sources again.' };
+    return getState();
+  }
+  return { load, refresh, save, recover, saveReview, recoverReview, setDecision, getState, getVerifiedReview, clear };
 }
 module.exports = { createResolveReviewSession };

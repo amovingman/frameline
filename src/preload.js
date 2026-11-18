@@ -21,6 +21,28 @@ contextBridge.exposeInMainWorld('desktop', {
   pushServiceRevisions: () => ipcRenderer.invoke('service:push'),
   fetchServiceRevisions: () => ipcRenderer.invoke('service:fetch'),
   compareServiceRevisions: () => ipcRenderer.invoke('service:compare'),
+  getResolveServiceState: () => ipcRenderer.invoke('resolve-service:state'),
+  selectResolveServiceProject: projectId => ipcRenderer.invoke('resolve-service:select', projectId),
+  bindResolveServiceProject: input => ipcRenderer.invoke('resolve-service:bind', input),
+  unlinkResolveServiceProject: () => ipcRenderer.invoke('resolve-service:unlink'),
+  checkResolveServiceSync: () => ipcRenderer.invoke('resolve-service:check'),
+  pushResolveServiceRevisions: () => ipcRenderer.invoke('resolve-service:push'),
+  fetchResolveServiceRevisions: () => ipcRenderer.invoke('resolve-service:fetch'),
+  retryResolveServiceSync: id => ipcRenderer.invoke('resolve-service:retry', id),
+  cancelResolveServiceSync: id => ipcRenderer.invoke('resolve-service:cancel', id),
+  previewResolveServiceHistory: input => ipcRenderer.invoke('resolve-service:preview', input),
+  onResolveServiceState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('resolve-service:state', handle);
+    return () => ipcRenderer.removeListener('resolve-service:state', handle);
+  },
+  onResolveReviewState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('resolve:review-state', handle);
+    return () => ipcRenderer.removeListener('resolve:review-state', handle);
+  },
   getProjectActivityState: () => ipcRenderer.invoke('project-activity:state'),
   refreshProjectActivity: input => ipcRenderer.invoke('project-activity:refresh', input),
   loadOlderProjectActivity: () => ipcRenderer.invoke('project-activity:older'),

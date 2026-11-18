@@ -43,6 +43,22 @@ let projectActivityView = 'inbox';
 let projectActivityAction = null;
 let projectActivityNotice = '';
 const projectActivityRows = new Map();
+let resolveServiceState = null;
+let resolveServiceVersion = -1;
+let resolveServiceSelection = null;
+let resolveServiceSelectionRequest = 0;
+let resolveServiceAction = null;
+let resolveServiceNotice = '';
+let resolveServiceAccountKey = '';
+let resolveServiceContextKey = '';
+let resolveServiceProjectChoice = '';
+let resolveServiceBranchChoice = '';
+let resolveServiceProjectOptionsKey = '';
+let resolveServiceBranchOptionsKey = '';
+let resolveServicePreviewSource = 'saved-head';
+let resolveServiceVisibleJobs = 20;
+const resolveServiceJobRows = new Map();
+const resolveServiceQueueActions = new Set();
 const syncOperationRows = new Map();
 let assetTransferState = null;
 let assetTransferStateVersion = -1;
@@ -574,6 +590,7 @@ function renderServiceState(state) {
     || state.status === 'sign-in-required' && serviceState?.status !== 'sign-in-required') document.getElementById('service-password').value = '';
   serviceStateVersion = state.version; serviceState = state; renderServicePanel();
   syncAssetTransferContext(); renderAssetTransferPanel();
+  syncResolveServiceAccount();
 }
 async function refreshServiceState() {
   if (!window.desktop?.getServiceState) return;
@@ -1806,6 +1823,8 @@ let resolveState = null;
 let resolveSelected = null;
 let resolveBusy = false;
 let resolveActionNotice = '';
+let resolveReviewEventGeneration = 0;
+let resolveReviewEventState = null;
 let resolveCoveragePage = 0;
 let resolveCoverageKey = '';
 const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
@@ -1840,6 +1859,7 @@ function resolveChoice(conflict) {
 }
 function renderResolveState(state) {
   resolveState = state;
+  renderResolveServiceProvenance(); renderResolveServicePanel();
   const coverageKey = JSON.stringify(state?.sourceHashes || null);
   if (coverageKey !== resolveCoverageKey) { resolveCoveragePage = 0; resolveCoverageKey = coverageKey; }
   renderResolveTrial();
@@ -1847,6 +1867,7 @@ function renderResolveState(state) {
   const ready = state?.status === 'ready' && !!state.plan;
   const locked = resolveBusy || activeResolveTrial();
   document.getElementById('resolve-refresh').disabled = locked || !ready;
+  setServiceText(document.getElementById('resolve-refresh'), state?.sourceMode === 'service-history' ? 'Reverify sources' : 'Refresh sources');
   document.getElementById('resolve-save').disabled = locked || !ready;
   document.getElementById('resolve-choose').disabled = locked;
   document.getElementById('resolve-recover').disabled = locked;
@@ -2027,6 +2048,7 @@ function nextResolveConflict() {
 
 async function resolveAction(method, ...args) {
   if (resolveBusy) return;
+  const reviewEventGeneration = resolveReviewEventGeneration;
   resolveBusy = true;
   resolveActionNotice = '';
   renderResolveState(resolveState);
@@ -2035,6 +2057,9 @@ async function resolveAction(method, ...args) {
     if (!window.desktop?.[method]) throw new Error('Resolve preview is available in the desktop app.');
     const state = await window.desktop[method](...args);
     if (state) resolveState = state;
+    if (state?.error?.code && (method === 'previewResolveServiceHistory' || state.error.code.startsWith('service-resolve-'))) {
+      resolveState = { ...state, error: { ...state.error, message: resolveServiceErrorLabel(state.error.code) } };
+    }
     if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = state?.sourceVerification?.changed ? `Changed sources: ${(state.sourceVerification.staleRoles || []).join(', ')}. Previous choices cleared; review the refreshed comparison.` : 'Capture source bytes verified unchanged. Current review choices retained.';
     if (method === 'saveResolvePreview' && !state?.error) resolveActionNotice = 'Preview saved. Session decisions are not restored by recovery.';
     if (method === 'saveResolveReview' && !state?.error) resolveActionNotice = 'Review saved with current choices. An audit is included only when every conflict is decided. No changes applied.';
@@ -2042,7 +2067,16 @@ async function resolveAction(method, ...args) {
     if (method === 'recoverResolvePreview' && !state?.error) resolveActionNotice = 'Saved preview recovered. Review conflict decisions again.';
   } catch (error) {
     resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the sources again to retry.' } };
-  } finally { resolveBusy = false; renderResolveState(resolveState); }
+  } finally {
+    if (reviewEventGeneration !== resolveReviewEventGeneration) {
+      try { resolveState = await window.desktop.getResolveReviewState(); }
+      catch { resolveState = resolveReviewEventState; }
+    }
+    if (resolveState?.error?.code && (method === 'previewResolveServiceHistory' || resolveState.error.code.startsWith('service-resolve-'))) {
+      resolveState = { ...resolveState, error: { ...resolveState.error, message: resolveServiceErrorLabel(resolveState.error.code) } };
+    }
+    resolveBusy = false; renderResolveState(resolveState); refreshResolveServiceState();
+  }
 }
 document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
 let companionBusy = false;
@@ -2169,6 +2203,235 @@ document.getElementById('resolve-history-export').addEventListener('click', () =
 document.getElementById('resolve-history-import').addEventListener('click', () => resolveTransferAction('import'));
 document.getElementById('resolve-history-transfer-confirm').addEventListener('click', () => resolveTransferAction('confirm'));
 document.getElementById('resolve-history-transfer-cancel').addEventListener('click', () => resolveTransferAction('cancel'));
+function resolveServiceExpectedContext() {
+  const account = serviceState?.account;
+  return JSON.stringify([serviceState?.origin || null, account?.id || null,
+    resolveServiceSelection?.projectId || null, resolveServiceSelection?.branch || null,
+    resolveServiceState?.binding?.remoteProjectId || null, resolveServiceState?.binding?.remoteBranch || null]);
+}
+function resolveServiceScopeMatches(state = resolveServiceState) {
+  return !!resolveServiceSelection && !!state?.local && !!state.account && !!serviceState?.account
+    && ['connected', 'offline'].includes(state.status) && ['connected', 'offline'].includes(serviceState.status)
+    && state.origin === serviceState.origin && state.account.id === serviceState.account.id
+    && state.local.projectId === resolveServiceSelection.projectId && state.local.branch === resolveServiceSelection.branch;
+}
+function clearResolveServicePreviewDisplay() {
+  if (resolveState?.sourceMode === 'service-history') { resolveSelected = null; renderResolveState(null); }
+}
+function resetResolveServiceChoices() {
+  resolveServiceProjectChoice = ''; resolveServiceBranchChoice = ''; resolveServicePreviewSource = 'saved-head';
+  resolveServiceVisibleJobs = 20;
+  resolveServiceContextKey = ''; resolveServiceNotice = '';
+}
+function syncResolveServiceAccount() {
+  let reselect = null;
+  const key = JSON.stringify([serviceState?.origin || null,
+    ['connected', 'offline'].includes(serviceState?.status) ? serviceState?.account?.id || null : null]);
+  if (key !== resolveServiceAccountKey) {
+    resolveServiceAccountKey = key; resolveServiceState = null; resolveServiceAction = null;
+    reselect = resolveServiceSelection;
+    resetResolveServiceChoices(); clearResolveServicePreviewDisplay();
+  }
+  renderResolveServicePanel();
+  if (reselect) void setResolveServiceSelection(reselect.projectId, reselect.branch, true);
+  else refreshResolveServiceState();
+}
+async function setResolveServiceSelection(projectId, branch, force = false) {
+  const selected = projectId && branch ? { projectId, branch } : null;
+  if (!force && JSON.stringify(selected) === JSON.stringify(resolveServiceSelection)) { await refreshResolveServiceState(); return; }
+  const request = ++resolveServiceSelectionRequest;
+  resolveServiceSelection = selected; resolveServiceState = null; resolveServiceAction = null;
+  resetResolveServiceChoices(); clearResolveServicePreviewDisplay(); renderResolveServicePanel();
+  if (!window.desktop?.selectResolveServiceProject) return;
+  const context = resolveServiceExpectedContext();
+  try {
+    const state = await window.desktop.selectResolveServiceProject(selected?.projectId || null);
+    if (request === resolveServiceSelectionRequest) renderResolveServiceState(state, context);
+  } catch {
+    if (request === resolveServiceSelectionRequest) { resolveServiceNotice = 'Could not select service history for this Resolve project. Refresh local history to retry.'; renderResolveServicePanel(); }
+  }
+}
+function resolveServiceErrorLabel(code) {
+  return ({ 'service-resolve-project-required': 'Choose a saved Resolve project and branch first.',
+    'service-resolve-capture-required': 'Verify a Resolve capture before using it as the local preview source.',
+    'service-resolve-preview-stale': 'The preview sources changed. Check and fetch history, then rebuild the service preview.',
+    'service-resolve-comparison-invalid': 'The service preview sources could not be verified. Check history and fetch the incoming observations again.',
+    'service-resolve-comparison-verification-invalid': 'The capture verification could not be confirmed. Verify a fresh capture before previewing again.',
+    'service-resolve-comparison-capture-expired': 'The accepted capture is older than five minutes. Verify a fresh capture, then rebuild the preview.',
+    'service-resolve-comparison-unsupported': 'These observations cannot be previewed together. Matching Resolve API project IDs and supported saved observations are required.',
+    'service-resolve-comparison-too-large': 'These observations exceed the local preview limits. Use a smaller supported capture.',
+    'service-comparison-invalid': 'The service preview could not be verified. Check and fetch history before previewing again.',
+    'service-comparison-base-invalid': 'The saved comparison base could not be verified. Check history before previewing again.',
+    'service-comparison-incoming-invalid': 'The incoming observations could not be verified. Fetch service history again.',
+    'service-comparison-unsupported': 'The linked histories cannot be previewed safely. Matching Resolve API project IDs and verified ancestry are required.',
+    'service-comparison-too-large': 'These histories exceed the local preview limits. Use smaller supported captures.',
+    'comparison-source-required': 'Save a Resolve observation or verify a capture before previewing.',
+    'comparison-fetch-required': 'Fetch service history before previewing incoming observations.',
+    'comparison-base-invalid': 'Check history to record a verified shared base before previewing.',
+    'service-viewer-read-only': 'Viewer access allows fetching and read-only preview. Pushing requires editor or owner access.' })[code] || serviceErrorLabel(code);
+}
+function renderResolveServiceState(state, expectedContext = resolveServiceExpectedContext()) {
+  if (!state || expectedContext !== resolveServiceExpectedContext() || !Number.isSafeInteger(state.version) || state.version < resolveServiceVersion) return;
+  if (state.local && !resolveServiceScopeMatches(state)) return;
+  resolveServiceVersion = state.version; resolveServiceState = state;
+  if (state.comparison?.status !== 'ready') clearResolveServicePreviewDisplay();
+  renderResolveServicePanel();
+}
+async function refreshResolveServiceState() {
+  if (!window.desktop?.getResolveServiceState) return;
+  const context = resolveServiceExpectedContext();
+  try { renderResolveServiceState(await window.desktop.getResolveServiceState(), context); }
+  catch { if (context === resolveServiceExpectedContext()) { resolveServiceNotice = 'Could not read Resolve service history. Refresh local history to retry.'; renderResolveServicePanel(); } }
+}
+function renderResolveServicePanel() {
+  const state = resolveServiceState, matches = resolveServiceScopeMatches();
+  const local = matches ? state.local : null, binding = matches ? state.binding : null;
+  const accountMatches = !!state?.account && state.account.id === serviceState?.account?.id && state.origin === serviceState?.origin
+    && ['connected', 'offline'].includes(state.status) && ['connected', 'offline'].includes(serviceState?.status);
+  const connected = accountMatches && state.status === 'connected', contact = accountMatches && ['connected', 'offline'].includes(state.status);
+  const pending = resolveServiceAction?.context === resolveServiceExpectedContext() ? resolveServiceAction : null;
+  const busy = !!pending || !!state?.busy || resolveBusy || companionBusy || !!resolveHistoryBranchBusy;
+  const contextKey = JSON.stringify([resolveServiceExpectedContext(), binding?.remoteProjectId || null, binding?.remoteBranch || null]);
+  if (contextKey !== resolveServiceContextKey) {
+    resolveServiceContextKey = contextKey; resolveServiceProjectChoice = binding?.remoteProjectId || '';
+    resolveServiceBranchChoice = binding?.remoteBranch || ''; resolveServicePreviewSource = 'saved-head';
+  }
+  setServiceText(document.getElementById('resolve-service-local'), local
+    ? `${local.name} · ${local.branch} · ${local.revisionCount} saved observation${local.revisionCount === 1 ? '' : 's'}`
+    : 'Select a saved Resolve project and branch first.');
+  const projects = accountMatches ? state.projects || [] : [], projectSelect = document.getElementById('resolve-service-project');
+  const optionsKey = JSON.stringify(projects.map(project => [project.id, project.name, project.role, project.branches]));
+  if (optionsKey !== resolveServiceProjectOptionsKey) {
+    resolveServiceProjectOptionsKey = optionsKey;
+    projectSelect.replaceChildren(new Option(projects.length ? 'Choose a service project' : 'No accessible service projects', ''));
+    for (const project of projects) projectSelect.add(new Option(`${project.name} · ${project.role}`, project.id));
+  }
+  if (!projects.some(project => project.id === resolveServiceProjectChoice)) resolveServiceProjectChoice = '';
+  if (projectSelect.value !== resolveServiceProjectChoice) projectSelect.value = resolveServiceProjectChoice;
+  const project = projects.find(value => value.id === resolveServiceProjectChoice), branchSelect = document.getElementById('resolve-service-branch');
+  const branchKey = JSON.stringify([project?.id, project?.branches]);
+  if (branchKey !== resolveServiceBranchOptionsKey) {
+    resolveServiceBranchOptionsKey = branchKey; branchSelect.replaceChildren(new Option('Choose a service branch', ''));
+    for (const branch of project?.branches || []) branchSelect.add(new Option(branch, branch));
+  }
+  if (!project?.branches.includes(resolveServiceBranchChoice)) resolveServiceBranchChoice = '';
+  if (branchSelect.value !== resolveServiceBranchChoice) branchSelect.value = resolveServiceBranchChoice;
+  projectSelect.disabled = busy || !contact || !local; branchSelect.disabled = busy || !contact || !local || !project;
+  document.getElementById('resolve-service-bind').disabled = busy || !connected || !local || !project || !resolveServiceBranchChoice;
+  document.getElementById('resolve-service-unlink').disabled = busy || !binding;
+  document.getElementById('resolve-service-check').disabled = busy || !contact || !binding;
+  document.getElementById('resolve-service-fetch').disabled = busy || !connected || !binding;
+  document.getElementById('resolve-service-push').disabled = busy || !connected || !binding || !['owner', 'editor'].includes(binding?.role)
+    || !local?.revisionCount || state?.sync?.status !== 'local-ahead';
+  const error = resolveServiceNotice || (state?.error || state?.comparison?.error ? resolveServiceErrorLabel(state.error || state.comparison.error) : '');
+  const syncLabels = { checking: 'Check the linked branch heads before pushing.', 'in-sync': 'Branch heads matched at last check.',
+    'local-ahead': 'The local Resolve branch has observations ready to push.', 'remote-ahead': 'The service branch has newer observations. Fetch history to inspect them.',
+    diverged: 'Both branches changed. Fetch history before reviewing their observations.', offline: 'The service is unavailable. Last recorded history is shown.' };
+  setServiceText(document.getElementById('resolve-service-status'), error || (!window.desktop?.getResolveServiceState
+    ? 'Resolve service history is unavailable in this build.' : !accountMatches ? 'Sign in through Service history in the History view.'
+      : busy ? 'Checking Resolve service history…' : !local ? 'Choose a saved Resolve project and branch.'
+        : !binding ? 'Link this local Resolve branch to an existing service project and branch.'
+          : `Linked to ${binding.remoteProjectName} · ${binding.remoteBranch} · ${binding.role} access. ${syncLabels[state.sync?.status] || 'Check history to verify the linked branch.'}`));
+  const base = binding ? state.base : null, recorded = base && ['recorded', 'unconfirmed'].includes(base.status) && base.localRevisionId && base.remoteRevisionId;
+  setServiceText(document.getElementById('resolve-service-base'), recorded
+    ? `Last shared base: local ${base.localRevisionId} · service ${base.remoteRevisionId} · recorded ${serviceDate(base.verifiedAt)}.${base.status === 'unconfirmed' ? ' Latest shared-base save is unconfirmed; this is the prior record.' : ''}`
+    : base?.status === 'invalid' ? 'The recorded sharing evidence could not be verified. Check history before previewing.'
+      : base?.status === 'unconfirmed' ? 'The shared-base save is unconfirmed. Check history to retry.' : 'No shared base recorded for this linked account and branch.');
+  const fetched = binding ? state.fetched : null;
+  setServiceText(document.getElementById('resolve-service-fetched'), fetched
+    ? `${fetched.revisionCount} fetched revision${fetched.revisionCount === 1 ? '' : 's'} · fetched ${serviceDate(fetched.checkedAt)} · head ${fetched.head || 'empty branch'}. This is a captured service snapshot.`
+    : 'No incoming service history fetched for this linked branch.');
+  const operations = matches ? state.operations || [] : [];
+  setServiceText(document.getElementById('resolve-service-queue'), operations.length ? `${operations.length} pending metadata push${operations.length === 1 ? '' : 'es'} · showing ${Math.min(operations.length, resolveServiceVisibleJobs)}.` : '');
+  renderResolveServiceJobs(operations, busy, contact);
+  const source = document.getElementById('resolve-service-source');
+  source.querySelector('option[value="verified-capture"]').disabled = !verifiedResolveCaptureAvailable;
+  if (resolveServicePreviewSource === 'verified-capture' && !verifiedResolveCaptureAvailable) resolveServicePreviewSource = 'saved-head';
+  source.value = resolveServicePreviewSource; source.disabled = busy || !binding;
+  const canPreview = !!binding && contact && base?.status === 'recorded' && !!fetched?.head
+    && (resolveServicePreviewSource === 'verified-capture' ? verifiedResolveCaptureAvailable : !!local?.revisionCount);
+  const preview = document.getElementById('resolve-service-preview');
+  preview.disabled = busy || !canPreview || typeof window.desktop?.previewResolveServiceHistory !== 'function';
+  setServiceText(preview, state?.comparison?.result ? 'Rebuild service preview' : 'Preview service history');
+  const summary = matches && state.comparison?.status === 'ready' ? state.comparison.result : null;
+  setServiceText(document.getElementById('resolve-service-preview-status'), summary?.id
+    ? `${summary.decisionCount} classified field${summary.decisionCount === 1 ? '' : 's'} · ${summary.conflictCount} conflict${summary.conflictCount === 1 ? '' : 's'} · incoming ${summary.incomingRevisionId}. Review the observed values below; choices do not apply changes.`
+    : !binding ? 'Link a service project to preview incoming Resolve observations.'
+      : base?.status !== 'recorded' ? 'Check history to record a verified shared base before previewing.'
+        : !fetched?.head ? 'Fetch history to capture incoming observations before previewing.'
+          : 'Preview the saved branch head or latest verified capture against the recorded base and fetched incoming observations.');
+}
+function renderResolveServiceJobs(operations, busy, contact) {
+  const list = document.getElementById('resolve-service-jobs'), visible = operations.slice(0, resolveServiceVisibleJobs);
+  const ids = new Set(visible.map(job => job.id));
+  for (const [id, view] of resolveServiceJobRows) if (!ids.has(id)) { view.row.remove(); resolveServiceJobRows.delete(id); }
+  visible.forEach((job, index) => {
+    let view = resolveServiceJobRows.get(job.id);
+    if (!view) {
+      const row = make('div', 'resolve-service-job'), detail = make('div'), title = make('strong'), status = make('p');
+      const actions = make('div', 'resolve-service-job-actions'), retry = make('button', '', 'Retry'), cancel = make('button', '', 'Cancel');
+      retry.type = cancel.type = 'button';
+      retry.addEventListener('click', () => runResolveServiceQueueAction('retryResolveServiceSync', job.id));
+      cancel.addEventListener('click', () => runResolveServiceQueueAction('cancelResolveServiceSync', job.id));
+      detail.append(title, status); actions.append(retry, cancel); row.append(detail, actions);
+      view = { row, title, status, retry, cancel }; resolveServiceJobRows.set(job.id, view);
+    }
+    const completed = job.progress?.completed || 0, total = job.progress?.total || 0;
+    setServiceText(view.title, `Push ${job.branch} · ${job.status.replaceAll('-', ' ')}`);
+    setServiceText(view.status, job.lastError ? syncErrorLabel(job.lastError) : `${completed} of ${total} observations acknowledged`);
+    const pending = resolveServiceQueueActions.has(`${resolveServiceExpectedContext()}:${job.id}`);
+    view.retry.hidden = !job.actions?.includes('retry');
+    view.retry.disabled = pending || busy || !contact || !job.recoverable || !window.desktop?.retryResolveServiceSync;
+    view.cancel.disabled = pending || !window.desktop?.cancelResolveServiceSync;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  document.getElementById('resolve-service-jobs-more').hidden = visible.length >= operations.length;
+}
+async function runResolveServiceQueueAction(method, id) {
+  const context = resolveServiceExpectedContext(), key = `${context}:${id}`, focused = document.activeElement;
+  if (resolveServiceQueueActions.has(key) || typeof window.desktop?.[method] !== 'function') return;
+  resolveServiceQueueActions.add(key); renderResolveServicePanel();
+  try { renderResolveServiceState(await window.desktop[method](id), context); }
+  catch { if (context === resolveServiceExpectedContext()) resolveServiceNotice = 'The queued Resolve push could not be updated. Check history before retrying.'; }
+  finally {
+    resolveServiceQueueActions.delete(key); renderResolveServicePanel();
+    if (focused && context === resolveServiceExpectedContext() && (document.activeElement === document.body || document.activeElement === focused)) {
+      const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById('resolve-service-status');
+      target.focus({ preventScroll: true });
+    }
+  }
+}
+async function runResolveServiceAction(method, input) {
+  if (resolveServiceAction || resolveServiceState?.busy || typeof window.desktop?.[method] !== 'function') return;
+  const context = resolveServiceExpectedContext(), focused = document.activeElement, action = { context, method };
+  if (['bindResolveServiceProject', 'unlinkResolveServiceProject', 'checkResolveServiceSync', 'pushResolveServiceRevisions', 'fetchResolveServiceRevisions'].includes(method)) clearResolveServicePreviewDisplay();
+  resolveServiceAction = action; resolveServiceNotice = ''; renderResolveServicePanel();
+  try { renderResolveServiceState(await window.desktop[method](input), context); }
+  catch { if (context === resolveServiceExpectedContext()) resolveServiceNotice = 'The Resolve service action could not finish. Check history or sign in again, then retry.'; }
+  finally {
+    if (resolveServiceAction === action) {
+      resolveServiceAction = null; renderResolveServicePanel();
+      if (focused && context === resolveServiceExpectedContext() && (document.activeElement === document.body || document.activeElement === focused)) {
+        const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById('resolve-service-status');
+        target.focus({ preventScroll: true });
+      }
+    }
+  }
+}
+function renderResolveServiceProvenance() {
+  const summary = resolveState?.sourceMode === 'service-history' ? resolveState.servicePreview : null;
+  document.getElementById('resolve-service-provenance').hidden = !summary;
+  const facts = document.getElementById('resolve-service-provenance-facts'); facts.replaceChildren();
+  setServiceText(document.getElementById('resolve-service-provenance-summary'), summary
+    ? `${summary.source === 'verified-capture' ? 'Accepted verified capture' : 'Saved branch head'} · ${summary.decisionCount} classified field${summary.decisionCount === 1 ? '' : 's'} · ${summary.conflictCount} conflict${summary.conflictCount === 1 ? '' : 's'} · incoming fetched ${serviceDate(summary.fetchedAt)}${summary.acceptedAt !== null && summary.acceptedAt !== undefined ? ` · capture accepted ${serviceDate(summary.acceptedAt)}` : ''}.` : '');
+  if (!summary) return;
+  for (const [label, value] of [['Base local revision', summary.baseLocalRevisionId], ['Local saved head', summary.localHeadId || 'No saved head'],
+    ['Incoming revision', summary.incomingRevisionId], ['Base source hash', summary.sourceHashes?.base],
+    ['Local source hash', summary.sourceHashes?.local], ['Incoming source hash', summary.sourceHashes?.incoming]]) {
+    facts.append(make('dt', '', label), make('dd', '', value || 'Unavailable'));
+  }
+}
+
 async function refreshResolveHistory(preferredProjectId = null) {
   const generation = ++resolveHistoryGeneration;
   const select = document.getElementById('resolve-history-project');
@@ -2181,6 +2444,7 @@ async function refreshResolveHistory(preferredProjectId = null) {
     if (!result?.ready) throw new Error(result?.error || 'Could not read local Resolve history.');
     select.replaceChildren();
     if (!result.projects.length) {
+      void setResolveServiceSelection(null, null, true);
       const option = make('option', '', 'No saved Resolve projects'); option.value = ''; select.append(option);
       document.getElementById('resolve-history-list').replaceChildren();
       document.getElementById('resolve-history-detail').replaceChildren();
@@ -2202,6 +2466,7 @@ async function refreshResolveHistory(preferredProjectId = null) {
   } catch (error) { if (generation === resolveHistoryGeneration) status.textContent = error.message || 'Could not read local Resolve history.'; }
 }
 async function loadResolveHistory(projectId, generation = ++resolveHistoryGeneration) {
+  if (projectId !== resolveServiceSelection?.projectId) void setResolveServiceSelection(null, null, true);
   const status = document.getElementById('resolve-history-status');
   const list = document.getElementById('resolve-history-list');
   const detail = document.getElementById('resolve-history-detail');
@@ -2248,6 +2513,8 @@ async function loadResolveHistoryGraph(projectId, generation) {
   }
   branchSelect.value = result.currentBranch;
   branchSelect.dataset.currentBranch = result.currentBranch;
+  await setResolveServiceSelection(projectId, result.currentBranch);
+  if (generation !== resolveHistoryGeneration) return;
   branchSelect.disabled = false;
   document.getElementById('resolve-history-branch-create').disabled = false;
   for (const role of ['base', 'local', 'incoming']) {
@@ -2378,11 +2645,46 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
   } catch (error) { if (generation === resolveHistoryGeneration && openToken === resolveHistoryOpenToken) detail.replaceChildren(make('p', '', error.message || 'Could not verify this revision.')); }
 }
 document.getElementById('resolve-history-refresh').addEventListener('click', () => refreshResolveHistory());
+document.getElementById('resolve-service-signin').addEventListener('click', () => {
+  showView('history');
+  const title = document.getElementById('sync-title'); title.tabIndex = -1; title.focus();
+  document.getElementById('service-panel').scrollIntoView({ block: 'start' });
+});
+document.getElementById('resolve-service-project').addEventListener('change', event => {
+  resolveServiceProjectChoice = event.target.value; resolveServiceBranchChoice = ''; renderResolveServicePanel();
+});
+document.getElementById('resolve-service-branch').addEventListener('change', event => {
+  resolveServiceBranchChoice = event.target.value; renderResolveServicePanel();
+});
+document.getElementById('resolve-service-binding-form').addEventListener('submit', event => {
+  event.preventDefault(); runResolveServiceAction('bindResolveServiceProject', {
+    remoteProjectId: resolveServiceProjectChoice, remoteBranch: resolveServiceBranchChoice });
+});
+for (const [id, method] of [['unlink', 'unlinkResolveServiceProject'], ['check', 'checkResolveServiceSync'],
+  ['push', 'pushResolveServiceRevisions'], ['fetch', 'fetchResolveServiceRevisions']]) {
+  document.getElementById(`resolve-service-${id}`).addEventListener('click', () => runResolveServiceAction(method));
+}
+document.getElementById('resolve-service-source').addEventListener('change', event => {
+  resolveServicePreviewSource = event.target.value; renderResolveServicePanel();
+});
+document.getElementById('resolve-service-jobs-more').addEventListener('click', () => {
+  resolveServiceVisibleJobs += 20; renderResolveServicePanel();
+});
+document.getElementById('resolve-service-preview').addEventListener('click', async () => {
+  await resolveAction('previewResolveServiceHistory', { source: resolveServicePreviewSource });
+  await refreshResolveServiceState();
+  const title = document.getElementById(resolveState?.sourceMode === 'service-history' && resolveState.servicePreview
+    ? 'resolve-service-provenance-title' : 'resolve-service-status');
+  title.tabIndex = -1; title.focus();
+});
+window.desktop?.onResolveServiceState?.(renderResolveServiceState);
+refreshResolveServiceState();
 document.getElementById('resolve-history-project').addEventListener('change', event => loadResolveHistory(event.target.value));
 let resolveHistoryBranchBusy = false;
 document.getElementById('resolve-history-branch').addEventListener('change', async event => {
   if (resolveHistoryBranchBusy) return;
   resolveHistoryBranchBusy = true;
+  void setResolveServiceSelection(null, null, true);
   const projectId = document.getElementById('resolve-history-project').value;
   try {
     const result = await window.desktop.switchResolveBranch(projectId, event.target.value);
@@ -2392,12 +2694,13 @@ document.getElementById('resolve-history-branch').addEventListener('change', asy
     event.target.value = event.target.dataset.currentBranch;
     document.getElementById('resolve-history-status').textContent = error.message || 'Could not switch branch.';
   }
-  finally { resolveHistoryBranchBusy = false; }
+  finally { resolveHistoryBranchBusy = false; renderResolveServicePanel(); }
 });
 document.getElementById('resolve-history-branch-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (resolveHistoryBranchBusy) return;
   resolveHistoryBranchBusy = true;
+  void setResolveServiceSelection(null, null, true);
   const projectId = document.getElementById('resolve-history-project').value;
   const name = document.getElementById('resolve-history-branch-name').value;
   try {
@@ -2406,7 +2709,7 @@ document.getElementById('resolve-history-branch-form').addEventListener('submit'
     document.getElementById('resolve-history-branch-name').value = '';
     await refreshResolveHistory(projectId);
   } catch (error) { document.getElementById('resolve-history-status').textContent = error.message || 'Could not create branch.'; }
-  finally { resolveHistoryBranchBusy = false; }
+  finally { resolveHistoryBranchBusy = false; renderResolveServicePanel(); }
 });
 document.getElementById('resolve-history-preview-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -2445,6 +2748,10 @@ document.addEventListener('keydown', event => {
 });
 renderResolveState(null);
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
+window.desktop?.onResolveReviewState?.(state => {
+  resolveReviewEventGeneration++; resolveReviewEventState = state;
+  if (!resolveBusy) renderResolveState(state);
+});
 
 var resolveTrialState = null;
 var resolveTrialBusy = false;
@@ -2501,6 +2808,7 @@ function renderResolveTrial() {
   document.getElementById('resolve-trial-ack').disabled = Boolean(activeResolveTrial());
   if (state?.recovery && !['idle', 'saved'].includes(phase) && state.projectName) document.getElementById('resolve-trial-name').value = state.projectName;
   document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit || resolveState?.plan?.schemaVersion !== 1
+    || resolveState?.sourceMode === 'service-history'
     || !['idle', 'saved'].includes(phase) || !document.getElementById('resolve-trial-ack').checked;
   document.getElementById('resolve-trial-issue').disabled = blocked || !['backup-command', 'recovery-ready'].includes(phase);
   document.getElementById('resolve-trial-issue').textContent = phase === 'recovery-ready'
@@ -2516,7 +2824,8 @@ function renderResolveTrial() {
   document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
   document.getElementById('resolve-trial-inspect').hidden = !phase?.startsWith('recovery-');
   document.getElementById('resolve-trial-inspect').disabled = blocked;
-  const messages = { idle: resolveState?.plan?.schemaVersion === 2 ? 'Richer captures support review only. Use snapshot-only history mode or three snapshot JSON files for the separate disposable rename drill.' : 'Review one rename and acknowledge the disposable project to begin.',
+  const messages = { idle: resolveState?.sourceMode === 'service-history' ? 'Service history reviews are read only and cannot start the rename drill.'
+    : resolveState?.plan?.schemaVersion === 2 ? 'Richer captures support review only. Use snapshot-only history mode or three snapshot JSON files for the separate disposable rename drill.' : 'Review one rename and acknowledge the disposable project to begin.',
     'effect-command': 'Read-only state capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the state capture here.',
     'backup-command': 'State capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
     'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',

@@ -93,3 +93,40 @@ test('review artifacts restore decisions and invalidate on edits or changed sour
   assert.equal(state.error.code, 'invalid-resolve-review-artifact');
   assert.equal(state.plan, null);
 });
+
+test('service-history provenance denies executable review through refresh, decisions, save and both recovery paths', t => {
+  const s = session(t), base = JSON.parse(fixture().base), local = structuredClone(base), incoming = structuredClone(base);
+  base.timelines[0].items[0].name = 'Earlier'; local.timelines[0].items[0].name = 'Local'; incoming.timelines[0].items[0].name = 'Incoming';
+  const sources = Object.fromEntries(Object.entries({ base, local, incoming }).map(([role, value]) => [role, JSON.stringify(value)]));
+  const readOnly = () => assert.throws(() => s.getVerifiedReview(sources), { message: 'service-review-read-only' });
+  let state = s.load(sources, { sourceMode: 'service-history' }); assert.equal(state.sourceMode, 'service-history'); readOnly();
+  state = s.setDecision(state.review.conflicts[0].id, 'take-incoming'); assert(state.audit); readOnly();
+  const artifact = s.save().artifactId, reviewed = s.saveReview().reviewArtifactId; readOnly();
+  state = s.refresh(sources); assert.equal(state.sourceMode, 'service-history'); assert(state.audit); readOnly();
+  state = s.recover(artifact, sources); assert.equal(state.sourceMode, 'service-history'); readOnly();
+  state = s.recoverReview(reviewed, sources); assert.equal(state.sourceMode, 'service-history'); assert(state.audit); readOnly();
+  const { resolveReviewedRename } = require('../src/resolve-rename-review');
+  // The complete snapshot-only operation itself is within the old trial's
+  // supported shape; source provenance must be the boundary that rejects it.
+  const { createResolvePreviewPlan } = require('../src/resolve-preview-plan');
+  const { createResolveDecisionAudit } = require('../src/resolve-review-decisions');
+  const plan = createResolvePreviewPlan(sources), audit = createResolveDecisionAudit(plan, sources,
+    state.review.conflicts.map(item => ({ conflictId: item.id, choice: 'take-incoming' })));
+  assert(resolveReviewedRename({ sources, plan, audit }).afterBytes.length);
+  s.refresh({ ...sources, local: '{' }); assert.equal(s.getState().sourceMode, 'service-history'); readOnly();
+  state = s.refresh(sources); assert.equal(state.sourceMode, 'service-history'); readOnly();
+  state = s.recoverReview(reviewed, sources); assert(state.audit); readOnly();
+});
+
+test('clearing a service review removes every retained value and sanitizes reasons before an explicit local load', t => {
+  const s = session(t), sources = fixture(); let state = s.load(sources, { sourceMode: 'service-history' });
+  s.setDecision(state.review.conflicts[0].id, 'keep-local'); s.save(); s.saveReview();
+  state = s.clear('/private/fixture-secret'); assert.equal(state.status, 'error'); assert.equal(state.sourceMode, 'local');
+  for (const field of ['plan', 'review', 'audit', 'artifactId', 'reviewArtifactId', 'sourceHashes', 'sourceVerification']) assert.equal(state[field], null);
+  assert.deepEqual(state.decisions, []); assert.equal(state.error.code, 'resolve-review-cleared'); assert(!JSON.stringify(state).includes('fixture-secret'));
+  assert.throws(() => s.getVerifiedReview(sources), { message: 'complete-current-review-required' });
+  assert.equal(s.clear().status, 'empty'); assert.equal(s.getState().error, null);
+  state = s.load(sources); assert.equal(state.sourceMode, 'local');
+  s.setDecision(state.review.conflicts[0].id, 'keep-local'); assert(s.getVerifiedReview(sources).audit);
+  state = s.load(sources, { sourceMode: 'invented' }); assert.equal(state.status, 'error'); assert.equal(state.plan, null);
+});

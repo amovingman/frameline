@@ -25,6 +25,9 @@ const ERRORS = new Set(['service-sign-in-required', 'service-project-required', 
   'comparison-too-large', 'comparison-source-required', 'comparison-fetch-required', 'comparison-stale',
   'service-comparison-invalid', 'service-comparison-base-invalid', 'service-comparison-incoming-invalid',
   'service-comparison-unsupported', 'service-comparison-too-large',
+  'service-resolve-comparison-invalid', 'service-resolve-comparison-verification-invalid',
+  'service-resolve-comparison-capture-expired', 'service-resolve-comparison-unsupported', 'service-resolve-comparison-too-large',
+  'service-resolve-capture-required', 'service-resolve-project-required', 'service-resolve-preview-stale',
   'revision-source-changed', 'file-unavailable']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const safeError = error => ERRORS.has(error?.code) ? error.code : 'service-sync-failed';
@@ -35,11 +38,13 @@ function exact(value, keys) { return value && typeof value === 'object' && !Arra
 // Each queue/cache is scoped to both identities and both branch destinations.
 // Shared-base observations have the same scope. They reference verified immutable
 // metadata; this controller never imports revisions or applies editor changes.
-function createDesktopRevisionSync({ directory, connection, store, getSelection, getLocalComparisonSource = null, onChange = () => {} } = {}) {
+function createDesktopRevisionSync({ directory, connection, store, getSelection, getLocalComparisonSource = null,
+  buildComparison = createServiceThreeWayComparison, describeComparison = null, onChange = () => {} } = {}) {
   if (!path.isAbsolute(directory || '') || !connection || !store || typeof store.exportRevisions !== 'function'
     || typeof store.getServiceSyncBase !== 'function' || typeof store.recordServiceSyncBase !== 'function'
     || typeof getSelection !== 'function' || typeof onChange !== 'function'
-    || getLocalComparisonSource !== null && typeof getLocalComparisonSource !== 'function') throw fail('service-binding-invalid');
+    || getLocalComparisonSource !== null && typeof getLocalComparisonSource !== 'function'
+    || typeof buildComparison !== 'function' || describeComparison !== null && typeof describeComparison !== 'function') throw fail('service-binding-invalid');
   const bindingDirectory = path.join(directory, 'bindings'), filename = path.join(bindingDirectory, 'bindings.json');
   let active = null, generation = 0, version = 0, closed = false, error = null, outcome = null;
   const scopes = new Map(), notifications = new Set(), controls = new Set();
@@ -377,14 +382,15 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
       if (!incoming.head) throw fail('comparison-fetch-required');
       const local = await getLocalComparisonSource({ signal });
       const bundle = await store.exportRevisions(ctx.selected.localProjectId);
-      const matchesLocal = value => value && exact(value, ['localProjectId', 'branch', 'headId', 'manifest'])
+      const matchesLocal = value => value && (exact(value, ['localProjectId', 'branch', 'headId', 'manifest'])
+        || exact(value, ['localProjectId', 'branch', 'headId', 'manifest', 'verification']))
         && value.localProjectId === ctx.selected.localProjectId && value.branch === ctx.selected.branch
         && value.headId === bundle.branches[ctx.selected.branch];
       if (!matchesLocal(local)) throw fail('comparison-stale');
       const baseProof = ctx.cache.readSnapshot(entry.proofSnapshotHash,
         { projectId: ctx.binding.remoteProjectId, branch: ctx.binding.remoteBranch });
-      const result = createServiceThreeWayComparison({ scope: baseScope(ctx), baseEntry: entry, bundle,
-        baseProof, incoming, local: local.manifest });
+      const result = buildComparison({ scope: baseScope(ctx), baseEntry: entry, bundle,
+        baseProof, incoming, local: local.manifest }, local.verification);
       const checkedLocal = await getLocalComparisonSource({ signal });
       const checkedEntry = await store.getServiceSyncBase(baseScope(ctx));
       const checkedBundle = await store.exportRevisions(ctx.selected.localProjectId);
@@ -394,13 +400,22 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
         || fingerprint(bundle) !== fingerprint(checkedBundle) || fingerprint(entry) !== fingerprint(checkedEntry)
         || snapshotHash(incoming) !== snapshotHash(checkedIncoming)) throw fail('comparison-stale');
       comparison = { scope: ctx.id, generation: epoch, baseHash: fingerprint(entry), headId: local.headId,
-        incomingHash: result.binding.incomingSnapshotHash, result: publicComparisonResult(result, Date.now()) };
+        incomingHash: result.binding.incomingSnapshotHash, privateResult: structuredClone(result),
+        result: (describeComparison || publicComparisonResult)(result, Date.now()) };
       comparisonRevision++;
     } catch (failure) {
       if (stillCurrent(ctx, epoch)) { comparison = { scope: ctx.id, generation: epoch, error: safeError(failure) }; comparisonRevision++; }
       throw failure;
     }
   });
+  // Main-process composition only. No preload method exposes source documents.
+  async function getPrivateComparison() {
+    const epoch = generation, captured = comparison;
+    if (!captured?.privateResult) return null;
+    const ctx = await context(), visible = await shownComparison(ctx);
+    if (!stillCurrent(ctx, epoch) || comparison !== captured || visible.status !== 'ready') return null;
+    return structuredClone(captured.privateResult);
+  }
   const retry = id => run(async (ctx, sync, signal, epoch, client) => {
     const job = ctx.queue.inspect().find(item => item.id === id); if (!job) throw fail('sync-operation-unavailable');
     if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch, client);
@@ -420,6 +435,6 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     const task = Promise.resolve().then(() => action(...args)).finally(() => controls.delete(task)); controls.add(task); return task;
   }
   return { getState, bind: (...args) => control(bindAction, args), unlink: (...args) => control(unlinkAction, args),
-    check, push, fetch, compare, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
+    check, push, fetch, compare, getPrivateComparison, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
 }
 module.exports = { createDesktopRevisionSync };
