@@ -17,7 +17,7 @@ async function setup(t) {
   const d = path.join(__dirname, '../phase-0/resolve-xml-proof');
   const local = await fs.readFile(path.join(d, 'live-rename-before-schema3.json'));
   const incoming = await fs.readFile(path.join(d, 'live-rename-applied-schema3.json'));
-  const effects = await fs.readFile(path.join(d, 'live-effects-enabled.json'));
+  const effects = await fs.readFile(path.join(d, 'live-properties-enabled.json'));
   const review = createResolveReviewSession({ artifactDirectory: path.join(root, 'reviews') });
   const sources = { base: local, local, incoming };
   review.load(sources);
@@ -70,7 +70,10 @@ test('desktop drill session binds review, gates stages, sanitizes state, and sav
   assert.equal(issued.backup.archiveVerified, true);
   assert.ok(!JSON.stringify(issued).includes(folder));
   assert.equal(issued.command, undefined);
-  assert.equal(issued.effectGuard.sourceSha256, '696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585');
+  assert.equal(issued.effectGuard.sourceSha256, '903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21');
+  assert.equal(issued.effectGuard.coverage.schemaVersion, 2);
+  assert.equal(issued.effectGuard.coverage.propertyKeyCount, 43);
+  assert.equal(issued.effectGuard.coverage.trackCount, 2);
   assert.match(options.clipboard.readText(), /Intentional trial failure/);
   const changed = JSON.parse(effects);
   changed.items.flatMap(item => item.effects)[0].enabled = false;
@@ -170,6 +173,48 @@ test('a changed review invalidates the pending effect capture', async t => {
   assert.equal(failed.phase, 'effect-command');
   assert.match(failed.error, /Sources changed/);
   await assert.rejects(fs.stat(options.directory), { code: 'ENOENT' });
+});
+
+test('new desktop drills require richer captures and reject unavailable reads before creating trial or history records', async t => {
+  const { session, options, effects } = await setup(t);
+  const prepared = await session.prepare('Frameline Restore Probe', true);
+  assert.match(options.clipboard.readText(), /base,\{types=/);
+  const legacy = await fs.readFile(path.join(__dirname, '../phase-0/resolve-xml-proof/live-effects-enabled.json'));
+  options.clipboard.writeText(captureOutput(prepared.captureId, legacy));
+  assert.match((await session.read()).error, /New drills require clip properties/);
+  for (const alter of [value => { value.items[0].propertyReadStatus = 'unavailable'; value.items[0].properties = {}; },
+    value => { value.items[0].properties = {}; },
+    value => { value.tracks[0].enabled = null; }]) {
+    const observation = JSON.parse(effects); alter(observation);
+    options.clipboard.writeText(captureOutput(prepared.captureId, JSON.stringify(observation)));
+    const failed = await session.read(); assert.equal(failed.phase, 'effect-command');
+    assert.match(failed.error, /could not be read/);
+    await assert.rejects(fs.stat(options.directory), { code: 'ENOENT' });
+    assert.deepEqual(await options.store.listResolveProjects(), []);
+  }
+  options.clipboard.writeText(captureOutput(prepared.captureId, effects));
+  const accepted = await session.read(); assert.equal(accepted.phase, 'backup-command');
+  assert.equal(accepted.effectGuard.coverage.unavailablePropertyReads, 0);
+  assert.equal(accepted.effectGuard.coverage.unavailableTrackStateReads, 0);
+  assert(!JSON.stringify(accepted).includes('Pan'));
+});
+
+test('completed schema-1 effect drills retain their original coverage when reopened', async t => {
+  const { session, options, sources } = await setup(t);
+  const effects = await fs.readFile(path.join(__dirname, '../phase-0/resolve-xml-proof/live-effects-enabled.json'));
+  await fs.mkdir(options.directory, { mode: 0o700 });
+  const trial = await prepareReviewedRenameTrial({ ...await options.getReview(), destinationDir: options.directory,
+    disposableProjectName: 'Frameline Restore Probe', effectObservationBytes: effects });
+  const manifest = createResolveRevisionManifest(JSON.parse(sources.local));
+  const project = await options.store.getResolveProjectId(manifest.snapshot.project_id, manifest.snapshot.project_name);
+  const baseline = await options.store.saveRevision(project.id, manifest, 'Legacy effect baseline');
+  await fs.writeFile(path.join(trial.directory, 'history-target.json'), JSON.stringify({ branch: 'main', expectedHeadId: baseline.id }), { mode: 0o600 });
+  await fakeExport(trial.directory); await issueRenameTrial({ directory: trial.directory, forceFailure: true });
+  await recordRenameTrialResult({ directory: trial.directory, status: 'rolled-back', snapshotBytes: sources.local, effectObservationBytes: effects });
+  const recovered = await session.recover(trial.directory);
+  assert.equal(recovered.phase, 'verified'); assert.equal(recovered.effectGuard.coverage.schemaVersion, 1);
+  assert.equal(recovered.effectGuard.coverage.propertyKeyCount, null); assert.equal(recovered.effectGuard.coverage.trackCount, null);
+  assert.equal(recovered.effectGuard.sourceSha256, '696ee1b32e09ff410f54ed4905c2423cc228437654511117f86d31ad4070f585');
 });
 
 test('completed counts-only drills remain recoverable without claiming an effect guard', async t => {

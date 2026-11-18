@@ -93,4 +93,15 @@ function compareEffectObservations(beforeBytes, afterBytes) {
       'Item properties cover returned documented keys only; missing keys are unobserved.', 'Track state uses type/index and does not establish stable track identity.'] };
 }
 
-module.exports = { validateEffectObservation, parseEffectObservation, compareEffectObservations };
+function describeEffectCoverage(observation) {
+  validateEffectObservation(observation);
+  const rich = observation.schemaVersion === 2;
+  return { schemaVersion: observation.schemaVersion, itemCount: observation.items.length,
+    effectCount: observation.items.reduce((sum, item) => sum + item.effects.length, 0),
+    propertyKeyCount: rich ? new Set(observation.items.flatMap(item => Object.keys(item.properties))).size : null,
+    propertyValueCount: rich ? observation.items.reduce((sum, item) => sum + Object.keys(item.properties).length, 0) : null,
+    unavailablePropertyReads: rich ? observation.items.filter(item => item.propertyReadStatus === 'unavailable').length : null,
+    trackCount: rich ? observation.tracks.length : null,
+    unavailableTrackStateReads: rich ? observation.tracks.reduce((sum, track) => sum + Number(track.enabled === null) + Number(track.locked === null), 0) : null };
+}
+module.exports = { validateEffectObservation, parseEffectObservation, compareEffectObservations, describeEffectCoverage };

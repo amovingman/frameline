@@ -9,7 +9,7 @@ const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
 const { compareResolveManifests } = require('./resolve-id-diff');
 const { inspectResolveProjectExport } = require('./resolve-project-export');
 const { resolveReviewedRename } = require('./resolve-rename-review');
-const { parseEffectObservation } = require('./resolve-effect-observation');
+const { parseEffectObservation, describeEffectCoverage } = require('./resolve-effect-observation');
 const { createEffectCaptureCommand, readEffectConsoleResult } = require('./resolve-effect-console');
 const { validatePortableTrialAudit } = require('./resolve-portable-trial-audit');
 const { propertyCaptureConfig } = require('./resolve-property-observation');
@@ -275,7 +275,7 @@ async function readRenameTrialResult(directory) {
   if (json(result.review || null) !== json(expectedReview)) throw new Error('trial-review-binding-mismatch');
   if (result.backupPath !== plan.backupPath) throw new Error('invalid-trial-backup-path');
   await inspectResolveProjectExport(plan.backupPath, result.backup.sha256);
-  return { result, snapshot };
+  return { result, snapshot, observationCoverage: plan.effectGuard ? describeEffectCoverage(effectStates(plan).before) : null };
 }
 
 async function recordRenameTrialConsoleResult({ directory, consoleOutput } = {}) {
@@ -373,7 +373,8 @@ async function prepareRenameTrialRecovery({ directory } = {}) {
   await writeRecord(folder, 'request.json', { schemaVersion: 1, transactionId: plan.id, attemptId,
     revocationSha256: sha(await privateBytes(directory, 'recovery-started.json', 1024)) });
   return { directory, projectName: plan.before.project_name, transactionId: plan.id, attemptId, captureId: attemptId, command: capture.command,
-    backup, backupPath: plan.backupPath, effectGuard: { sourceSha256: plan.effectGuard.sourceSha256 } };
+    backup, backupPath: plan.backupPath, effectGuard: { sourceSha256: plan.effectGuard.sourceSha256,
+      coverage: describeEffectCoverage(effectStates(plan).before) } };
 }
 
 async function readRenameTrialRecoveryCapture({ directory, attemptId, consoleOutput } = {}) {

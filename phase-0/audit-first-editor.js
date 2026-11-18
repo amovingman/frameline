@@ -13,7 +13,7 @@ const { normalizeResolveSnapshot } = require('../src/resolve-snapshot-normalizer
 const { compareResolveManifests } = require('../src/resolve-id-diff');
 const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator');
 const { compareResolveRecovery } = require('../src/resolve-recovery-comparison');
-const { parseEffectObservation, compareEffectObservations } = require('../src/resolve-effect-observation');
+const { parseEffectObservation, compareEffectObservations, describeEffectCoverage } = require('../src/resolve-effect-observation');
 const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
 
 const root = path.join(__dirname, 'resolve-xml-proof');
@@ -241,6 +241,27 @@ function readPropertyGuardEvidence() {
     completePropertiesObserved: false };
 }
 
+function readDesktopPropertyEvidence() {
+  const bytes = fs.readFileSync(path.join(__dirname, 'desktop-property-guard-live-observation.json'));
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (hash !== '5718f43ec41d0ea644dd604f865fb52a6bb27a005dab2fb3ee41ac543e37cd5d') throw new Error('desktop-property-evidence-changed');
+  const report = JSON.parse(bytes);
+  const observation = parseEffectObservation(fs.readFileSync(path.join(root, 'live-properties-enabled.json')));
+  if (JSON.stringify(report.coverage) !== JSON.stringify(describeEffectCoverage(observation))
+    || report.desktopIntegrated !== true || report.nativeUiVerified !== true || report.supplementSchemaVersion !== 2
+    || report.status !== 'rolled-back' || report.forcedFailure !== true || report.safeToApply !== false
+    || report.fullNativePropertiesVerified !== false || report.representedObservationBytesRestored !== true
+    || report.sourceObservationSha256 !== '903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21'
+    || report.resultObservationSha256 !== report.sourceObservationSha256
+    || report.completedOutcomeReopenedAfterRestart !== true || report.propertyCoverageReconstructedAfterRestart !== true
+    || report.repeatedSaveKeptSameRevision !== true || report.trialFilesUnchangedOnReopen !== true
+    || report.nonemptyPropertyReadForEveryItem !== true || report.portableAuditContainsRicherObservations !== true
+    || report.backup.archiveVerified !== true || report.backup.mode !== 0o600) throw new Error('desktop-property-evidence-mismatch');
+  return { hash, propertyValueCount: report.coverage.propertyValueCount, returnedPropertyKeys: report.coverage.propertyKeyCount,
+    desktopIntegrated: true, restoredBytesMatch: true, completedOutcomeReopenedAfterRestart: true,
+    idempotentHistorySave: true, fullProjectApplyVerified: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -269,6 +290,7 @@ function auditFirstEditor() {
   const desktopEffects = readDesktopEffectEvidence(effects, recovery);
   const interruptions = readInterruptionEvidence(effects, recovery);
   const properties = readPropertyGuardEvidence();
+  const desktopProperties = readDesktopPropertyEvidence();
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
@@ -288,6 +310,7 @@ function auditFirstEditor() {
       effectGuardReport: effectGuard.hash, desktopEffectGuardReport: desktopEffects.hash, structureExport: structureCoverage.sourceHash,
       interruptionReports: interruptions.hashes,
       propertyGuardReport: properties.hash,
+      desktopPropertyGuardReport: desktopProperties.hash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
@@ -309,6 +332,9 @@ function auditFirstEditor() {
       itemProperties: { returnedPropertyKeys: properties.returnedPropertyKeys, observedItems: properties.observedItems,
         observedTracks: properties.observedTracks, savedPropertyChanges: properties.savedPropertyChanges,
         staleSourceRejected: true, restoredBytesMatch: true, completePropertiesObserved: false },
+      desktopPropertyGuard: { desktopIntegrated: true, returnedPropertyKeys: desktopProperties.returnedPropertyKeys,
+        propertyValueCount: desktopProperties.propertyValueCount, restoredBytesMatch: true,
+        completedOutcomeReopenedAfterRestart: true, idempotentHistorySave: true, fullProjectApplyVerified: false },
       nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
         editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };

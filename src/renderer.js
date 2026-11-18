@@ -1402,15 +1402,15 @@ function renderResolveTrial() {
   document.getElementById('resolve-trial-read').disabled = blocked || !['effect-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase);
   document.getElementById('resolve-trial-read').textContent = phase?.startsWith('recovery-')
     ? phase === 'recovery-capture' ? 'Read recovery capture' : 'Read recovery result'
-    : ['idle', 'effect-command'].includes(phase) ? 'Read effect capture' : 'Read drill result';
+    : ['idle', 'effect-command'].includes(phase) ? 'Read state capture' : 'Read drill result';
   document.getElementById('resolve-trial-save').disabled = blocked || phase !== 'verified' || state?.outcome?.status === 'recovery-required';
   document.getElementById('resolve-trial-reveal').disabled = blocked || !state?.backup;
   document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
   document.getElementById('resolve-trial-inspect').hidden = !phase?.startsWith('recovery-');
   document.getElementById('resolve-trial-inspect').disabled = blocked;
   const messages = { idle: 'Review one rename and acknowledge the disposable project to begin.',
-    'effect-command': 'Read-only effect capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the effect capture here.',
-    'backup-command': 'Effect capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
+    'effect-command': 'Read-only state capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the state capture here.',
+    'backup-command': 'State capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
     'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
     'recovery-capture': 'Original drill command retired. Read-only inspection copied: run it in Resolve’s Lua Console, copy all output, then read the recovery capture here.',
     'recovery-ready': state?.recovery?.classification === 'source'
@@ -1420,11 +1420,18 @@ function renderResolveTrial() {
     'recovery-required': 'The original state could not be verified. Keep the retained backup and inspect the disposable project manually. Choose Inspect again for a fresh capture after inspection.',
     verified: `Verified outcome: ${state?.outcome?.status || 'unknown'}. Save an observation revision to retain the history link.`,
     saved: `Outcome revision saved on ${state?.branch || 'the selected branch'}: ${state?.revisionId || ''}.` };
+  const coverage = state?.effectGuard?.coverage;
+  const observedCount = (value, singular) => `${value} ${value === 1 ? singular : `${singular}s`}`;
+  const coverageText = coverage?.schemaVersion === 2
+    ? `Bound source: ${observedCount(coverage.propertyKeyCount, 'returned property key')} across ${observedCount(coverage.itemCount, 'item')} and ${observedCount(coverage.trackCount, 'track')}. Unavailable reads: ${coverage.unavailablePropertyReads} for clip properties, ${coverage.unavailableTrackStateReads} for track state.`
+    : state?.effectGuard ? 'Legacy capture: effect metadata only. Inspector properties and track states were not captured.' : '';
   document.getElementById('resolve-trial-status').textContent = blocked ? 'Verifying drill records…' : state?.error
     || [messages[phase] || messages.idle, state?.backup ? `Retained backup: ${state.backup.size.toLocaleString()} bytes · SHA-256 ${state.backup.sha256.slice(0, 12)}` : '',
-      state?.effectGuard ? `Effect capture bound: SHA-256 ${state.effectGuard.sourceSha256.slice(0, 12)}` : '',
+      state?.effectGuard ? `State capture bound: SHA-256 ${state.effectGuard.sourceSha256.slice(0, 12)}` : '', coverageText,
       state?.outcome ? state.outcome.effectObservation
-        ? 'Validation includes effect type, name, index, and enabled state. Effect parameters and full editor properties remain unverified.'
+        ? coverage?.schemaVersion === 2
+          ? 'Validation compares returned clip properties, observed track states and effect metadata. Missing properties, effect parameters and complete native semantics remain unverified.'
+          : 'Validation includes effect type, name, index, and enabled state. Effect parameters and full editor properties remain unverified.'
         : 'This older drill checked snapshot fields only. Effect metadata and full editor properties were not verified.' : ''].filter(Boolean).join('\n');
 }
 async function resolveTrialAction(method, ...args) {

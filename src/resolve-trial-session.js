@@ -12,6 +12,7 @@ const { createResolveRevisionManifest } = require('./resolve-revision-manifest')
 const { compareResolveRevisionManifests } = require('./resolve-revision-comparison');
 const { inspectResolveProjectExport } = require('./resolve-project-export');
 const { createEffectCaptureCommand, readEffectConsoleResult } = require('./resolve-effect-console');
+const { parseEffectObservation, describeEffectCoverage } = require('./resolve-effect-observation');
 const { resolveReviewedRename } = require('./resolve-rename-review');
 const { createHash } = require('node:crypto');
 
@@ -81,6 +82,8 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         : failure.message === 'named-disposable-project-required' ? 'Enter the exact reviewed project name, starting with “Frameline ”, and acknowledge the disposable project.'
         : ['reviewed-trial-requires-one-rename', 'unsupported-reviewed-operation'].includes(failure.message) ? 'This drill requires a completed review with exactly one clip rename.'
         : failure.message === 'effect-source-snapshot-mismatch' ? 'The live capture differs from the reviewed local snapshot. Cancel preparation, refresh the snapshots, and review again.'
+        : failure.message === 'richer-capture-required' ? 'New drills require clip properties and track state. Run the newly copied capture and read its output again.'
+        : failure.message === 'incomplete-property-capture' ? 'Some clip properties or track states could not be read. Keep the project unchanged and retry the capture before preparing a drill.'
         : phase === 'effect-command' ? 'The effect capture could not be verified. Run the copied capture in Resolve’s Lua Console, copy all output, and read it again.'
         : failure.message === 'trial-does-not-support-interrupted-recovery' ? 'This older or unsupported drill cannot retire its copied command. Keep the backup and inspect the disposable project manually.'
         : 'The trial action could not be verified. Keep the backup and trial records; check the Console output and retry.';
@@ -96,7 +99,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       if (typeof projectName !== 'string' || !projectName.startsWith('Frameline ') || projectName !== snapshot.project_name) {
         throw new Error('named-disposable-project-required');
       }
-      const capture = await createEffectCaptureCommand(projectName);
+      const capture = await createEffectCaptureCommand(projectName, { includeProperties: true });
       pending = { ...capture, projectName, auditHash: review.audit.auditHash };
       outcome = revision = null; phase = 'effect-command';
       clipboard.writeText(capture.command);
@@ -106,6 +109,11 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     const review = await getReview();
     if (review.audit.auditHash !== pending.auditHash) throw new Error('complete-current-review-required');
     const effectObservationBytes = readEffectConsoleResult({ captureId: pending.captureId, output: clipboard.readText() });
+    const observed = parseEffectObservation(effectObservationBytes);
+    const coverage = describeEffectCoverage(observed);
+    if (coverage.schemaVersion !== 2) throw new Error('richer-capture-required');
+    if (coverage.unavailablePropertyReads || coverage.unavailableTrackStateReads
+      || observed.items.some(item => Object.keys(item.properties).length === 0)) throw new Error('incomplete-property-capture');
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
     const trial = await prepareReviewedRenameTrial({ ...review, effectObservationBytes,
       destinationDir: directory, disposableProjectName: pending.projectName });
@@ -121,7 +129,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     const target = { branch, expectedHeadId: head };
     await fs.writeFile(path.join(trial.directory, 'history-target.json'), JSON.stringify(target), { flag: 'wx', mode: 0o600 });
     pending = { ...trial, target, projectName: before.snapshot.project_name, auditHash: review.audit.auditHash,
-      effectGuard: { sourceSha256: createHash('sha256').update(effectObservationBytes).digest('hex') } };
+      effectGuard: { sourceSha256: createHash('sha256').update(effectObservationBytes).digest('hex'), coverage } };
     outcome = revision = null; phase = 'backup-command';
     clipboard.writeText(trial.command);
   }
@@ -176,8 +184,8 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     return run(async () => {
       if (pending && phase !== 'saved') throw new Error('trial-already-active');
       if (typeof selected !== 'string' || path.dirname(selected) !== path.resolve(directory)) throw new Error('invalid-trial-directory');
-      let result, snapshot;
-      try { ({ result, snapshot } = await readRenameTrialResult(selected)); }
+      let result, snapshot, observationCoverage;
+      try { ({ result, snapshot, observationCoverage } = await readRenameTrialResult(selected)); }
       catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
       const handle = await fs.open(path.join(selected, 'history-target.json'), constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
       let target;
@@ -195,7 +203,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       pending = { directory: selected, transactionId: result.transactionId, backup: result.backup,
         backupPath: result.backupPath, target, projectName: snapshot.project_name, auditHash: result.review?.auditHash,
         ...(result.recovery ? { attemptId: result.recovery.attemptId, operation: result.recovery.operation } : {}),
-        effectGuard: result.effectObservation ? { sourceSha256: result.effectObservation.sourceSha256 } : null };
+        effectGuard: result.effectObservation ? { sourceSha256: result.effectObservation.sourceSha256, coverage: observationCoverage } : null };
       outcome = result; revision = null; phase = 'verified';
     });
   }
