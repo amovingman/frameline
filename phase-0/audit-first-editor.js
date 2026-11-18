@@ -262,6 +262,38 @@ function readDesktopPropertyEvidence() {
     idempotentHistorySave: true, fullProjectApplyVerified: false };
 }
 
+function readRichInterruptionEvidence() {
+  const bytes = fs.readFileSync(path.join(__dirname, 'rich-interruption-recovery-live-observation.json'));
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (hash !== 'af4fd46b607dd74883c56691cabd181fb0a550b48612c19079525f6e0a7b41de') throw new Error('rich-interruption-evidence-changed');
+  const report = JSON.parse(bytes);
+  const original = fs.readFileSync(path.join(root, 'live-properties-enabled.json'));
+  const renamed = fs.readFileSync(path.join(root, 'live-recovery-properties-renamed.json'));
+  const diverged = fs.readFileSync(path.join(root, 'live-recovery-properties-pan-diverged.json'));
+  const digest = value => createHash('sha256').update(value).digest('hex');
+  const rename = compareEffectObservations(original, renamed), pan = compareEffectObservations(renamed, diverged);
+  if (digest(renamed) !== report.renamedInspectionSha256 || digest(diverged) !== report.divergentInspectionSha256
+    || digest(original) !== report.sourceObservationSha256 || report.resultObservationSha256 !== digest(original)
+    || rename.snapshotChanges.length !== 1 || rename.snapshotChanges[0].field !== 'name'
+    || rename.propertyChanges.length || rename.effectChanges.length || rename.trackStateChanges.length
+    || pan.snapshotChanges.length || pan.effectChanges.length || pan.trackStateChanges.length
+    || pan.propertyChanges.length !== 1 || pan.propertyChanges[0].field !== 'Pan'
+    || JSON.stringify(report.coverage) !== JSON.stringify(describeEffectCoverage(parseEffectObservation(original)))
+    || report.status !== 'restored' || report.recovery.operation !== 'restore-name'
+    || report.recovery.inspectionSha256 !== digest(renamed) || report.forcedFailure !== true
+    || report.desktopIntegrated !== true || report.nativeUiVerified !== true || report.resolveRestarted !== true
+    || report.divergence.classification !== 'diverged' || report.divergence.recoveryActionNotIssued !== true
+    || report.earlierAttemptRetired !== true || report.representedObservationBytesRestored !== true
+    || report.portableAuditContainsRicherRecovery !== true || report.reviewedChoiceCount !== 1
+    || report.completedOutcomeReopenedAfterRestart !== true || report.repeatedSaveKeptSameRevision !== true
+    || report.trialFilesUnchangedOnReopen !== true || report.finalAttentionCountAfterRestart !== 0
+    || report.backup.archiveVerified !== true || report.backup.mode !== 0o600
+    || report.safeToApply !== false || report.fullNativePropertiesVerified !== false) throw new Error('rich-interruption-evidence-mismatch');
+  return { hash, returnedPropertyKeys: report.coverage.propertyKeyCount, propertyValueCount: report.coverage.propertyValueCount,
+    divergentPropertyRejected: true, restoredBytesMatch: true, editorRestarted: true, desktopRestarted: true,
+    idempotentHistorySave: true, fullProjectApplyVerified: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -291,6 +323,7 @@ function auditFirstEditor() {
   const interruptions = readInterruptionEvidence(effects, recovery);
   const properties = readPropertyGuardEvidence();
   const desktopProperties = readDesktopPropertyEvidence();
+  const richInterruption = readRichInterruptionEvidence();
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
@@ -311,6 +344,7 @@ function auditFirstEditor() {
       interruptionReports: interruptions.hashes,
       propertyGuardReport: properties.hash,
       desktopPropertyGuardReport: desktopProperties.hash,
+      richInterruptionRecoveryReport: richInterruption.hash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
@@ -335,6 +369,9 @@ function auditFirstEditor() {
       desktopPropertyGuard: { desktopIntegrated: true, returnedPropertyKeys: desktopProperties.returnedPropertyKeys,
         propertyValueCount: desktopProperties.propertyValueCount, restoredBytesMatch: true,
         completedOutcomeReopenedAfterRestart: true, idempotentHistorySave: true, fullProjectApplyVerified: false },
+      richInterruptedRecovery: { returnedPropertyKeys: richInterruption.returnedPropertyKeys,
+        propertyValueCount: richInterruption.propertyValueCount, divergentPropertyRejected: true, restoredBytesMatch: true,
+        editorRestarted: true, desktopRestarted: true, idempotentHistorySave: true, fullProjectApplyVerified: false },
       nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
         editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };

@@ -40,6 +40,10 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.deepEqual(report.observations.desktopPropertyGuard, { desktopIntegrated: true, returnedPropertyKeys: 43,
     propertyValueCount: 443, restoredBytesMatch: true, completedOutcomeReopenedAfterRestart: true,
     idempotentHistorySave: true, fullProjectApplyVerified: false });
+  assert.equal(report.sources.richInterruptionRecoveryReport, 'af4fd46b607dd74883c56691cabd181fb0a550b48612c19079525f6e0a7b41de');
+  assert.deepEqual(report.observations.richInterruptedRecovery, { returnedPropertyKeys: 43, propertyValueCount: 443,
+    divergentPropertyRejected: true, restoredBytesMatch: true, editorRestarted: true, desktopRestarted: true,
+    idempotentHistorySave: true, fullProjectApplyVerified: false });
   assert.deepEqual(report.observations.effectMetadata, { observedItems: 53, observedEffects: 1, enabledStateChanges: 1,
     schema3Changes: 0, restoredBytesMatch: true, effectParametersObserved: false, persistentEffectIdentityProven: false });
   assert.equal(report.sources.effectGuardReport, 'dae8e1491cf1f4fb116249a5e2b4b34f8cfd1fb1c4a412bea9e2f08619ca7b2a');
