@@ -117,3 +117,48 @@ test('preparation forwards the named project, explicit acknowledgement and selec
   let prevented = false; view.element('resolve-trial-form').listeners.submit({ preventDefault() { prevented = true; } });
   assert(prevented); assert.deepEqual(received, ['prepareResolveTrial', 'Frameline disposable experiment', true, 'rename-verify']);
 });
+test('retained-file issued results direct users back after reopen without asking for Console output', () => {
+  const view = fixture();
+  for (const [phase, mode, label] of [['edit-command', 'rename-verify', 'Read rename result'],
+    ['rollback-command', 'forced-rollback', 'Read rollback result'], ['recovery-command', 'rename-verify', 'Read recovery result']]) {
+    Object.assign(view.context.resolveTrialState, { phase, mode, resultTransport: 'retained-file' }); view.render();
+    const message = view.element('resolve-trial-status').textContent;
+    assert.match(message, /After the project reopens, return to Frameline/);
+    assert(message.includes(label)); assert.match(message, /verify the private retained output/);
+    assert.doesNotMatch(message, /copy all Console output/);
+    assert.equal(view.element('resolve-trial-read').textContent, label);
+  }
+});
+test('legacy issued commands and read-only capture/backup keep their existing Console handoff', () => {
+  const view = fixture();
+  for (const resultTransport of [undefined, 'console']) for (const [phase, mode] of [
+    ['edit-command', 'rename-verify'], ['rollback-command', 'forced-rollback'], ['recovery-command', 'rename-verify']]) {
+    Object.assign(view.context.resolveTrialState, { phase, mode, resultTransport }); view.render();
+    assert.match(view.element('resolve-trial-status').textContent, /copy all Console output/);
+    assert.doesNotMatch(view.element('resolve-trial-status').textContent, /private retained output/);
+  }
+  for (const phase of ['effect-command', 'backup-command', 'recovery-capture']) {
+    Object.assign(view.context.resolveTrialState, { phase, mode: 'rename-verify', resultTransport: 'retained-file' }); view.render();
+    assert.match(view.element('resolve-trial-status').textContent, /Lua Console/);
+    assert.doesNotMatch(view.element('resolve-trial-status').textContent, /private retained output/);
+  }
+});
+test('only a complete unacknowledged retained output offers Read retained result', () => {
+  const view = fixture(); let selected;
+  view.context.resolveTrialAction = (...args) => { selected = args; };
+  view.context.resolveTrialState.discovery.items = [
+    { recordId: 'retained', transactionId: 'retained-record', state: 'unfinished', action: 'recover', mode: 'rename-verify', resultTransport: 'retained-file', transportOutputAvailable: true },
+    { recordId: 'outcome', transactionId: 'outcome-record', state: 'outcome', action: 'recover', mode: 'rename-verify', transportOutputAvailable: true },
+    { recordId: 'legacy', transactionId: 'legacy-record', state: 'unfinished', action: 'recover' },
+    { recordId: 'incomplete', transactionId: 'incomplete-record', state: 'unfinished', action: 'recover', resultTransport: 'retained-file', transportOutputAvailable: false }
+  ];
+  view.render(); const rows = view.element('resolve-retained-list').children;
+  assert.match(allText(rows[0]), /Retained result ready to read/);
+  assert.equal(rows[0].children[1].textContent, 'Read retained result');
+  rows[0].children[1].listeners.click(); assert.deepEqual(selected, ['recoverDiscoveredResolveTrial', 'retained']);
+  assert.equal(rows[1].children[1].textContent, 'Open outcome');
+  for (const row of rows.slice(2)) {
+    assert.equal(row.children[1].textContent, 'Inspect live state');
+    assert.doesNotMatch(allText(row), /Retained result ready to read/);
+  }
+});

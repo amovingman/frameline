@@ -23,6 +23,10 @@ const exact = (value, keys) => value && typeof value === 'object' && !Array.isAr
   && Object.keys(value).sort().join('|') === keys.slice().sort().join('|');
 const EXPERIMENT_MODES = ['forced-rollback', 'rename-verify'];
 const issuedMode = issued => issued.forceFailure ? 'forced-rollback' : 'rename-verify';
+const TRANSPORT_LIMIT = 48 * 1024 * 1024;
+const RETAINED_ORIGIN = Symbol('retained-file');
+const transportError = code => Object.assign(new Error(code), { code });
+const validTransport = value => exact(value, ['schemaVersion', 'token']) && value.schemaVersion === 1 && /^[a-f0-9]{32}$/.test(value.token || '');
 
 async function syncDirectory(directory) {
   const handle = await fs.open(directory, constants.O_RDONLY);
@@ -31,9 +35,10 @@ async function syncDirectory(directory) {
 
 function validateIssued(issued, plan) {
   const versioned = Object.hasOwn(issued || {}, 'recoveryVersion');
-  if (!exact(issued, ['transactionId', 'backup', 'forceFailure', 'issuedAt', ...(versioned ? ['recoveryVersion'] : [])])
+  if (!exact(issued, ['transactionId', 'backup', 'forceFailure', 'issuedAt', ...(versioned ? ['recoveryVersion'] : []), ...(Object.hasOwn(issued || {}, 'resultTransport') ? ['resultTransport'] : [])])
     || issued.transactionId !== plan.id || typeof issued.forceFailure !== 'boolean'
-    || versioned && ![1, 2].includes(issued.recoveryVersion)
+    || versioned && ![1, 2, 3].includes(issued.recoveryVersion)
+    || (issued.recoveryVersion === 3 ? !validTransport(issued.resultTransport) : issued.resultTransport !== undefined)
     || typeof issued.issuedAt !== 'string' || !Number.isFinite(Date.parse(issued.issuedAt))
     || new Date(issued.issuedAt).toISOString() !== issued.issuedAt
     || !exact(issued.backup, ['schemaVersion', 'sha256', 'size', 'mode', 'timelineCount', 'archiveVerified'])
@@ -55,7 +60,39 @@ async function readIssued(directory, plan) {
 }
 
 function supportsRecovery(plan, issued) {
-  return Boolean(plan.effectGuard && (issued.recoveryVersion === 2 || issued.recoveryVersion === 1 && issued.forceFailure === true));
+  return Boolean(plan.effectGuard && ([2, 3].includes(issued.recoveryVersion) || issued.recoveryVersion === 1 && issued.forceFailure === true));
+}
+
+function retainedTransport(folder, plan, context, binding = null) {
+  const descriptor = binding?.resultTransport || context.issued.resultTransport;
+  if (!validTransport(descriptor)) throw transportError('trial-file-result-unavailable');
+  const metadata = { schemaVersion: 1, kind: binding ? 'recovery' : 'forward', transactionId: plan.id,
+    issuedSha256: sha(context.issuedBytes), forceFailure: context.issued.forceFailure, transportToken: descriptor.token,
+    ...(binding ? { attemptId: binding.attemptId, recoveryIssuedSha256: sha(context.recoveryIssuedBytes) } : {}) };
+  return { folder, metadata, operation: binding?.operation || null,
+    ready: `${json({ ...metadata, state: 'ready' })}\n`, started: `${json({ ...metadata, state: 'started' })}\n` };
+}
+
+async function reserveTransport(transport) {
+  await writeResultBytes(transport.folder, 'transport-state.json', transport.ready);
+  await writeResultBytes(transport.folder, 'transport-output.json', '');
+}
+
+function retainedStart(transport) {
+  if (!transport) return '';
+  // OpenFile's numeric write mode and WriteLine semantics are pinned by the
+  // disposable native probe. A full readback is required before editor access.
+  return `local function write_trial_transport(filename,payload) assert(#payload+1<=${TRANSPORT_LIMIT},'Trial transport too large');local fusion=assert(resolve:Fusion(),'Trial writer unavailable');local f=assert(fusion:OpenFile(filename,2),'Trial writer unavailable');local ok,err=pcall(function() assert(f:WriteLine(payload)==#payload+1,'Trial transport write failed');assert(f:Flush()==true,'Trial transport flush failed') end);local closed=pcall(function() f:Close() end);assert(ok and closed,'Trial transport write failed');local expected=payload..'\\n';local h=assert(fusion:OpenFile(filename,1),'Trial transport reader unavailable');local readOk,value=pcall(function() assert(h:GetFileSize()==#expected,'Trial transport size differs');local parts,n={},0;while n<#expected do local line=h:ReadLine();assert(type(line)=='string' and #line>0 and #line<=#expected-n,'Trial transport read differs');n=n+#line;parts[#parts+1]=line end;assert(h:ReadLine()==nil and h:GetFileSize()==#expected,'Trial transport EOF differs');return table.concat(parts) end);local readClosed=pcall(function() h:Close() end);assert(readOk and readClosed and value==expected,'Trial transport readback differs') end;`
+    + exactFileGuard(path.join(transport.folder, 'transport-state.json'), transport.ready, 4096, 'Trial transport already started')
+    + exactFileGuard(path.join(transport.folder, 'transport-output.json'), '', TRANSPORT_LIMIT, 'Trial transport already has output')
+    + `write_trial_transport(${quote(path.join(transport.folder, 'transport-state.json'))},${quote(transport.started.slice(0, -1))});`;
+}
+
+function emitTrialOutput(marker, id, transport) {
+  const quoteOutput = String.raw`local function quote_trial_output(value) return '"'..value:gsub('[%z\1-\31\\"]',function(ch) if ch=='"' then return '\\"' elseif ch=='\\' then return '\\\\' else return string.format('\\u%04x',string.byte(ch)) end end)..'"' end;`;
+  return `local lines={};local n,index=1,1;while n<=#s do local last=math.min(n+8191,#s);while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end;assert(last>=n,'Invalid UTF-8 boundary');lines[#lines+1]='${marker}_CAPTURE_V1:${id}:'..index..':'..s:sub(n,last);n=last+1;index=index+1 end;lines[#lines+1]='${marker}_RESULT_V1:${id}:'..status;`
+    + (transport ? quoteOutput + `local envelope=${quote(`${json(transport.metadata).slice(0, -1)},"output":`)}..quote_trial_output(table.concat(lines,'\\n')..'\\n')..'}';write_trial_transport(${quote(path.join(transport.folder, 'transport-output.json'))},envelope);` : '')
+    + `for _,line in ipairs(lines) do print(line) end;`;
 }
 
 // The pinned Free Console exposes Fusion's IOClass, but not Lua's io library.
@@ -224,8 +261,8 @@ async function prepareReviewedRenameTrial({ sources, plan, audit, destinationDir
     destinationDir, disposableProjectName, effectObservationBytes, experimentMode }, reviewContext);
 }
 
-async function issueRenameTrial({ directory, forceFailure = false } = {}) {
-  if (typeof forceFailure !== 'boolean') throw new Error('invalid-trial-option');
+async function issueRenameTrial({ directory, forceFailure = false, resultTransport = 'console' } = {}) {
+  if (typeof forceFailure !== 'boolean' || !['console', 'retained-file'].includes(resultTransport)) throw new Error('invalid-trial-option');
   const plan = await readPlan(directory);
   if (plan.experimentMode !== undefined && (forceFailure ? 'forced-rollback' : 'rename-verify') !== plan.experimentMode) throw new Error('trial-issued-mode-mismatch');
   const states = effectStates(plan);
@@ -237,11 +274,15 @@ async function issueRenameTrial({ directory, forceFailure = false } = {}) {
   try { if (!(await handle.stat()).isFile()) throw new Error('invalid-backup'); await handle.chmod(0o600); }
   finally { await handle.close(); }
   const backup = await inspectResolveProjectExport(plan.backupPath);
-  const issued = validateIssued({ transactionId: plan.id, backup, forceFailure, recoveryVersion: 2, issuedAt: new Date().toISOString() }, plan);
+  const issued = validateIssued({ transactionId: plan.id, backup, forceFailure, recoveryVersion: resultTransport === 'retained-file' ? 3 : 2,
+    ...(resultTransport === 'retained-file' ? { resultTransport: { schemaVersion: 1, token: randomBytes(16).toString('hex') } } : {}), issuedAt: new Date().toISOString() }, plan);
   await writeRecord(directory, 'issued.json', issued);
-  const issuedGuard = exactFileGuard(path.join(directory, 'issued.json'), `${json(issued)}\n`, 16384, 'Trial issued record changed');
-  const command = await capturePrelude(Boolean(plan.effectGuard), effectStates(plan).before.schemaVersion === 2) + outcomeGuard(directory) + issuedGuard + `assert(not (bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))})),'Trial revoked for recovery'); local pm=resolve:GetProjectManager(); local before=${quote(json(states.before))}; local after=${quote(json(states.after))}; assert(encode_state(capture_state())==before,'Stale source'); assert(bmd and bmd.fileexists and bmd.fileexists(${quote(plan.backupPath)}),'Backup missing'); FRAMELINE_RENAME_TRIAL_USED=FRAMELINE_RENAME_TRIAL_USED or {}; assert(not FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}],'Trial already consumed'); local function target() local p=pm:GetCurrentProject(); assert(p:GetUniqueId()==${quote(plan.before.project_id)},'Project changed'); for n=1,p:GetTimelineCount() do local t=p:GetTimelineByIndex(n); if t:GetUniqueId()==${quote(plan.change.timelineId)} then for _,kind in ipairs({'video','audio','subtitle'}) do for track=1,t:GetTrackCount(kind) do for _,item in ipairs(t:GetItemListInTrack(kind,track) or {}) do if item:GetUniqueId()==${quote(plan.change.itemId)} then return item end end end end end end; error('Target missing') end; local function reopen() assert(pm:SaveProject(),'Save failed'); assert(pm:CloseProject(pm:GetCurrentProject()),'Close failed'); assert(pm:LoadProject(${quote(plan.before.project_name)}),'Reopen failed') end; FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}]=true; local ok,err=pcall(function() assert(target():SetName(${quote(plan.change.after)}),'Rename failed'); reopen(); assert(encode_state(capture_state())==after,'Applied state differs'); ${forceFailure ? "error('Intentional trial failure');" : ''} end); local status='applied'; if not ok then local recovered=pcall(function() assert(target():GetName()==${quote(plan.change.after)} or target():GetName()==${quote(plan.change.before)},'Unexpected recovery state'); assert(target():SetName(${quote(plan.change.before)}),'Rollback failed'); reopen(); assert(encode_state(capture_state())==before,'Rollback state differs') end); status=recovered and 'rolled-back' or 'recovery-required' end; local s=encode_state(capture_state()); assert(#s<=20*1024*1024,'Trial capture too large'); local n,index=1,1; while n<=#s do local last=math.min(n+8191,#s); while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end; assert(last>=n,'Invalid UTF-8 boundary'); print('FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${plan.id}:'..index..':'..s:sub(n,last)); n=last+1; index=index+1 end; print('FRAMELINE_RENAME_TRIAL_RESULT_V1:${plan.id}:'..status)`;
-  return { transactionId: plan.id, command, backup, backupPath: plan.backupPath, experimental: true };
+  const issuedBytes = Buffer.from(`${json(issued)}\n`);
+  const transport = resultTransport === 'retained-file' ? retainedTransport(directory, plan, { issued, issuedBytes }) : null;
+  if (transport) await reserveTransport(transport);
+  const issuedGuard = exactFileGuard(path.join(directory, 'issued.json'), issuedBytes, 16384, 'Trial issued record changed');
+  const command = await capturePrelude(Boolean(plan.effectGuard), effectStates(plan).before.schemaVersion === 2) + outcomeGuard(directory) + issuedGuard + `assert(not (bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))})),'Trial revoked for recovery'); ${retainedStart(transport)} local pm=resolve:GetProjectManager(); local before=${quote(json(states.before))}; local after=${quote(json(states.after))}; assert(encode_state(capture_state())==before,'Stale source'); assert(bmd and bmd.fileexists and bmd.fileexists(${quote(plan.backupPath)}),'Backup missing'); FRAMELINE_RENAME_TRIAL_USED=FRAMELINE_RENAME_TRIAL_USED or {}; assert(not FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}],'Trial already consumed'); local function target() local p=pm:GetCurrentProject(); assert(p:GetUniqueId()==${quote(plan.before.project_id)},'Project changed'); for n=1,p:GetTimelineCount() do local t=p:GetTimelineByIndex(n); if t:GetUniqueId()==${quote(plan.change.timelineId)} then for _,kind in ipairs({'video','audio','subtitle'}) do for track=1,t:GetTrackCount(kind) do for _,item in ipairs(t:GetItemListInTrack(kind,track) or {}) do if item:GetUniqueId()==${quote(plan.change.itemId)} then return item end end end end end end; error('Target missing') end; local function reopen() assert(pm:SaveProject(),'Save failed'); assert(pm:CloseProject(pm:GetCurrentProject()),'Close failed'); assert(pm:LoadProject(${quote(plan.before.project_name)}),'Reopen failed') end; FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}]=true; local ok,err=pcall(function() assert(target():SetName(${quote(plan.change.after)}),'Rename failed'); reopen(); assert(encode_state(capture_state())==after,'Applied state differs'); ${forceFailure ? "error('Intentional trial failure');" : ''} end); local status='applied'; if not ok then local recovered=pcall(function() assert(target():GetName()==${quote(plan.change.after)} or target():GetName()==${quote(plan.change.before)},'Unexpected recovery state'); assert(target():SetName(${quote(plan.change.before)}),'Rollback failed'); reopen(); assert(encode_state(capture_state())==before,'Rollback state differs') end); status=recovered and 'rolled-back' or 'recovery-required' end; local s=encode_state(capture_state()); assert(#s<=20*1024*1024,'Trial capture too large'); ${emitTrialOutput('FRAMELINE_RENAME_TRIAL', plan.id, transport)}`;
+  return { transactionId: plan.id, command, backup, backupPath: plan.backupPath, experimental: true, resultTransport };
 }
 
 function checkResultEffects(plan, status, snapshot, effectObservationBytes) {
@@ -282,18 +323,20 @@ async function recordRenameTrialResult({ directory, status, snapshotBytes, effec
   return recordOutcome({ directory, status, snapshotBytes, effectObservationBytes });
 }
 
-async function recordOutcome({ directory, status, snapshotBytes, effectObservationBytes, recovery } = {}) {
+async function recordOutcome({ directory, status, snapshotBytes, effectObservationBytes, recovery, origin } = {}) {
   const plan = await readPlan(directory);
   if (!(recovery ? ['source-verified', 'restored'] : ['applied', 'rolled-back', 'recovery-required']).includes(status)) throw new Error('invalid-trial-status');
   const snapshot = parse(snapshotBytes);
   if (status !== 'recovery-required' && json(snapshot) !== json(status === 'applied' ? plan.after : plan.before)) throw new Error('trial-result-mismatch');
   checkResultEffects(plan, status, snapshot, effectObservationBytes);
   const { issued, backup } = await readIssued(directory, plan);
+  if (Boolean(recovery ? recovery.resultTransport : issued.resultTransport) !== (origin === RETAINED_ORIGIN)) throw new Error('trial-result-transport-mismatch');
   if (status === 'applied' && issued.forceFailure) throw new Error('trial-issued-mode-mismatch');
   const result = { schemaVersion: 1, experimental: true, transactionId: plan.id, status,
     sourceSha256: plan.sourceSha256, incomingSha256: plan.incomingSha256,
     resultingSnapshotSha256: sha(snapshotBytes), backup, backupPath: plan.backupPath,
     validation: 'observed-fields-only', recordedAt: new Date().toISOString(),
+    ...(origin === RETAINED_ORIGIN ? { resultTransport: 'retained-file' } : {}),
     ...(recovery ? { recovery } : {}),
     ...(plan.effectGuard ? { effectObservation: { sourceSha256: plan.effectGuard.sourceSha256,
       resultingSha256: sha(effectObservationBytes), validation: 'observed-effect-metadata-only' } } : {}),
@@ -326,6 +369,8 @@ async function readRenameTrialResult(directory) {
     if (json(result.recovery) !== json(attempt.binding)
       || result.status !== (attempt.binding.operation === 'verify-source' ? 'source-verified' : 'restored')) throw new Error('trial-recovery-binding-mismatch');
   } else if (result.recovery !== undefined) throw new Error('unexpected-trial-recovery');
+  if (Boolean(recovered ? result.recovery.resultTransport : issued.resultTransport)
+    ? result.resultTransport !== 'retained-file' : result.resultTransport !== undefined) throw new Error('trial-result-transport-mismatch');
   if (result.status !== 'recovery-required' && json(snapshot) !== json(result.status === 'applied' ? plan.after : plan.before)) throw new Error('trial-result-mismatch');
   let effectObservationBytes;
   if (plan.effectGuard) {
@@ -345,11 +390,16 @@ async function readRenameTrialResult(directory) {
 }
 
 async function recordRenameTrialConsoleResult({ directory, consoleOutput } = {}) {
+  return recordConsoleOutcome({ directory, consoleOutput });
+}
+
+async function recordConsoleOutcome({ directory, consoleOutput, origin } = {}) {
   const plan = await readPlan(directory);
   const { status, bytes } = consoleCapture(consoleOutput, plan.id, 'FRAMELINE_RENAME_TRIAL');
   const effectObservationBytes = plan.effectGuard ? `${bytes}\n` : undefined;
   const snapshotBytes = plan.effectGuard ? `${json(parseEffectObservation(effectObservationBytes).snapshot)}\n` : `${bytes}\n`;
-  return recordRenameTrialResult({ directory, status, snapshotBytes, effectObservationBytes });
+  await rejectRecovery(directory);
+  return recordOutcome({ directory, status, snapshotBytes, effectObservationBytes, origin });
 }
 
 function consoleCapture(consoleOutput, id, marker) {
@@ -398,12 +448,17 @@ async function readRecoveryAttempt(directory, plan, attemptId, stage = 'request'
     : json(observation) === json(states.after) ? 'renamed' : 'diverged';
   const receipt = { schemaVersion: 1, transactionId: plan.id, attemptId, classification, sha256: sha(bytes) };
   if (json(JSON.parse(await privateBytes(folder, 'inspection-record.json', 1024))) !== json(receipt)) throw new Error('trial-recovery-binding-mismatch');
-  const binding = { attemptId, revocationSha256, inspectionSha256: sha(bytes),
+  let binding = { attemptId, revocationSha256, inspectionSha256: sha(bytes),
     operation: classification === 'source' ? 'verify-source' : classification === 'renamed' ? 'restore-name' : null };
   let recoveryIssuedBytes;
   if (stage === 'issued') {
     recoveryIssuedBytes = await privateBytes(folder, 'issued.json', 1024);
-    if (!binding.operation || json(JSON.parse(recoveryIssuedBytes)) !== json(binding)) throw new Error('trial-recovery-binding-mismatch');
+    const saved = JSON.parse(recoveryIssuedBytes);
+    if (Object.hasOwn(saved || {}, 'resultTransport')) {
+      if (!validTransport(saved.resultTransport)) throw new Error('trial-recovery-binding-mismatch');
+      binding = { ...binding, resultTransport: saved.resultTransport };
+    }
+    if (!binding.operation || json(saved) !== json(binding)) throw new Error('trial-recovery-binding-mismatch');
   }
   return { folder, ...context, markerBytes, bytes, observation, classification, binding, recoveryIssuedBytes };
 }
@@ -460,12 +515,20 @@ async function readRenameTrialRecoveryCapture({ directory, attemptId, consoleOut
   return { classification, observedSha256: sha(bytes) };
 }
 
-async function issueRenameTrialRecovery({ directory, attemptId } = {}) {
+async function issueRenameTrialRecovery({ directory, attemptId, resultTransport = 'console' } = {}) {
+  if (!['console', 'retained-file'].includes(resultTransport)) throw new Error('invalid-trial-option');
   const plan = await readPlan(directory), states = effectStates(plan);
-  const attempt = await readRecoveryAttempt(directory, plan, attemptId, 'inspection');
+  let attempt = await readRecoveryAttempt(directory, plan, attemptId, 'inspection');
   await assertRecoveryActive(directory, attempt.folder);
   if (!attempt.binding.operation) throw new Error('manual-recovery-required');
+  if (await exists(attempt.folder, 'issued.json')) {
+    attempt = await readRecoveryAttempt(directory, plan, attemptId, 'issued');
+    if (Boolean(attempt.binding.resultTransport) !== (resultTransport === 'retained-file')) throw new Error('trial-result-transport-mismatch');
+  } else if (resultTransport === 'retained-file') attempt.binding.resultTransport = { schemaVersion: 1, token: randomBytes(16).toString('hex') };
   await writeResultBytes(attempt.folder, 'issued.json', `${json(attempt.binding)}\n`);
+  attempt.recoveryIssuedBytes = Buffer.from(`${json(attempt.binding)}\n`);
+  const transport = resultTransport === 'retained-file' ? retainedTransport(attempt.folder, plan, attempt, attempt.binding) : null;
+  if (transport) await reserveTransport(transport);
   const guard = `assert(bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))}) and bmd.fileexists(${quote(plan.backupPath)}),'Recovery records missing');assert(not bmd.fileexists(${quote(path.join(attempt.folder, 'retired.json'))}) and not bmd.fileexists(${quote(path.join(directory, 'recovery-result.json'))}) and not bmd.fileexists(${quote(path.join(directory, 'result.json'))}),'Recovery command retired');`
     + exactFileGuard(path.join(directory, 'issued.json'), attempt.issuedBytes, 16384, 'Trial issued record changed')
     + exactFileGuard(path.join(directory, 'recovery-started.json'), attempt.markerBytes, 1024, 'Recovery revocation changed')
@@ -474,13 +537,18 @@ async function issueRenameTrialRecovery({ directory, attemptId } = {}) {
   const target = `local function target() local p=resolve:GetProjectManager():GetCurrentProject();assert(p:GetUniqueId()==${quote(plan.before.project_id)},'Project changed');for n=1,p:GetTimelineCount() do local t=p:GetTimelineByIndex(n);if t:GetUniqueId()==${quote(plan.change.timelineId)} then for _,kind in ipairs({'video','audio','subtitle'}) do for track=1,t:GetTrackCount(kind) do for _,item in ipairs(t:GetItemListInTrack(kind,track) or {}) do if item:GetUniqueId()==${quote(plan.change.itemId)} then return item end end end end end end;error('Target missing') end;`;
   const operation = attempt.binding.operation === 'restore-name' ? `assert(target():SetName(${quote(plan.change.before)}),'Restore name failed');` : '';
   const status = attempt.binding.operation === 'restore-name' ? 'restored' : 'source-verified';
-  const command = await capturePrelude(true, states.before.schemaVersion === 2) + guard + `assert(encode_state(capture_state())==${quote(json(attempt.observation))},'Recovery source changed');FRAMELINE_RECOVERY_USED=FRAMELINE_RECOVERY_USED or {};assert(not FRAMELINE_RECOVERY_USED[${quote(attemptId)}],'Recovery command consumed');FRAMELINE_RECOVERY_USED[${quote(attemptId)}]=true;${target}local status=${quote(status)};local ok,err=pcall(function() ${operation}local pm=resolve:GetProjectManager();assert(pm:SaveProject(),'Recovery save failed');assert(pm:CloseProject(pm:GetCurrentProject()),'Recovery close failed');assert(pm:LoadProject(${quote(plan.before.project_name)}),'Recovery reopen failed');assert(encode_state(capture_state())==${quote(json(states.before))},'Recovery state differs') end);if not ok then status='recovery-required' end;local s=encode_state(capture_state());assert(#s<=20*1024*1024,'Recovery capture too large');local n,index=1,1;while n<=#s do local last=math.min(n+8191,#s);while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end;assert(last>=n,'Invalid UTF-8 boundary');print('FRAMELINE_RENAME_RECOVERY_CAPTURE_V1:${attemptId}:'..index..':'..s:sub(n,last));n=last+1;index=index+1 end;print('FRAMELINE_RENAME_RECOVERY_RESULT_V1:${attemptId}:'..status)`;
-  return { command, operation: attempt.binding.operation };
+  const command = await capturePrelude(true, states.before.schemaVersion === 2) + guard + retainedStart(transport) + `assert(encode_state(capture_state())==${quote(json(attempt.observation))},'Recovery source changed');FRAMELINE_RECOVERY_USED=FRAMELINE_RECOVERY_USED or {};assert(not FRAMELINE_RECOVERY_USED[${quote(attemptId)}],'Recovery command consumed');FRAMELINE_RECOVERY_USED[${quote(attemptId)}]=true;${target}local status=${quote(status)};local ok,err=pcall(function() ${operation}local pm=resolve:GetProjectManager();assert(pm:SaveProject(),'Recovery save failed');assert(pm:CloseProject(pm:GetCurrentProject()),'Recovery close failed');assert(pm:LoadProject(${quote(plan.before.project_name)}),'Recovery reopen failed');assert(encode_state(capture_state())==${quote(json(states.before))},'Recovery state differs') end);if not ok then status='recovery-required' end;local s=encode_state(capture_state());assert(#s<=20*1024*1024,'Recovery capture too large');${emitTrialOutput('FRAMELINE_RENAME_RECOVERY', attemptId, transport)}`;
+  return { command, operation: attempt.binding.operation, resultTransport };
 }
 
 async function recordRenameTrialRecoveryResult({ directory, attemptId, consoleOutput } = {}) {
+  return recordRecoveryOutcome({ directory, attemptId, consoleOutput });
+}
+
+async function recordRecoveryOutcome({ directory, attemptId, consoleOutput, origin } = {}) {
   const plan = await readPlan(directory);
   const attempt = await readRecoveryAttempt(directory, plan, attemptId, 'issued');
+  if (Boolean(attempt.binding.resultTransport) !== (origin === RETAINED_ORIGIN)) throw new Error('trial-result-transport-mismatch');
   const { status, bytes } = consoleCapture(consoleOutput, attemptId, 'FRAMELINE_RENAME_RECOVERY');
   const effectObservationBytes = `${bytes}\n`, observation = parseEffectObservation(effectObservationBytes);
   if (await exists(directory, 'recovery-result.json')) {
@@ -498,8 +566,119 @@ async function recordRenameTrialRecoveryResult({ directory, attemptId, consoleOu
   if (status !== (attempt.binding.operation === 'restore-name' ? 'restored' : 'source-verified')
     || json(observation) !== json(effectStates(plan).before)) throw new Error('trial-recovery-result-mismatch');
   const result = await recordOutcome({ directory, status, effectObservationBytes,
-    snapshotBytes: `${json(observation.snapshot)}\n`, recovery: attempt.binding });
+    snapshotBytes: `${json(observation.snapshot)}\n`, recovery: attempt.binding, origin });
   return { completed: true, result };
+}
+
+async function transportBytes(folder, name, limit) {
+  await privateDirectory(folder); let handle;
+  try {
+    handle = await fs.open(path.join(folder, name), constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
+    const before = await handle.stat();
+    if (!before.isFile() || (before.mode & 0o777) !== 0o600 || before.size > limit) throw new Error();
+    const bytes = Buffer.alloc(before.size + 1); let offset = 0;
+    while (offset < bytes.length) { const read = await handle.read(bytes, offset, bytes.length - offset, offset); if (!read.bytesRead) break; offset += read.bytesRead; }
+    const after = await handle.stat(), named = await fs.lstat(path.join(folder, name));
+    if (offset !== before.size || named.isSymbolicLink() || [after, named].some(value => value.dev !== before.dev || value.ino !== before.ino
+      || value.size !== before.size || value.mtimeMs !== before.mtimeMs || value.ctimeMs !== before.ctimeMs || (value.mode & 0o777) !== 0o600)) throw new Error();
+    await handle.sync(); return bytes.subarray(0, offset);
+  } catch { throw transportError('trial-retained-result-corrupt'); }
+  finally { await handle?.close(); }
+}
+
+function parseTransport(bytes) {
+  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+  catch { throw transportError('trial-retained-result-corrupt'); }
+}
+
+function validateTransportOutput(plan, context, output) {
+  const recovery = context.metadata.kind === 'recovery', id = recovery ? context.metadata.attemptId : plan.id;
+  let captured;
+  try { captured = consoleCapture(output, id, recovery ? 'FRAMELINE_RENAME_RECOVERY' : 'FRAMELINE_RENAME_TRIAL'); }
+  catch { throw transportError('trial-retained-result-corrupt'); }
+  const effectObservationBytes = plan.effectGuard ? `${captured.bytes}\n` : undefined;
+  const snapshotBytes = plan.effectGuard ? `${json(parseEffectObservation(effectObservationBytes).snapshot)}\n` : `${captured.bytes}\n`;
+  const snapshot = parse(snapshotBytes), status = captured.status;
+  if (!(recovery ? ['source-verified', 'restored', 'recovery-required'] : ['applied', 'rolled-back', 'recovery-required']).includes(status)) throw new Error('invalid-trial-status');
+  if (recovery && status !== 'recovery-required' && status !== (context.operation === 'verify-source' ? 'source-verified' : 'restored')) throw new Error('trial-recovery-result-mismatch');
+  if (status === 'applied' && context.metadata.forceFailure) throw new Error('trial-issued-mode-mismatch');
+  if (status !== 'recovery-required' && json(snapshot) !== json(status === 'applied' ? plan.after : plan.before)) throw new Error('trial-result-mismatch');
+  checkResultEffects(plan, status, snapshot, effectObservationBytes);
+  return { status, snapshotBytes, effectObservationBytes };
+}
+
+async function inspectTransport(transport, plan) {
+  const state = parseTransport(await transportBytes(transport.folder, 'transport-state.json', 4096));
+  if (!exact(state, [...Object.keys(transport.metadata), 'state']) || !['ready', 'started'].includes(state.state)
+    || json(Object.fromEntries(Object.keys(transport.metadata).map(key => [key, state[key]]))) !== json(transport.metadata)) throw transportError('trial-retained-result-binding-mismatch');
+  const bytes = await transportBytes(transport.folder, 'transport-output.json', TRANSPORT_LIMIT);
+  if (!bytes.length) return { state: state.state, resultTransport: 'retained-file', output: null };
+  const envelope = parseTransport(bytes);
+  if (state.state !== 'started' || !exact(envelope, [...Object.keys(transport.metadata), 'output']) || typeof envelope.output !== 'string'
+    || json(Object.fromEntries(Object.keys(transport.metadata).map(key => [key, envelope[key]]))) !== json(transport.metadata)) throw transportError('trial-retained-result-binding-mismatch');
+  const decoded = validateTransportOutput(plan, transport, envelope.output);
+  return { state: 'complete', resultTransport: 'retained-file', output: envelope.output, decoded };
+}
+
+async function recordRenameTrialFileResult({ directory } = {}) {
+  const plan = await readPlan(directory), context = await readIssued(directory, plan);
+  await rejectRecovery(directory);
+  const transport = retainedTransport(directory, plan, context), value = await inspectTransport(transport, plan);
+  if (!value.output) throw transportError('trial-retained-result-incomplete');
+  await syncDirectory(directory);
+  if (await exists(directory, 'result.json')) {
+    const { result } = await readRenameTrialResult(directory);
+    if (result.status !== value.decoded.status || result.resultingSnapshotSha256 !== sha(value.decoded.snapshotBytes)
+      || plan.effectGuard && result.effectObservation.resultingSha256 !== sha(value.decoded.effectObservationBytes)) throw transportError('trial-retained-result-binding-mismatch');
+    return result;
+  }
+  return recordConsoleOutcome({ directory, consoleOutput: value.output, origin: RETAINED_ORIGIN });
+}
+
+async function recordRenameTrialRecoveryFileResult({ directory, attemptId } = {}) {
+  const plan = await readPlan(directory), context = await readRecoveryAttempt(directory, plan, attemptId, 'issued');
+  if (await exists(context.folder, 'retired.json')) throw new Error('trial-recovery-attempt-retired');
+  if (!context.binding.resultTransport) throw transportError('trial-file-result-unavailable');
+  const transport = retainedTransport(context.folder, plan, context, context.binding), value = await inspectTransport(transport, plan);
+  if (!value.output) throw transportError('trial-retained-result-incomplete');
+  await syncDirectory(context.folder);
+  return recordRecoveryOutcome({ directory, attemptId, consoleOutput: value.output, origin: RETAINED_ORIGIN });
+}
+
+async function findRetainedTransport(directory, plan) {
+  const context = await readIssued(directory, plan);
+  if (!(await exists(directory, 'recovery-started.json'))) return context.issued.resultTransport
+    ? { transport: retainedTransport(directory, plan, context), attemptId: null } : null;
+  await recoveryContext(directory, plan);
+  const root = path.join(directory, 'recovery'); await privateDirectory(root);
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  if (entries.length > 128) throw new Error('too-many-recovery-attempts');
+  const active = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^[a-f0-9]{32}$/.test(entry.name)) throw new Error('invalid-recovery-attempt');
+    const folder = path.join(root, entry.name); await privateDirectory(folder);
+    if (await exists(folder, 'retired.json') || !(await exists(folder, 'issued.json'))) continue;
+    const attempt = await readRecoveryAttempt(directory, plan, entry.name, 'issued');
+    if (attempt.binding.resultTransport) active.push({ transport: retainedTransport(folder, plan, attempt, attempt.binding), attemptId: entry.name });
+  }
+  if (active.length > 1) throw new Error('trial-recovery-binding-mismatch');
+  return active[0] || null;
+}
+
+// Only an explicit selected-record action calls this function. Incomplete or
+// corrupt transport never becomes an outcome; fresh inspection can retire it.
+async function recordRetainedRenameTrialOutcomeIfComplete({ directory } = {}) {
+  const plan = await readPlan(directory), found = await findRetainedTransport(directory, plan);
+  if (!found) return null;
+  let value;
+  try { value = await inspectTransport(found.transport, plan); }
+  catch (error) {
+    if (error.code === 'trial-retained-result-corrupt') return { completed: false, needsInspection: true, status: 'retained-result-unverified' };
+    throw error;
+  }
+  if (value.state !== 'complete') return null;
+  return found.attemptId ? recordRenameTrialRecoveryFileResult({ directory, attemptId: found.attemptId })
+    : { completed: true, result: await recordRenameTrialFileResult({ directory }) };
 }
 
 async function cancelPreparedRenameTrial({ directory } = {}) {
@@ -548,7 +727,13 @@ async function describeRenameTrial(directory) {
     const context = await recoveryContext(directory, plan);
     if (json(JSON.parse(await privateBytes(directory, 'recovery-started.json', 1024))) !== json(context.marker)) throw new Error('trial-recovery-binding-mismatch');
   }
-  return { ...description, mode: issuedMode(issued), target, state: supported ? 'unfinished' : 'manual' };
+  const found = await findRetainedTransport(directory, plan); let transportOutputAvailable = false;
+  if (found) {
+    try { transportOutputAvailable = (await inspectTransport(found.transport, plan)).state === 'complete'; }
+    catch (error) { if (error.code !== 'trial-retained-result-corrupt') throw error; }
+  }
+  return { ...description, mode: issuedMode(issued), target, state: supported ? 'unfinished' : 'manual',
+    ...(found ? { resultTransport: 'retained-file', transportOutputAvailable } : {}) };
 }
 
 async function exportRenameTrialAudit(directory) {
@@ -559,7 +744,7 @@ async function exportRenameTrialAudit(directory) {
   const decode = bytes => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   const prefix = result.recovery ? 'recovery-' : '';
   const audit = { schemaVersion: 1, kind: 'resolve-rename-trial-audit', readOnly: true, safeToApply: false,
-    nativeBackupIncluded: false, provenance: 'copied-console-observation',
+    nativeBackupIncluded: false, provenance: result.resultTransport === 'retained-file' ? 'retained-internal-script-observation' : 'copied-console-observation',
     transactionId: result.transactionId,
     sources: Object.fromEntries(['base', 'local', 'incoming'].map(role =>
       [role, decode(Buffer.from(plan.reviewContext.sources[role], 'base64'))])),
@@ -580,4 +765,5 @@ async function exportRenameTrialAudit(directory) {
 module.exports = { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult,
   recordRenameTrialConsoleResult, readRenameTrialResult, prepareRenameTrialRecovery, readRenameTrialRecoveryCapture,
   issueRenameTrialRecovery, recordRenameTrialRecoveryResult, describeRenameTrial, cancelPreparedRenameTrial,
-  validatePrivateTrialDirectory: privateDirectory, exportRenameTrialAudit };
+  validatePrivateTrialDirectory: privateDirectory, exportRenameTrialAudit, recordRenameTrialFileResult,
+  recordRenameTrialRecoveryFileResult, recordRetainedRenameTrialOutcomeIfComplete };

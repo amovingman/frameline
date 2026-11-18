@@ -40,6 +40,8 @@ async function discoverRenameTrials({ directory, store, cursor = null } = {}) {
       if (descriptor.state === 'outcome' && await inspectRenameTrialHistoryLink({ directory: selected, store,
         result: descriptor.result, snapshot: descriptor.snapshot, target: descriptor.target })) continue;
       const item = { ...fallback, projectName: descriptor.projectName, createdAt: descriptor.createdAt, mode: descriptor.mode,
+        ...(descriptor.resultTransport === 'retained-file' ? { resultTransport: 'retained-file',
+          transportOutputAvailable: descriptor.transportOutputAvailable === true } : {}),
         state: descriptor.state, action: ['unfinished', 'outcome'].includes(descriptor.state) ? 'recover'
           : descriptor.state === 'prepared' ? 'cancel' : 'reveal' };
       items.push(item); selections.set(recordId, { directory: selected, action: item.action });

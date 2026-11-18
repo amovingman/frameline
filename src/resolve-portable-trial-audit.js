@@ -8,6 +8,10 @@ const { resolveReviewedRename } = require('./resolve-rename-review');
 const MAX_AUDIT_BYTES = 64 * 1024 * 1024;
 const SHA = /^[a-f0-9]{64}$/, ID = /^[a-f0-9]{32}$/;
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const transport = value => {
+  keys(value, ['schemaVersion', 'token']);
+  if (value.schemaVersion !== 1 || !ID.test(value.token || '')) invalid();
+};
 function invalid() { throw Object.assign(new Error('invalid-portable-trial-audit'), { code: 'invalid-portable-trial-audit' }); }
 function plain(value, ancestors = new Set(), depth = 0, budget = { nodes: 0 }) {
   if (++budget.nodes > 1000000 || depth > 64) invalid();
@@ -55,7 +59,8 @@ function validatePortableTrialAudit(value, expectedSnapshot = null) {
     keys(value, ['schemaVersion', 'kind', 'readOnly', 'safeToApply', 'nativeBackupIncluded', 'provenance', 'transactionId', 'sources', 'review',
       'issuedRecord', 'outcome', 'resultSnapshot', 'effects', 'recovery']);
     if (value.schemaVersion !== 1 || value.kind !== 'resolve-rename-trial-audit' || value.readOnly !== true
-      || value.safeToApply !== false || value.nativeBackupIncluded !== false || value.provenance !== 'copied-console-observation'
+      || value.safeToApply !== false || value.nativeBackupIncluded !== false
+      || !['copied-console-observation', 'retained-internal-script-observation'].includes(value.provenance)
       || !ID.test(value.transactionId)) invalid();
     keys(value.sources, ['base', 'local', 'incoming']);
     for (const source of Object.values(value.sources)) validateResolveSnapshot(encodedJson(source, 20 * 1024 * 1024));
@@ -72,10 +77,13 @@ function validatePortableTrialAudit(value, expectedSnapshot = null) {
     if (json(snapshot) !== json(outcome.status === 'applied' ? after : before)
       || (expectedSnapshot !== null && json(snapshot) !== json(expectedSnapshot))) invalid();
     const issued = encodedJson(value.issuedRecord, 16384);
-    keys(issued, ['transactionId', 'backup', 'forceFailure', 'issuedAt', ...(Object.hasOwn(issued, 'recoveryVersion') ? ['recoveryVersion'] : [])]);
+    keys(issued, ['transactionId', 'backup', 'forceFailure', 'issuedAt', ...(Object.hasOwn(issued, 'recoveryVersion') ? ['recoveryVersion'] : []),
+      ...(Object.hasOwn(issued, 'resultTransport') ? ['resultTransport'] : [])]);
     if (issued.transactionId !== value.transactionId || typeof issued.forceFailure !== 'boolean'
-      || (issued.recoveryVersion !== undefined && ![1, 2].includes(issued.recoveryVersion))
+      || (issued.recoveryVersion !== undefined && ![1, 2, 3].includes(issued.recoveryVersion))
       || (issued.forceFailure && outcome.status === 'applied')) invalid();
+    if (issued.recoveryVersion === 3) transport(issued.resultTransport);
+    else if (issued.resultTransport !== undefined) invalid();
     timestamp(issued.issuedAt);
     keys(issued.backup, ['schemaVersion', 'sha256', 'size', 'mode', 'timelineCount', 'archiveVerified']);
     if (issued.backup.schemaVersion !== 1 || !SHA.test(issued.backup.sha256) || issued.backup.archiveVerified !== true
@@ -97,10 +105,11 @@ function validatePortableTrialAudit(value, expectedSnapshot = null) {
     } else if (outcome.effectObservation !== null) invalid();
     const recovered = ['restored', 'source-verified'].includes(outcome.status);
     if (recovered) {
-      if (!effectsBefore || !(issued.recoveryVersion === 2 || issued.recoveryVersion === 1 && issued.forceFailure === true)) invalid();
+      if (!effectsBefore || !([2, 3].includes(issued.recoveryVersion) || issued.recoveryVersion === 1 && issued.forceFailure === true)) invalid();
       keys(value.recovery, ['binding', 'inspection', 'revocation']);
       const binding = value.recovery.binding;
-      keys(binding, ['attemptId', 'revocationSha256', 'inspectionSha256', 'operation']);
+      keys(binding, ['attemptId', 'revocationSha256', 'inspectionSha256', 'operation', ...(Object.hasOwn(binding, 'resultTransport') ? ['resultTransport'] : [])]);
+      if (binding.resultTransport !== undefined) transport(binding.resultTransport);
       if (!ID.test(binding.attemptId) || binding.revocationSha256 !== hash(value.recovery.revocation)
         || binding.inspectionSha256 !== hash(value.recovery.inspection)
         || binding.operation !== (outcome.status === 'restored' ? 'restore-name' : 'verify-source')) invalid();
@@ -112,6 +121,8 @@ function validatePortableTrialAudit(value, expectedSnapshot = null) {
       expected.snapshot = outcome.status === 'restored' ? after : before;
       if (json(inspection) !== json(expected)) invalid();
     } else if (value.recovery !== null) invalid();
+    const retained = recovered ? value.recovery.binding.resultTransport !== undefined : issued.resultTransport !== undefined;
+    if (value.provenance !== (retained ? 'retained-internal-script-observation' : 'copied-console-observation')) invalid();
     return value;
   } catch { invalid(); }
 }

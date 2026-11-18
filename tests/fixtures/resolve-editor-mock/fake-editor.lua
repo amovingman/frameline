@@ -1,7 +1,8 @@
 -- Test boundary only: distinct working/saved project state, no Resolve connection.
 function copy(value) if type(value)~='table' then return value end local out={};for k,v in pairs(value) do out[k]=copy(v) end;return out end
+local hostPrint=print
 working=copy(initial);saved=copy(initial);opened=true
-counters={editor=0,setName=0,save=0,close=0,load=0,fileOpen=0,fileClose=0}
+counters={editor=0,setName=0,save=0,close=0,load=0,fileOpen=0,fileClose=0,writerOpen=0,writeLine=0,flush=0}
 local function timelineData(id) for _,v in ipairs(working.snapshot.timelines) do if v.id==id then return v end end;error('Mock timeline missing') end
 local function itemData(tid,id) for _,v in ipairs(timelineData(tid).items) do if v.id==id then return v end end;error('Mock item missing') end
 local function supplementData(tid,id) for _,v in ipairs(working.items) do if v.timelineId==tid and v.itemId==id then return v end end;error('Mock supplement missing') end
@@ -58,7 +59,7 @@ function project:GetCurrentTimeline()if working.activeTimelineId then return tim
 local manager={}
 function manager:GetCurrentProject()return opened and project or nil end
 function manager:SaveProject()counters.save=counters.save+1;if options.failSaveAt==counters.save or options.failAllSaves then return false end;saved=copy(working);return true end
-function manager:CloseProject(value)counters.close=counters.close+1;if options.failCloseAt==counters.close then return false end;assert(value==project);opened=false;return true end
+function manager:CloseProject(value)counters.close=counters.close+1;if options.failCloseAt==counters.close then return false end;assert(value==project);opened=false;if options.discardConsoleOnClose then print=function()end end;return true end
 function manager:LoadProject(name)counters.load=counters.load+1;if options.failLoadAt==counters.load then return nil end;assert(name==saved.snapshot.project_name);working=copy(saved);opened=true;return project end
 resolve={}
 function resolve:GetProjectManager()counters.editor=counters.editor+1;return manager end
@@ -67,21 +68,49 @@ local hostIO=io
 bmd={fileexists=function(filename)local handle=hostIO.open(filename,'rb');if not handle then return false end;handle:close();return true end}
 -- The emitted command sees only the documented Fusion IOClass surface.
 -- The test shim's host IO is a private filesystem adapter, not Console io.
+local writtenPaths={}
 function resolve:Fusion()
  if options.noFusion then return nil end
  return {OpenFile=function(_,filename,mode)
-  assert(mode==1,'Mock reader mode differs from the native read-only probe')
-  local handle=hostIO.open(filename,'rb');if not handle then return nil end
+  assert(mode==1 or mode==2,'Mock Fusion mode differs from the native probes')
+  if mode==2 then
+   counters.writerOpen=counters.writerOpen+1
+   if options.noWriter or options.writerOpenFailAt==counters.writerOpen then return nil end
+  end
+  local handle=hostIO.open(filename,mode==1 and 'rb' or 'w+b');if not handle then return nil end
   counters.fileOpen=counters.fileOpen+1
-  local reader={};local size=handle:seek('end');handle:seek('set',0)
-  function reader:GetFileSize()return size+(options.readerSizeDelta or 0) end
+  local reader={}
+  function reader:GetFileSize()
+   local pos=handle:seek();local size=handle:seek('end');handle:seek('set',pos)
+   return size+(options.readerSizeDelta or 0)
+  end
   function reader:ReadLine()
    if options.readerNoProgress then return '' end
-   local parts={};while true do local byte=handle:read(1);if not byte then break end;parts[#parts+1]=byte;if byte=='\n' then break end end
-   if #parts==0 then return nil end
-   local value=table.concat(parts);if options.readerStripsNewline then value=value:gsub('\n$','') end;return value
+   local before=handle:seek();local value=handle:read('*l');if value==nil then return nil end
+   if handle:seek()-before>#value then value=value..'\n' end
+   if options.readerStripsNewline then value=value:gsub('\n$','') end
+   if writtenPaths[filename] and (options.writerReadbackMismatch or options.writerReadbackMismatchAt==writtenPaths[filename]) then value='X'..value:sub(2) end
+   return value
   end
-  function reader:Close()counters.fileClose=counters.fileClose+1;handle:close();if options.readerCloseFailure then error('Mock close failed') end end
+  function reader:WriteLine(value)
+   assert(mode==2 and type(value)=='string','Mock write mode/type invalid')
+   counters.writeLine=counters.writeLine+1
+   if options.writerWriteFailureAt==counters.writeLine then error('Mock WriteLine failed') end
+   local bytes=value..'\n'
+   if options.writerShortAt==counters.writeLine then bytes=bytes:sub(1,math.max(0,#bytes-2)) end
+   handle:write(bytes);writtenPaths[filename]=counters.writeLine
+   if options.writerFalseWriteAt==counters.writeLine then return false end
+   return #bytes
+  end
+  function reader:Flush()
+   assert(mode==2,'Mock Flush requires a writer');counters.flush=counters.flush+1
+   if options.writerFlushFailureAt==counters.flush then error('Mock Flush failed') end
+   handle:flush();return options.writerFalseFlushAt~=counters.flush
+  end
+  function reader:Close()
+   counters.fileClose=counters.fileClose+1;handle:close()
+   if options.readerCloseFailure or mode==2 and options.writerCloseFailureAt==counters.writerOpen then error('Mock close failed') end
+  end
   return reader
  end}
 end

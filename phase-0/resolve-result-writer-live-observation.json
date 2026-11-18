@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T11:23:00.394Z",
+  "resolveVersion": "21.1.2.10",
+  "scope": "Disposable private file capability and saved-project continuation probe",
+  "standardLuaIoAvailable": false,
+  "observedWriteMode": 2,
+  "method": "IOClass.WriteLine",
+  "writeAddsOneLineFeed": true,
+  "writeReturn": "exact-written-byte-count-including-line-feed",
+  "flushReturn": true,
+  "closeReturn": "no-return-values",
+  "exactReadbackVerifiedBeforeProjectAccess": true,
+  "projectOperations": [
+    "verify-exact-disposable-name-and-id",
+    "SaveProject",
+    "CloseProject",
+    "LoadProject",
+    "verify-exact-disposable-name-and-id"
+  ],
+  "propertyMutationCalls": 0,
+  "freshFusionWriterAfterLoad": true,
+  "beforeMarker": {
+    "size": 43,
+    "sha256": "c69ec2f982d9f8cd758a483590346504dcc13e2ad776d63810e1dc5366525bdc"
+  },
+  "afterMarker": {
+    "size": 42,
+    "sha256": "88f8116b107774ce0fa64490e4b3e8ec93b6ec1ccbdf8faa5f6cdc86347350bf"
+  },
+  "bothHostFileBytesMatched": true,
+  "consoleDisappearedDuringReload": true,
+  "luaContinuedAfterReload": true,
+  "reference": "https://documents.blackmagicdesign.com/UserManuals/Fusion8_Scripting_Guide.pdf",
+  "limits": [
+    "Numeric mode, WriteLine byte count and Flush/Close behavior are empirical observations on the pinned build.",
+    "This capability probe does not acknowledge a rename or recovery transaction.",
+    "Production result transport still requires strict binding, durable replay barriers, private host reads and existing outcome validators."
+  ]
+}

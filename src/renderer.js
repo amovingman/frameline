@@ -2781,13 +2781,14 @@ function renderRetainedResolveTrials() {
   const labels = { unfinished: 'Issued rename · live inspection needed', outcome: 'Verified outcome · history save pending',
     prepared: 'Preparation only · rename command not issued', manual: 'Manual inspection required', unreadable: 'Record could not be verified' };
   for (const item of items) {
+    const retainedReady = item.action === 'recover' && item.state !== 'outcome' && item.transportOutputAvailable === true;
     const row = make('div', 'resolve-retained-row'), summary = make('div');
     summary.append(make('strong', '', item.projectName || 'Unverified drill record'));
     const date = item.createdAt ? new Date(item.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Date unavailable';
-    summary.append(make('span', '', `${date} · ${item.mode === null ? 'Mode unavailable' : item.mode === 'rename-verify' ? 'Rename and verify' : 'Force rollback test'} · Trial ${item.transactionId.slice(0, 8)}`), make('span', '', labels[item.state] || labels.unreadable));
+    summary.append(make('span', '', `${date} · ${item.mode === null ? 'Mode unavailable' : item.mode === 'rename-verify' ? 'Rename and verify' : 'Force rollback test'} · Trial ${item.transactionId.slice(0, 8)}`), make('span', '', retainedReady ? 'Retained result ready to read' : labels[item.state] || labels.unreadable));
     row.append(summary);
     if (item.action !== 'none') {
-      const label = item.action === 'recover' ? item.state === 'outcome' ? 'Open outcome' : 'Inspect live state'
+      const label = item.action === 'recover' ? item.state === 'outcome' ? 'Open outcome' : retainedReady ? 'Read retained result' : 'Inspect live state'
         : item.action === 'cancel' ? 'Cancel preparation' : 'Reveal records';
       const button = make('button', '', label); button.type = 'button';
       button.setAttribute('aria-label', `${label} for ${item.projectName || 'unverified drill'} ${item.transactionId.slice(0, 8)}`);
@@ -2844,13 +2845,19 @@ function renderResolveTrial() {
     : resolveState?.plan?.schemaVersion === 2 ? 'Richer captures support review only. Use snapshot-only history mode or three snapshot JSON files for the separate disposable rename drill.' : 'Review one rename and acknowledge the disposable project to begin.',
     'effect-command': 'Read-only state capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the state capture here.',
     'backup-command': 'State capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
-    'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
-    'edit-command': 'Backup verified. Rename experiment copied: run it in Resolve, then copy all Console output and read the result. A verified result leaves the reviewed name in the disposable project. If interrupted, return here for inspection and recovery.',
+    'rollback-command': state?.resultTransport === 'retained-file'
+      ? 'Backup verified. Rollback test copied: run it in Resolve. After the project reopens, return to Frameline and choose Read rollback result to verify the private retained output.'
+      : 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
+    'edit-command': state?.resultTransport === 'retained-file'
+      ? 'Backup verified. Rename experiment copied: run it in Resolve. After the project reopens, return to Frameline and choose Read rename result to verify the private retained output. A verified result leaves the reviewed name in the disposable project. If interrupted, return here for inspection and recovery.'
+      : 'Backup verified. Rename experiment copied: run it in Resolve, then copy all Console output and read the result. A verified result leaves the reviewed name in the disposable project. If interrupted, return here for inspection and recovery.',
     'recovery-capture': 'Original drill command retired. Read-only inspection copied: run it in Resolve’s Lua Console, copy all output, then read the recovery capture here.',
     'recovery-ready': state?.recovery?.classification === 'source'
       ? 'The captured state matches the original. Verify it by saving and reopening Resolve; no rename is needed.'
       : 'The captured state matches the interrupted rename. Restore the original clip name, then save, reopen, and verify the captured fields.',
-    'recovery-command': 'Recovery command copied. Run it in Resolve, copy all Console output, then read the recovery result here.',
+    'recovery-command': state?.resultTransport === 'retained-file'
+      ? 'Recovery command copied. Run it in Resolve. After the project reopens, return to Frameline and choose Read recovery result to verify the private retained output.'
+      : 'Recovery command copied. Run it in Resolve, copy all Console output, then read the recovery result here.',
     'recovery-required': 'The original state could not be verified. Keep the retained backup and inspect the disposable project manually. Choose Inspect again for a fresh capture after inspection.',
     verified: `${modeLabel}: ${{ applied: 'reviewed rename observed after save/reopen', 'rolled-back': 'original observed state verified after rollback',
       restored: 'original observed state restored and verified', 'source-verified': 'original observed state verified', 'recovery-required': 'manual recovery required' }[state?.outcome?.status] || 'recorded outcome available'}. Save an observation revision to retain the history link.`,

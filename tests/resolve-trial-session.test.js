@@ -38,6 +38,14 @@ function captureOutput(id, bytes, kind = 'effect') {
     : `FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${id}:${index + 1}:${part}`).join('\n');
 }
 
+async function retainedOutput(directory, output, attemptId = null) {
+  const root = attemptId ? path.join(directory, 'recovery', attemptId) : directory;
+  const statePath = path.join(root, 'transport-state.json');
+  const { state: _state, ...binding } = JSON.parse(await fs.readFile(statePath, 'utf8'));
+  await fs.writeFile(statePath, JSON.stringify({ ...binding, state: 'started' }) + '\n', { mode: 0o600 });
+  await fs.writeFile(path.join(root, 'transport-output.json'), JSON.stringify({ ...binding, output }) + '\n', { mode: 0o600 });
+}
+
 async function startBackup(context, mode = 'forced-rollback') {
   const state = await context.session.prepare('Frameline Restore Probe', true, mode);
   assert.equal(state.phase, 'effect-command');
@@ -60,14 +68,15 @@ test('rename-and-verify mode is pinned before issue, records successful observed
   const issued = await session.issue();
   assert.equal(issued.phase, 'edit-command'); assert.equal(issued.mode, 'rename-verify');
   assert.equal(JSON.parse(await fs.readFile(path.join(folder, 'issued.json'))).forceFailure, false);
-  assert.equal(JSON.parse(await fs.readFile(path.join(folder, 'issued.json'))).recoveryVersion, 2);
+  assert.equal(JSON.parse(await fs.readFile(path.join(folder, 'issued.json'))).recoveryVersion, 3);
+  assert.equal(issued.resultTransport, 'retained-file');
   assert.doesNotMatch(options.clipboard.readText(), /Intentional trial failure/);
   assert.equal((await session.prepare('Frameline Restore Probe', true, 'forced-rollback')).mode, 'rename-verify');
   assert.equal((await session.cancelPreparation()).phase, 'edit-command');
   assert.ok(session.getState().error);
   assert.equal((await session.copyCommand()).phase, 'edit-command');
   const after = JSON.parse(effects); after.snapshot = JSON.parse(sources.incoming);
-  options.clipboard.writeText(`${captureOutput(issued.transactionId, JSON.stringify(after), 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:applied`);
+  await retainedOutput(folder, `${captureOutput(issued.transactionId, JSON.stringify(after), 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:applied`);
   assert.equal((await session.read()).outcome.status, 'applied');
   const saved = await session.saveRevision(); assert.equal(saved.phase, 'saved');
   const fresh = createResolveTrialSession(options), recovered = await fresh.recover(folder);
@@ -90,10 +99,87 @@ test('unacknowledged rename-and-verify mode is discovered and restored conservat
   options.clipboard.writeText(captureOutput(recovering.captureId, JSON.stringify(after)));
   assert.equal((await fresh.read()).recovery.classification, 'renamed');
   const action = await fresh.issue(); assert.equal(action.recovery.operation, 'restore-name');
-  options.clipboard.writeText(recoveryOutput(recovering.recovery.attemptId, effects, 'restored'));
+  await retainedOutput(folder, recoveryOutput(recovering.recovery.attemptId, effects, 'restored'), recovering.recovery.attemptId);
   assert.equal((await fresh.read()).outcome.status, 'restored');
   const saved = await fresh.saveRevision(); assert.equal(saved.mode, 'rename-verify'); assert.equal(saved.phase, 'saved');
   assert.equal((await fresh.refreshDiscovery()).discovery.items.length, 0);
+});
+
+test('desktop retained output ignores clipboard and can be acknowledged explicitly after restart', async t => {
+  const context = await setup(t), { session, options, effects, sources } = context;
+  await startBackup(context, 'rename-verify');
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder);
+  const issued = await session.issue(); assert.equal(issued.resultTransport, 'retained-file');
+  const after = JSON.parse(effects); after.snapshot = JSON.parse(sources.incoming);
+  const output = `${captureOutput(issued.transactionId, JSON.stringify(after), 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:applied`;
+  options.clipboard.writeText(output);
+  const unavailable = await session.read();
+  assert.equal(unavailable.phase, 'edit-command'); assert.equal(unavailable.outcome, null); assert.ok(unavailable.error);
+  await retainedOutput(folder, output);
+  options.clipboard.writeText('Unrelated clipboard text must not be read as the result');
+  const fresh = createResolveTrialSession({ ...options, getReview: async () => { throw new Error('No review loaded'); } });
+  const discovered = await fresh.initialize();
+  assert.equal(discovered.discovery.items[0].transportOutputAvailable, true);
+  assert.equal(discovered.discovery.items[0].resultTransport, 'retained-file');
+  assert.doesNotMatch(JSON.stringify(discovered), /transportToken|issuedSha256|transport-output/);
+  await assert.rejects(fs.stat(path.join(folder, 'result.json')), { code: 'ENOENT' });
+  const recovered = await fresh.recover(folder);
+  assert.equal(recovered.phase, 'verified'); assert.equal(recovered.outcome.status, 'applied');
+  assert.equal(recovered.mode, 'rename-verify');
+  await assert.rejects(fs.stat(path.join(folder, 'recovery-started.json')), { code: 'ENOENT' });
+  const saved = await fresh.saveRevision(); assert.equal(saved.phase, 'saved');
+  assert.equal((await fresh.saveRevision()).revisionId, saved.revisionId);
+});
+
+test('a foreign retained result never falls back to valid-looking clipboard output', async t => {
+  const context = await setup(t), { session, options, effects } = context;
+  await startBackup(context);
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder); const issued = await session.issue();
+  const output = `${captureOutput(issued.transactionId, effects, 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:rolled-back`;
+  await retainedOutput(folder, output);
+  const filename = path.join(folder, 'transport-output.json'), packet = JSON.parse(await fs.readFile(filename));
+  packet.transportToken = 'f'.repeat(32); await fs.writeFile(filename, JSON.stringify(packet), { mode: 0o600 });
+  options.clipboard.writeText(output);
+  const rejected = await session.read();
+  assert.equal(rejected.phase, 'rollback-command'); assert.equal(rejected.outcome, null); assert.ok(rejected.error);
+  await assert.rejects(fs.stat(path.join(folder, 'result.json')), { code: 'ENOENT' });
+  assert.doesNotMatch(JSON.stringify(rejected), /transportToken|transport-output|before\.drp/);
+});
+
+test('restart acknowledgment requires the pinned history target before recording a retained outcome', async t => {
+  const context = await setup(t), { session, options, effects } = context;
+  await startBackup(context);
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder); const issued = await session.issue();
+  await retainedOutput(folder, `${captureOutput(issued.transactionId, effects, 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:rolled-back`);
+  const targetPath = path.join(folder, 'history-target.json'), target = await fs.readFile(targetPath);
+  await fs.writeFile(targetPath, JSON.stringify({ ...JSON.parse(target), unexpected: true }));
+  const fresh = createResolveTrialSession(options), rejected = await fresh.recover(folder);
+  assert.ok(rejected.error); assert.equal(rejected.outcome, null); assert.equal(rejected.phase, 'idle');
+  await assert.rejects(fs.stat(path.join(folder, 'result.json')), { code: 'ENOENT' });
+  await fs.writeFile(targetPath, target);
+  assert.equal((await fresh.recover(folder)).phase, 'verified');
+});
+
+test('a completed retained recovery survives restart and is saved without issuing another inspection', async t => {
+  const context = await setup(t), { session, options, effects, sources } = context;
+  await startBackup(context, 'rename-verify');
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder); await session.issue();
+  const recovering = createResolveTrialSession(options), initial = await recovering.recover(folder);
+  const after = JSON.parse(effects); after.snapshot = JSON.parse(sources.incoming);
+  options.clipboard.writeText(captureOutput(initial.captureId, JSON.stringify(after)));
+  await recovering.read(); const issued = await recovering.issue();
+  assert.equal(issued.resultTransport, 'retained-file');
+  await retainedOutput(folder, recoveryOutput(initial.recovery.attemptId, effects, 'restored'), initial.recovery.attemptId);
+  const attempts = await fs.readdir(path.join(folder, 'recovery'));
+  const fresh = createResolveTrialSession({ ...options, getReview: async () => { throw new Error('No review loaded'); } });
+  const recovered = await fresh.recover(folder);
+  assert.equal(recovered.phase, 'verified'); assert.equal(recovered.outcome.status, 'restored');
+  assert.deepEqual(await fs.readdir(path.join(folder, 'recovery')), attempts);
+  assert.equal((await fresh.saveRevision()).phase, 'saved');
 });
 
 async function fakeExport(directory) {
@@ -124,13 +210,13 @@ test('desktop drill session binds review, gates stages, sanitizes state, and sav
   assert.match(options.clipboard.readText(), /Intentional trial failure/);
   const changed = JSON.parse(effects);
   changed.items.flatMap(item => item.effects)[0].enabled = false;
-  options.clipboard.writeText(`${captureOutput(issued.transactionId, JSON.stringify(changed), 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:rolled-back`);
+  await retainedOutput(folder, `${captureOutput(issued.transactionId, JSON.stringify(changed), 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:rolled-back`);
   const rejected = await session.read();
   assert.equal(rejected.phase, 'rollback-command');
   assert.equal(rejected.outcome, null);
   assert.ok(rejected.error);
   assert.ok((await session.saveRevision()).error);
-  options.clipboard.writeText(`${captureOutput(issued.transactionId, effects, 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:rolled-back`);
+  await retainedOutput(folder, `${captureOutput(issued.transactionId, effects, 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:rolled-back`);
   assert.equal((await session.read()).phase, 'verified');
   const saved = await session.saveRevision();
   assert.equal(saved.phase, 'saved');
@@ -306,7 +392,7 @@ test('a restarted desktop inspects an issued drill, restores the expected rename
   assert.equal((await restarted.issue()).phase, 'recovery-command');
   assert.equal((await restarted.cancelPreparation()).phase, 'recovery-command');
   assert.ok(restarted.getState().error);
-  options.clipboard.writeText(recoveryOutput(initial.recovery.attemptId, effects, 'restored'));
+  await retainedOutput(folder, recoveryOutput(initial.recovery.attemptId, effects, 'restored'), initial.recovery.attemptId);
   assert.equal((await restarted.read()).outcome.status, 'restored');
   const saved = await restarted.saveRevision();
   assert.equal(saved.phase, 'saved');

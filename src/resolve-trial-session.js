@@ -5,6 +5,8 @@ const { constants } = require('node:fs');
 const { prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialConsoleResult,
   readRenameTrialResult, prepareRenameTrialRecovery, readRenameTrialRecoveryCapture,
   issueRenameTrialRecovery, recordRenameTrialRecoveryResult, cancelPreparedRenameTrial,
+  recordRenameTrialFileResult, recordRenameTrialRecoveryFileResult,
+  recordRetainedRenameTrialOutcomeIfComplete,
   validatePrivateTrialDirectory } = require('./resolve-rename-trial');
 const { discoverRenameTrials } = require('./resolve-trial-discovery');
 const { saveRenameTrialRevision } = require('./resolve-trial-history');
@@ -23,6 +25,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   function getState() {
     return { enabled, phase, busy, mode: pending?.mode || 'forced-rollback', transactionId: pending?.transactionId || null, projectName: pending?.projectName || null,
       captureId: pending?.captureId || null, effectGuard: pending?.effectGuard || null,
+      resultTransport: pending?.resultTransport || 'console',
       recovery: pending?.attemptId ? { attemptId: pending.attemptId,
         classification: pending.classification || null, operation: pending.operation || null } : null,
       backup: pending?.backup || null, outcome: outcome ? { status: outcome.status,
@@ -88,6 +91,8 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         : failure.message === 'trial-issued-mode-mismatch' ? 'The saved experiment mode changed. Keep the records and start a new preparation.'
         : phase === 'effect-command' ? 'The effect capture could not be verified. Run the copied capture in Resolve’s Lua Console, copy all output, and read it again.'
         : failure.message === 'trial-does-not-support-interrupted-recovery' ? 'This older or unsupported drill cannot retire its copied command. Keep the backup and inspect the disposable project manually.'
+        : pending?.resultTransport === 'retained-file' && ['rollback-command', 'edit-command', 'recovery-command'].includes(phase)
+          ? 'The private retained result could not be verified. Keep the backup and records. Retry reading after Resolve finishes; if interrupted, reopen Frameline and inspect the retained drill.'
         : 'The trial action could not be verified. Keep the backup and trial records; check the Console output and retry.';
     } finally { busy = false; }
     return getState();
@@ -142,8 +147,10 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   async function issue() {
     return run(async () => {
       if (phase === 'recovery-ready') {
-        const issued = await issueRenameTrialRecovery({ directory: pending.directory, attemptId: pending.attemptId });
+        const issued = await issueRenameTrialRecovery({ directory: pending.directory, attemptId: pending.attemptId,
+          resultTransport: 'retained-file' });
         pending.command = issued.command; pending.operation = issued.operation;
+        pending.resultTransport = issued.resultTransport;
         phase = 'recovery-command'; clipboard.writeText(issued.command); return;
       }
       if (phase !== 'backup-command') throw new Error('trial-not-ready');
@@ -151,9 +158,11 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       if (review.audit.auditHash !== pending.auditHash) throw new Error('complete-current-review-required');
       // Both modes remain named-disposable experiments with observed-field
       // validation. Interrupted successful edits recover toward the original.
-      const issued = await issueRenameTrial({ directory: pending.directory, forceFailure: pending.mode !== 'rename-verify' });
+      const issued = await issueRenameTrial({ directory: pending.directory, forceFailure: pending.mode !== 'rename-verify',
+        resultTransport: 'retained-file' });
       pending.backup = issued.backup;
       pending.command = issued.command;
+      pending.resultTransport = issued.resultTransport;
       phase = pending.mode === 'rename-verify' ? 'edit-command' : 'rollback-command'; clipboard.writeText(issued.command);
     });
   }
@@ -167,14 +176,18 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         phase = inspection.classification === 'diverged' ? 'recovery-required' : 'recovery-ready'; return;
       }
       if (phase === 'recovery-command') {
-        const recorded = await recordRenameTrialRecoveryResult({ directory: pending.directory,
-          attemptId: pending.attemptId, consoleOutput: clipboard.readText() });
+        const recorded = pending.resultTransport === 'retained-file'
+          ? await recordRenameTrialRecoveryFileResult({ directory: pending.directory, attemptId: pending.attemptId })
+          : await recordRenameTrialRecoveryResult({ directory: pending.directory,
+            attemptId: pending.attemptId, consoleOutput: clipboard.readText() });
         if (recorded.completed) { outcome = recorded.result; phase = 'verified'; }
         else phase = 'recovery-required';
         return;
       }
       if (!['rollback-command', 'edit-command'].includes(phase)) throw new Error('trial-not-ready');
-      outcome = await recordRenameTrialConsoleResult({ directory: pending.directory, consoleOutput: clipboard.readText() });
+      outcome = pending.resultTransport === 'retained-file'
+        ? await recordRenameTrialFileResult({ directory: pending.directory })
+        : await recordRenameTrialConsoleResult({ directory: pending.directory, consoleOutput: clipboard.readText() });
       phase = 'verified';
     });
   }
@@ -190,9 +203,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     return run(async () => {
       if (pending && phase !== 'saved') throw new Error('trial-already-active');
       if (typeof selected !== 'string' || path.dirname(selected) !== path.resolve(directory)) throw new Error('invalid-trial-directory');
-      let result, snapshot, observationCoverage, mode;
-      try { ({ result, snapshot, observationCoverage, mode } = await readRenameTrialResult(selected)); }
-      catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
+      await validatePrivateTrialDirectory(selected);
       const handle = await fs.open(path.join(selected, 'history-target.json'), constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
       let target;
       try {
@@ -200,13 +211,22 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         if (!stat.isFile() || stat.mode & 0o077 || stat.size > 1024) throw new Error('invalid-history-target');
         target = JSON.parse(await handle.readFile('utf8'));
       } finally { await handle.close(); }
-      if (typeof target.branch !== 'string' || typeof target.expectedHeadId !== 'string') throw new Error('invalid-history-target');
+      if (!target || Object.keys(target).sort().join(',') !== 'branch,expectedHeadId'
+        || typeof target.branch !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,39}$/.test(target.branch)
+        || !/^[a-f0-9-]{36}$/.test(target.expectedHeadId || '')) throw new Error('invalid-history-target');
+      let result, snapshot, observationCoverage, mode;
+      try { ({ result, snapshot, observationCoverage, mode } = await readRenameTrialResult(selected)); }
+      catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
+      if (!result) {
+        const retained = await recordRetainedRenameTrialOutcomeIfComplete({ directory: selected });
+        if (retained?.completed) ({ result, snapshot, observationCoverage, mode } = await readRenameTrialResult(selected));
+      }
       if (!result) {
         const recovery = await prepareRenameTrialRecovery({ directory: selected });
         pending = { ...recovery, target }; outcome = revision = null;
         phase = 'recovery-capture'; clipboard.writeText(recovery.command); return;
       }
-      pending = { directory: selected, mode, transactionId: result.transactionId, backup: result.backup,
+      pending = { directory: selected, mode, resultTransport: result.resultTransport || 'console', transactionId: result.transactionId, backup: result.backup,
         backupPath: result.backupPath, target, projectName: snapshot.project_name, auditHash: result.review?.auditHash,
         ...(result.recovery ? { attemptId: result.recovery.attemptId, operation: result.recovery.operation } : {}),
         effectGuard: result.effectObservation ? { sourceSha256: result.effectObservation.sourceSha256, coverage: observationCoverage } : null };
@@ -223,8 +243,9 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   }
   async function backupPath() {
     if (!enabled || !pending?.backup) throw new Error('verified-backup-required');
-    await inspectResolveProjectExport(pending.backupPath, pending.backup.sha256);
-    return pending.backupPath;
+    const selectedPath = pending.backupPath, expectedHash = pending.backup.sha256;
+    await inspectResolveProjectExport(selectedPath, expectedHash);
+    return selectedPath;
   }
   async function copyCommand() {
     return run(async () => {

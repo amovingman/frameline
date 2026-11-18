@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T11:48:24.716Z",
+  "editor": "DaVinci Resolve Free",
+  "resolveVersion": "21.1.2.10",
+  "os": "macOS",
+  "experimental": true,
+  "scope": "Native retained-file recovery, successful rename and separately reviewed reverse rename",
+  "transactions": [
+    {
+      "case": "legacy-v2-source-verification",
+      "transactionId": "1968ba8b54851608c0e29f41903aad40",
+      "originalRecoveryVersion": 2,
+      "status": "source-verified",
+      "resultTransport": "retained-file",
+      "operation": "verify-source",
+      "snapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+      "observationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+      "backup": {
+        "size": 69498,
+        "sha256": "a485f8addf8504b1a69334078db432cfbc25859722d0f5fbec60cf9a0adef761",
+        "mode": 384,
+        "archiveVerified": true
+      },
+      "revisionId": "0d5bf107-da3a-408a-b38b-5e5d288ecf5e",
+      "portableAuditProvenance": "retained-internal-script-observation"
+    },
+    {
+      "case": "new-v3-reviewed-rename",
+      "transactionId": "27618c1184ca9e342b82e28c4198de9f",
+      "originalRecoveryVersion": 3,
+      "status": "applied",
+      "resultTransport": "retained-file",
+      "operation": "reviewed-rename",
+      "snapshotSha256": "46951145bb161294729863f102121ece05c05f673956e65f5eec3791686075a7",
+      "observationSha256": "0feaa6dea2f35f8e1b6c8b360e709c50c143af1353bba14cd2ded21ca07495fc",
+      "backup": {
+        "size": 69322,
+        "sha256": "943e0db041757ac2b5be0f17f29dcf1f7b712bbd2a293e37137f7b93f348316e",
+        "mode": 384,
+        "archiveVerified": true
+      },
+      "revisionId": "886d4901-806a-4e07-94a3-0348edcdfeb0",
+      "portableAuditProvenance": "retained-internal-script-observation"
+    },
+    {
+      "case": "new-v3-reviewed-restoration-after-app-restart",
+      "transactionId": "4c10e7b3c153635cc6857c195452a48d",
+      "originalRecoveryVersion": 3,
+      "status": "applied",
+      "resultTransport": "retained-file",
+      "operation": "reviewed-rename",
+      "snapshotSha256": "654bb87fdb3defb108a2ddd30af694f8868748b375cf5b5246453e0a9c506850",
+      "observationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+      "backup": {
+        "size": 69389,
+        "sha256": "bd503a7a500067bec5f1a6fbf5719ee318ed24caf1500470fe3bec4fe3b539ba",
+        "mode": 384,
+        "archiveVerified": true
+      },
+      "revisionId": "28da2d2b-b614-47d2-b547-3a23746db2f6",
+      "portableAuditProvenance": "retained-internal-script-observation"
+    }
+  ],
+  "consoleDisappearedDuringProjectReload": true,
+  "clipboardNotUsedForOutcomeAcknowledgment": true,
+  "unreadCompletedResultSurvivedAppRestart": true,
+  "startupAction": "Read retained result",
+  "explicitStartupAcknowledgmentPassed": true,
+  "finalIndependentCaptureAfterFullEditorRestart": true,
+  "sourceObservationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+  "finalObservationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+  "coverage": {
+    "schemaVersion": 2,
+    "itemCount": 53,
+    "effectCount": 1,
+    "propertyKeyCount": 43,
+    "propertyValueCount": 443,
+    "unavailablePropertyReads": 0,
+    "trackCount": 2,
+    "unavailableTrackStateReads": 0
+  },
+  "originalCompleteObservationRestored": true,
+  "unfinishedRecordsAfterSave": 0,
+  "recordsInspected": 11,
+  "normalLaunchExperimentalSectionHidden": true,
+  "normalLaunchSignedOut": true,
+  "ordinaryApplyEnabled": false,
+  "serviceDerivedMutationAllowed": false,
+  "limits": [
+    "All state comparisons cover returned observed fields; full native semantics and effect parameters remain unproven.",
+    "Fusion Flush plus readback and host fsync verify the tested process-restart workflow; power-loss and concurrent editor-runtime guarantees are unproven.",
+    "Private retained output establishes local binding and consistency, not authenticated remote editor provenance."
+  ]
+}
