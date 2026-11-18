@@ -18,6 +18,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/desktop-service-connection.js', 'src/desktop-revision-sync.js', 'src/credential-vault.js',
   'src/desktop-resolve-service-sync.js', 'src/desktop-resolve-comments.js',
   'src/service-review-comments.js', 'src/review-comments-protocol.js',
+  'src/service-branch-protection.js', 'src/branch-review-protocol.js', 'src/desktop-branch-review.js',
   'src/service-host.js', 'src/service-host-config.js', 'src/service-host-cli.js',
   'src/service-admin.js', 'src/service-admin-cli.js',
   'src/durable-asset-service.js', 'src/asset-http-transport.js', 'src/asset-http-client.js',

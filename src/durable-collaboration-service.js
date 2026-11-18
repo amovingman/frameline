@@ -12,6 +12,7 @@ const { validateRevisionManifest } = require('./revision-manifest');
 const { fingerprint } = require('./project-api-contracts');
 const { createProjectActivity, validateActivityState } = require('./project-activity');
 const { createServiceReviewComments, validateServiceReviewCommentsState, createServiceReviewAnchorVerifier } = require('./service-review-comments');
+const { createServiceBranchProtection, validateServiceBranchProtectionState } = require('./service-branch-protection');
 
 const MAX_STATE_BYTES = 64 * 1024 * 1024, MAX_FILE_BYTES = 96 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, SHA = /^[a-f0-9]{64}$/;
@@ -84,9 +85,9 @@ function validateHistory(input) {
 
 function validateCollaborationState(input) {
   try {
-    if (input?.schemaVersion > 3) throw fail('collaboration-state-newer-version');
+    if (input?.schemaVersion > 4) throw fail('collaboration-state-newer-version');
     const legacy = input?.schemaVersion === 1;
-    if (!exact(input, ['schemaVersion', 'generation', 'paginationKey', 'identity', 'access', 'history', ...(legacy ? [] : ['activity']), ...(input?.schemaVersion === 3 ? ['comments'] : [])]) || ![1, 2, 3].includes(input.schemaVersion)
+    if (!exact(input, ['schemaVersion', 'generation', 'paginationKey', 'identity', 'access', 'history', ...(legacy ? [] : ['activity']), ...(input?.schemaVersion >= 3 ? ['comments'] : []), ...(input?.schemaVersion === 4 ? ['branchProtection'] : [])]) || ![1, 2, 3, 4].includes(input.schemaVersion)
       || !Number.isSafeInteger(input.generation) || input.generation < 0
       || typeof input.paginationKey !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(input.paginationKey)) throw fail('collaboration-state-invalid');
     const identity = validateIdentityState(input.identity), access = validateAccessState(input.access), history = validateHistory(input.history);
@@ -111,7 +112,7 @@ function validateCollaborationState(input) {
       if (['member.joined', 'member.role-changed', 'member.removed', 'owner.transferred'].includes(event.type) && !users.has(event.subjectId)) throw fail('collaboration-state-invalid');
       if (event.type === 'project.deleted' && access.projects.find(project => project.id === event.projectId).deletedAt === null) throw fail('collaboration-state-invalid');
     }
-    const comments = validateServiceReviewCommentsState(input.schemaVersion === 3 ? input.comments : { version: 1, comments: [], idempotency: [] });
+    const comments = validateServiceReviewCommentsState(input.schemaVersion >= 3 ? input.comments : { version: 1, comments: [], idempotency: [] });
     const commentAnchors = new Map();
     for (const comment of comments.comments) {
       const revision = history.revisions[comment.revisionId];
@@ -121,7 +122,56 @@ function validateCollaborationState(input) {
         createServiceReviewAnchorVerifier(history.manifests[manifestStorageKey(comment.projectId, revision.manifestId)].document));
       commentAnchors.get(revision.id)(comment.anchor);
     }
-    const output = { schemaVersion: 3, generation: input.generation, paginationKey: input.paginationKey, identity, access, history, activity, comments };
+    const branchProtection = validateServiceBranchProtectionState(input.schemaVersion === 4 ? input.branchProtection
+      : { version: 1, policies: [], requests: [], idempotency: [] });
+    const branchExists = item => projects.has(item.projectId) && Object.hasOwn(history.projects[item.projectId].branches, item.branch);
+    const expectedEvents = new Map(), actualEvents = new Map();
+    const countEvent = (map, type, projectId, actorId, subjectId) => { const key = JSON.stringify([type, projectId, actorId, subjectId]); map.set(key, (map.get(key) || 0) + 1); };
+    for (const policy of branchProtection.policies) {
+      if (!branchExists(policy) || !users.has(policy.updatedBy)) throw fail('collaboration-state-invalid');
+      countEvent(expectedEvents, 'branch.protection-changed', policy.projectId, policy.updatedBy, policy.branch);
+    }
+    const requests = new Map(branchProtection.requests.map(item => [item.id, item]));
+    // An applied receipt must remain on this branch's append-only ancestry.
+    // Forest intervals avoid walking a long chain once per historical request.
+    const intervals = new Map();
+    if (branchProtection.requests.some(item => item.applied)) {
+      const children = new Map();
+      for (const revision of Object.values(history.revisions)) {
+        if (!children.has(revision.parentRevisionId)) children.set(revision.parentRevisionId, []);
+        children.get(revision.parentRevisionId).push(revision.id);
+      }
+      let position = 0;
+      const stack = (children.get(null) || []).map(id => ({ id, exit: false }));
+      while (stack.length) {
+        const item = stack.pop();
+        if (item.exit) { intervals.get(item.id).end = position; continue; }
+        intervals.set(item.id, { start: position++, end: null });
+        stack.push({ id: item.id, exit: true });
+        for (const id of children.get(item.id) || []) stack.push({ id, exit: false });
+      }
+    }
+    for (const request of branchProtection.requests) {
+      const revision = history.revisions[request.revisionId];
+      if (!branchExists(request) || !users.has(request.requesterId) || !revision || revision.projectId !== request.projectId
+        || revision.parentRevisionId !== request.expectedHead || request.approvals.some(item => !users.has(item.actorId) || item.actorId === revision.authorId)
+        || request.applied && request.approvals.filter(item => Date.parse(item.at) <= Date.parse(request.applied.at)).length < request.requiredApprovals) throw fail('collaboration-state-invalid');
+      if (request.applied) {
+        const candidate = intervals.get(request.revisionId), current = intervals.get(history.projects[request.projectId].branches[request.branch]);
+        if (!candidate || !current || current.start < candidate.start || current.start >= candidate.end) throw fail('collaboration-state-invalid');
+      }
+      countEvent(expectedEvents, 'approval.requested', request.projectId, request.requesterId, request.id);
+      for (const approval of request.approvals) countEvent(expectedEvents, 'approval.recorded', request.projectId, approval.actorId, request.id);
+      if (request.applied) countEvent(expectedEvents, 'approval.applied', request.projectId, request.applied.actorId, request.id);
+    }
+    for (const receipt of branchProtection.idempotency) if (!branchExists(receipt) || !users.has(receipt.actorId)) throw fail('collaboration-state-invalid');
+    for (const event of activity.events) if (['branch.protection-changed', 'approval.requested', 'approval.recorded', 'approval.applied'].includes(event.type)) {
+      if (event.type === 'branch.protection-changed' ? !Object.hasOwn(history.projects[event.projectId].branches, event.subjectId)
+        : requests.get(event.subjectId)?.projectId !== event.projectId) throw fail('collaboration-state-invalid');
+      countEvent(actualEvents, event.type, event.projectId, event.actorId, event.subjectId);
+    }
+    if (fingerprint([...expectedEvents.entries()].sort()) !== fingerprint([...actualEvents.entries()].sort())) throw fail('collaboration-state-invalid');
+    const output = { schemaVersion: 4, generation: input.generation, paginationKey: input.paginationKey, identity, access, history, activity, comments, branchProtection };
     if (Buffer.byteLength(JSON.stringify(output)) > MAX_STATE_BYTES) throw fail('collaboration-state-invalid');
     return output;
   } catch (error) {
@@ -215,10 +265,11 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     activity = createProjectActivity({ access, now, initialState: state?.activity, paginationKey });
     const history = createCloudHistoryStore(state?.history, { pageSecret: paginationKey });
     const comments = createServiceReviewComments({ history, access, initialState: state?.comments, paginationKey, now });
-    const snapshot = () => validateCollaborationState({ schemaVersion: 3, generation: state?.generation || 0, paginationKey,
-      identity: identity.snapshot(), access: access.snapshot(), history: history.snapshot(), activity: activity.snapshot(), comments: comments.snapshot() });
+    const branchProtection = createServiceBranchProtection({ history, access, activity, initialState: state?.branchProtection, paginationKey, now });
+    const snapshot = () => validateCollaborationState({ schemaVersion: 4, generation: state?.generation || 0, paginationKey,
+      identity: identity.snapshot(), access: access.snapshot(), history: history.snapshot(), activity: activity.snapshot(), comments: comments.snapshot(), branchProtection: branchProtection.snapshot() });
     const actor = context => identity.authenticate(context?.accessToken).userId;
-    return { identity, access, history, activity, comments, snapshot, actor };
+    return { identity, access, history, activity, comments, branchProtection, snapshot, actor };
   }
   function transact(action, { rotate = null } = {}) {
     if (closing) return Promise.reject(fail('collaboration-service-closed'));
@@ -299,9 +350,9 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     }), delete: (context, projectId) => transact(world => world.access.deleteProject(world.actor(context), projectId)) },
     service: Object.fromEntries(['putManifest', 'createRevision', 'updateBranch', 'getManifest', 'getRevision',
       'findRevisionBySource', 'listRevisions', 'getBranch', 'listActivity', 'listNotifications', 'markNotificationRead', 'authorizeAsset', 'authorizeAssetPolicy',
-      'listReviewComments', 'addReviewComment', 'resolveReviewComment']
+      'listReviewComments', 'addReviewComment', 'resolveReviewComment', 'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest']
       .map(method => [method, (...args) => transact(world => createAuthorizedProjectService(world)[method](...args))])),
-    getStatus: () => transact(world => ({ schemaVersion: 3, generation: world.snapshot().generation })),
+    getStatus: () => transact(world => ({ schemaVersion: 4, generation: world.snapshot().generation })),
     rotateEncryption: next => validRing(next) ? transact(() => ({ rotated: true }), { rotate: next })
       : Promise.reject(fail('collaboration-service-invalid')),
     close: async () => { closing = true; await pending; }

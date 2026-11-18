@@ -36,6 +36,21 @@ let serviceBranchesRenderKey = '';
 let serviceFetchedRenderKey = '';
 let serviceFetchedVisible = 20;
 let serviceOriginInitialized = false;
+let branchReviewState = null;
+let branchReviewVersion = -1;
+let branchReviewAccountKey = '';
+let branchReviewAccessKey = '';
+let branchReviewEvidenceKey = '';
+let branchReviewProjectChoice = '';
+let branchReviewBranchChoice = '';
+let branchReviewProjectOptionsKey = '';
+let branchReviewBranchOptionsKey = '';
+let branchReviewCandidateOptionsKey = '';
+let branchReviewPolicyDraft = '0';
+let branchReviewCandidateChoice = '';
+let branchReviewAction = null;
+let branchReviewNotice = '';
+const branchReviewRows = new Map();
 let projectActivityState = null;
 let projectActivityVersion = -1;
 let projectActivityContext = '';
@@ -441,6 +456,8 @@ function serviceErrorLabel(code) {
     'project-not-found': 'This service project is no longer available. Refresh projects to choose an accessible project.',
     'branch-not-found': 'This service branch is no longer available. Refresh projects to choose another branch.',
     'sync-branch-conflict': 'The service branch changed during the push. Check and fetch history before continuing.',
+    'branch-approval-required': 'This branch requires approval. Request review in Branch approvals, then retry the queued push after approval.',
+    'approval-head-stale': 'The service head changed. Refresh Branch approvals and request review for the current head before retrying the push.',
     'sync-reconciliation-required': 'Both branches changed. Fetch history to inspect the revisions before reconciling.',
     'sync-project-unbound': 'Link this local branch to a service project first.',
     'revision-scan-required': 'Scan a local FCPXML export and save a revision before pushing.',
@@ -449,6 +466,211 @@ function serviceErrorLabel(code) {
     'credential-storage-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.',
     'credential-vault-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.'
   })[code] || 'The service action could not finish. Check the connection or sign in again, then retry.';
+}
+function currentBranchReviewAccount() {
+  return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
+    ? JSON.stringify([serviceState.origin, serviceState.account.id]) : '';
+}
+function branchReviewSelectionMatches(state = branchReviewState) {
+  const project = serviceState?.projects?.find(item => item.id === state?.selection?.projectId);
+  return !!currentBranchReviewAccount() && currentBranchReviewAccount() === branchReviewAccountKey && !!project
+    && project.branches.includes(state.selection.branch);
+}
+function syncBranchReviewAccount() {
+  const account = currentBranchReviewAccount();
+  const access = JSON.stringify([account, serviceState?.status, (serviceState?.projects || []).map(item => [item.id, item.role, item.branches])]);
+  if (account !== branchReviewAccountKey) {
+    branchReviewAccountKey = account; branchReviewState = null; branchReviewAction = null; branchReviewNotice = '';
+    branchReviewEvidenceKey = ''; branchReviewProjectChoice = ''; branchReviewBranchChoice = '';
+    branchReviewPolicyDraft = '0'; branchReviewCandidateChoice = '';
+  }
+  renderBranchReview();
+  if (access !== branchReviewAccessKey) { branchReviewAccessKey = access; readBranchReviewState(); }
+}
+async function readBranchReviewState() {
+  if (!window.desktop?.getBranchReviewState) return;
+  const account = currentBranchReviewAccount();
+  try { renderBranchReviewState(await window.desktop.getBranchReviewState(), account); }
+  catch { if (account === currentBranchReviewAccount()) { branchReviewNotice = 'Branch review state could not be read. Refresh branch review to retry.'; renderBranchReview(); } }
+}
+function branchReviewReceiptMatches(action, state) {
+  const kinds = { setBranchProtection: 'policy-saved', requestBranchApproval: 'requested', approveBranchRequest: 'approved' };
+  if (!action || !kinds[action.method] || !state?.scopeId || !state.available || action.account !== currentBranchReviewAccount()
+    || state.selection?.projectId !== action.selection?.projectId || state.selection?.branch !== action.selection?.branch
+    || state.role !== action.role || state.headRevisionId !== action.headRevisionId || state.outcome?.kind !== kinds[action.method]) return false;
+  if (action.method === 'setBranchProtection') {
+    const nextVersion = action.policyVersion + (action.requiredApprovals === action.requestedApprovals ? 0 : 1);
+    return state.policy?.version === action.policyVersion && state.policy.requiredApprovals === action.requiredApprovals
+      || state.policy?.version === nextVersion && state.policy.requiredApprovals === action.requestedApprovals;
+  }
+  return state.policy?.version === action.policyVersion && state.policy.requiredApprovals === action.requiredApprovals
+    && typeof state.outcome.requestId === 'string' && !!state.outcome.requestId
+    && (!action.receiptId || state.outcome.requestId === action.receiptId)
+    && (action.method !== 'approveBranchRequest' || state.outcome.requestId === action.requestId);
+}
+function renderBranchReviewState(state, expectedAccount = currentBranchReviewAccount()) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < branchReviewVersion
+    || expectedAccount !== currentBranchReviewAccount()) return false;
+  const evidence = JSON.stringify([state.scopeId, state.selection, state.headRevisionId, state.policy?.version, state.role]);
+  if (evidence !== branchReviewEvidenceKey) {
+    branchReviewEvidenceKey = evidence; branchReviewPolicyDraft = String(state.policy?.requiredApprovals || 0);
+    branchReviewCandidateChoice = ''; branchReviewNotice = '';
+    if (branchReviewAction && branchReviewAction.method !== 'selectBranchReview') {
+      if (branchReviewReceiptMatches(branchReviewAction, state)) branchReviewAction.receiptId = state.outcome.requestId || null;
+      else branchReviewAction = null;
+    }
+  }
+  branchReviewState = state; branchReviewVersion = state.version;
+  if (state.selection && !branchReviewProjectChoice) {
+    branchReviewProjectChoice = state.selection.projectId; branchReviewBranchChoice = state.selection.branch;
+  }
+  renderBranchReview(); return true;
+}
+function branchReviewErrorLabel(code) {
+  return ({
+    'branch-review-unavailable': 'Sign in and select an accessible service branch, then refresh branch review.',
+    'branch-review-selection-changed': 'The branch, head or policy changed. Refresh branch review before continuing.',
+    'branch-review-refresh-required': 'Refresh branch review to verify the current head and policy first.',
+    'branch-review-busy': 'Another branch review action is running. Wait for it to finish, then retry.',
+    'branch-review-invalid': 'Choose a service branch and a proposal from its saved revision list.',
+    'branch-review-display-limit': 'The display limit was reached. Refresh branch review to start with the newest entries.',
+    'branch-review-cursor-invalid': 'This page is no longer valid. Refresh branch review to start with the newest entries.',
+    'branch-review-capacity': 'The service review limit was reached. Contact the project owner.',
+    'branch-review-idempotency-conflict': 'This pending review no longer matches its saved request. Refresh branch review before retrying.',
+    'branch-policy-version-conflict': 'The branch policy changed. Refresh branch review before saving it again.',
+    'branch-protection-invalid': 'Choose a whole number of required approvals from 0 to 5.',
+    'branch-protection-forbidden': 'Only a project owner can change branch protection.',
+    'branch-policy-stale': 'The policy changed. Refresh branch review before saving it again.',
+    'branch-not-protected': 'This branch does not require approvals. Refresh branch review to check its current policy.',
+    'approval-request-invalid': 'Choose a saved proposal that is a direct child of the current head.',
+    'approval-request-unavailable': 'This request is unavailable or expired. Refresh branch review.',
+    'approval-forbidden': 'Only an eligible owner or editor can approve. The requester and revision author cannot approve this proposal.',
+    'approval-policy-stale': 'The approval policy changed. Refresh branch review and request review again.',
+    'approval-head-stale': 'The service head changed. Refresh branch review and choose a proposal for the current head.',
+    'approval-candidate-invalid': 'This revision is not an eligible direct child of the current service head. Refresh branch review.',
+    'approval-cursor-invalid': 'This page is no longer valid. Refresh branch review to start again.',
+    'approval-capacity': 'The service review limit was reached. Contact the project owner.'
+  })[code] || serviceErrorLabel(code);
+}
+function branchReviewMember(id) { return id === serviceState?.account?.id ? 'You' : `Member ${(id || '').slice(0, 8)}`; }
+function renderBranchReview() {
+  const account = currentBranchReviewAccount(), projects = account ? serviceState?.projects || [] : [];
+  const projectSelect = document.getElementById('branch-review-project'), branchSelect = document.getElementById('branch-review-branch');
+  const projectKey = JSON.stringify(projects.map(item => [item.id, item.name, item.role]));
+  if (projectKey !== branchReviewProjectOptionsKey) {
+    branchReviewProjectOptionsKey = projectKey; projectSelect.replaceChildren(new Option('Choose a service project', ''));
+    for (const project of projects) projectSelect.add(new Option(`${project.name} · ${project.role}`, project.id));
+  }
+  const project = projects.find(item => item.id === branchReviewProjectChoice);
+  if (!project) { branchReviewProjectChoice = ''; branchReviewBranchChoice = ''; }
+  projectSelect.value = branchReviewProjectChoice;
+  const branches = project?.branches || [], branchesKey = JSON.stringify([project?.id, branches]);
+  if (branchesKey !== branchReviewBranchOptionsKey) {
+    branchReviewBranchOptionsKey = branchesKey; branchSelect.replaceChildren(new Option('Choose a service branch', ''));
+    for (const branch of branches) branchSelect.add(new Option(branch, branch));
+  }
+  if (!branches.includes(branchReviewBranchChoice)) branchReviewBranchChoice = '';
+  branchSelect.value = branchReviewBranchChoice;
+  const state = branchReviewSelectionMatches() ? branchReviewState : null;
+  const pending = branchReviewAction, busy = !!pending || !!state?.busy, ready = !!state?.ready && !!state?.available;
+  const write = ready && ['owner', 'editor'].includes(state.role), owner = ready && state.role === 'owner';
+  const selectedProject = projects.find(item => item.id === state?.selection?.projectId);
+  const hasAPI = typeof window.desktop?.getBranchReviewState === 'function';
+  projectSelect.disabled = !account || busy || !hasAPI; branchSelect.disabled = !project || busy || !hasAPI;
+  document.getElementById('branch-review-select').disabled = !account || !project || !branchReviewBranchChoice || busy || !window.desktop?.selectBranchReview;
+  document.getElementById('branch-review-refresh').disabled = !state?.selection || busy || !window.desktop?.refreshBranchReview;
+  setServiceText(document.getElementById('branch-review-selection'), state
+    ? `Reviewing ${selectedProject?.name || 'Service project'} · ${state.selection.branch} · ${state.role || 'unknown'} access` : '');
+  setServiceText(document.getElementById('branch-review-head'), ready
+    ? `Service head at last check: ${state.headRevisionId || 'Empty branch'} · Policy version ${state.policy.version}${state.checkedAt ? ` · Checked ${serviceDate(state.checkedAt)}` : ''}` : '');
+  const policyInput = document.getElementById('branch-review-required'); policyInput.value = branchReviewPolicyDraft;
+  policyInput.disabled = busy || !owner || !window.desktop?.setBranchProtection;
+  document.getElementById('branch-review-policy-save').disabled = busy || !owner || !window.desktop?.setBranchProtection
+    || !/^[0-5]$/.test(branchReviewPolicyDraft) || Number(branchReviewPolicyDraft) === state?.policy?.requiredApprovals;
+  setServiceText(document.getElementById('branch-review-policy-status'), ready
+    ? `${state.policy.requiredApprovals ? `${state.policy.requiredApprovals} independent approval${state.policy.requiredApprovals === 1 ? '' : 's'} required` : 'Branch protection is off'}. ${owner ? 'Changes apply to this service branch.' : 'Only a project owner can change this policy.'}`
+    : 'Refresh branch review to load the policy. Only a project owner can change it.');
+  const candidates = ready ? (state.candidates || []).filter(item => (!item.projectId || item.projectId === state.selection.projectId) && item.parentRevisionId === state.headRevisionId) : [];
+  const candidateSelect = document.getElementById('branch-review-candidate');
+  const candidateKey = JSON.stringify([state?.scopeId, candidates.map(item => [item.revisionId, item.message, item.canRequest])]);
+  if (candidateKey !== branchReviewCandidateOptionsKey) {
+    branchReviewCandidateOptionsKey = candidateKey; candidateSelect.replaceChildren(new Option(candidates.length ? 'Choose a saved proposal' : 'No saved direct-child proposals', ''));
+    for (const candidate of candidates) {
+      const option = new Option(`${candidate.message || 'Saved proposal'} · ${candidate.revisionId.slice(0, 8)}`, candidate.revisionId);
+      option.disabled = candidate.canRequest !== true; candidateSelect.add(option);
+    }
+  }
+  const candidate = candidates.find(item => item.revisionId === branchReviewCandidateChoice);
+  if (!candidate) branchReviewCandidateChoice = '';
+  candidateSelect.value = branchReviewCandidateChoice;
+  candidateSelect.disabled = busy || !write || !state?.policy?.requiredApprovals || !window.desktop?.requestBranchApproval;
+  document.getElementById('branch-review-request').disabled = candidateSelect.disabled || candidate?.canRequest !== true;
+  const requests = state ? (state.requests || []).filter(item => item.projectId === state.selection.projectId && item.branch === state.selection.branch) : [];
+  const ids = new Set(requests.map(item => item.id)), list = document.getElementById('branch-review-requests');
+  for (const [id, view] of branchReviewRows) if (!ids.has(id)) { view.row.remove(); branchReviewRows.delete(id); }
+  requests.forEach((request, index) => {
+    let view = branchReviewRows.get(request.id);
+    if (!view) {
+      const row = make('article', 'branch-review-request'); row.setAttribute('role', 'listitem');
+      const title = make('h4'), summary = make('p'), proposal = make('p'), stamp = make('p'), approve = make('button', '', 'Approve proposal');
+      const evidence = make('details'), evidenceTitle = make('summary', '', 'Proposal identity'), facts = make('dl', 'service-base-facts');
+      const requestId = make('dd'), expectedHead = make('dd'), revisionId = make('dd'), manifestId = make('dd');
+      facts.append(make('dt', '', 'Request'), requestId, make('dt', '', 'Expected head'), expectedHead,
+        make('dt', '', 'Revision'), revisionId, make('dt', '', 'Manifest'), manifestId); evidence.append(evidenceTitle, facts);
+      approve.type = 'button'; approve.addEventListener('click', () => runBranchReviewAction('approveBranchRequest', { scopeId: branchReviewState?.scopeId, requestId: request.id }));
+      row.append(title, summary, proposal, stamp, evidence, approve); view = { row, title, summary, proposal, stamp, evidence, requestId, expectedHead, revisionId, manifestId, approve }; branchReviewRows.set(request.id, view);
+    }
+    const statuses = { pending: 'Awaiting approvals', approved: 'Approved — requester must retry push', stale: 'Stale — head or policy changed', expired: 'Expired', applied: 'Published' };
+    setServiceText(view.title, request.proposal?.message || 'Saved revision proposal');
+    setServiceText(view.summary, `${statuses[request.status] || 'Review status unavailable'} · ${request.activeApprovals} active / ${request.requiredApprovals} required · ${request.recordedApprovals} recorded`);
+    setServiceText(view.proposal, `Requested by ${branchReviewMember(request.requesterId)} · Revision author ${branchReviewMember(request.proposal?.authorId)}`);
+    view.proposal.title = `Requester ID: ${request.requesterId}; author ID: ${request.proposal?.authorId || ''}`;
+    setServiceText(view.stamp, `Requested ${serviceDate(request.createdAt)} · Expires ${serviceDate(request.expiresAt)} · Policy ${request.policyVersion}`);
+    for (const [field, value] of [['requestId', request.id], ['expectedHead', request.expectedHead || 'Empty branch'], ['revisionId', request.revisionId], ['manifestId', request.proposal?.manifestId]]) setServiceText(view[field], value || 'Unavailable');
+    view.approve.hidden = request.canApprove !== true; view.approve.disabled = busy || !write || !window.desktop?.approveBranchRequest;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  for (const [suffix, cursor] of [['candidates', state?.nextCandidateCursor], ['requests', state?.nextRequestCursor]]) {
+    const more = document.getElementById(`branch-review-${suffix}-more`); more.hidden = !cursor;
+    more.disabled = busy || !ready || !window.desktop?.refreshBranchReview;
+  }
+  const status = !hasAPI ? 'Branch reviews are unavailable in this build.' : !account ? 'Sign in to review service branch approvals.'
+    : pending ? 'Updating branch review…' : branchReviewNotice || (state?.error ? branchReviewErrorLabel(state.error)
+      : !state ? 'Select a service project and branch to review approvals.' : !ready ? 'Refresh branch review to verify the current head, policy and requests.'
+        : state.role === 'viewer' ? 'Viewer access allows reading branch reviews. Requesting or approving requires editor or owner access.'
+          : 'Approvals authorize the exact proposal, head and policy shown here. They do not publish it.');
+  setServiceText(document.getElementById('branch-review-status'), status);
+  setServiceText(document.getElementById('branch-review-range'), ready || requests.length ? `${requests.length} request${requests.length === 1 ? '' : 's'} shown · ${candidates.length} proposal${candidates.length === 1 ? '' : 's'} loaded` : '');
+  document.getElementById('branch-review-panel').setAttribute('aria-busy', String(busy));
+}
+async function runBranchReviewAction(method, input) {
+  const account = currentBranchReviewAccount(), scopeId = branchReviewState?.scopeId;
+  if (!account || branchReviewAction || branchReviewState?.busy || !window.desktop?.[method]) return;
+  if (['setBranchProtection', 'requestBranchApproval', 'approveBranchRequest'].includes(method) && (!scopeId || input?.scopeId !== scopeId)) return;
+  const action = { method, account, scopeId, selection: branchReviewState?.selection ? { ...branchReviewState.selection } : null,
+    role: branchReviewState?.role, headRevisionId: branchReviewState?.headRevisionId, policyVersion: branchReviewState?.policy?.version,
+    requiredApprovals: branchReviewState?.policy?.requiredApprovals, requestedApprovals: input?.requiredApprovals, requestId: input?.requestId }, focused = document.activeElement;
+  branchReviewAction = action; branchReviewNotice = ''; renderBranchReview();
+  try {
+    const state = await window.desktop[method](input);
+    if (branchReviewAction !== action || account !== currentBranchReviewAccount()) return;
+    if (method !== 'selectBranchReview' && method !== 'refreshBranchReview' && branchReviewState?.scopeId !== scopeId
+      && !branchReviewReceiptMatches(action, state)) return;
+    if (renderBranchReviewState(state, account) && branchReviewReceiptMatches(action, state)) {
+      const messages = { 'policy-saved': 'Branch policy saved.', requested: 'Review requested. Eligible reviewers can now approve the proposal.', approved: 'Approval recorded. The requester must retry the push to publish.' };
+      branchReviewNotice = messages[state.outcome.kind];
+      if (!state.ready || state.error) branchReviewNotice += ' Refresh branch review to reload the current state.';
+    }
+  } catch { if (branchReviewAction === action && account === currentBranchReviewAccount()) branchReviewNotice = 'The branch review action could not finish. Refresh branch review and retry.'; }
+  finally {
+    const finishing = branchReviewAction === action;
+    if (finishing) branchReviewAction = null;
+    renderBranchReview();
+    if (finishing && focused && account === currentBranchReviewAccount() && (document.activeElement === document.body || document.activeElement === focused)) {
+      const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById('branch-review-status');
+      target.focus({ preventScroll: true });
+    }
+  }
 }
 function serviceSelectionMatches(state = serviceState) {
   return !!state?.selection && state.selection.localProjectId === currentAppState?.selectedProject?.id
@@ -594,6 +816,7 @@ function renderServicePanel() {
   renderServiceSharedBase(); refreshHistorySharingDisplay();
   renderServiceComparison();
   syncProjectActivityContext(); renderProjectActivity();
+  syncBranchReviewAccount();
 }
 function renderServiceState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
@@ -821,12 +1044,14 @@ function renderProjectActivity() {
   }
   const labels = { 'revision.created': 'Revision published', 'branch.changed': 'Branch updated', 'pull.completed': 'Pull completed',
     'member.invited': 'Project invitation created', 'member.joined': 'Member joined', 'member.role-changed': 'Member permissions changed',
-    'member.removed': 'Member removed', 'owner.transferred': 'Project ownership transferred', 'project.deleted': 'Project deleted' };
+    'member.removed': 'Member removed', 'owner.transferred': 'Project ownership transferred', 'project.deleted': 'Project deleted',
+    'branch.protection-changed': 'Branch protection changed', 'approval.requested': 'Branch review requested',
+    'approval.recorded': 'Branch approval recorded', 'approval.applied': 'Approved revision published' };
   items.forEach((event, index) => {
     const view = projectActivityRow(event), unread = event.read === false;
     setServiceText(view.title, `${labels[event.type] || 'Project updated'}${unread ? ' · Unread' : ''}`);
     setServiceText(view.meta, `Actor ${event.actorId} · ${serviceDate(event.at)}`);
-    setServiceText(view.subject, event.subjectId ? `${event.type === 'branch.changed' ? 'Branch' : 'Subject'} ${event.subjectId}` : 'Project-wide update');
+    setServiceText(view.subject, event.subjectId ? `${['branch.changed', 'branch.protection-changed'].includes(event.type) ? 'Branch' : 'Subject'} ${event.subjectId}` : 'Project-wide update');
     const wasFocused = focused === view.read;
     view.read.hidden = !unread; view.read.disabled = busy || !available;
     view.read.setAttribute('aria-label', `Mark ${labels[event.type]?.toLowerCase() || 'project update'} read`);
@@ -1795,6 +2020,37 @@ document.getElementById('relink-action').addEventListener('click', async () => {
     notice.textContent = 'Could not relink history. Rescan the export and retry.';
   } finally { button.disabled = false; }
 });
+document.getElementById('branch-review-project').addEventListener('change', event => {
+  branchReviewProjectChoice = event.target.value; branchReviewBranchChoice = ''; renderBranchReview();
+});
+document.getElementById('branch-review-branch').addEventListener('change', event => {
+  branchReviewBranchChoice = event.target.value; renderBranchReview();
+});
+document.getElementById('branch-review-select-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const project = serviceState?.projects?.find(item => item.id === branchReviewProjectChoice);
+  if (!project || !project.branches.includes(branchReviewBranchChoice)) return;
+  runBranchReviewAction('selectBranchReview', { projectId: project.id, branch: branchReviewBranchChoice });
+});
+document.getElementById('branch-review-refresh').addEventListener('click', () => runBranchReviewAction('refreshBranchReview', { view: 'all' }));
+document.getElementById('branch-review-required').addEventListener('change', event => {
+  branchReviewPolicyDraft = event.target.value; renderBranchReview();
+});
+document.getElementById('branch-review-policy-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (document.getElementById('branch-review-policy-save').disabled) return;
+  runBranchReviewAction('setBranchProtection', { scopeId: branchReviewState.scopeId, requiredApprovals: Number(branchReviewPolicyDraft) });
+});
+document.getElementById('branch-review-candidate').addEventListener('change', event => {
+  branchReviewCandidateChoice = event.target.value; renderBranchReview();
+});
+document.getElementById('branch-review-request-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (document.getElementById('branch-review-request').disabled) return;
+  runBranchReviewAction('requestBranchApproval', { scopeId: branchReviewState.scopeId, revisionId: branchReviewCandidateChoice });
+});
+for (const view of ['requests', 'candidates']) document.getElementById(`branch-review-${view}-more`).addEventListener('click', () => runBranchReviewAction('refreshBranchReview', { view }));
+window.desktop?.onBranchReviewState?.(state => renderBranchReviewState(state));
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 if (window.desktop?.getServiceState) {
   window.desktop.onServiceState?.(renderServiceState);

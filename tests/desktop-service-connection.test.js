@@ -237,3 +237,43 @@ test('activity SDK methods bind page/input positions and abort captured feed cli
   await assert.rejects(client.listNotifications('film', page), { code: 'service-sign-in-required' });
   assert.doesNotMatch(JSON.stringify(f.events), /\/private\/|access-token-secret|refresh-token/);
 });
+
+test('branch review SDK wrappers preserve 3/1/1/3 input arities and combine external and connection aborts', async t => {
+  const calls = []; let waiting = null;
+  const f = fixture({ clientMethods: ({ getAccessToken }) => Object.fromEntries([
+    ['getBranchReview', 3], ['setBranchProtection', 1], ['requestBranchApproval', 1], ['approveBranchRequest', 3]
+  ].map(([name, arity]) => [name, async (...args) => {
+    const options = args[arity]; calls.push({ name, args: args.slice(0, arity), signal: options.signal });
+    if (waiting) {
+      waiting.started.resolve(options.signal);
+      if (waiting.external) await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(error('sync-cancelled')), { once: true }));
+      else await waiting.release.promise;
+    }
+    await getAccessToken(); return { valid: true };
+  }])) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  const page = { limit: 20 }, policy = { projectId: 'film', branch: 'main', expectedVersion: 0, requiredApprovals: 1, idempotencyKey: 'p' },
+    proposal = { projectId: 'film', branch: 'main', expectedHead: null, revisionId: 'candidate', policyVersion: 1, idempotencyKey: 'r' };
+  await client.getBranchReview('film', 'main', page); await client.setBranchProtection(policy);
+  await client.requestBranchApproval(proposal); await client.approveBranchRequest('film', 'main', 'request');
+  assert.deepEqual(calls.map(value => value.args), [['film', 'main', page], [policy], [proposal], ['film', 'main', 'request']]);
+  assert(calls.every(value => value.signal instanceof AbortSignal));
+  waiting = { started: defer(), external: true }; const external = new AbortController(), pending = client.getBranchReview('film', 'main', page, { signal: external.signal });
+  const signal = await waiting.started.promise; external.abort(); assert.equal(signal.aborted, true); await assert.rejects(pending, { code: 'sync-cancelled' });
+  assert.equal(value.getState().status, 'connected');
+  waiting = { started: defer(), release: defer() }; const approving = client.approveBranchRequest('film', 'main', 'request');
+  const connectionSignal = await waiting.started.promise, disconnect = value.disconnect(); assert.equal(connectionSignal.aborted, true); waiting.release.resolve();
+  await assert.rejects(approving, { code: 'service-sign-in-required' }); await disconnect;
+  await assert.rejects(client.requestBranchApproval(proposal), { code: 'service-sign-in-required' });
+  assert.doesNotMatch(JSON.stringify(f.events), /token-secret|access-token-secret|\/private\//);
+});
+
+test('branch review wrapper preserves only the finite safe branch error catalog', async t => {
+  const { BRANCH_REVIEW_ERROR_CODES } = require('../src/branch-review-protocol'); let code;
+  const f = fixture({ clientMethods: () => ({ async getBranchReview() { throw error(code); } }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  for (code of BRANCH_REVIEW_ERROR_CODES) await assert.rejects(client.getBranchReview('film', 'main', {}), { code, message: code });
+  code = 'branch-review-private-credential-secret';
+  await assert.rejects(client.getBranchReview('film', 'main', {}), { code: 'service-connection-failed', message: 'service-connection-failed' });
+  assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /token-secret|credential-secret|\/private\//);
+});

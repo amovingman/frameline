@@ -41,6 +41,18 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.on('resolve-comments:state', handle);
     return () => ipcRenderer.removeListener('resolve-comments:state', handle);
   },
+  getBranchReviewState: () => ipcRenderer.invoke('branch-review:state'),
+  selectBranchReview: input => ipcRenderer.invoke('branch-review:select', input),
+  refreshBranchReview: input => ipcRenderer.invoke('branch-review:refresh', input),
+  setBranchProtection: input => ipcRenderer.invoke('branch-review:policy', input),
+  requestBranchApproval: input => ipcRenderer.invoke('branch-review:request', input),
+  approveBranchRequest: input => ipcRenderer.invoke('branch-review:approve', input),
+  onBranchReviewState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('branch-review:state', handle);
+    return () => ipcRenderer.removeListener('branch-review:state', handle);
+  },
   onResolveServiceState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);

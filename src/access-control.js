@@ -4,9 +4,9 @@ const ROLES = Object.freeze(['owner', 'editor', 'viewer']);
 const COLLABORATOR_ROLES = Object.freeze(['editor', 'viewer']);
 const PERMISSIONS = Object.freeze({
   owner: new Set(['project:read', 'project:write', 'project:delete', 'members:read', 'members:write',
-    'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write', 'comment:read', 'comment:write']),
-  editor: new Set(['project:read', 'members:read', 'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write', 'comment:read', 'comment:write']),
-  viewer: new Set(['project:read', 'members:read', 'revision:read', 'branch:read', 'asset:read', 'comment:read'])
+    'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write', 'comment:read', 'comment:write', 'branch-policy:read', 'branch-policy:write', 'approval:read', 'approval:write']),
+  editor: new Set(['project:read', 'members:read', 'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write', 'comment:read', 'comment:write', 'branch-policy:read', 'approval:read', 'approval:write']),
+  viewer: new Set(['project:read', 'members:read', 'revision:read', 'branch:read', 'asset:read', 'comment:read', 'branch-policy:read', 'approval:read'])
 });
 const digest = value => createHash('sha256').update(value).digest('hex');
 function fail(code) { const error = new Error(code); error.code = code; return error; }
@@ -204,7 +204,7 @@ function createAccessControl({ now = () => Date.now(), invitationTtlMs = 7 * 24 
     })).sort((left, right) => left.expiresAt - right.expiresAt);
   }
   function authorize(userId, { projectId, resource, action }) {
-    if (!['project', 'members', 'revision', 'branch', 'asset', 'comment'].includes(resource)
+    if (!['project', 'members', 'revision', 'branch', 'asset', 'comment', 'branch-policy', 'approval'].includes(resource)
       || !['read', 'write', 'delete'].includes(action)) throw fail('authorization-request-invalid');
     const role = roleFor(userId, projectId);
     if (!role || !PERMISSIONS[role].has(`${resource}:${action}`)) throw fail('forbidden');

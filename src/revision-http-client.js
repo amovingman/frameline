@@ -5,6 +5,8 @@ const { API_VERSION } = require('./project-api-contracts');
 const { validActivityCursor, validateProjectFeedPage } = require('./revision-http-transport');
 const { validReviewCommentCursor, validateReviewCommentAnchor, normalizeReviewCommentBody,
   validateReviewComment, validateReviewCommentsPage } = require('./review-comments-protocol');
+const { BRANCH_REVIEW_ERROR_CODES, validateBranchReviewPageInput, validateBranchReview,
+  validateBranchProtectionPolicy, validateBranchApprovalRequest } = require('./branch-review-protocol');
 
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -16,7 +18,7 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceede
   'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers', 'activity-page-invalid',
   'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found',
   'comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
-  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity']);
+  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity', ...BRANCH_REVIEW_ERROR_CODES]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function segment(value) {
   if (typeof value !== 'string' || !ID.test(value)) throw fail('sync-request-invalid');
@@ -111,7 +113,7 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     if (!response.ok) {
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
       if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
-      if (['activity-state-invalid', 'comment-capacity'].includes(envelope.error.code)) throw fail(envelope.error.code);
+      if (['activity-state-invalid', 'comment-capacity', 'branch-review-capacity'].includes(envelope.error.code)) throw fail(envelope.error.code);
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -128,6 +130,33 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     return validateProjectFeedPage(result, projectId, { limit, notifications: resource === 'notifications' });
   }
   return {
+    getBranchReview: async (projectId, branch, page = {}, options = {}) => {
+      const checked = validateBranchReviewPageInput(page);
+      const query = `limit=${checked.limit}${checked.requestCursor === null ? '' : `&requestCursor=${checked.requestCursor}`}${checked.candidateCursor === null ? '' : `&candidateCursor=${checked.candidateCursor}`}`;
+      const result = await request('GET', `${project(projectId)}/branches/${segment(branch)}/review?${query}`, undefined, options);
+      return validateBranchReview(result, projectId, branch, checked);
+    },
+    setBranchProtection: async (input, options = {}) => {
+      if (!fields(input, ['projectId', 'branch', 'expectedVersion', 'requiredApprovals', 'idempotencyKey'])
+        || !identifier(input.idempotencyKey) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0
+        || !Number.isSafeInteger(input.requiredApprovals) || input.requiredApprovals < 0 || input.requiredApprovals > 5) throw fail('branch-review-invalid');
+      const result = validateBranchProtectionPolicy(await request('PUT', `${project(input.projectId)}/branches/${segment(input.branch)}/protection`,
+        { expectedVersion: input.expectedVersion, requiredApprovals: input.requiredApprovals }, { ...options, idempotencyKey: input.idempotencyKey }));
+      if (result.requiredApprovals !== input.requiredApprovals || ![input.expectedVersion, input.expectedVersion + 1].includes(result.version)) throw fail('sync-response-invalid');
+      return result;
+    },
+    requestBranchApproval: async (input, options = {}) => {
+      if (!fields(input, ['projectId', 'branch', 'expectedHead', 'revisionId', 'policyVersion', 'idempotencyKey'])
+        || !identifier(input.idempotencyKey) || input.expectedHead !== null && !identifier(input.expectedHead)
+        || !identifier(input.revisionId) || !Number.isSafeInteger(input.policyVersion) || input.policyVersion < 0) throw fail('approval-request-invalid');
+      const result = await request('POST', `${project(input.projectId)}/branches/${segment(input.branch)}/approval-requests`,
+        { expectedHead: input.expectedHead, revisionId: input.revisionId, policyVersion: input.policyVersion }, { ...options, idempotencyKey: input.idempotencyKey });
+      return validateBranchApprovalRequest(result, { projectId: input.projectId, branch: input.branch,
+        expectedHead: input.expectedHead, revisionId: input.revisionId, policyVersion: input.policyVersion });
+    },
+    approveBranchRequest: async (projectId, branch, requestId, options = {}) => validateBranchApprovalRequest(
+      await request('PUT', `${project(projectId)}/branches/${segment(branch)}/approval-requests/${segment(requestId)}/approval`, { approved: true }, options),
+      { projectId, branch, requestId }),
     listReviewComments: async (projectId, revisionId, page = {}, options = {}) => {
       if (!page || typeof page !== 'object' || Array.isArray(page) || Object.keys(page).some(key => !['limit', 'cursor'].includes(key))) throw fail('comments-invalid');
       const limit = page.limit === undefined ? 20 : page.limit, cursor = page.cursor === undefined ? null : page.cursor;

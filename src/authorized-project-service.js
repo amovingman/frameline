@@ -32,13 +32,27 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
     }),
     updateBranch: (context, input) => checked(context, input.projectId, 'branch', 'write', actorId => {
       const previous = history.getBranch(input.projectId, input.branch).revisionId;
-      branchProtection?.assertCanAdvance({ actorId, projectId: input.projectId, branch: input.branch,
+      const receipt = input.idempotencyKey !== null && input.idempotencyKey !== undefined
+        && Object.hasOwn(history.snapshot().idempotency, input.idempotencyKey);
+      // Existing CAS keys are delegated to the immutable history receipt first.
+      // An exact committed retry does not need today's reviewer permissions.
+      if (receipt) return history.compareAndSwapBranch(input);
+      const gate = branchProtection?.assertCanAdvance({ actorId, projectId: input.projectId, branch: input.branch,
         expectedHead: input.expectedRevisionId ?? null, revisionId: input.revisionId });
       const result = history.compareAndSwapBranch(input);
+      branchProtection?.consumeAdvance?.(gate, { actorId, projectId: input.projectId, branch: input.branch, revisionId: input.revisionId });
       if (history.getBranch(input.projectId, input.branch).revisionId !== previous) activity?.record({ projectId: input.projectId, actorId, type: 'branch.changed', subjectId: input.branch,
         recipientIds: access.listProjectMembers(actorId, input.projectId).map(item => item.userId) });
       return result;
     }),
+    getBranchReview: (context, projectId, branch, page) => checked(context, projectId, 'approval', 'read',
+      actorId => { if (!branchProtection?.getReview) throw fail('branch-review-unavailable'); return branchProtection.getReview(actorId, projectId, branch, page); }),
+    setBranchProtection: (context, input) => checked(context, input?.projectId, 'branch-policy', 'write',
+      actorId => { if (!branchProtection?.setPolicy) throw fail('branch-review-unavailable'); return branchProtection.setPolicy(actorId, input); }),
+    requestBranchApproval: (context, input) => checked(context, input?.projectId, 'approval', 'write',
+      actorId => { if (!branchProtection?.request) throw fail('branch-review-unavailable'); return branchProtection.request(actorId, input); }),
+    approveBranchRequest: (context, input) => checked(context, input?.projectId, 'approval', 'write',
+      actorId => { if (!branchProtection?.approve) throw fail('branch-review-unavailable'); return branchProtection.approve(actorId, input); }),
     getManifest: (context, projectId, manifestId) => checked(context, projectId, 'revision', 'read',
       () => history.getManifest(projectId, manifestId)),
     getRevision: (context, projectId, revisionId) => checked(context, projectId, 'revision', 'read',

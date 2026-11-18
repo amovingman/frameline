@@ -5,6 +5,8 @@ const { API_VERSION, createRequestContext, responseEnvelope } = require('./proje
 const { validateRevisionManifest } = require('./revision-manifest');
 const { validateReviewCommentAnchor, normalizeReviewCommentBody,
   validateReviewComment, validateReviewCommentsPage } = require('./review-comments-protocol');
+const { validBranchReviewCursor, validateBranchReview, validateBranchProtectionPolicy,
+  validateBranchApprovalRequest } = require('./branch-review-protocol');
 
 const MAX_HTTP_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -26,7 +28,11 @@ const ERRORS = new Map([
   ['activity-state-invalid', 500], ['activity-state-newer-version', 409], ['activity-capacity-exceeded', 409], ['notification-not-found', 404],
   ...['comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
     'comment-cursor-invalid'].map(code => [code, 400]),
-  ['comment-not-found', 404], ['comment-idempotency-conflict', 409], ['comment-capacity', 503]
+  ['comment-not-found', 404], ['comment-idempotency-conflict', 409], ['comment-capacity', 503],
+  ...['branch-review-invalid', 'branch-review-cursor-invalid', 'approval-request-invalid'].map(code => [code, 400]),
+  ...['branch-review-unavailable', 'branch-policy-version-conflict', 'branch-not-protected', 'approval-request-unavailable',
+    'approval-policy-stale', 'approval-candidate-invalid', 'branch-review-idempotency-conflict'].map(code => [code, 409]),
+  ['approval-forbidden', 403], ['branch-review-capacity', 503]
 ]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -49,7 +55,8 @@ function header(req, name) {
   if (count > 1 || (value !== undefined && typeof value !== 'string')) throw fail('invalid-request-headers');
   return value;
 }
-const ACTIVITY_TYPES = new Set(['revision.created', 'branch.changed', 'pull.completed', 'member.invited', 'member.joined',
+const ACTIVITY_TYPES = new Set(['revision.created', 'branch.changed', 'pull.completed', 'branch.protection-changed',
+  'approval.requested', 'approval.recorded', 'approval.applied', 'member.invited', 'member.joined',
   'member.role-changed', 'member.removed', 'owner.transferred', 'project.deleted']);
 function validActivityCursor(value) {
   if (typeof value !== 'string' || value.length > 2048 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value)) return false;
@@ -93,15 +100,35 @@ function activityPage(query) {
   }
   return result;
 }
+function branchReviewPage(query) {
+  const result = { limit: 20, requestCursor: null, candidateCursor: null };
+  if (query === undefined) return result;
+  if (!query) throw fail('branch-review-invalid');
+  const seen = new Set();
+  for (const part of query.split('&')) {
+    const [key, value, extra] = part.split('=');
+    if (extra !== undefined || !['limit', 'requestCursor', 'candidateCursor'].includes(key) || seen.has(key)) throw fail('branch-review-invalid');
+    seen.add(key);
+    if (key === 'limit') {
+      if (!/^[1-9][0-9]{0,2}$/.test(value || '') || Number(value) > 100) throw fail('branch-review-invalid');
+      result.limit = Number(value);
+    } else { if (!validBranchReviewCursor(value)) throw fail('branch-review-cursor-invalid'); result[key] = value; }
+  }
+  return result;
+}
 function route(req) {
   // Parse origin-form paths directly: URL normalization must not hide dot segments.
-  if (typeof req.url !== 'string' || req.url.length > 4096 || !req.url.startsWith('/')
+  if (typeof req.url !== 'string' || req.url.length > 8192 || !req.url.startsWith('/')
     || /[#\\\s]/.test(req.url)) throw fail('request-invalid');
   const [pathname, query, extra] = req.url.split('?'); if (extra !== undefined) throw fail('request-invalid');
   let parts;
   try { parts = pathname.slice(1).split('/').map(part => decodeURIComponent(part)); }
   catch { throw fail('request-invalid'); }
   if (parts.some(part => !ID.test(part))) throw fail('request-invalid');
+  if (parts[0] === 'projects' && parts[2] === 'branches' && parts.length === 5 && parts[4] === 'review') {
+    return { projectId: parts[1], branch: parts[3], kind: 'getBranchReview', methods: ['GET'], page: branchReviewPage(query) };
+  }
+  if (req.url.length > 4096) throw fail('request-invalid');
   if (parts[0] === 'projects' && ID.test(parts[1] || '') && parts.length === 3 && ['activity', 'notifications'].includes(parts[2])) {
     return { projectId: parts[1], kind: parts[2] === 'activity' ? 'listActivity' : 'listNotifications', methods: ['GET'], page: activityPage(query) };
   }
@@ -115,6 +142,15 @@ function route(req) {
       methods: ['GET', 'POST'], page };
   }
   if (query !== undefined || req.url.length > 2048) throw fail('request-invalid');
+  if (parts[0] === 'projects' && parts[2] === 'branches') {
+    if (parts.length === 5 && ['protection', 'approval-requests'].includes(parts[4])) {
+      return { projectId: parts[1], branch: parts[3], kind: parts[4] === 'protection' ? 'setBranchProtection' : 'requestBranchApproval',
+        methods: [parts[4] === 'protection' ? 'PUT' : 'POST'] };
+    }
+    if (parts.length === 7 && parts[4] === 'approval-requests' && parts[6] === 'approval') {
+      return { projectId: parts[1], branch: parts[3], item: parts[5], kind: 'approveBranchRequest', methods: ['PUT'] };
+    }
+  }
   if (parts[0] === 'projects' && parts[2] === 'revisions' && parts[4] === 'comments'
     && parts.length === 7 && parts[6] === 'resolve') {
     return { projectId: parts[1], revisionId: parts[3], item: parts[5], kind: 'resolveReviewComment', methods: ['PUT'] };
@@ -235,13 +271,37 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
         const rateContext = { addressHash: createHash('sha256').update(String(req.socket?.remoteAddress || 'unknown')).digest('hex'), action: target.kind };
         globalAuthLimit(rateContext); await authRateLimit(rateContext);
       }
-      if (['listActivity', 'listNotifications', 'markNotificationRead', 'listReviewComments', 'addReviewComment', 'resolveReviewComment']
+      if (['listActivity', 'listNotifications', 'markNotificationRead', 'listReviewComments', 'addReviewComment', 'resolveReviewComment',
+        'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest']
         .includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
       const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192
-        : ['markNotificationRead', 'resolveReviewComment'].includes(target.kind) ? 1024
+        : ['markNotificationRead', 'resolveReviewComment', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest'].includes(target.kind) ? 1024
           : target.kind === 'addReviewComment' ? 24 * 1024 : MAX_HTTP_BYTES);
       let data;
-      if (target.kind === 'listReviewComments') {
+      if (target.kind === 'getBranchReview') {
+        data = validateBranchReview(await service.getBranchReview(context, target.projectId, target.branch, target.page),
+          target.projectId, target.branch, target.page);
+      } else if (target.kind === 'setBranchProtection') {
+        fields(body, ['expectedVersion', 'requiredApprovals'], ['expectedVersion', 'requiredApprovals']);
+        if (!Number.isSafeInteger(body.expectedVersion) || body.expectedVersion < 0 || !Number.isSafeInteger(body.requiredApprovals)
+          || body.requiredApprovals < 0 || body.requiredApprovals > 5) throw fail('branch-review-invalid');
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        data = validateBranchProtectionPolicy(await service.setBranchProtection(context, { projectId: target.projectId,
+          branch: target.branch, ...body, idempotencyKey: context.idempotencyKey }));
+        if (data.requiredApprovals !== body.requiredApprovals || ![body.expectedVersion, body.expectedVersion + 1].includes(data.version)) throw fail('service-unavailable');
+      } else if (target.kind === 'requestBranchApproval') {
+        fields(body, ['expectedHead', 'revisionId', 'policyVersion'], ['expectedHead', 'revisionId', 'policyVersion']);
+        identifier(body.expectedHead, true); identifier(body.revisionId);
+        if (!Number.isSafeInteger(body.policyVersion) || body.policyVersion < 0) throw fail('approval-request-invalid');
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        data = validateBranchApprovalRequest(await service.requestBranchApproval(context, { projectId: target.projectId,
+          branch: target.branch, ...body, idempotencyKey: context.idempotencyKey }), { projectId: target.projectId,
+          branch: target.branch, expectedHead: body.expectedHead, revisionId: body.revisionId, policyVersion: body.policyVersion });
+      } else if (target.kind === 'approveBranchRequest') {
+        fields(body, ['approved'], ['approved']); if (body.approved !== true) throw fail('body-invalid');
+        data = validateBranchApprovalRequest(await service.approveBranchRequest(context, { projectId: target.projectId,
+          branch: target.branch, requestId: target.item }), { projectId: target.projectId, branch: target.branch, requestId: target.item });
+      } else if (target.kind === 'listReviewComments') {
         data = validateReviewCommentsPage(await service.listReviewComments(context, target.projectId, target.revisionId, target.page),
           target.projectId, target.revisionId, target.page);
       } else if (target.kind === 'addReviewComment') {

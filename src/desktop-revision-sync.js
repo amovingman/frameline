@@ -10,11 +10,12 @@ const { createRevisionCache } = require('./revision-cache');
 const { createAsyncRevisionSyncService } = require('./revision-sync-async');
 const { verifyServiceSyncBase, validateServiceSyncBaseEntry } = require('./service-sync-base');
 const { createServiceThreeWayComparison } = require('./service-three-way-comparison');
+const { BRANCH_REVIEW_ERROR_CODES } = require('./branch-review-protocol');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, HASH = /^[a-f0-9]{64}$/;
 const validId = value => typeof value === 'string' && ID.test(value);
 const safeName = value => typeof value === 'string' && value.trim() && value.length <= 120 && !/[\\/\x00-\x1f\x7f]/.test(value);
-const ERRORS = new Set(['service-sign-in-required', 'service-project-required', 'service-project-unavailable', 'service-viewer-read-only',
+const ERRORS = new Set([...BRANCH_REVIEW_ERROR_CODES, 'service-sign-in-required', 'service-project-required', 'service-project-unavailable', 'service-viewer-read-only',
   'service-selection-changed', 'service-sync-busy', 'service-binding-invalid', 'service-storage-unavailable', 'sync-network-unavailable',
   'sync-branch-conflict', 'sync-reconciliation-required', 'sync-history-invalid', 'sync-cancelled', 'forbidden', 'access-token-invalid',
   'branch-not-found', 'project-not-found', 'revision-corrupt', 'revision-transfer-invalid', 'metadata-project-missing', 'sync-operation-unavailable',

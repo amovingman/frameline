@@ -82,6 +82,12 @@ The CLI requires initialized state and uses the normal durable APIs and role che
 
 Start the service with its intended trusted certificate. In desktop History, sign in with the HTTPS origin and a provisioned account, select an accessible project and branch, then link the selected local branch. Check, push, and fetch operate on revision metadata. A viewer can fetch but cannot publish. Fetched history remains read-only; this does not apply edits or transfer media. See [desktop sync](DESKTOP_SERVICE_SYNC.md).
 
+## Review protected publications
+
+In desktop History, **Branch approvals** can select an accessible service project and branch without a local FCPXML export. An owner can require zero through five independent approvals. A protected push saves immutable metadata and leaves its queue entry blocked until a review request for the exact head/proposal/policy has enough eligible approvals. The requester then retries the queued push. Reviewers cannot be the requester or revision author, and current access is rechecked before publication. Viewers can read the review status. See [branch approvals](COLLABORATION_FOUNDATIONS.md#branch-approvals-on-a-self-hosted-service) for expiry, policy changes, capacities, and historical acknowledgment retry. These are metadata controls and do not apply editor changes.
+
+Combined encrypted state now migrates schemas 1, 2, and 3 to schema 4 while preserving prior history, comments, and activity. Back up the service and encryption configuration before deploying an upgrade; an older runtime will refuse the newer state.
+
 ## Optional media service
 
 The private configuration can include separate encrypted asset storage and a signing key. See [asset network sync](ASSET_NETWORK_SYNC.md) for initialization, API calls, signed tickets, verification polling, cancellation, and backup requirements. Host shutdown cancels active asset verification before closing either store. The [Project media panel](DESKTOP_MEDIA_TRANSFERS.md) offers explicit transfers; History push/fetch continues to sync metadata only. Canonical revision/media bindings and editor relinking remain open.

@@ -9,6 +9,10 @@ const { createDesktopRevisionSync } = require('../src/desktop-revision-sync');
 const { createLocalMetadataStore } = require('../src/local-metadata');
 const { createCloudHistoryStore } = require('../src/cloud-history-store');
 const { fingerprint } = require('../src/project-api-contracts');
+const { createIdentityService } = require('../src/identity-service');
+const { createAccessControl } = require('../src/access-control');
+const { createAuthorizedProjectService } = require('../src/authorized-project-service');
+const { createServiceBranchProtection } = require('../src/service-branch-protection');
 
 const error = code => Object.assign(new Error('Bearer fixture-secret /private/fixture-location'), { code });
 const manifest = index => ({ schemaVersion: 2, adapter: 'fcpxml', readOnly: true, identityStatus: 'unresolved',
@@ -92,6 +96,70 @@ async function fixture(t) {
     } };
 }
 const bind = (controller, remoteBranch = 'main') => controller.bind({ remoteProjectId: 'remote-film', remoteBranch });
+
+async function protectedQueueFixture(t) {
+  const f = await fixture(t), identity = createIdentityService(), access = createAccessControl();
+  const owner = identity.createAccount('owner@protected-queue.example.test', 'Disposable protected queue password'),
+    reviewer = identity.createAccount('reviewer@protected-queue.example.test', 'Disposable protected queue password');
+  const ownerSession = identity.signIn(owner.email, 'Disposable protected queue password'),
+    reviewerSession = identity.signIn(reviewer.email, 'Disposable protected queue password');
+  const context = { accessToken: ownerSession.accessToken, requestId: 'protected-queue' }, reviewContext = { accessToken: reviewerSession.accessToken };
+  const team = access.createTeam(owner.id, 'Disposable protected queue'); access.registerProject(owner.id, 'remote-film', team.id);
+  const invitation = access.inviteProject(owner.id, 'remote-film', reviewer.email, 'editor'); access.acceptInvitation(invitation.token, reviewer.id, reviewer.email);
+  const protection = createServiceBranchProtection({ history: f.history, access, paginationKey: 'queue-fixture-pagination-secret'.repeat(2) });
+  const service = createAuthorizedProjectService({ history: f.history, identity, access, branchProtection: protection });
+  f.changeState({ account: { id: owner.id, email: owner.email } });
+  let loseNextAck = false;
+  const connection = { getState: () => structuredClone(f.state()), getClient: () => Object.fromEntries([
+    'putManifest', 'createRevision', 'compareAndSwapBranch', 'getBranch', 'getRevision', 'getManifest', 'findRevisionBySource'
+  ].map(method => [method, async (...args) => {
+    const options = args.pop(); if (options?.signal?.aborted) throw error('sync-cancelled');
+    const result = service[method === 'compareAndSwapBranch' ? 'updateBranch' : method](context, ...args);
+    if (method === 'compareAndSwapBranch' && loseNextAck) { loseNextAck = false; throw error('sync-network-unavailable'); }
+    return result;
+  }])) };
+  service.setBranchProtection(context, { projectId: 'remote-film', branch: 'main', expectedVersion: 0, requiredApprovals: 1, idempotencyKey: 'queue-policy-one' });
+  const approveStaged = () => {
+    const review = service.getBranchReview(context, 'remote-film', 'main'), candidate = review.candidates.items[0]; assert(candidate);
+    const request = service.requestBranchApproval(context, { projectId: 'remote-film', branch: 'main', expectedHead: review.headRevisionId,
+      revisionId: candidate.revisionId, policyVersion: review.policy.version, idempotencyKey: `queue-request-${candidate.revisionId}` });
+    service.approveBranchRequest(reviewContext, { projectId: 'remote-film', branch: 'main', requestId: request.id }); return candidate;
+  };
+  return { ...f, owner, reviewer, access, service, context, connection, approveStaged,
+    createProtected: () => f.create({ connection }), loseNextAck: () => { loseNextAck = true; } };
+}
+
+test('actual protected service failures retain actionable blocked queue errors until each staged revision is approved', async t => {
+  const f = await protectedQueueFixture(t), controller = f.createProtected(); await bind(controller);
+  const firstBlocked = await controller.push(); assert.equal(firstBlocked.error, 'branch-approval-required');
+  assert.equal(firstBlocked.operations.length, 1); assert.equal(firstBlocked.operations[0].lastError, 'branch-approval-required'); assert.equal(firstBlocked.operations[0].status, 'blocked');
+  assert.equal(f.history.getBranch('remote-film', 'main').revisionId, null); assert.equal(f.history.listRevisions('remote-film').items.length, 1);
+  const operationId = firstBlocked.operations[0].id, firstCandidate = f.approveStaged();
+  const secondBlocked = await controller.retry(operationId); assert.equal(secondBlocked.error, 'branch-approval-required');
+  assert.equal(secondBlocked.operations[0].id, operationId); assert.equal(secondBlocked.operations[0].lastError, 'branch-approval-required');
+  assert.equal(f.history.getBranch('remote-film', 'main').revisionId, firstCandidate.revisionId); assert.equal(f.history.listRevisions('remote-film').items.length, 2);
+  f.approveStaged(); const completed = await controller.retry(operationId); assert.equal(completed.error, null);
+  assert.equal(completed.operations.length, 0); assert.equal(completed.sync.status, 'in-sync'); assert.equal(completed.base.localRevisionId, f.second.id);
+  assert.equal(f.history.listRevisions('remote-film').items.length, 2); safeState(completed, f.directory);
+});
+
+test('a queued protected push reconciles a committed lost acknowledgment after restart despite changed review policy', async t => {
+  const f = await protectedQueueFixture(t);
+  const localHead = (await f.store.exportRevisions(f.otherLocalId)).branches.main;
+  f.select({ localProjectId: f.otherLocalId, branch: 'main' });
+  let controller = f.createProtected(); await bind(controller);
+  const blocked = await controller.push(), operationId = blocked.operations[0].id; assert.equal(blocked.error, 'branch-approval-required');
+  f.approveStaged(); f.loseNextAck(); const interrupted = await controller.retry(operationId);
+  assert.equal(interrupted.error, 'sync-network-unavailable'); assert.equal(interrupted.operations[0].status, 'retry-wait');
+  const committed = f.history.getBranch('remote-film', 'main').revisionId; assert(committed); assert.equal(f.history.listRevisions('remote-film').items.length, 1);
+  f.service.setBranchProtection(f.context, { projectId: 'remote-film', branch: 'main', expectedVersion: 1, requiredApprovals: 2, idempotencyKey: 'changed-review-after-commit' });
+  f.access.removeProjectMember(f.owner.id, 'remote-film', f.reviewer.id);
+  await controller.dispose(); controller = f.createProtected();
+  const restored = await controller.getState(); assert.equal(restored.operations[0].id, operationId);
+  const retried = await controller.retry(operationId); assert.equal(retried.error, null); assert.equal(retried.operations.length, 0); assert.equal(retried.sync.status, 'in-sync');
+  assert.equal(retried.base.localRevisionId, localHead); assert.equal(f.history.getBranch('remote-film', 'main').revisionId, committed);
+  assert.equal(f.history.listRevisions('remote-film').items.length, 1); safeState(retried, f.directory);
+});
 
 async function comparisonFixture(t, remoteBranch = 'main') {
   const f = await fixture(t);

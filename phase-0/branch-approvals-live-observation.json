@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T13:04:46.270Z",
+  "scope": "Self-hosted protected branch revision-metadata publication",
+  "fixture": {
+    "syntheticAccounts": true,
+    "syntheticResolveProject": true,
+    "loopbackOnly": true,
+    "publicDeployment": false
+  },
+  "service": {
+    "combinedStateSchema": 4,
+    "projectId": "branch-review-qa",
+    "branch": "main",
+    "baseRevisionId": "61109482-b60e-41bb-a7ac-c83d5c48b11b",
+    "headRevisionId": "d9947603-2a32-4cb9-baab-6b48623fb805",
+    "policyVersion": 1,
+    "requiredApprovals": 1,
+    "requestId": "472eecfe-f301-4596-a50d-09f73d1d5d2d",
+    "requestStatus": "applied",
+    "revisionId": "d9947603-2a32-4cb9-baab-6b48623fb805",
+    "activeApprovals": 1,
+    "appliedEventCount": 1
+  },
+  "native": {
+    "actualElectronPreloadAndMainProcess": true,
+    "policyEnabledFromZeroToOne": true,
+    "pushBlockedBeforeBranchAdvance": true,
+    "stagedImmutableCandidateListed": true,
+    "requestCreated": true,
+    "selfApprovalActions": 0,
+    "independentApprovalRead": true,
+    "explicitRetryPublished": true,
+    "queueCleared": true,
+    "publishedStatusRead": true,
+    "editorMutationCalls": 0,
+    "signOutClearedReviewRows": true,
+    "signedOutVaultEntries": 0
+  },
+  "browser": {
+    "actualRendererAndDesktopController": true,
+    "actualHttpsService": true,
+    "independentEditorApproved": true,
+    "viewerReadPublished": true,
+    "viewerPolicyDisabled": true,
+    "viewerRequestDisabled": true,
+    "viewerApproveActions": 0
+  },
+  "visual": {
+    "rounds": 2,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflow": false,
+    "primaryFindings": 0,
+    "incumbentPaletteAdvisories": 31,
+    "newSuppressions": 0
+  },
+  "automatedEvidence": {
+    "httpsRequests": 58,
+    "hostProcesses": 3,
+    "freshClientProcesses": 3,
+    "lostAcknowledgmentRetry": true,
+    "policyHeadAndMembershipRechecked": true,
+    "exactHistoricalRetryNoDuplicateEvents": true,
+    "currentPublisherRevocationDenied": true,
+    "fullSuitePassed": 963,
+    "fullSuiteSkipped": 0,
+    "securitySuitePassed": 576,
+    "securitySuiteSkipped": 0,
+    "packageInputsValidated": true,
+    "matchingEmittedReceiptAcknowledgmentsPreserved": true,
+    "staleAcknowledgmentRepliesRejected": true
+  },
+  "safeToApply": false,
+  "limits": [
+    "Approvals bind one immutable direct-child revision, exact branch head and policy. Each new branch advance requires review under the current policy.",
+    "Desktop review selections and failed-ack creation keys remain in memory; offline drafts and cross-restart review outbox are not supplied.",
+    "This publishes metadata only; editor apply, managed hosting and public cross-device deployment are separate gates."
+  ],
+  "cleanup": {
+    "allOwnedFixtureProcessesTerminal": true,
+    "fixtureProcessExitCode": 0,
+    "ownedTemporaryFilesRemoved": true,
+    "browserTabsClosed": true,
+    "viewportOverrideReset": true,
+    "normalAppRelaunchedWithoutFixtureCa": true,
+    "normalAppSignedOut": true
+  }
+}
