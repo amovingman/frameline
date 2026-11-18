@@ -2,6 +2,7 @@
 const { validateResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
 const { compareResolveManifests } = require('./resolve-id-diff');
+const { decimalIdentity } = require('./resolve-observation-values');
 const { parseEffectObservation, compareEffectObservations, describeEffectCoverage } = require('./resolve-effect-observation');
 
 function revisionObservation(manifest) {
@@ -12,14 +13,6 @@ function describeResolveRevisionCoverage(manifest) {
   validateResolveRevisionManifest(manifest);
   const observation = revisionObservation(manifest);
   return observation ? describeEffectCoverage(observation) : null;
-}
-function decimalIdentity(value) {
-  if (!value || typeof value !== 'object' || typeof value.decimal !== 'string') return null;
-  const [mantissa, scale] = value.decimal.split('e');
-  let digits = mantissa.replace(/[-.]/g, '').replace(/^0+/, ''), exponent = Number(scale) - 16;
-  if (!digits) return '0';
-  while (digits.endsWith('0')) { digits = digits.slice(0, -1); exponent++; }
-  return `${mantissa.startsWith('-') ? '-' : ''}${digits}e${exponent}`;
 }
 
 function compareResolveRevisionManifests(before, after) {

@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "editor": "DaVinci Resolve Free",
+  "resolveVersion": "21.1.2.10",
+  "os": "macOS",
+  "projectName": "Frameline Restore Probe",
+  "desktopIntegrated": true,
+  "nativeUiVerified": true,
+  "previewPlanVersion": 2,
+  "historySources": {
+    "base": "3b8b41dd-5d37-4457-81c4-eeec3f2508e3",
+    "local": "90be6d7d-587f-4930-a5da-e93cab001fad",
+    "incoming": "59796fa0-bb68-4aa8-ba58-7347d88d821a"
+  },
+  "sourceHashes": {
+    "base": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+    "local": "d828b140a40b67673c74fb4797f01e5b279efafadfec8c2f3d35143cd1b12b34",
+    "incoming": "d3f4886b7df2f89fa4bd768d49fbb494b223ca0634db7a28ac2c9552c7d393c9"
+  },
+  "classifiedFieldCount": 1,
+  "field": "properties.Pan",
+  "status": "incoming-only",
+  "baseValue": {
+    "decimal": "0.0000000000000000e+00"
+  },
+  "localValue": {
+    "decimal": "0.0000000000000000e+00"
+  },
+  "incomingValue": {
+    "decimal": "1.3250000000000000e+01"
+  },
+  "context": {
+    "timelineName": "Frameline Capture Timeline",
+    "itemName": "mountain-alps.jpg",
+    "track": "V1"
+  },
+  "coverage": {
+    "base": {
+      "schemaVersion": 2,
+      "itemCount": 53,
+      "effectCount": 1,
+      "propertyKeyCount": 43,
+      "propertyValueCount": 443,
+      "unavailablePropertyReads": 0,
+      "trackCount": 2,
+      "unavailableTrackStateReads": 0
+    },
+    "local": {
+      "schemaVersion": 2,
+      "itemCount": 53,
+      "effectCount": 1,
+      "propertyKeyCount": 43,
+      "propertyValueCount": 443,
+      "unavailablePropertyReads": 0,
+      "trackCount": 2,
+      "unavailableTrackStateReads": 0
+    },
+    "incoming": {
+      "schemaVersion": 2,
+      "itemCount": 53,
+      "effectCount": 1,
+      "propertyKeyCount": 43,
+      "propertyValueCount": 443,
+      "unavailablePropertyReads": 0,
+      "trackCount": 2,
+      "unavailableTrackStateReads": 0
+    }
+  },
+  "coverageGapCount": 0,
+  "previewArtifactId": "c84dcb72c119230068fe747050ac8cb0dc754580dfb8c347b9c2193666652fb7",
+  "reviewArtifactId": "10315b8e99943bf167f2ff21ba0bf038edfe14b5d88c60f1e77028ac01a8cc1c",
+  "nativeReviewRecovered": true,
+  "nativeSnapshotOnlyModeVerified": true,
+  "nativeSnapshotOnlyFieldCount": 0,
+  "richRenameDrillDisabled": true,
+  "captureExport": {
+    "parts": 6,
+    "bytes": 45777,
+    "sha256": "d828b140a40b67673c74fb4797f01e5b279efafadfec8c2f3d35143cd1b12b34",
+    "mode": "0600",
+    "nativeFileChooserRoundTrip": true
+  },
+  "newRevisionCreated": false,
+  "editorMutationsPerformed": false,
+  "browser": {
+    "isolatedDisposableStore": true,
+    "conflictFixtureSynthesized": true,
+    "conflictValues": [
+      "0",
+      "13.25",
+      "26.5"
+    ],
+    "savedChoiceRecovered": "keep-local",
+    "mixedSnapshotCoverageGaps": 448,
+    "gapPageSize": 20,
+    "pagingPreservesFocus": true,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflow": false
+  },
+  "readOnly": true,
+  "safeToApply": false,
+  "fullNativePropertiesVerified": false
+}

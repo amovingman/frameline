@@ -10,6 +10,7 @@ function resolveReviewedRename({ sources, plan, audit } = {}) {
   if (!verifyResolvePreviewPlan(plan, sources).valid || !verifyResolveDecisionAudit(audit, plan, sources).valid) {
     throw new Error('invalid-reviewed-rename');
   }
+  if (plan.schemaVersion !== 1) throw new Error('rich-preview-review-only');
   const local = JSON.parse(sources.local.toString('utf8'));
   normalizeResolveSnapshot(local);
   const desired = structuredClone(local);

@@ -774,6 +774,8 @@ let resolveState = null;
 let resolveSelected = null;
 let resolveBusy = false;
 let resolveActionNotice = '';
+let resolveCoveragePage = 0;
+let resolveCoverageKey = '';
 const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
 function resolveValue(value) {
   if (value === undefined || value === null) return 'Not present';
@@ -806,6 +808,8 @@ function resolveChoice(conflict) {
 }
 function renderResolveState(state) {
   resolveState = state;
+  const coverageKey = JSON.stringify(state?.sourceHashes || null);
+  if (coverageKey !== resolveCoverageKey) { resolveCoveragePage = 0; resolveCoverageKey = coverageKey; }
   renderResolveTrial();
   const items = resolveChanges();
   const ready = state?.status === 'ready' && !!state.plan;
@@ -816,7 +820,7 @@ function renderResolveState(state) {
   document.getElementById('resolve-recover').disabled = locked;
   document.getElementById('resolve-notice').textContent = resolveTrialState?.phase?.startsWith('recovery-')
     ? 'Recovering a retained disposable drill. Snapshot review controls are locked until recovery is resolved.'
-    : state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified fields. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve snapshot JSON files. No timeline will be modified.');
+    : state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified ${items.length === 1 ? 'field' : 'fields'}${state.plan.classification.observationCoverage ? ` · ${state.plan.classification.observationCoverage.gaps.length} coverage gaps excluded from field choices` : ' · snapshot fields only'}. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve capture or snapshot JSON files. No timeline will be modified.');
   const sources = document.getElementById('resolve-sources');
   sources.replaceChildren();
   const counts = items.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
@@ -830,7 +834,7 @@ function renderResolveState(state) {
     const previous = select.value;
     select.replaceChildren();
     for (const value of ['all', ...new Set(items.map(item => item[key]).filter(Boolean).sort())]) {
-      const option = make('option', '', value === 'all' ? label : value);
+      const option = make('option', '', value === 'all' ? label : key === 'timelineId' ? items.find(item => item.timelineId === value)?.context?.timelineName || value : value);
       option.value = value; select.append(option);
     }
     select.value = [...select.options].some(option => option.value === previous) ? previous : 'all';
@@ -844,7 +848,7 @@ function renderResolveState(state) {
   for (const [role, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming']]) {
     const stale = state?.sourceVerification?.staleRoles?.includes(role);
     const row = make('div', stale ? 'source-stale' : '');
-    row.append(make('strong', '', label), make('code', '', state?.sourceHashes?.[role]?.slice(0, 12) || 'No source'), make('span', '', stale ? 'Changed on refresh · choices reset' : state?.sourceHashes?.[role] ? 'Source fingerprint' : 'Choose snapshots'));
+    row.append(make('strong', '', label), make('code', '', state?.sourceHashes?.[role]?.slice(0, 12) || 'No source'), make('span', '', stale ? 'Changed on refresh · choices reset' : state?.sourceHashes?.[role] ? 'Source fingerprint' : 'Choose sources'));
     sourcePanel.append(row);
   }
   renderResolveExport(state, ready);
@@ -863,13 +867,13 @@ function renderResolveState(state) {
   if (!visible.includes(resolveSelected)) resolveSelected = visible.find(item => item.timelineId === resolveSelected?.timelineId && item.itemId === resolveSelected?.itemId && item.field === resolveSelected?.field) || visible[0] || null;
   const queue = document.getElementById('resolve-queue');
   queue.replaceChildren();
-  if (!visible.length) queue.append(make('p', 'history-empty', ready ? 'No changes match this filter.' : 'No snapshots selected.'));
+  if (!visible.length) queue.append(make('p', 'history-empty', ready ? 'No changes match this filter.' : 'No sources selected.'));
   visible.forEach(item => {
     const choice = resolveChoice(resolveConflict(item));
     const button = make('button', `queue-item${item === resolveSelected ? ' selected' : ''}`);
     button.type = 'button';
     button.setAttribute('aria-pressed', String(item === resolveSelected));
-    button.append(make('strong', '', item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', item.timelineId || ''), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
+    button.append(make('strong', '', item.context?.itemName || item.context?.timelineName || item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', [item.context?.timelineName || item.timelineId, item.context?.track].filter(Boolean).join(' · ')), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
     button.addEventListener('click', () => { resolveSelected = item; renderResolveState(resolveState); });
     queue.append(button);
   });
@@ -889,7 +893,7 @@ function renderResolveDetail() {
   const item = resolveSelected;
   detail.append(make('h2', '', item ? `${item.field} comparison` : 'Source comparison'));
   if (!item) { detail.append(make('p', '', 'Select a change to inspect base, local, and incoming source values.')); return; }
-  detail.append(make('p', 'resolve-context', `Timeline ${item.timelineId || 'unspecified'} · Item ${item.itemId || 'timeline'} · ${resolveLabels[item.status] || item.status}`));
+  detail.append(make('p', 'resolve-context', [item.context?.timelineName || `Timeline ${item.timelineId || 'unspecified'}`, item.context?.itemName || item.itemId, item.context?.track, resolveLabels[item.status] || item.status].filter(Boolean).join(' · ')));
   const values = make('div', 'resolve-values');
   for (const [key, label] of [['base', 'Common base'], ['local', 'Your local cut'], ['incoming', 'Incoming cut']]) {
     const column = make('div', key === 'incoming' ? 'incoming-value' : '');
@@ -899,7 +903,7 @@ function renderResolveDetail() {
   detail.append(values);
   const conflict = resolveConflict(item);
   if (conflict) {
-    detail.append(make('p', 'resolve-context', 'Both cuts changed this field from the common base. Choose the value to record in this review.'));
+    detail.append(make('p', 'resolve-context', resolveState.plan.schemaVersion === 2 ? 'Local and incoming observations differ from the common base. Choose the value to record in this review; missing observations remain unknown.' : 'Both cuts changed this field from the common base. Choose the value to record in this review.'));
     const controls = make('div', 'resolve-decisions');
     const selected = resolveChoice(conflict);
     for (const choice of conflict.options || ['keep-local', 'take-incoming']) {
@@ -914,12 +918,16 @@ function renderResolveDetail() {
 }
 function renderResolveInspection() {
   const section = document.getElementById('resolve-inspection');
+  const expanded = new Set([...section.querySelectorAll('details[open]')].map(detail => detail.dataset.section));
   section.replaceChildren();
   const assessment = resolveState?.plan?.assessment;
+  const coverage = resolveState?.plan?.classification?.observationCoverage;
+  if (coverage) renderResolveCoverage(section, coverage, expanded);
   for (const [label, entries] of [['Warning categories', assessment?.warnings || []], ['Media requirements', assessment?.mediaRequirements || []]]) {
     const disclosure = make('details', '');
+    disclosure.dataset.section = label; disclosure.open = expanded.has(label);
     disclosure.append(make('summary', '', `${label} (${entries.length})`));
-    if (!entries.length) disclosure.append(make('p', '', assessment ? `No ${label.toLowerCase()} reported.` : 'Choose snapshots to inspect requirements.'));
+    if (!entries.length) disclosure.append(make('p', '', assessment ? `No ${label.toLowerCase()} reported.` : 'Choose sources to inspect requirements.'));
     for (const entry of entries) {
       const row = make('div', 'resolve-inspection-row');
       if (label === 'Warning categories') row.append(make('strong', '', entry.code || 'Warning'), make('span', '', `${entry.count || 0} occurrence(s)`));
@@ -928,6 +936,48 @@ function renderResolveInspection() {
     }
     section.append(disclosure);
   }
+}
+function renderResolveCoverage(section, coverage, expanded) {
+  const details = make('details', 'resolve-observation-coverage');
+  details.dataset.section = 'coverage'; details.open = expanded.has('coverage');
+  details.append(make('summary', '', `Capture coverage (${coverage.gaps.length} gaps)`));
+  details.append(make('p', '', 'Only returned values observed in all three sources are classified as property, effect-slot or track-state edits. Gaps are excluded from field choices. Whole-item or timeline decisions retain the observations available on each side.'));
+  for (const [role, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming']]) {
+    const row = make('div', 'resolve-inspection-row');
+    row.append(make('strong', '', label), make('span', '', resolveCoverageText(coverage.roles[role])));
+    details.append(row);
+  }
+  details.append(make('p', '', coverage.capturedContextDiffers
+    ? 'Sources were captured with different active timelines. Properties of inactive timelines may be unavailable; this capture context is not a mergeable edit.'
+    : 'Effect category/index and track type/index are observed positions. Persistent instance identities, effect parameters and full native project coverage remain unproven.'));
+  const pageSize = 20;
+  resolveCoveragePage = Math.min(resolveCoveragePage, Math.max(0, Math.ceil(coverage.gaps.length / pageSize) - 1));
+  const start = resolveCoveragePage * pageSize;
+  if (coverage.gaps.length) {
+    const range = make('p', '', `Gaps ${start + 1}–${Math.min(start + pageSize, coverage.gaps.length)} of ${coverage.gaps.length}`);
+    range.id = 'resolve-coverage-range'; range.tabIndex = -1; details.append(range);
+    for (const gap of coverage.gaps.slice(start, start + pageSize)) {
+      const row = make('div', 'resolve-coverage-gap');
+      row.append(make('h3', '', [gap.context?.timelineName || gap.timelineId, gap.context?.itemName || gap.itemId, gap.context?.track, gap.field].filter(Boolean).join(' · ')));
+      const values = make('div', 'resolve-values');
+      for (const [role, label] of [['base', 'Common base'], ['local', 'Local'], ['incoming', 'Incoming']]) {
+        const value = gap[role];
+        const reasons = { 'not-captured': 'not captured', 'read-unavailable': 'read unavailable', 'key-not-returned': 'key not returned' };
+        const column = make('div', role === 'incoming' ? 'incoming-value' : '');
+        column.append(make('h3', '', label), make('pre', '', value.observed ? resolveValue(value.value) : `Not observed (${reasons[value.reason] || 'unknown'})`));
+        values.append(column);
+      }
+      row.append(values); details.append(row);
+    }
+    const controls = make('div', 'resolve-toolbar resolve-coverage-pages');
+    for (const [label, delta, disabled] of [['Previous gaps', -1, start === 0], ['Next gaps', 1, start + pageSize >= coverage.gaps.length]]) {
+      const button = make('button', '', label); button.type = 'button'; button.disabled = disabled;
+      button.addEventListener('click', () => { resolveCoveragePage += delta; renderResolveInspection(); document.getElementById('resolve-coverage-range')?.focus(); });
+      controls.append(button);
+    }
+    details.append(controls);
+  }
+  section.append(details);
 }
 function nextResolveConflict() {
   if (resolveBusy) return;
@@ -953,13 +1003,13 @@ async function resolveAction(method, ...args) {
     if (!window.desktop?.[method]) throw new Error('Resolve preview is available in the desktop app.');
     const state = await window.desktop[method](...args);
     if (state) resolveState = state;
-    if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = state?.sourceVerification?.changed ? `Changed sources: ${(state.sourceVerification.staleRoles || []).join(', ')}. Previous choices cleared; review the refreshed comparison.` : 'Snapshot bytes verified unchanged. Current review choices retained.';
+    if (method === 'refreshResolvePreview' && !state?.error) resolveActionNotice = state?.sourceVerification?.changed ? `Changed sources: ${(state.sourceVerification.staleRoles || []).join(', ')}. Previous choices cleared; review the refreshed comparison.` : 'Capture source bytes verified unchanged. Current review choices retained.';
     if (method === 'saveResolvePreview' && !state?.error) resolveActionNotice = 'Preview saved. Session decisions are not restored by recovery.';
     if (method === 'saveResolveReview' && !state?.error) resolveActionNotice = 'Review saved with current choices. An audit is included only when every conflict is decided. No changes applied.';
     if (method === 'recoverResolveReview' && !state?.error) resolveActionNotice = 'Review recovered and source bytes verified. Saved choices restored; no changes applied.';
     if (method === 'recoverResolvePreview' && !state?.error) resolveActionNotice = 'Saved preview recovered. Review conflict decisions again.';
   } catch (error) {
-    resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the snapshots again to retry.' } };
+    resolveState = { ...resolveState, error: { message: error.message || 'Preview failed. Choose the sources again to retry.' } };
   } finally { resolveBusy = false; renderResolveState(resolveState); }
 }
 document.getElementById('resolve-export-choose').addEventListener('click', () => resolveAction('chooseResolveExport', document.getElementById('resolve-timeline').value === 'all' ? undefined : document.getElementById('resolve-timeline').value));
@@ -972,6 +1022,7 @@ document.getElementById('resolve-companion-form').addEventListener('submit', asy
   const status = document.getElementById('resolve-companion-status');
   const read = document.getElementById('resolve-companion-read');
   document.getElementById('resolve-companion-save').disabled = true;
+  document.getElementById('resolve-companion-save-rich').disabled = true;
   document.getElementById('resolve-companion-revision').disabled = true;
   verifiedResolveCaptureAvailable = false;
   read.disabled = true;
@@ -989,6 +1040,7 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
   companionBusy = true;
   const status = document.getElementById('resolve-companion-status');
   document.getElementById('resolve-companion-save').disabled = true;
+  document.getElementById('resolve-companion-save-rich').disabled = true;
   document.getElementById('resolve-companion-revision').disabled = true;
   status.textContent = 'Verifying the capture…';
   try {
@@ -1000,8 +1052,9 @@ document.getElementById('resolve-companion-read').addEventListener('click', asyn
     if (!result?.ready) throw new Error(result?.error || 'No valid capture is ready.');
     verifiedResolveCaptureAvailable = true;
     document.getElementById('resolve-companion-save').disabled = false;
+    document.getElementById('resolve-companion-save-rich').disabled = !result.coverage;
     document.getElementById('resolve-companion-revision').disabled = false;
-    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. ${resolveCoverageText(result.coverage)} Save a local revision to retain these observations. Snapshot JSON contains timeline and clip fields for previews. Missing properties and effect parameters remain unobserved.`;
+    status.textContent = `Verified read-only capture: ${result.timelineCount} timeline${result.timelineCount === 1 ? '' : 's'}, ${result.itemCount} item${result.itemCount === 1 ? '' : 's'}. ${resolveCoverageText(result.coverage)} Save a local revision to retain these observations. Capture JSON includes these observations for previews; snapshot JSON includes timeline and clip fields only. Missing properties and effect parameters remain unobserved.`;
   } catch (error) { verifiedResolveCaptureAvailable = false; status.textContent = error.message || 'Could not read the capture.'; }
   finally { companionBusy = false; refreshResolveHistory(); }
 });
@@ -1329,20 +1382,22 @@ document.getElementById('resolve-history-preview-form').addEventListener('submit
   const ids = Object.fromEntries(['base', 'local', 'incoming'].map(role =>
     [role, document.getElementById(`resolve-history-${role}`).value]));
   if (!projectId || Object.values(ids).some(value => !value)) return;
-  resolveAction('previewResolveHistory', projectId, ids);
+  resolveAction('previewResolveHistory', projectId, ids, document.getElementById('resolve-history-include-observations').checked);
 });
 if (window.desktop?.listResolveProjects) refreshResolveHistory();
-document.getElementById('resolve-companion-save').addEventListener('click', async () => {
-  if (companionBusy) return;
-  companionBusy = true;
-  const status = document.getElementById('resolve-companion-status');
-  try {
-    const result = await window.desktop.saveResolveCapture();
-    if (result?.saved) status.textContent = 'Verified snapshot saved. Choose it as base, local, or incoming in the three snapshot preview.';
-    else if (!result?.cancelled) status.textContent = result?.error || 'Could not save the snapshot.';
-  } catch { status.textContent = 'Could not save the snapshot.'; }
-  finally { companionBusy = false; }
-});
+for (const [id, method, label] of [['resolve-companion-save', 'saveResolveCapture', 'snapshot'], ['resolve-companion-save-rich', 'saveResolveObservation', 'capture']]) {
+  document.getElementById(id).addEventListener('click', async () => {
+    if (companionBusy) return;
+    companionBusy = true;
+    const status = document.getElementById('resolve-companion-status');
+    try {
+      const result = await window.desktop[method]();
+      if (result?.saved) status.textContent = `Verified ${label} saved. Choose it as base, local, or incoming in the three-source preview.`;
+      else if (!result?.cancelled) status.textContent = result?.error || `Could not save the ${label}.`;
+    } catch { status.textContent = `Could not save the ${label}.`; }
+    finally { companionBusy = false; }
+  });
+}
 document.getElementById('resolve-export-refresh').addEventListener('click', () => resolveAction('refreshResolveExport'));
 document.getElementById('resolve-choose').addEventListener('click', () => resolveAction('chooseResolveSnapshots'));
 document.getElementById('resolve-refresh').addEventListener('click', () => resolveAction('refreshResolvePreview'));
@@ -1413,7 +1468,7 @@ function renderResolveTrial() {
   document.getElementById('resolve-trial-name').disabled = Boolean(activeResolveTrial());
   document.getElementById('resolve-trial-ack').disabled = Boolean(activeResolveTrial());
   if (state?.recovery && !['idle', 'saved'].includes(phase) && state.projectName) document.getElementById('resolve-trial-name').value = state.projectName;
-  document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit
+  document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit || resolveState?.plan?.schemaVersion !== 1
     || !['idle', 'saved'].includes(phase) || !document.getElementById('resolve-trial-ack').checked;
   document.getElementById('resolve-trial-issue').disabled = blocked || !['backup-command', 'recovery-ready'].includes(phase);
   document.getElementById('resolve-trial-issue').textContent = phase === 'recovery-ready'
@@ -1429,7 +1484,7 @@ function renderResolveTrial() {
   document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
   document.getElementById('resolve-trial-inspect').hidden = !phase?.startsWith('recovery-');
   document.getElementById('resolve-trial-inspect').disabled = blocked;
-  const messages = { idle: 'Review one rename and acknowledge the disposable project to begin.',
+  const messages = { idle: resolveState?.plan?.schemaVersion === 2 ? 'Richer captures support review only. Use snapshot-only history mode or three snapshot JSON files for the separate disposable rename drill.' : 'Review one rename and acknowledge the disposable project to begin.',
     'effect-command': 'Read-only state capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the state capture here.',
     'backup-command': 'State capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
     'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
@@ -1613,7 +1668,7 @@ function renderResolveExport(state, ready) {
   panel.replaceChildren();
   document.getElementById('resolve-export-choose').disabled = resolveBusy || !ready;
   document.getElementById('resolve-export-refresh').disabled = resolveBusy || !ready || !report;
-  document.getElementById('resolve-export-notice').textContent = state?.exportError?.message || ((state?.exportError?.code || state?.exportError) === 'select-timeline' ? 'Choose a timeline in the Timeline filter, then choose its FCPXML export.' : state?.exportError ? 'The export comparison failed. Choose a supported FCPXML export or refresh to retry.' : report ? 'Read-only candidate comparison. No mapping is approved and no edits can be applied.' : ready ? 'Choose an FCPXML file or bundle exported from the local timeline.' : 'Choose the three snapshots first.');
+  document.getElementById('resolve-export-notice').textContent = state?.exportError?.message || ((state?.exportError?.code || state?.exportError) === 'select-timeline' ? 'Choose a timeline in the Timeline filter, then choose its FCPXML export.' : state?.exportError ? 'The export comparison failed. Choose a supported FCPXML export or refresh to retry.' : report ? 'Read-only candidate comparison. No mapping is approved and no edits can be applied.' : ready ? 'Choose an FCPXML file or bundle exported from the local timeline.' : 'Choose the three sources first.');
   if (!report) return;
   const facts = make('dl', 'export-facts');
   const groups = Array.isArray(report.unresolved) ? report.unresolved : [];

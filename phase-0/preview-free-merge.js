@@ -5,11 +5,11 @@ const { saveResolvePreview, loadResolvePreview } = require('../src/resolve-previ
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-function readBounded(selectedPath) {
+function readBounded(selectedPath, maximum = MAX_FILE_BYTES) {
   const stat = fs.statSync(selectedPath);
-  if (!stat.isFile() || stat.size > MAX_FILE_BYTES) throw new Error('invalid-input');
+  if (!stat.isFile() || stat.size > maximum) throw new Error('invalid-input');
   const bytes = fs.readFileSync(selectedPath);
-  if (bytes.length > MAX_FILE_BYTES) throw new Error('invalid-input');
+  if (bytes.length > maximum || bytes.length !== stat.size) throw new Error('invalid-input');
   return bytes;
 }
 
@@ -26,12 +26,12 @@ function previewSnapshotFiles(basePath, localPath, incomingPath) {
 }
 
 function verifyPreviewFile(planPath, basePath, localPath, incomingPath) {
-  const plan = JSON.parse(readBounded(planPath).toString('utf8'));
+  const plan = JSON.parse(readBounded(planPath, 32 * 1024 * 1024).toString('utf8'));
   return verifyResolvePreviewPlan(plan, sourcesFromPaths(basePath, localPath, incomingPath));
 }
 
 function refreshPreviewFile(planPath, basePath, localPath, incomingPath) {
-  const plan = JSON.parse(readBounded(planPath).toString('utf8'));
+  const plan = JSON.parse(readBounded(planPath, 32 * 1024 * 1024).toString('utf8'));
   return refreshResolvePreviewPlan(plan, sourcesFromPaths(basePath, localPath, incomingPath));
 }
 

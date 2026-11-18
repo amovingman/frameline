@@ -8,6 +8,8 @@ const { createResolveRevisionManifest, createResolveObservationManifest } = requ
 const { compareResolveRevisionManifests, describeResolveRevisionCoverage } = require('./resolve-revision-comparison');
 const { describeResolveHistoryChanges, describeResolveHistoryAudit } = require('./resolve-history-detail');
 const { readResolveHistoryPreviewSources, readResolveLiveHistoryPreviewSources } = require('./resolve-history-preview');
+const { parseResolvePreviewSource, previewSnapshotBytes } = require('./resolve-preview-source');
+const { saveResolveCaptureFile } = require('./resolve-capture-file');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
@@ -138,9 +140,10 @@ async function currentResolveSources() {
   if (resolveHistoryRevisionIds) {
     if (resolveHistoryRevisionIds.liveLocalSha256) return readResolveLiveHistoryPreviewSources(
       localMetadataStore, resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids,
-      companionVerifiedSnapshot?.snapshot, resolveHistoryRevisionIds.liveLocalSha256);
+      companionVerifiedSnapshot?.snapshot, resolveHistoryRevisionIds.liveLocalSha256,
+      { includeObservations: resolveHistoryRevisionIds.includeObservations, observation: companionVerifiedSnapshot?.observation });
     return readResolveHistoryPreviewSources(localMetadataStore,
-      resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids);
+      resolveHistoryRevisionIds.projectId, resolveHistoryRevisionIds.ids, { includeObservations: resolveHistoryRevisionIds.includeObservations });
   }
   if (resolveSourcePaths) return readResolveSources(resolveSourcePaths);
   throw Object.assign(new Error('Resolve sources are unavailable.'), { code: 'invalid-resolve-preview' });
@@ -324,11 +327,28 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     if (choice.canceled || !choice.filePath) return { saved: false, cancelled: true };
     try {
       const bytes = Buffer.from(JSON.stringify(verified.snapshot));
-      await fs.writeFile(choice.filePath, bytes, { flag: 'wx', mode: 0o600 });
+      await saveResolveCaptureFile(choice.filePath, bytes);
       return { saved: true, snapshotSha256: verified.snapshotSha256 };
     } catch (error) {
       logger.warn('resolve.companion-save-failed', { code: error.code || 'resolve-companion-save-failed' });
       return { saved: false, error: 'Could not save the snapshot. Choose a new filename and try again.' };
+    }
+  });
+  ipcMain.handle('resolve-companion:save-observation', async () => {
+    const verified = companionVerifiedSnapshot;
+    if (!verified?.observation) return { saved: false, error: 'Verify a richer capture before saving it.' };
+    const bytes = Buffer.from(JSON.stringify(verified.observation));
+    const manifest = createResolveObservationManifest(verified.observation);
+    const choice = await dialog.showSaveDialog({ title: 'Save verified Resolve capture',
+      defaultPath: `frameline-capture-${manifest.sourceHash.slice(0, 12)}.json`,
+      filters: [{ name: 'Resolve capture JSON', extensions: ['json'] }] });
+    if (choice.canceled || !choice.filePath) return { saved: false, cancelled: true };
+    try {
+      const result = await saveResolveCaptureFile(choice.filePath, bytes);
+      return { saved: true, sourceSha256: result.sha256 };
+    } catch (error) {
+      logger.warn('resolve.companion-save-failed', { code: error.code || 'resolve-companion-save-failed' });
+      return { saved: false, error: 'Could not save the capture. Choose a new filename and try again.' };
     }
   });
   ipcMain.handle('resolve-companion:save-revision', async (_event, message) => {
@@ -471,21 +491,25 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { ready: false, error: 'Could not switch to this Resolve branch. Refresh history and try again.' };
     }
   });
-  ipcMain.handle('resolve-history:preview', (_event, projectId, ids) => runResolveAction(async () => {
+  ipcMain.handle('resolve-history:preview', (_event, projectId, ids, includeObservations = true) => runResolveAction(async () => {
     let sources;
-    const liveLocalSha256 = ids?.local === 'verified-capture' ? companionVerifiedSnapshot?.snapshotSha256 : null;
+    let liveLocalSha256;
     try {
+      if (typeof includeObservations !== 'boolean') throw new Error('invalid-preview-mode');
+      liveLocalSha256 = ids?.local === 'verified-capture' ? includeObservations && companionVerifiedSnapshot?.observation
+        ? createResolveObservationManifest(companionVerifiedSnapshot.observation).sourceHash : companionVerifiedSnapshot?.snapshotSha256 : null;
       sources = ids?.local === 'verified-capture'
         ? await readResolveLiveHistoryPreviewSources(localMetadataStore, projectId,
-          { base: ids.base, incoming: ids.incoming }, companionVerifiedSnapshot?.snapshot, liveLocalSha256)
-        : await readResolveHistoryPreviewSources(localMetadataStore, projectId, ids);
+          { base: ids.base, incoming: ids.incoming }, companionVerifiedSnapshot?.snapshot, liveLocalSha256,
+          { includeObservations, observation: companionVerifiedSnapshot?.observation })
+        : await readResolveHistoryPreviewSources(localMetadataStore, projectId, ids, { includeObservations });
     }
     catch { return { ...resolveReviewSession.getState(), error: { code: 'resolve-history-preview-invalid',
       message: 'Choose verified sources from one Resolve project. The base must precede the incoming revision and the current branch head.' } }; }
     const state = resolveReviewSession.load(sources);
     if (state.status === 'ready') {
       resolveHistoryRevisionIds = { projectId, ids: liveLocalSha256
-        ? { base: ids.base, incoming: ids.incoming } : { ...ids }, liveLocalSha256 };
+        ? { base: ids.base, incoming: ids.incoming } : { ...ids }, liveLocalSha256, includeObservations };
       resolveSourcePaths = null;
       resolveExportComparison = resolveExportError = resolveExportPath = resolveExportTimelineId = resolveExportLocalHash = null;
     }
@@ -495,9 +519,9 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     const paths = {};
     for (const role of ['base', 'local', 'incoming']) {
       const result = await dialog.showOpenDialog({
-        title: `Choose ${role} Resolve snapshot`,
+        title: `Choose ${role} Resolve capture or snapshot`,
         properties: ['openFile'],
-        filters: [{ name: 'Resolve API snapshot', extensions: ['json'] }]
+        filters: [{ name: 'Resolve capture or snapshot JSON', extensions: ['json'] }]
       });
       if (result.canceled || !result.filePaths.length) return resolveReviewSession.getState();
       paths[role] = result.filePaths[0];
@@ -514,7 +538,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve:save-preview', () => runResolveAction(async () => {
     if (!hasResolveSources()) return resolveReviewSession.getState();
     const refreshed = resolveReviewSession.refresh(await currentResolveSources());
-    if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Snapshot files changed. Preview refreshed; inspect it before saving.' } };
+    if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Capture sources changed. Preview refreshed; inspect it before saving.' } };
     if (refreshed.status !== 'ready') return refreshed;
     await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
     return resolveReviewSession.save();
@@ -522,7 +546,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('resolve:save-review', () => runResolveAction(async () => {
     if (!hasResolveSources()) return resolveReviewSession.getState();
     const refreshed = resolveReviewSession.refresh(await currentResolveSources());
-    if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Snapshot files changed. Previous choices cleared; review the new comparison before saving.' } };
+    if (refreshed.sourceVerification?.changed) return { ...refreshed, error: { code: 'resolve-source-changed', message: 'Capture sources changed. Previous choices cleared; review the new comparison before saving.' } };
     if (refreshed.status !== 'ready') return refreshed;
     await fs.mkdir(resolveArtifactDirectory, { recursive: true, mode: 0o700 });
     return resolveReviewSession.saveReview();
@@ -545,7 +569,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     const sources = await currentResolveSources();
     const state = resolveReviewSession.refresh(sources);
     if (state.status !== 'ready') return state;
-    const timelines = JSON.parse(sources.local.toString('utf8')).timelines;
+    const timelines = parseResolvePreviewSource(sources.local).snapshot.timelines;
     const timelineId = typeof requestedTimelineId === 'string' && requestedTimelineId !== 'all'
       ? requestedTimelineId : timelines.length === 1 ? timelines[0].id : null;
     if (!timelineId || !timelines.some(item => item.id === timelineId)) {
@@ -560,7 +584,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     if (result.canceled || !result.filePaths.length) return state;
     try {
       const exportBytes = await readResolveExport(result.filePaths[0]);
-      resolveExportComparison = compareResolveSnapshotToExport(sources.local, exportBytes, timelineId);
+      resolveExportComparison = compareResolveSnapshotToExport(previewSnapshotBytes(sources.local), exportBytes, timelineId);
       resolveExportPath = result.filePaths[0];
       resolveExportTimelineId = timelineId;
       resolveExportLocalHash = state.sourceHashes.local;
@@ -580,7 +604,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     const state = resolveReviewSession.refresh(sources);
     if (state.status !== 'ready') return state;
     try {
-      resolveExportComparison = compareResolveSnapshotToExport(sources.local,
+      resolveExportComparison = compareResolveSnapshotToExport(previewSnapshotBytes(sources.local),
         await readResolveExport(resolveExportPath), resolveExportTimelineId);
       resolveExportLocalHash = state.sourceHashes.local;
       resolveExportError = null;

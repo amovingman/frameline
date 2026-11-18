@@ -84,6 +84,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         : failure.message === 'effect-source-snapshot-mismatch' ? 'The live capture differs from the reviewed local snapshot. Cancel preparation, refresh the snapshots, and review again.'
         : failure.message === 'richer-capture-required' ? 'New drills require clip properties and track state. Run the newly copied capture and read its output again.'
         : failure.message === 'incomplete-property-capture' ? 'Some clip properties or track states could not be read. Keep the project unchanged and retry the capture before preparing a drill.'
+        : failure.message === 'rich-preview-review-only' ? 'Richer previews record review intent only. The rename recovery drill requires a snapshot-only review and cannot apply property choices.'
         : phase === 'effect-command' ? 'The effect capture could not be verified. Run the copied capture in Resolve’s Lua Console, copy all output, and read it again.'
         : failure.message === 'trial-does-not-support-interrupted-recovery' ? 'This older or unsupported drill cannot retire its copied command. Keep the backup and inspect the disposable project manually.'
         : 'The trial action could not be verified. Keep the backup and trial records; check the Console output and retry.';

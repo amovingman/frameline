@@ -32,7 +32,7 @@ function analyzeResolveConflictRules(classification) {
         additions.set(timelineId, group);
       }
     }
-    if (TIMELINE_FIELDS.has(field)) timelineReviews.push({ timelineId, itemId, field,
+    if (TIMELINE_FIELDS.has(field) || field.startsWith('trackState.')) timelineReviews.push({ timelineId, itemId, field,
       rule: 'timeline-interaction-review', reason: 'Intervals, track identity, links, and ripple effects may interact; the classification does not contain a complete timeline.',
       automaticTimelineOrdering: false, requiresManualReview: true, safeToApply: false });
   }

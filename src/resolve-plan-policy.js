@@ -7,6 +7,7 @@ const WARNING_CODES = Object.freeze([
 const STATUSES = new Set(['incoming-only', 'local-only', 'already-applied', 'conflict']);
 const TIMING_FIELDS = new Set(['startFrame', 'endFrame', 'sourceStartFrame', 'sourceEndFrame']);
 const SUPPORTED_TYPES = new Set(['video', 'audio']);
+const OBSERVATION_WARNING_CODES = ['item-property-change', 'effect-slot-change', 'track-state-change', 'observation-coverage', 'capture-context-difference'];
 
 function invalid() {
   const error = new Error('Invalid Resolve classification.');
@@ -62,7 +63,14 @@ function assembleDetails(decisions) {
 function assessResolvePlan(classification) {
   if (!classification || classification.schemaVersion !== 1 || classification.readOnly !== true
     || classification.safeToApply !== false || !Array.isArray(classification.decisions)) invalid();
-  const countsByCode = new Map(WARNING_CODES.map(code => [code, 0]));
+  const warningCodes = classification.observationCoverage ? [...WARNING_CODES, ...OBSERVATION_WARNING_CODES] : WARNING_CODES;
+  const countsByCode = new Map(warningCodes.map(code => [code, 0]));
+  if (classification.observationCoverage) {
+    const coverage = classification.observationCoverage;
+    if (!Array.isArray(coverage.gaps) || typeof coverage.capturedContextDiffers !== 'boolean') invalid();
+    countsByCode.set('observation-coverage', coverage.gaps.length);
+    countsByCode.set('capture-context-difference', Number(coverage.capturedContextDiffers));
+  }
   // API snapshots expose tracks by index, even when no track change was observed.
   countsByCode.set('read-only-preview', 1);
   countsByCode.set('track-index-identity', 1);
@@ -75,6 +83,11 @@ function assessResolvePlan(classification) {
     const codes = new Set();
     if (decision.status === 'conflict') { codes.add('conflict'); conflicts++; }
     const field = decision.field;
+    if (classification.observationCoverage) {
+      if (field.startsWith('properties.')) codes.add('item-property-change');
+      if (field.startsWith('effectSlots.')) codes.add('effect-slot-change');
+      if (field.startsWith('trackState.')) codes.add('track-state-change');
+    }
     if (field === 'existence') codes.add('addition-deletion');
     if (TIMING_FIELDS.has(field)) codes.add('timing-ripple-interaction');
     if (field === 'linkedItemIds') codes.add('linked-item-change');
@@ -100,7 +113,7 @@ function assessResolvePlan(classification) {
     }
     for (const code of codes) countsByCode.set(code, countsByCode.get(code) + 1);
   }
-  const warnings = WARNING_CODES.filter(code => countsByCode.get(code) > 0)
+  const warnings = warningCodes.filter(code => countsByCode.get(code) > 0)
     .map(code => ({ code, count: countsByCode.get(code) }));
   return {
     schemaVersion: 1, readOnly: true, safeToApply: false,
