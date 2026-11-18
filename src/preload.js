@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('desktop', {
   checkServiceSync: () => ipcRenderer.invoke('service:check'),
   pushServiceRevisions: () => ipcRenderer.invoke('service:push'),
   fetchServiceRevisions: () => ipcRenderer.invoke('service:fetch'),
+  compareServiceRevisions: () => ipcRenderer.invoke('service:compare'),
   getProjectActivityState: () => ipcRenderer.invoke('project-activity:state'),
   refreshProjectActivity: input => ipcRenderer.invoke('project-activity:refresh', input),
   loadOlderProjectActivity: () => ipcRenderer.invoke('project-activity:older'),

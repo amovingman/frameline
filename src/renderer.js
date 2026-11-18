@@ -23,8 +23,10 @@ let syncBusy = false;
 let serviceState = null;
 let serviceStateVersion = -1;
 let serviceActionBusy = false;
+let serviceActionMethod = null;
 let serviceActionNotice = '';
 let serviceBaseTransition = false;
+let serviceComparisonRenderKey = '';
 let serviceLocalSelectionKey = null;
 let serviceProjectChoice = '';
 let serviceBranchChoice = '';
@@ -416,7 +418,7 @@ function serviceErrorLabel(code) {
     'sync-project-unbound': 'Link this local branch to a service project first.',
     'revision-scan-required': 'Scan a local FCPXML export and save a revision before pushing.',
     'branch-project-required': 'Choose a local FCPXML export before linking a service project.',
-    'revision-source-changed': 'The export changed since scanning. Rescan and save a revision before pushing.',
+    'revision-source-changed': 'The export changed since scanning. Rescan it before continuing.',
     'credential-storage-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.',
     'credential-vault-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.'
   })[code] || 'The service action could not finish. Check the connection or sign in again, then retry.';
@@ -563,6 +565,7 @@ function renderServicePanel() {
   renderFetchedServiceHistory(matching ? state?.fetched : null);
   renderSyncState(state);
   renderServiceSharedBase(); refreshHistorySharingDisplay();
+  renderServiceComparison();
   syncProjectActivityContext(); renderProjectActivity();
 }
 function renderServiceState(state) {
@@ -579,7 +582,7 @@ async function refreshServiceState() {
 }
 async function runServiceAction(method, input) {
   if (serviceActionBusy || serviceState?.busy || typeof window.desktop?.[method] !== 'function') return;
-  serviceActionBusy = true; serviceActionNotice = '';
+  serviceActionBusy = true; serviceActionMethod = method; serviceActionNotice = '';
   serviceBaseTransition = ['connectService', 'disconnectService', 'bindServiceProject', 'unlinkServiceProject'].includes(method);
   renderServicePanel();
   try {
@@ -588,8 +591,102 @@ async function runServiceAction(method, input) {
   } catch { serviceActionNotice = 'The service action could not finish. Check your connection and try again.'; }
   finally {
     document.getElementById('service-password').value = '';
-    serviceActionBusy = false; serviceBaseTransition = false; renderServicePanel();
+    serviceActionBusy = false; serviceActionMethod = null; serviceBaseTransition = false; renderServicePanel();
   }
+}
+
+function serviceComparisonScopeReady() {
+  return !serviceBaseTransition && serviceSelectionMatches() && !!serviceState?.account && !!serviceState?.binding
+    && ['connected', 'offline'].includes(serviceState.status);
+}
+function currentServiceComparison() {
+  if (!serviceComparisonScopeReady() || currentAppState?.scanStatus !== 'ready' || currentAppState?.error) return null;
+  const result = serviceState.comparison?.status === 'ready' ? serviceState.comparison.result : null;
+  const base = currentServiceBase(), binding = result?.binding;
+  if (!result || result.readOnly !== true || result.safeToApply !== false || base?.status !== 'recorded' || !binding
+    || binding.baseLocalRevisionId !== base.localRevisionId || binding.baseRemoteRevisionId !== base.remoteRevisionId
+    || binding.incomingRevisionId !== serviceState.fetched?.head || !binding.incomingRevisionId
+    || binding.localHeadId !== (currentAppState.revisions?.[0]?.id || null)
+    || binding.localSourceHash !== currentAppState.scan?.sourceHash || !binding.localSourceHash
+    || binding.fetchedAt !== serviceState.fetched?.checkedAt || !Array.isArray(result.changes) || result.changes.length > 3) return null;
+  const fields = new Set();
+  for (const change of result.changes) {
+    if (!['name', 'frameDuration', 'durationFrames'].includes(change.field) || fields.has(change.field)
+      || !['incoming-only', 'local-only', 'already-applied', 'conflict'].includes(change.status)) return null;
+    fields.add(change.field);
+  }
+  return result;
+}
+function serviceComparisonErrorLabel(code) {
+  return ({ 'comparison-source-required': 'Scan the selected FCPXML export before comparing its sequence.',
+    'revision-source-changed': 'The export changed since scanning. Rescan it, then compare again.',
+    'comparison-fetch-required': 'Fetch service history explicitly before comparing the captured incoming sequence.',
+    'comparison-stale': 'The comparison sources changed. Rescan the export or fetch current service history, then compare again.',
+    'comparison-base-invalid': 'The shared base could not be verified for comparison. Check history, then fetch service history again.',
+    'service-comparison-invalid': 'The sequence comparison could not be verified. Check history and fetch service history, then retry.',
+    'service-comparison-base-invalid': 'The comparison base could not be verified. Check history before comparing again.',
+    'service-comparison-incoming-invalid': 'The incoming comparison source could not be verified. Fetch service history again.',
+    'service-comparison-unsupported': 'These sources are outside the supported sequence comparison. Clip edits and media identity cannot be compared here.',
+    'service-comparison-too-large': 'These sources exceed the local comparison limits. Use a smaller supported export.',
+    'file-unavailable': 'The selected export is unavailable. Choose a readable export and scan it again.' })[code] || serviceErrorLabel(code);
+}
+function renderServiceComparison() {
+  const scoped = serviceComparisonScopeReady(), comparison = scoped ? serviceState?.comparison : null;
+  const base = scoped ? currentServiceBase() : null, result = currentServiceComparison();
+  const scanReady = currentAppState?.scanStatus === 'ready' && !currentAppState?.error && !!currentAppState?.scan?.sourceHash;
+  const busy = serviceActionBusy || !!serviceState?.busy;
+  const button = document.getElementById('service-comparison-run');
+  button.disabled = !scoped || busy || !scanReady || base?.status !== 'recorded' || !serviceState?.fetched?.head
+    || typeof window.desktop?.compareServiceRevisions !== 'function';
+  setServiceText(button, serviceActionMethod === 'compareServiceRevisions' ? 'Comparing…'
+    : comparison?.result ? 'Refresh comparison' : 'Compare sequence');
+  const conflicts = result?.changes.filter(change => change.status === 'conflict').length || 0;
+  const status = !scoped ? 'Sign in and link the selected local branch to compare sequence snapshots.'
+    : !window.desktop?.compareServiceRevisions ? 'Service sequence comparison is unavailable in this build.'
+      : serviceActionMethod === 'compareServiceRevisions' ? 'Comparing the captured sequence values…'
+        : comparison?.status === 'error' ? serviceComparisonErrorLabel(comparison.error)
+          : !scanReady ? 'Scan the selected FCPXML export before comparing. Unsaved scan changes can be compared.'
+            : base?.status !== 'recorded' ? 'Check history to record a verified shared base before comparing.'
+              : !serviceState?.fetched?.head ? 'Fetch service history to capture an incoming revision before comparing.'
+                : comparison?.result && !result ? 'The captured comparison no longer matches these sources. Refresh comparison to compare the current scan and fetched history.'
+                  : result ? result.changes.length ? `${result.changes.length} changed sequence field${result.changes.length === 1 ? '' : 's'} · ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Read-only observation.`
+                    : 'No sequence-level differences were observed in these snapshots.'
+                    : 'Compare the current scan with the recorded base and explicitly fetched service head. No network request is made by this comparison.';
+  setServiceText(document.getElementById('service-comparison-status'), status);
+  document.getElementById('service-comparison-result').hidden = !result;
+  const key = JSON.stringify([currentProjectActivityContext(), result]);
+  if (key === serviceComparisonRenderKey) return;
+  serviceComparisonRenderKey = key;
+  const fields = document.getElementById('service-comparison-fields'), facts = document.getElementById('service-comparison-facts');
+  const context = document.getElementById('service-comparison-context'), warnings = document.getElementById('service-comparison-warnings');
+  for (const node of [fields, facts, context, warnings]) node.replaceChildren();
+  setServiceText(document.getElementById('service-comparison-stamp'), result
+    ? `Comparison captured ${serviceDate(result.createdAt)}. Incoming history fetched ${serviceDate(result.binding.fetchedAt)}; newer service changes require another fetch.` : '');
+  if (!result) { document.getElementById('service-comparison-evidence').open = false; return; }
+  const fieldLabels = { name: 'Sequence name', frameDuration: 'Frame duration', durationFrames: 'Sequence length' };
+  const statusLabels = { 'incoming-only': 'Incoming change', 'local-only': 'Local change', 'already-applied': 'Same change observed', conflict: 'Different local and incoming changes' };
+  for (const change of result.changes) {
+    const row = make('div', 'service-comparison-field'), heading = make('div', 'service-comparison-field-heading');
+    heading.append(make('h4', '', fieldLabels[change.field]), make('span', '', statusLabels[change.status]));
+    const values = make('dl', 'service-comparison-values');
+    for (const [role, label] of [['base', 'Base'], ['local', 'Current scan'], ['incoming', 'Fetched incoming']]) {
+      const cell = make('div'); const value = change[role];
+      cell.append(make('dt', '', label), make('dd', '', change.field === 'durationFrames' ? `${value} frames` : String(value)));
+      values.append(cell);
+    }
+    row.append(heading, values); fields.append(row);
+  }
+  for (const [label, value] of [['Base local revision', result.binding.baseLocalRevisionId], ['Base service revision', result.binding.baseRemoteRevisionId],
+    ['Local saved head', result.binding.localHeadId || 'No saved revision'], ['Incoming revision', result.binding.incomingRevisionId],
+    ['Base source hash', result.binding.baseSourceHash], ['Current scan hash', result.binding.localSourceHash], ['Incoming source hash', result.binding.incomingSourceHash]]) {
+    facts.append(make('dt', '', label), make('dd', '', value));
+  }
+  for (const [role, label] of [['base', 'Base'], ['local', 'Current scan'], ['incoming', 'Fetched incoming']]) {
+    const observed = result.context?.[role];
+    if (observed) context.append(make('p', 'service-help', `${label}: ${observed.clipCount} picture clips · ${observed.mediaCount} media references${observed.mediaNamesAmbiguous ? ' · repeated media names observed' : ''}. Counts are context only; clips and media were not matched.`));
+  }
+  for (const warning of result.warnings || []) warnings.append(make('li', '', warning));
+  warnings.hidden = !warnings.children.length;
 }
 
 function currentServiceBase() {
@@ -1591,6 +1688,11 @@ document.getElementById('service-unlink').addEventListener('click', () => runSer
 document.getElementById('service-check').addEventListener('click', () => runServiceAction('checkServiceSync'));
 document.getElementById('service-push').addEventListener('click', () => runServiceAction('pushServiceRevisions'));
 document.getElementById('service-fetch').addEventListener('click', () => runServiceAction('fetchServiceRevisions'));
+document.getElementById('service-comparison-run').addEventListener('click', async event => {
+  const control = event.currentTarget;
+  await runServiceAction('compareServiceRevisions');
+  if (document.activeElement === document.body && !control.disabled && !control.closest('[hidden]')) control.focus({ preventScroll: true });
+});
 document.getElementById('service-fetched-more').addEventListener('click', () => {
   serviceFetchedVisible += 20; renderFetchedServiceHistory(serviceSelectionMatches() ? serviceState?.fetched : null);
 });

@@ -7,6 +7,36 @@ const { createProjectSession } = require('../src/project-session');
 const { createLocalMetadataStore } = require('../src/local-metadata');
 const { scanFcpXml } = require('../src/fcpxml-adapter');
 
+test('comparison reads verify selected source bytes, admit unsaved scans and keep paths private', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-current-comparison-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const projectPath = path.join(directory, 'cut.fcpxml');
+  await fs.copyFile(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'), projectPath);
+  const session = createProjectSession(scanFcpXml, createLocalMetadataStore(path.join(directory, 'metadata')));
+  await session.select(projectPath); await session.saveRevision('Shared fixture');
+  const first = await session.readComparisonSource();
+  await fs.appendFile(projectPath, '\n');
+  await assert.rejects(session.readComparisonSource(), { code: 'revision-source-changed' });
+  await session.rescan(); const current = await session.readComparisonSource();
+  assert.equal(current.headId, first.headId); assert.notEqual(current.manifest.sourceHash, first.manifest.sourceHash);
+  assert.doesNotMatch(JSON.stringify(current), /\/private\/|\/Users\/|cut\.fcpxml/);
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(session.readComparisonSource({ signal: controller.signal }), { code: 'sync-cancelled' });
+});
+
+test('comparison source verification rejects a selection change during the source read', async () => {
+  let entered, release, hold = false;
+  const ready = new Promise(resolve => { entered = resolve; }); const blocked = new Promise(resolve => { release = resolve; });
+  const store = { getProjectId: async filename => ({ id: filename.endsWith('a.fcpxml') ? 'project-a' : 'project-b' }),
+    getBranchState: async () => ({ currentBranch: 'main', branches: ['main'] }), listRevisions: async () => [] };
+  const session = createProjectSession(async () => ({ sourceHash: 'a'.repeat(64), clips: [], media: [], warnings: [] }), store,
+    async () => { if (hold) { entered(); await blocked; } });
+  await session.select('/private/fixture/a.fcpxml'); hold = true;
+  const pending = session.readComparisonSource(); await ready;
+  await session.select('/private/fixture/b.fcpxml'); release();
+  await assert.rejects(pending, { code: 'revision-source-changed' });
+});
+
 test('rescans the privately held path and replaces stale media results', async () => {
   const calls = [];
   const session = createProjectSession(async filePath => {

@@ -293,7 +293,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     getSelection: () => {
       const state = projectSession.getState();
       return state.selectedProject?.id ? { localProjectId: state.selectedProject.id, branch: state.currentBranch } : null;
-    }, onChange: publishServiceState });
+    }, getLocalComparisonSource: options => projectSession.readComparisonSource(options), onChange: publishServiceState });
   desktopAssetTransfers = createDesktopAssetTransfers({ directory: path.join(app.getPath('userData'), 'asset-transfers'),
     connection: serviceConnection, getSelection: assetTransferSelection, onChange: publishAssetTransferState });
   desktopProjectActivity = createDesktopProjectActivity({ connection: serviceConnection,
@@ -364,6 +364,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('service:check', () => serviceAction(() => desktopRevisionSync.check()));
   ipcMain.handle('service:push', () => serviceAction(() => desktopRevisionSync.push()));
   ipcMain.handle('service:fetch', () => serviceAction(() => desktopRevisionSync.fetch()));
+  ipcMain.handle('service:compare', () => serviceAction(() => desktopRevisionSync.compare()));
   ipcMain.handle('project-activity:state', () => desktopProjectActivity.getState());
   ipcMain.handle('project-activity:refresh', (_event, input) => desktopProjectActivity.refresh(input));
   ipcMain.handle('project-activity:older', () => desktopProjectActivity.loadOlder());

@@ -34,6 +34,8 @@ On restart, the controller verifies the immutable witness and original local byt
 
 A missing witness can be repaired only when fresh authenticated remote ancestry and saved local bytes reproduce the original observation's proof hash, including its original heads/time. A cached snapshot by itself cannot authorize a branch mutation, revision import, media operation, or editor apply. Corrupt or incompatible evidence remains invalid; it is not silently replaced by a weaker match.
 
+The later [service sequence comparison](SERVICE_THREE_WAY_COMPARISON.md) consumes this verified receipt and immutable witness to compare three FCPXML sequence fields against current source-verified scan values and an explicitly fetched incoming head. It verifies the historical remote prefix, reads current local source twice, and leaves the shared-base receipt unchanged. Its result remains read-only and does not extend the receipt into clip/media identity or apply authority.
+
 ## Validation and limits
 
 The [shared-base HTTPS observation](phase-0/service-shared-base-network-observation.json), reproduced with `node scripts/service-shared-base-proof.js`, recorded 114 requests across three host processes and three fresh client/controller processes. It verified separate owner/viewer receipts, original-publisher attribution, explicit-fetch-only display changes, restart restoration without automatic network access, and one deliberately discarded real successful branch acknowledgment. Retry repaired base 3 without duplicate revisions. A service-only fourth revision left the local head/common base at revision 3 and the legacy base at revision 1. No revisions or media were imported. Private files, logs, public state, and child-process cleanup checks passed.

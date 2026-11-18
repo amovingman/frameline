@@ -2,13 +2,14 @@
 const fs = require('node:fs/promises');
 const { constants } = require('node:fs');
 const path = require('node:path');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const { fingerprint } = require('./project-api-contracts');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { createSyncQueue } = require('./sync-queue');
 const { createRevisionCache } = require('./revision-cache');
 const { createAsyncRevisionSyncService } = require('./revision-sync-async');
 const { verifyServiceSyncBase, validateServiceSyncBaseEntry } = require('./service-sync-base');
+const { createServiceThreeWayComparison } = require('./service-three-way-comparison');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, HASH = /^[a-f0-9]{64}$/;
 const validId = value => typeof value === 'string' && ID.test(value);
@@ -19,24 +20,58 @@ const ERRORS = new Set(['service-sign-in-required', 'service-project-required', 
   'branch-not-found', 'project-not-found', 'revision-corrupt', 'revision-transfer-invalid', 'metadata-project-missing', 'sync-operation-unavailable',
   'sync-base-invalid', 'sync-base-version-changed', 'sync-base-regression', 'revision-head-changed', 'metadata-invalid',
   'metadata-newer-version', 'metadata-storage-uncertain', 'metadata-unavailable', 'revision-cache-invalid',
-  'revision-cache-corrupt', 'revision-cache-miss', 'revision-cache-storage-unavailable', 'revision-cache-uncertain']);
+  'revision-cache-corrupt', 'revision-cache-miss', 'revision-cache-storage-unavailable', 'revision-cache-uncertain',
+  'comparison-input-invalid', 'comparison-base-invalid', 'comparison-incoming-invalid', 'comparison-unsupported',
+  'comparison-too-large', 'comparison-source-required', 'comparison-fetch-required', 'comparison-stale',
+  'service-comparison-invalid', 'service-comparison-base-invalid', 'service-comparison-incoming-invalid',
+  'service-comparison-unsupported', 'service-comparison-too-large',
+  'revision-source-changed', 'file-unavailable']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const safeError = error => ERRORS.has(error?.code) ? error.code : 'service-sync-failed';
+const snapshotHash = value => createHash('sha256').update(`${JSON.stringify(value)}\n`).digest('hex');
 function exact(value, keys) { return value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join('|') === keys.slice().sort().join('|'); }
 
 // Each queue/cache is scoped to both identities and both branch destinations.
 // Shared-base observations have the same scope. They reference verified immutable
 // metadata; this controller never imports revisions or applies editor changes.
-function createDesktopRevisionSync({ directory, connection, store, getSelection, onChange = () => {} } = {}) {
+function createDesktopRevisionSync({ directory, connection, store, getSelection, getLocalComparisonSource = null, onChange = () => {} } = {}) {
   if (!path.isAbsolute(directory || '') || !connection || !store || typeof store.exportRevisions !== 'function'
     || typeof store.getServiceSyncBase !== 'function' || typeof store.recordServiceSyncBase !== 'function'
-    || typeof getSelection !== 'function' || typeof onChange !== 'function') throw fail('service-binding-invalid');
+    || typeof getSelection !== 'function' || typeof onChange !== 'function'
+    || getLocalComparisonSource !== null && typeof getLocalComparisonSource !== 'function') throw fail('service-binding-invalid');
   const bindingDirectory = path.join(directory, 'bindings'), filename = path.join(bindingDirectory, 'bindings.json');
   let active = null, generation = 0, version = 0, closed = false, error = null, outcome = null;
   const scopes = new Map(), notifications = new Set(), controls = new Set();
   const baseValidations = new Map(), unconfirmedBases = new Map();
-  let connectionKey = null, baseRevision = 0;
+  let connectionKey = null, baseRevision = 0, comparisonRevision = 0;
+  let comparison = null;
+  const emptyComparison = () => ({ status: 'none', error: null, result: null });
+  function publicComparisonResult(value, createdAt) {
+    const b = value.binding;
+    return { id: value.id, readOnly: true, safeToApply: false, createdAt,
+      binding: { baseLocalRevisionId: b.baseLocalRevisionId, baseRemoteRevisionId: b.baseRemoteRevisionId,
+        incomingRevisionId: b.incomingRevisionId, localHeadId: b.localHead, baseSourceHash: b.baseSourceHash,
+        localSourceHash: b.localSourceHash, incomingSourceHash: b.incomingSourceHash, fetchedAt: b.incomingCheckedAt },
+      changes: value.decisions.map(item => ({ ...item })),
+      context: Object.fromEntries(['base', 'local', 'incoming'].map(role => [role, {
+        clipCount: value.context[role].clipCount, mediaCount: value.context[role].mediaCount,
+        mediaNamesAmbiguous: value.context[role].ambiguousMediaNames }])), warnings: value.warnings.slice() };
+  }
+  async function shownComparison(ctx) {
+    const captured = comparison;
+    if (!captured || !ctx || captured.scope !== ctx.id || captured.generation !== generation) return emptyComparison();
+    if (captured.error) return { status: 'error', error: captured.error, result: null };
+    try {
+      const entry = await store.getServiceSyncBase(baseScope(ctx));
+      const bundle = await store.exportRevisions(ctx.selected.localProjectId);
+      const incoming = ctx.cache.read(ctx.binding.remoteProjectId, ctx.selected.branch);
+      if (comparison !== captured || fingerprint(entry) !== captured.baseHash
+        || bundle.branches[ctx.selected.branch] !== captured.headId
+        || snapshotHash(incoming) !== captured.incomingHash) return emptyComparison();
+      return { status: 'ready', error: null, result: structuredClone(captured.result) };
+    } catch { return emptyComparison(); }
+  }
   function selection() {
     const value = getSelection();
     return value && validId(value.localProjectId) && validId(value.branch)
@@ -155,15 +190,16 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     } catch { return null; }
   }
   async function getState() {
-    const epoch = generation, baseEpoch = baseRevision;
+    const epoch = generation, baseEpoch = baseRevision, comparisonEpoch = comparisonRevision;
     let account = connection.getState(), selected = selection(), ctx = null, readError = null;
     try { if (selected && identity()) ctx = await context(); } catch (failure) { if (failure.code === 'service-binding-invalid') readError = failure.code; }
     let operations = [], base = ctx ? await shownBase(ctx) : emptyBase();
+    let displayedComparison = await shownComparison(ctx);
     try { if (ctx) operations = ctx.queue.inspect(); } catch { readError = 'service-storage-unavailable'; }
     // State reads may overlap account replacement or a project/branch change.
     // Never return an old scope's receipt with the new account's display state.
-    if (!closed && (baseEpoch !== baseRevision || epoch !== generation)) return getState();
-    if (ctx && !stillCurrent(ctx, epoch)) { ctx = null; operations = []; base = emptyBase(); }
+    if (!closed && (baseEpoch !== baseRevision || comparisonEpoch !== comparisonRevision || epoch !== generation)) return getState();
+    if (ctx && !stillCurrent(ctx, epoch)) { ctx = null; operations = []; base = emptyBase(); displayedComparison = emptyComparison(); }
     account = connection.getState(); selected = selection();
     const currentOutcome = ctx && outcome?.scope === ctx.id ? outcome : null;
     return { ...account, version: ++version, busy: account.busy || !!active, error: error || readError || account.error,
@@ -173,13 +209,13 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
       sync: currentOutcome ? { status: currentOutcome.status, localHead: currentOutcome.localHead, remoteHead: currentOutcome.remoteHead,
         actions: currentOutcome.actions || [], error: currentOutcome.error || null }
         : { status: ctx ? account.status === 'offline' ? 'offline' : 'checking' : 'unbound', localHead: null, remoteHead: null, actions: [], error: null },
-      fetched: ctx ? publicFetched(ctx) : null, base };
+      fetched: ctx ? publicFetched(ctx) : null, base, comparison: displayedComparison };
   }
   function notify() {
     if (closed) return;
     const task = getState().then(onChange).catch(() => {}).finally(() => notifications.delete(task)); notifications.add(task);
   }
-  function selectionChanged() { if (closed) return; generation++; active?.controller.abort(); error = null; outcome = null; baseValidations.clear(); notify(); }
+  function selectionChanged() { if (closed) return; generation++; active?.controller.abort(); error = null; outcome = null; comparison = null; comparisonRevision++; baseValidations.clear(); notify(); }
   function connectionChanged() {
     const account = identity(), key = account ? fingerprint([account.origin, account.account.id]) : null;
     if (key !== connectionKey) { connectionKey = key; selectionChanged(); } else notify();
@@ -201,7 +237,7 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
   async function run(action) {
     if (closed) throw fail('service-sync-failed');
     if (active) { error = 'service-sync-busy'; return getState(); }
-    const epoch = generation, current = { controller: new AbortController(), promise: null }; active = current;
+    const epoch = generation, current = { controller: new AbortController(), promise: null }; active = current; comparison = null; comparisonRevision++;
     current.promise = (async () => {
       try {
         error = null; const ctx = await context();
@@ -330,6 +366,41 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     await checkContext(ctx, sync, signal, epoch, client);
   }
   const fetch = () => run((ctx, sync, signal, epoch, client) => checkContext(ctx, sync, signal, epoch, client, { publishFetched: true }));
+  const compare = () => run(async (ctx, _sync, signal, epoch) => {
+    try {
+      if (!getLocalComparisonSource) throw fail('comparison-source-required');
+      const { entry } = await recordedBase(ctx, { force: true });
+      if (!entry || unconfirmedBases.has(ctx.id)) throw fail('comparison-base-invalid');
+      let incoming;
+      try { incoming = ctx.cache.read(ctx.binding.remoteProjectId, ctx.selected.branch); }
+      catch (failure) { if (failure.code === 'revision-cache-miss') throw fail('comparison-fetch-required'); throw failure; }
+      if (!incoming.head) throw fail('comparison-fetch-required');
+      const local = await getLocalComparisonSource({ signal });
+      const bundle = await store.exportRevisions(ctx.selected.localProjectId);
+      const matchesLocal = value => value && exact(value, ['localProjectId', 'branch', 'headId', 'manifest'])
+        && value.localProjectId === ctx.selected.localProjectId && value.branch === ctx.selected.branch
+        && value.headId === bundle.branches[ctx.selected.branch];
+      if (!matchesLocal(local)) throw fail('comparison-stale');
+      const baseProof = ctx.cache.readSnapshot(entry.proofSnapshotHash,
+        { projectId: ctx.binding.remoteProjectId, branch: ctx.binding.remoteBranch });
+      const result = createServiceThreeWayComparison({ scope: baseScope(ctx), baseEntry: entry, bundle,
+        baseProof, incoming, local: local.manifest });
+      const checkedLocal = await getLocalComparisonSource({ signal });
+      const checkedEntry = await store.getServiceSyncBase(baseScope(ctx));
+      const checkedBundle = await store.exportRevisions(ctx.selected.localProjectId);
+      const checkedIncoming = ctx.cache.read(ctx.binding.remoteProjectId, ctx.selected.branch);
+      if (!stillCurrent(ctx, epoch) || signal.aborted) throw fail('service-selection-changed');
+      if (!matchesLocal(checkedLocal) || fingerprint(checkedLocal) !== fingerprint(local)
+        || fingerprint(bundle) !== fingerprint(checkedBundle) || fingerprint(entry) !== fingerprint(checkedEntry)
+        || snapshotHash(incoming) !== snapshotHash(checkedIncoming)) throw fail('comparison-stale');
+      comparison = { scope: ctx.id, generation: epoch, baseHash: fingerprint(entry), headId: local.headId,
+        incomingHash: result.binding.incomingSnapshotHash, result: publicComparisonResult(result, Date.now()) };
+      comparisonRevision++;
+    } catch (failure) {
+      if (stillCurrent(ctx, epoch)) { comparison = { scope: ctx.id, generation: epoch, error: safeError(failure) }; comparisonRevision++; }
+      throw failure;
+    }
+  });
   const retry = id => run(async (ctx, sync, signal, epoch, client) => {
     const job = ctx.queue.inspect().find(item => item.id === id); if (!job) throw fail('sync-operation-unavailable');
     if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch, client);
@@ -349,6 +420,6 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     const task = Promise.resolve().then(() => action(...args)).finally(() => controls.delete(task)); controls.add(task); return task;
   }
   return { getState, bind: (...args) => control(bindAction, args), unlink: (...args) => control(unlinkAction, args),
-    check, push, fetch, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
+    check, push, fetch, compare, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
 }
 module.exports = { createDesktopRevisionSync };

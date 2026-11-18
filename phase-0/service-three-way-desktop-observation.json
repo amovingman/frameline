@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18",
+  "scope": "Disposable FCPXML sequence-only browser and native desktop comparison",
+  "browser": {
+    "rendererWithRealControllers": true,
+    "temporaryEncryptedVaultAdapter": true,
+    "localUnsavedName": "Local mountain cut",
+    "incomingName": "Incoming mountain cut",
+    "sequenceNameStatus": "conflict",
+    "sequenceLengthStatus": "incoming-only",
+    "baseFrames": 480,
+    "localFrames": 480,
+    "incomingFrames": 504,
+    "round1Widths": [
+      1440,
+      768,
+      390
+    ],
+    "round1HorizontalOverflow": [
+      0,
+      0,
+      0
+    ],
+    "round1CompareButtonHeights": [
+      38,
+      38,
+      44
+    ],
+    "finalRound": "passed",
+    "finalWidths": [
+      1440,
+      768,
+      390
+    ],
+    "finalHorizontalOverflow": [
+      0,
+      0,
+      0
+    ],
+    "finalCompareButtonHeights": [
+      38,
+      38,
+      44
+    ],
+    "sourceEvidenceDisclosureVerified": true,
+    "viewerComparisonPassedWithPushDisabled": true,
+    "viewerRequiredOwnBindingAndExplicitFetch": true,
+    "signOutHidComparison": true
+  },
+  "native": {
+    "actualElectronPreloadIpc": true,
+    "osSafeStorageSignIn": true,
+    "savedLocalRevisions": 1,
+    "remoteRevisions": 2,
+    "currentUnsavedSourceCompared": true,
+    "baseName": "Local mountain cut",
+    "localName": "Unsaved native cut",
+    "incomingName": "Incoming native cut",
+    "sequenceNameStatus": "conflict",
+    "sequenceLengthStatus": "incoming-only",
+    "baseFrames": 480,
+    "localFrames": 480,
+    "incomingFrames": 504,
+    "changedSourceBeforeRescanRefused": true,
+    "correctRecoveryCopyVerified": true,
+    "completedProcessRestartBeforeRelaunch": true,
+    "credentialsRestoredWithoutTyping": true,
+    "sameSourceRestoredBindingBaseAndFetchedHistory": true,
+    "comparisonRestoredAutomatically": false,
+    "explicitRecomparisonAfterRestartPassed": true,
+    "localRevisionCountAfterRestart": 1,
+    "signOutClearedComparisonAndSharingLabels": true,
+    "vaultMode": "0600",
+    "vaultEntriesAfterSignOut": 0,
+    "normalAppRestoredWithoutFixtureCa": true
+  },
+  "validation": {
+    "fullTestsPassed": 740,
+    "securityTestsPassed": 294,
+    "skippedTests": 0,
+    "packageCheck": "passed",
+    "mechanicalPrimaryFindings": 0,
+    "incumbentPaletteAdvisories": 31,
+    "newSuppressions": 0
+  },
+  "limits": [
+    "Only sequence name, rational frame duration and durationFrames are classified.",
+    "Counts do not establish clip or media identity, remote media readiness or complete project equivalence.",
+    "Incoming history is an explicitly fetched observation, not a current live service-head guarantee.",
+    "Comparison is memory-only and authorizes no editor writes, revision imports or media transfers.",
+    "Private native fixture revision history and scoped proof remain in application storage; temporary source/service fixtures are removed after verification.",
+    "This is orderly restart verification, not power-loss or installer signing evidence."
+  ],
+  "temporaryFixtureProcessesTerminalBeforeCleanup": true,
+  "temporarySourceAndServiceFixturesRemoved": true,
+  "browserViewportReset": true,
+  "createdBrowserTabsClosed": true
+}

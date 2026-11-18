@@ -62,6 +62,24 @@ function createProjectSession(scan = scanFcpXml, metadataStore = null, verifySou
 
   return {
     getState,
+    async readComparisonSource({ signal } = {}) {
+      const changed = () => Object.assign(new Error('revision-source-changed'), { code: 'revision-source-changed' });
+      const cancelled = () => Object.assign(new Error('sync-cancelled'), { code: 'sync-cancelled' });
+      if (signal?.aborted) throw cancelled();
+      if (!selectedPath || !state.selectedProject?.id || state.scanStatus !== 'ready' || state.error || !state.scan) {
+        throw Object.assign(new Error('comparison-source-required'), { code: 'comparison-source-required' });
+      }
+      const epoch = generation, sourcePath = selectedPath;
+      const source = { localProjectId: state.selectedProject.id, branch: state.currentBranch,
+        headId: state.revisions[0]?.id || null, manifest: structuredClone(state.scan) };
+      await verifySource(sourcePath, source.manifest.sourceHash);
+      if (signal?.aborted) throw cancelled();
+      if (epoch !== generation || selectedPath !== sourcePath || state.scanStatus !== 'ready' || state.error
+        || state.selectedProject?.id !== source.localProjectId || state.currentBranch !== source.branch
+        || (state.revisions[0]?.id || null) !== source.headId
+        || JSON.stringify(state.scan) !== JSON.stringify(source.manifest)) throw changed();
+      return source;
+    },
     cancelScan() {
       if (state.scanStatus !== 'scanning') return getState();
       ++generation; scanController?.abort();

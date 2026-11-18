@@ -59,9 +59,9 @@ async function fixture(t) {
     }
   };
   const controllerDirectory = path.join(directory, 'desktop-service');
-  function create() {
+  function create(options = {}) {
     const controller = createDesktopRevisionSync({ directory: controllerDirectory, connection, store,
-      getSelection: () => structuredClone(selected), onChange: value => events.push(value) });
+      getSelection: () => structuredClone(selected), onChange: value => events.push(value), ...options });
     controllers.push(controller); controller.connectionChanged(); return controller;
   }
   t.after(async () => {
@@ -92,6 +92,114 @@ async function fixture(t) {
     } };
 }
 const bind = (controller, remoteBranch = 'main') => controller.bind({ remoteProjectId: 'remote-film', remoteBranch });
+
+async function comparisonFixture(t, remoteBranch = 'main') {
+  const f = await fixture(t);
+  let current = manifest(2), reads = 0, hook = null;
+  const controller = f.create({ getLocalComparisonSource: async ({ signal }) => {
+    reads++; if (hook) await hook(reads, signal);
+    if (signal.aborted) throw error('sync-cancelled');
+    return { localProjectId: f.localId, branch: 'main', headId: (await f.store.exportRevisions(f.localId)).branches.main,
+      manifest: structuredClone(current) };
+  } });
+  await bind(controller, remoteBranch); await controller.push();
+  const parent = f.history.getBranch('remote-film', remoteBranch).revisionId;
+  const incomingManifest = manifest(9); incomingManifest.sequence.name = 'Incoming sequence';
+  incomingManifest.sequence.frameDuration = '1/30s';
+  const stored = f.history.putManifest('remote-film', incomingManifest);
+  const incoming = f.history.createRevision({ projectId: 'remote-film', manifestId: stored.id,
+    parentRevisionId: parent, sourceRevisionId: 'remote-only-revision', authorId: 'other-editor', message: 'Incoming edit' });
+  f.history.compareAndSwapBranch({ projectId: 'remote-film', branch: remoteBranch, expectedRevisionId: parent, revisionId: incoming.id });
+  current.sequence.name = 'Unsaved local sequence'; current.sequence.durationFrames = 25;
+  return { ...f, controller, incoming, setCurrent: value => { current = structuredClone(value); },
+    current: () => structuredClone(current), reads: () => reads, setReadHook: value => { hook = value; } };
+}
+
+test('current unsaved sequence is compared against exact scoped base and explicit cached service head without network or mutation', async t => {
+  const f = await comparisonFixture(t, 'review'), c = f.controller;
+  assert.equal((await c.compare()).comparison.error, 'comparison-fetch-required');
+  const fetched = await c.fetch(), bundle = await f.store.exportRevisions(f.localId);
+  const scope = { originHash: fingerprint(f.state().origin), accountId: f.state().account.id,
+    localProjectId: f.localId, localBranch: 'main', remoteProjectId: 'remote-film', remoteBranch: 'review' };
+  const beforeBase = await f.store.getServiceSyncBase(scope), legacy = await f.store.getSyncBase(f.localId, 'main');
+  const calls = f.calls.length;
+  const compared = await c.compare();
+  assert.equal(compared.error, null); assert.equal(compared.comparison.status, 'ready');
+  assert.deepEqual(compared.comparison.result.changes.map(row => [row.field, row.status]),
+    [['name', 'conflict'], ['frameDuration', 'incoming-only'], ['durationFrames', 'local-only']]);
+  assert.equal(compared.comparison.result.binding.incomingRevisionId, f.incoming.id);
+  assert.equal(compared.comparison.result.binding.localSourceHash, f.current().sourceHash);
+  assert.equal(compared.comparison.result.safeToApply, false); assert.equal(f.reads(), 2);
+  assert.equal(f.calls.length, calls); assert.deepEqual(compared.fetched, fetched.fetched);
+  assert.deepEqual(await f.store.exportRevisions(f.localId), bundle);
+  assert.deepEqual(await f.store.getServiceSyncBase(scope), beforeBase);
+  assert.equal(await f.store.getSyncBase(f.localId, 'main'), legacy); safeState(compared, f.directory);
+  f.offline(true); f.changeState({ status: 'offline', connected: false }); c.connectionChanged();
+  assert.equal((await c.compare()).comparison.status, 'ready'); assert.equal(f.calls.length, calls);
+  await c.dispose(); const reopened = f.create(); assert.equal((await reopened.getState()).comparison.status, 'none');
+});
+
+test('comparison refuses changed current source between its two verified reads and removes the previous result', async t => {
+  const f = await comparisonFixture(t), c = f.controller; await c.fetch(); await c.compare();
+  f.setReadHook(async read => { if (read % 2 === 0) { const value = f.current(); value.sequence.name = 'Changed again'; f.setCurrent(value); } });
+  const result = await c.compare(); assert.equal(result.error, 'comparison-stale');
+  assert.equal(result.comparison.status, 'error'); assert.equal(result.comparison.result, null);
+  f.setReadHook(async () => { throw error('revision-source-changed'); });
+  const stale = await c.compare(); assert.equal(stale.comparison.error, 'revision-source-changed');
+  assert.equal(stale.comparison.result, null); safeState(stale, f.directory);
+});
+
+test('comparison rejects branch-head races and clears completed output on another local writer', async t => {
+  const f = await comparisonFixture(t), c = f.controller; await c.fetch(); await c.compare();
+  await f.store.saveRevision(f.localId, manifest(10), 'Other local writer', f.second.id);
+  assert.equal((await c.getState()).comparison.status, 'none');
+  f.setReadHook(async read => {
+    if (read % 2 === 0) { const state = await f.store.exportRevisions(f.localId);
+      await f.store.saveRevision(f.localId, manifest(11), 'Concurrent writer', state.branches.main); }
+  });
+  const result = await c.compare(); assert.equal(result.error, 'comparison-stale'); assert.equal(result.comparison.result, null);
+});
+
+test('comparison scope cancellation hides a late result and viewers can compare cached metadata', async t => {
+  const f = await comparisonFixture(t), c = f.controller; await c.fetch();
+  f.changeState({ projects: [{ ...f.state().projects[0], role: 'viewer' }] }); c.connectionChanged();
+  assert.equal((await c.compare()).comparison.status, 'ready');
+  let entered, release; const ready = new Promise(resolve => { entered = resolve; });
+  const held = new Promise(resolve => { release = resolve; });
+  f.setReadHook(async () => { entered(); await held; });
+  const pending = c.compare(); await ready;
+  f.select({ localProjectId: f.otherLocalId, branch: 'main' }); c.selectionChanged(); release();
+  const result = await pending; assert.equal(result.comparison.status, 'none'); assert.equal(result.comparison.result, null);
+  safeState(result, f.directory);
+});
+
+test('comparison refuses missing/corrupt proof and exact cached history changes without repairing or refetching', async t => {
+  const f = await comparisonFixture(t), c = f.controller; await c.fetch(); await c.compare();
+  const scope = { originHash: fingerprint(f.state().origin), accountId: f.state().account.id,
+    localProjectId: f.localId, localBranch: 'main', remoteProjectId: 'remote-film', remoteBranch: 'main' };
+  const entry = await f.store.getServiceSyncBase(scope), calls = f.calls.length;
+  const proofPath = path.join(f.controllerDirectory, 'scopes', fingerprint(scope), 'cache', 'snapshots', `${entry.proofSnapshotHash}.json`);
+  const original = await fs.readFile(proofPath); await fs.writeFile(proofPath, '{}', { mode: 0o600 });
+  const bad = await c.compare(); assert.equal(bad.comparison.result, null); assert.equal(bad.comparison.status, 'error');
+  assert.equal(f.calls.length, calls); assert.deepEqual(await f.store.getServiceSyncBase(scope), entry);
+  await fs.writeFile(proofPath, original, { mode: 0o600 });
+  assert.equal((await c.compare()).comparison.status, 'ready');
+  await c.check(); assert.equal((await c.getState()).comparison.status, 'none');
+});
+
+test('comparison binds exact immutable incoming cache serialization, including canonical-equivalent rewrites', async t => {
+  const f = await comparisonFixture(t), c = f.controller; await c.fetch(); await c.compare();
+  const scope = { originHash: fingerprint(f.state().origin), accountId: f.state().account.id,
+    localProjectId: f.localId, localBranch: 'main', remoteProjectId: 'remote-film', remoteBranch: 'main' };
+  const cache = require('../src/revision-cache').createRevisionCache({
+    directory: path.join(f.controllerDirectory, 'scopes', fingerprint(scope), 'cache') });
+  const incoming = cache.read('remote-film', 'main');
+  const reordered = Object.fromEntries(Object.entries(incoming).reverse());
+  assert.equal(fingerprint(incoming), fingerprint(reordered));
+  cache.store(reordered);
+  assert.equal((await c.getState()).comparison.status, 'none');
+  assert.equal((await c.compare()).comparison.status, 'ready');
+});
 
 test('desktop binding pushes verified local metadata and persists a bounded safe fetched-history DTO', async t => {
   const f = await fixture(t); let controller = f.create();
