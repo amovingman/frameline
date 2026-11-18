@@ -1,5 +1,7 @@
 # Desktop service history
 
+The later [Project media panel](DESKTOP_MEDIA_TRANSFERS.md) adds separately confirmed file transfers through the same private connection manager. The history operations described here remain metadata-only.
+
 The History view now connects to an existing HTTPS Frameline service account, discovers authorized projects and branches, and explicitly pushes or fetches saved revision metadata. It uses `src/desktop-service-connection.js` and `src/desktop-revision-sync.js` in the main process. Browser HTTPS workflow, native Electron/OS-vault restart, responsive, full-suite, and packaging checks passed. This milestone does not deploy a service or provision accounts/projects.
 
 ## Using an existing service

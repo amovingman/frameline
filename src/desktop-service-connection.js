@@ -1,6 +1,7 @@
 'use strict';
 const path = require('node:path');
 const { createRevisionHttpClient } = require('./revision-http-client');
+const { createAssetHttpClient } = require('./asset-http-client');
 
 const ENTRY = 'desktop-service-connection';
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -11,7 +12,13 @@ const REQUEST_ERRORS = new Set([...AUTH_ERRORS, 'forbidden', 'rate-limit-exceede
   'revision-parent-mismatch', 'source-revision-exists', 'idempotency-key-reused', 'branch-approval-required', 'approval-head-stale',
   'request-too-large', 'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers',
   'sync-request-invalid', 'sync-request-too-large', 'sync-response-invalid', 'sync-response-too-large', 'sync-cancelled',
-  'sync-network-unavailable', 'sync-service-failed', 'service-offline', 'service-credential-storage-unavailable']);
+  'sync-network-unavailable', 'sync-service-failed', 'service-offline', 'service-credential-storage-unavailable',
+  'asset-network-unavailable', 'asset-service-failed', 'asset-request-invalid', 'asset-request-too-large', 'asset-response-invalid',
+  'asset-response-too-large', 'asset-forbidden', 'asset-not-found', 'upload-not-found', 'asset-upload-not-found', 'asset-ticket-invalid',
+  'asset-identity-collision', 'asset-chunk-conflict', 'upload-incomplete', 'asset-upload-incomplete', 'asset-content-mismatch',
+  'asset-identity-invalid', 'asset-chunk-invalid', 'asset-chunk-corrupt', 'asset-state-invalid', 'asset-state-newer-version',
+  'asset-key-rotation-required', 'asset-capacity-exceeded', 'asset-storage-unavailable', 'asset-storage-uncertain',
+  'asset-cancelled', 'asset-verification-timeout']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const clone = value => structuredClone(value);
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -49,7 +56,7 @@ function projects(value) {
   });
 }
 function publicError(error) {
-  if (['service-offline', 'sync-network-unavailable', 'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN'].includes(error?.code)) return 'service-offline';
+  if (['service-offline', 'sync-network-unavailable', 'asset-network-unavailable', 'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN'].includes(error?.code)) return 'service-offline';
   if (['credentials-invalid', 'access-token-invalid', 'refresh-token-invalid', 'service-sign-in-required'].includes(error?.code)) return 'service-sign-in-required';
   if (error?.code === 'service-origin-invalid' || error?.code === 'secure-transport-required' || error?.code === 'sync-origin-invalid') return 'service-origin-invalid';
   if (error?.code === 'forbidden') return 'service-access-denied';
@@ -57,9 +64,10 @@ function publicError(error) {
   return 'service-connection-failed';
 }
 
-function createDesktopServiceConnection({ directory, vault, createClient = createRevisionHttpClient, onChange = () => {} } = {}) {
+function createDesktopServiceConnection({ directory, vault, createClient = createRevisionHttpClient,
+  createAssetClient = createAssetHttpClient, onChange = () => {} } = {}) {
   if (!path.isAbsolute(directory || '') || !vault || !['set', 'get', 'remove'].every(key => typeof vault[key] === 'function')
-    || typeof createClient !== 'function' || typeof onChange !== 'function') throw fail('service-connection-invalid');
+    || typeof createClient !== 'function' || typeof createAssetClient !== 'function' || typeof onChange !== 'function') throw fail('service-connection-invalid');
   let generation = 0, binding = null, controller = null, disposed = false, projectRefresh = null;
   const tasks = new Set();
   let state = { version: 0, status: 'not-configured', connected: false, busy: false, origin: null, account: null, projects: [], error: null };
@@ -91,13 +99,13 @@ function createDesktopServiceConnection({ directory, vault, createClient = creat
     value.client = createClient({ origin: serviceOrigin, getAccessToken: () => accessToken(value) });
     const arities = { putManifest: 2, createRevision: 1, compareAndSwapBranch: 1, getBranch: 2, getRevision: 2,
       getManifest: 2, findRevisionBySource: 2, getAccount: 0, listProjects: 0 };
-    value.authenticated = Object.fromEntries(Object.entries(arities).filter(([name]) => typeof value.client[name] === 'function')
+    function protect(client, methods) { return Object.fromEntries(Object.entries(methods).filter(([name]) => typeof client[name] === 'function')
       .map(([name, count]) => [name, (...args) => track((async () => {
         checked(value);
         try {
           const options = args[count] || {};
           const signal = options.signal ? AbortSignal.any([value.controller.signal, options.signal]) : value.controller.signal;
-          const result = await value.client[name](...args.slice(0, count), { ...options, signal }); checked(value);
+          const result = await client[name](...args.slice(0, count), { ...options, signal }); checked(value);
           if (state.status === 'offline') publish({ status: 'connected', connected: true, error: null });
           return result;
         } catch (error) {
@@ -113,7 +121,10 @@ function createDesktopServiceConnection({ directory, vault, createClient = creat
           throw fail(REQUEST_ERRORS.has(error?.code) ? error.code : publicError(error) === 'service-offline'
             ? 'sync-network-unavailable' : 'service-connection-failed');
         }
-      })())]));
+      })())])); }
+    value.authenticated = protect(value.client, arities);
+    value.assets = protect(createAssetClient({ origin: serviceOrigin, getAccessToken: () => accessToken(value) }), {
+      beginUpload: 2, uploadStatus: 2, putChunk: 5, completeUpload: 2, cancelVerification: 2, getAsset: 2, readChunk: 3 });
     return value;
   }
   async function accessToken(value) {
@@ -230,11 +241,12 @@ function createDesktopServiceConnection({ directory, vault, createClient = creat
     return binding.authenticated;
   }
   function getAccount() { getClient(); return clone(binding.account); }
+  function getAssetClient() { getClient(); return binding.assets; }
   async function dispose() {
     disposed = true; generation++; controller?.abort(); binding = null;
     await Promise.allSettled([...tasks]);
   }
-  return { initialize, connect, disconnect, refreshProjects, getState: () => clone(state), getClient, getAccount, dispose };
+  return { initialize, connect, disconnect, refreshProjects, getState: () => clone(state), getClient, getAssetClient, getAccount, dispose };
 }
 
 module.exports = { createDesktopServiceConnection };

@@ -10,6 +10,7 @@ A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) p
 - The Electron main process may read user-selected project files and use the operating system protected secret facility through `safeStorage`.
 - Project API requests require an authenticated session and a project-scoped authorization decision. A resource ID alone grants no access.
 - Self-hosted configuration and local provisioning run in a trusted operator process. Private configuration contains the externally supplied encryption and ticket-signing keys and must remain separate from service state. It is not a managed secret vault. Stdin provisioning credentials, keys, and tokens never enter the desktop renderer or HTTP administration routes.
+- Desktop media IPC accepts a class, rate, content ID, or opaque review/job ID. Native dialogs supply filesystem paths in the main process. A private, account/project/branch-bound review precedes upload; public transfer state contains no source/destination paths or stored tokens. Content-ID reuse lookup is disclosed separately from file-byte confirmation. See [desktop media transfers](DESKTOP_MEDIA_TRANSFERS.md).
 - FCPXML, JSON snapshots, revision bundles, archives, filenames, and collaborator-controlled metadata are untrusted input.
 
 ## Threats and current controls
@@ -38,4 +39,4 @@ A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) p
 4. A local revision maps to at most one remote revision in a project.
 5. Sync never uploads media as a side effect of fetching history.
 6. Recovery, password change, sign-out, and account deletion revoke affected sessions.
-7. Credentials and encryption keys never enter renderer state, project payloads, transfer receipts, public logs, or preload accessors. Service keys are supplied separately in private operator configuration; production secret custody remains a deployment gate.
+7. Stored session tokens and encryption keys never enter renderer state, project payloads, transfer receipts, public logs, or preload accessors. User-entered passwords have the transient boundary described above. Service keys are supplied separately in private operator configuration; production secret custody remains a deployment gate.

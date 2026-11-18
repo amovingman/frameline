@@ -84,7 +84,7 @@ Start the service with its intended trusted certificate. In desktop History, sig
 
 ## Optional media service
 
-The private configuration can include separate encrypted asset storage and a signing key. See [asset network sync](ASSET_NETWORK_SYNC.md) for initialization, API calls, signed tickets, verification polling, cancellation, and backup requirements. Host shutdown cancels active asset verification before closing either store. Desktop media-transfer controls and canonical revision/media bindings remain open; the History panel continues to sync metadata only.
+The private configuration can include separate encrypted asset storage and a signing key. See [asset network sync](ASSET_NETWORK_SYNC.md) for initialization, API calls, signed tickets, verification polling, cancellation, and backup requirements. Host shutdown cancels active asset verification before closing either store. The [Project media panel](DESKTOP_MEDIA_TRANSFERS.md) offers explicit transfers; History push/fetch continues to sync metadata only. Canonical revision/media bindings and editor relinking remain open.
 
 ## Recovery and deployment gates
 

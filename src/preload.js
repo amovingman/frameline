@@ -20,6 +20,19 @@ contextBridge.exposeInMainWorld('desktop', {
   checkServiceSync: () => ipcRenderer.invoke('service:check'),
   pushServiceRevisions: () => ipcRenderer.invoke('service:push'),
   fetchServiceRevisions: () => ipcRenderer.invoke('service:fetch'),
+  getAssetTransferState: () => ipcRenderer.invoke('asset-transfer:state'),
+  prepareAssetUpload: input => ipcRenderer.invoke('asset-transfer:prepare-upload', input),
+  confirmAssetUpload: id => ipcRenderer.invoke('asset-transfer:confirm-upload', id),
+  clearAssetUploadReview: () => ipcRenderer.invoke('asset-transfer:clear-review'),
+  downloadServiceAsset: input => ipcRenderer.invoke('asset-transfer:download', input),
+  resumeAssetTransfer: id => ipcRenderer.invoke('asset-transfer:resume', id),
+  cancelAssetTransfer: id => ipcRenderer.invoke('asset-transfer:cancel', id),
+  onAssetTransferState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('asset-transfer:state', handle);
+    return () => ipcRenderer.removeListener('asset-transfer:state', handle);
+  },
   onServiceState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);

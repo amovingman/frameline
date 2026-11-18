@@ -32,7 +32,7 @@ function fixture(options = {}) {
     };
     instances.push(client); return client;
   };
-  const make = () => createDesktopServiceConnection({ directory: '/private/tmp/frameline-connection-test', vault, createClient,
+  const make = () => createDesktopServiceConnection({ directory: '/private/tmp/frameline-connection-test', vault, createClient, createAssetClient: options.createAssetClient,
     onChange: value => { events.push(value); options.onChange?.(value); } });
   return { make, control, calls, instances, events, get encoded() { return encoded; }, get clock() { return clock; }, advance() { clock += 200; } };
 }
@@ -167,4 +167,35 @@ test('private request failures discard unknown error codes and messages', async 
   f.instances[0].getBranch = async () => { throw error('/private/access-token-secret'); };
   await assert.rejects(value.getClient().getBranch('film', 'main'), { code: 'service-connection-failed', message: 'service-connection-failed' });
   assert.equal(value.getState().status, 'connected');
+});
+
+test('asset clients share persisted single-flight refresh and remain generation bound across disconnect', async t => {
+  const used = []; let waiting = null, capturedSignal;
+  const f = fixture({ createAssetClient: ({ getAccessToken }) => ({
+    async getAsset(_project, _asset, options) {
+      capturedSignal = options.signal; if (waiting) { waiting.started.resolve(); await waiting.release.promise; }
+      used.push(await getAccessToken()); return { assetId: 'asset-fixture' };
+    }
+  }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); await connect(value); f.advance();
+  const assets = value.getAssetClient();
+  await Promise.all([assets.getAsset('film', 'asset-fixture'), value.getClient().getBranch('film', 'main')]);
+  assert.equal(f.calls.refresh, 1); assert.equal(used[0], JSON.parse(f.encoded).session.accessToken);
+  waiting = { started: defer(), release: defer() }; const request = assets.getAsset('film', 'asset-fixture'); await waiting.started.promise;
+  const disconnect = value.disconnect(); assert.equal(capturedSignal.aborted, true); waiting.release.resolve();
+  await assert.rejects(request, { code: 'service-sign-in-required' }); await disconnect;
+  assert.throws(() => value.getAssetClient(), { code: 'service-sign-in-required' });
+  await assert.rejects(assets.getAsset('film', 'asset-fixture'), { code: 'service-sign-in-required' });
+});
+
+test('asset request errors preserve safe protocol codes and update shared offline and revoked state', async t => {
+  let code = 'asset-network-unavailable';
+  const f = fixture({ createAssetClient: () => ({ async getAsset() { throw error(code); } }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); await connect(value); const assets = value.getAssetClient();
+  await assert.rejects(assets.getAsset('film', 'asset'), { code: 'asset-network-unavailable', message: 'asset-network-unavailable' });
+  assert.equal(value.getState().status, 'offline'); assert.equal(value.getAssetClient(), assets);
+  code = 'asset-chunk-corrupt'; await assert.rejects(assets.getAsset('film', 'asset'), { code, message: code });
+  code = 'access-token-invalid'; await assert.rejects(assets.getAsset('film', 'asset'), { code, message: code });
+  assert.equal(value.getState().status, 'sign-in-required'); assert.throws(() => value.getAssetClient(), { code: 'service-sign-in-required' });
+  assert.doesNotMatch(JSON.stringify(f.events), /\/private\/|access-token-secret/);
 });

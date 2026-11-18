@@ -58,7 +58,7 @@ The service permits at most eight active HTTP asset requests and eight active ve
 
 For a consistent backup, stop the host and all local writers and preserve both stores, all encrypted chunk files, and required private key configuration. Restoring only the asset index or only identity/history is not a complete service restore. Older identity state can restore revoked access. Off-device backup, trusted rollback protection, and disaster recovery in the intended environment remain unverified.
 
-Desktop upload/download controls, durable asset-class policies, canonical revision/media bindings, revision-selected download plans, editor relinking, reference-aware deletion, and production deployment remain roadmap work. This API does not infer any of those from a successful transfer.
+The [desktop media panel](DESKTOP_MEDIA_TRANSFERS.md) now provides explicit file upload/download, byte review, bandwidth limits, cancellation, and matching-scope resume. Durable asset-class policies, canonical revision/media bindings, revision-selected download plans, editor relinking, reference-aware deletion, and production deployment remain roadmap work. A successful manual transfer does not establish those capabilities.
 
 ## Validation
 

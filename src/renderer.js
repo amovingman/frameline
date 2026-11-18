@@ -34,6 +34,15 @@ let serviceFetchedRenderKey = '';
 let serviceFetchedVisible = 20;
 let serviceOriginInitialized = false;
 const syncOperationRows = new Map();
+let assetTransferState = null;
+let assetTransferStateVersion = -1;
+let assetTransferContext = '';
+let assetTransferForeground = null;
+let assetReviewClearing = false;
+let assetTransferActionNotice = '';
+let assetTransferVisibleJobs = 20;
+const assetTransferJobRows = new Map();
+const assetTransferJobActions = new Set();
 let collaborationBusy = false;
 let collaborationProjectId = null;
 let currentCollaborationState = { available: false, members: [], invitations: [] };
@@ -164,6 +173,8 @@ function renderAppState(state) {
     refreshServiceState();
   }
   renderServicePanel();
+  syncAssetTransferContext();
+  renderAssetTransferPanel();
 }
 
 function renderScan(scan) {
@@ -533,6 +544,7 @@ function renderServiceState(state) {
   if ((state.error && state.error !== serviceState?.error)
     || state.status === 'sign-in-required' && serviceState?.status !== 'sign-in-required') document.getElementById('service-password').value = '';
   serviceStateVersion = state.version; serviceState = state; renderServicePanel();
+  syncAssetTransferContext(); renderAssetTransferPanel();
 }
 async function refreshServiceState() {
   if (!window.desktop?.getServiceState) return;
@@ -550,6 +562,242 @@ async function runServiceAction(method, input) {
     document.getElementById('service-password').value = '';
     serviceActionBusy = false; renderServicePanel();
   }
+}
+
+function currentAssetTransferContext() {
+  if (!serviceSelectionMatches() || !serviceState?.account || !serviceState?.binding) return '';
+  return JSON.stringify([serviceState.origin, serviceState.account.id, serviceState.selection.localProjectId,
+    serviceState.selection.branch, serviceState.binding.remoteProjectId, serviceState.binding.remoteBranch,
+    serviceState.binding.role, serviceState.connected]);
+}
+function syncAssetTransferContext() {
+  const context = currentAssetTransferContext();
+  if (context === assetTransferContext) return;
+  assetTransferContext = context; assetTransferState = null; assetTransferVisibleJobs = 20; assetTransferActionNotice = '';
+  refreshAssetTransferState();
+}
+function assetTransferScopeMatches() {
+  return !!currentAssetTransferContext() && !!assetTransferState?.scope
+    && assetTransferState.scope.remoteProjectId === serviceState?.binding?.remoteProjectId;
+}
+function assetTransferErrorLabel(code) {
+  return ({
+    'asset-transfer-input-invalid': 'Check the content ID, media class and transfer speed limit, then try again.',
+    'asset-transfer-unavailable': 'Sign in and link the matching service project before starting or resuming this transfer.',
+    'asset-transfer-busy': 'Another media action is running. Cancel it or wait for it to finish.',
+    'asset-transfer-capacity-exceeded': 'The saved transfer history has reached its limit. Keep the app data and contact your administrator.',
+    'asset-transfer-journal-invalid': 'Saved transfer history could not be verified. Keep the app data for recovery before retrying.',
+    'asset-transfer-storage-unavailable': 'Local transfer data could not be saved. Check disk space and permissions, then retry.',
+    'asset-transfer-storage-uncertain': 'The transfer save status could not be confirmed. Keep the app data for recovery before retrying.',
+    'asset-transfer-interrupted': 'The transfer was interrupted. Resume to continue from verified chunks.',
+    'asset-selection-changed': 'The account or linked branch changed. Return to the matching project before resuming its transfer.',
+    'asset-viewer-read-only': 'Uploading requires editor or owner access. Viewer access allows downloads.',
+    'asset-file-invalid': 'Choose a readable regular media file. Folders and symbolic links are not supported.',
+    'asset-identity-mismatch': 'The source no longer matches the reviewed content hash. Choose the file again.',
+    'asset-checkpoint-invalid': 'The saved transfer checkpoint could not be verified. Keep the transfer data for recovery.',
+    'asset-cache-corrupt': 'A saved media chunk could not be verified. Keep the transfer data for recovery.',
+    'asset-local-io-failed': 'The local file could not be read or saved. Check file access and free disk space, then retry.',
+    'asset-local-io-uncertain': 'The local save status could not be confirmed. Check the chosen destination before trying again.',
+    'asset-storage-uncertain': 'The service save status could not be confirmed. Ask your administrator to check storage before retrying.',
+    'asset-network-unavailable': 'The media service could not be reached. Resume the transfer when the connection returns.',
+    'asset-cancelled': 'The media action was cancelled.',
+    'asset-forbidden': 'Your account cannot access this media operation. Check project access with your administrator.',
+    forbidden: 'Your account no longer has access to this project. Check access with your administrator.',
+    'access-token-invalid': 'Your service session expired. Sign in again before resuming.',
+    'service-sign-in-required': 'Sign in and link a service project before transferring media.',
+    'service-project-required': 'Choose a local project and link its branch to a service project first.',
+    'service-project-unavailable': 'The linked service project is unavailable. Refresh projects and check access.',
+    'asset-source-changed': 'The selected file changed. Choose it again and review its new content hash.',
+    'asset-content-mismatch': 'The full content hash did not match. The file was not marked verified.',
+    'asset-chunk-corrupt': 'A media chunk could not be verified. Keep the source file and retry the transfer.',
+    'asset-chunk-invalid': 'A media chunk failed its size or checksum check. Resume to retry it.',
+    'asset-not-found': 'This content ID is not available to the linked project. Check the ID with the project member who shared it.',
+    'upload-not-found': 'The service could not find this upload. Choose the source file again to review a new transfer.',
+    'asset-verification-timeout': 'Server verification is still unresolved. Resume to check its result before using this media.',
+    'asset-download-conflict': 'The destination already exists. Choose another filename for the download.',
+    'asset-destination-exists': 'The destination already exists. Choose another filename for the download.',
+    'asset-review-required': 'Choose a media file and review its details before confirming the upload.',
+    'asset-review-stale': 'This upload review is no longer current. Choose the file again.',
+    'asset-request-invalid': 'Enter a content ID beginning with sha256: followed by 64 hexadecimal characters.',
+    'asset-identity-invalid': 'The file identity could not be verified. Choose the file again.',
+    'asset-state-invalid': 'Saved transfer data could not be verified. Keep the app data for recovery before retrying.',
+    'asset-storage-unavailable': 'Transfer data could not be saved. Check disk space and permissions, then retry.',
+    'asset-source-unavailable': 'The source file is unavailable. Restore it before resuming this upload.',
+    'asset-file-unavailable': 'The selected file is unavailable. Check it in Finder before trying again.'
+  })[code] || 'This media action could not finish. Check the service connection and the selected file, then try again.';
+}
+function assetBytes(value, exact = false) {
+  if (!Number.isSafeInteger(value) || value < 0) return 'Size not known yet';
+  let label = `${value.toLocaleString()} B`;
+  if (value >= 1024 ** 3) label = `${(value / 1024 ** 3).toLocaleString(undefined, { maximumFractionDigits: 2 })} GiB`;
+  else if (value >= 1024 ** 2) label = `${(value / 1024 ** 2).toLocaleString(undefined, { maximumFractionDigits: 2 })} MiB`;
+  else if (value >= 1024) label = `${(value / 1024).toLocaleString(undefined, { maximumFractionDigits: 2 })} KiB`;
+  return exact && value >= 1024 ? `${label} (${value.toLocaleString()} bytes)` : label;
+}
+function setAssetProgress(progress, text, bytes, total, completed = false) {
+  const known = Number.isSafeInteger(total) && total >= 0;
+  const count = Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : 0;
+  if (known) {
+    progress.max = Math.max(total, 1); progress.value = completed && total === 0 ? 1 : Math.min(count, total);
+    const percentage = total ? Math.floor(Math.min(count, total) / total * 100) : completed ? 100 : 0;
+    setServiceText(text, `${assetBytes(count)} of ${assetBytes(total)} · ${percentage}%`);
+    progress.setAttribute('aria-valuetext', `${count.toLocaleString()} of ${total.toLocaleString()} bytes${completed ? ', complete and verified' : ''}`);
+  } else {
+    progress.removeAttribute('value'); setServiceText(text, count ? `${assetBytes(count)} transferred · total not known yet` : 'Waiting for the media size');
+    progress.setAttribute('aria-valuetext', 'Total size not known yet');
+  }
+}
+function assetTransferJobView(job) {
+  let view = assetTransferJobRows.get(job.id);
+  if (view) return view;
+  const row = make('article', 'asset-transfer-job'), heading = make('div', 'asset-transfer-job-head');
+  const name = make('h4'), status = make('span', 'asset-transfer-job-status'), identity = make('p', 'asset-transfer-job-identity');
+  const detail = make('p', 'asset-transfer-job-detail'), progressRow = make('div', 'asset-progress-row');
+  const progress = make('progress', 'asset-transfer-progress'), bytes = make('span');
+  const receipt = make('p', 'asset-transfer-receipt'), notice = make('p', 'asset-transfer-job-error');
+  const actions = make('div', 'asset-transfer-job-actions');
+  const resume = make('button', '', 'Resume'), cancel = make('button', '', 'Cancel'); resume.type = cancel.type = 'button';
+  resume.dataset.assetJobId = cancel.dataset.assetJobId = job.id;
+  resume.addEventListener('click', () => runAssetTransferJobAction('resumeAssetTransfer', job.id));
+  cancel.addEventListener('click', () => runAssetTransferJobAction('cancelAssetTransfer', job.id));
+  heading.append(name, status); progressRow.append(progress, bytes); actions.append(resume, cancel);
+  row.append(heading, identity, detail, progressRow, receipt, notice, actions);
+  view = { row, name, status, identity, detail, progressRow, progress, bytes, receipt, notice, actions, resume, cancel };
+  assetTransferJobRows.set(job.id, view); return view;
+}
+function renderAssetTransferJobs(jobs, available) {
+  const list = document.getElementById('asset-transfer-jobs');
+  const visible = jobs.slice(0, assetTransferVisibleJobs), visibleIds = new Set(visible.map(job => job.id));
+  for (const [id, view] of assetTransferJobRows) if (!visibleIds.has(id)) { view.row.remove(); assetTransferJobRows.delete(id); }
+  let empty = list.querySelector('.asset-transfer-empty');
+  if (!jobs.length) {
+    if (!empty) { empty = make('p', 'asset-transfer-empty'); list.append(empty); }
+    setServiceText(empty, available ? 'Confirmed uploads and chosen downloads appear here. Transfers resume only when you choose Resume.'
+      : 'Media transfer history appears for the currently linked service project.');
+  } else empty?.remove();
+  const statusLabels = { queued: 'Queued', running: 'Running', paused: 'Paused', completed: 'Verified', cancelled: 'Cancelled', failed: 'Failed' };
+  const stageLabels = { queued: 'Waiting to transfer.', hashing: 'Reading and checking the local file.', uploading: 'Uploading media chunks.',
+    verifying: 'Checking the complete content hash. Transferred bytes are not ready until verification finishes.',
+    downloading: 'Downloading verified media chunks.', writing: 'Writing the chosen file and checking its content hash.',
+    complete: 'Content hash verified.', paused: 'Paused. Resume continues this transfer when its source and service are available.',
+    cancelled: 'Cancelled. Partial uploaded chunks may remain on the service.', failed: 'The transfer stopped before completion.' };
+  visible.forEach((job, index) => {
+    const view = assetTransferJobView(job), direction = job.direction === 'upload' ? 'Upload' : 'Download';
+    setServiceText(view.name, `${direction} · ${job.name || 'Project media'}`);
+    setServiceText(view.status, statusLabels[job.status] || 'Waiting'); view.status.className = `asset-transfer-job-status ${job.status}`;
+    setServiceText(view.identity, job.assetId || 'Content ID not available yet');
+    setServiceText(view.detail, job.stage === 'verifying'
+      ? job.direction === 'upload' ? 'Service is verifying media. Completion is confirmed only after the full content hash matches.'
+        : 'Checking the complete downloaded file against its content hash.'
+      : job.stage === 'cancelled' && job.direction === 'download' ? 'Download cancelled. A completed verified file has not been confirmed.'
+        : stageLabels[job.stage] || 'Checking transfer state.');
+    view.progress.setAttribute('aria-label', `${direction} progress for ${job.name || 'project media'}`);
+    setAssetProgress(view.progress, view.bytes, job.bytes, job.totalBytes, job.status === 'completed');
+    view.progress.hidden = job.totalBytes === null && !['queued', 'running'].includes(job.status);
+    if (job.stage === 'verifying' && job.status !== 'completed') {
+      view.progress.removeAttribute('value');
+      setServiceText(view.bytes, job.direction === 'upload' ? 'Service is verifying media' : 'Verifying the downloaded file');
+      view.progress.setAttribute('aria-valuetext', 'Content verification is still running; completion is not confirmed');
+    }
+    view.receipt.hidden = job.status !== 'completed';
+    setServiceText(view.receipt, job.status === 'completed' ? `${direction} verified · ${serviceDate(job.completedAt)} · ${assetBytes(job.size, true)}` : '');
+    view.notice.hidden = !job.error; setServiceText(view.notice, job.error ? assetTransferErrorLabel(job.error) : '');
+    view.resume.hidden = !job.canResume; view.cancel.hidden = !job.canCancel;
+    view.resume.disabled = assetTransferJobActions.has(job.id) || !!assetTransferState?.busy || !!assetTransferForeground || !available
+      || job.direction === 'upload' && (!assetTransferState?.canUpload || !['owner', 'editor'].includes(serviceState?.binding?.role));
+    view.cancel.disabled = assetTransferJobActions.has(job.id);
+    view.actions.hidden = !job.canResume && !job.canCancel;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  setServiceText(document.getElementById('asset-transfer-range'), jobs.length ? `Showing 1–${visible.length} of ${jobs.length}` : 'No transfers');
+  document.getElementById('asset-transfer-more').hidden = visible.length >= jobs.length;
+}
+function renderAssetTransferPanel() {
+  const state = assetTransferState, matching = assetTransferScopeMatches();
+  const available = matching && !!state?.available && !!serviceState?.connected;
+  const canUpload = available && !!state?.canUpload && ['owner', 'editor'].includes(serviceState?.binding?.role);
+  const busy = !!assetTransferForeground || !!state?.busy;
+  const preparing = matching ? state?.preparing : null, review = matching ? state?.review : null;
+  const jobs = matching ? state?.jobs || [] : [];
+  const api = typeof window.desktop?.getAssetTransferState === 'function';
+  const scopeName = state?.scope?.remoteProjectName || serviceState?.binding?.remoteProjectName;
+  const active = jobs.filter(job => ['running', 'queued'].includes(job.status)).length;
+  setServiceText(document.getElementById('asset-transfer-summary'), !api ? 'Media transfers are unavailable in this build.'
+    : preparing ? 'Reading the selected media file for review…'
+      : !available ? 'Sign in and link a service project to transfer media.'
+        : `${scopeName || 'Linked service project'}${jobs.length ? ` · ${jobs.length} transfer${jobs.length === 1 ? '' : 's'}${active ? ` · ${active} active` : ''}` : ' · No media transfers yet'}`);
+  const notice = assetTransferActionNotice || (state?.error ? assetTransferErrorLabel(state.error) : '');
+  document.getElementById('asset-transfer-notice').hidden = !notice; setServiceText(document.getElementById('asset-transfer-notice'), notice);
+  document.getElementById('asset-class').disabled = !canUpload || busy || !!review;
+  document.getElementById('asset-bandwidth').disabled = !available || busy || !!review;
+  document.getElementById('asset-choose-upload').disabled = !canUpload || busy || !!review;
+  setServiceText(document.getElementById('asset-choose-upload'), assetTransferForeground === 'prepareAssetUpload' ? 'Choosing and reading…' : 'Choose media file');
+  setServiceText(document.getElementById('asset-upload-help'), available && !canUpload
+    ? 'Viewer access allows downloads. Uploading requires editor or owner access.'
+    : 'Checking for existing media shares its content ID with this service. File bytes are sent only after you confirm.');
+  document.getElementById('asset-preparing').hidden = !preparing;
+  if (preparing) {
+    setServiceText(document.getElementById('asset-preparing-status'), 'Reading the selected file and calculating its content hash. No media bytes are uploaded during this review.');
+    setAssetProgress(document.getElementById('asset-preparing-progress'), document.getElementById('asset-preparing-bytes'), preparing.bytes, preparing.totalBytes);
+  }
+  document.getElementById('asset-upload-review').hidden = !review;
+  const identity = review?.identity;
+  setServiceText(document.getElementById('asset-review-name'), review?.name || '');
+  setServiceText(document.getElementById('asset-review-size'), identity ? assetBytes(identity.size, true) : '');
+  setServiceText(document.getElementById('asset-review-class'), identity ? ({ original: 'Original', proxy: 'Proxy', audio: 'Audio', graphics: 'Graphics', other: 'Other' })[identity.assetClass] || 'Other' : '');
+  setServiceText(document.getElementById('asset-review-hash'), identity?.contentId || '');
+  setServiceText(document.getElementById('asset-review-estimate'), review ? Number.isSafeInteger(review.estimatedUploadBytes)
+    ? assetBytes(review.estimatedUploadBytes, true) : `Up to ${assetBytes(identity?.size, true)}` : '');
+  setServiceText(document.getElementById('asset-review-reuse'), !review ? '' : review.reused === true
+    ? 'Matching verified bytes are already available to this project. This transfer can reuse them.'
+    : review.reused === false ? 'The service needs the reviewed media bytes. Upload starts only after you confirm.'
+      : 'Service reuse has not been confirmed. The complete file may need to be uploaded.');
+  document.getElementById('asset-review-controls').hidden = !review && !preparing;
+  document.getElementById('asset-confirm-upload').hidden = !review;
+  document.getElementById('asset-confirm-upload').disabled = !canUpload || busy || assetReviewClearing;
+  document.getElementById('asset-dismiss-review').disabled = assetReviewClearing;
+  setServiceText(document.getElementById('asset-dismiss-review'), preparing ? 'Cancel preparation' : 'Dismiss review');
+  document.getElementById('asset-content-id').disabled = !available || busy;
+  document.getElementById('asset-download').disabled = !available || busy;
+  renderAssetTransferJobs(jobs, available);
+}
+function renderAssetTransferState(state) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < assetTransferStateVersion) return;
+  assetTransferStateVersion = state.version; assetTransferState = state; renderAssetTransferPanel();
+}
+async function refreshAssetTransferState() {
+  if (!window.desktop?.getAssetTransferState) return;
+  const context = currentAssetTransferContext();
+  try { const state = await window.desktop.getAssetTransferState(); if (context === currentAssetTransferContext()) renderAssetTransferState(state); }
+  catch { assetTransferActionNotice = 'Could not refresh media transfers. Check the service connection and try again.'; renderAssetTransferPanel(); }
+}
+function assetTransferLimit() { const value = document.getElementById('asset-bandwidth').value; return value ? Number(value) : null; }
+async function runAssetTransferAction(method, input) {
+  if (assetTransferForeground || typeof window.desktop?.[method] !== 'function') return;
+  assetTransferForeground = method; assetTransferActionNotice = ''; renderAssetTransferPanel();
+  try {
+    renderAssetTransferState(await window.desktop[method](input));
+    if (method === 'prepareAssetUpload' && assetTransferState?.review && assetTransferScopeMatches()) document.getElementById('asset-review-title').focus();
+  } catch { assetTransferActionNotice = 'The media action could not finish. Check the selected file and service connection, then try again.'; }
+  finally { assetTransferForeground = null; renderAssetTransferPanel(); }
+}
+async function clearAssetTransferReview() {
+  if (assetReviewClearing || !window.desktop?.clearAssetUploadReview) return;
+  const wasPreparing = !!assetTransferState?.preparing, context = currentAssetTransferContext();
+  assetReviewClearing = true; assetTransferActionNotice = ''; renderAssetTransferPanel();
+  try {
+    renderAssetTransferState(await window.desktop.clearAssetUploadReview());
+    if (wasPreparing && context === currentAssetTransferContext() && !assetTransferState?.error) assetTransferActionNotice = 'Media preparation cancelled. No file bytes were uploaded.';
+  }
+  catch { assetTransferActionNotice = 'The media review could not be cleared. Try again.'; }
+  finally { assetReviewClearing = false; renderAssetTransferPanel(); }
+}
+async function runAssetTransferJobAction(method, id) {
+  if (assetTransferJobActions.has(id) || typeof window.desktop?.[method] !== 'function') return;
+  assetTransferJobActions.add(id); assetTransferActionNotice = ''; renderAssetTransferPanel();
+  try { renderAssetTransferState(await window.desktop[method](id)); }
+  catch { assetTransferActionNotice = 'The transfer could not be updated. Check the service connection and try again.'; }
+  finally { assetTransferJobActions.delete(id); renderAssetTransferPanel(); }
 }
 
 function renderCollaborationState(state) {
@@ -998,6 +1246,21 @@ document.getElementById('service-fetch').addEventListener('click', () => runServ
 document.getElementById('service-fetched-more').addEventListener('click', () => {
   serviceFetchedVisible += 20; renderFetchedServiceHistory(serviceSelectionMatches() ? serviceState?.fetched : null);
 });
+document.getElementById('asset-choose-upload').addEventListener('click', () => runAssetTransferAction('prepareAssetUpload', {
+  assetClass: document.getElementById('asset-class').value, maxBytesPerSecond: assetTransferLimit()
+}));
+document.getElementById('asset-confirm-upload').addEventListener('click', () => {
+  if (assetTransferState?.review && assetTransferScopeMatches()) runAssetTransferAction('confirmAssetUpload', assetTransferState.review.id);
+});
+document.getElementById('asset-dismiss-review').addEventListener('click', clearAssetTransferReview);
+document.getElementById('asset-download-form').addEventListener('submit', event => {
+  event.preventDefault();
+  runAssetTransferAction('downloadServiceAsset', { assetId: document.getElementById('asset-content-id').value.trim().toLowerCase(),
+    maxBytesPerSecond: assetTransferLimit() });
+});
+document.getElementById('asset-transfer-more').addEventListener('click', () => {
+  assetTransferVisibleJobs += 20; renderAssetTransferPanel();
+});
 document.getElementById('branch-form').addEventListener('submit', event => {
   event.preventDefault();
   changeBranch(document.getElementById('branch-name').value, true);
@@ -1027,6 +1290,10 @@ if (window.desktop?.getServiceState) {
   renderServicePanel();
   window.desktop?.getSyncState?.().then(renderSyncState).catch(() => renderSyncState({ connected: false, operations: [] }));
 }
+if (window.desktop?.getAssetTransferState) {
+  window.desktop.onAssetTransferState?.(renderAssetTransferState);
+  refreshAssetTransferState();
+} else renderAssetTransferPanel();
 window.desktop?.getCollaborationState?.().then(renderCollaborationState)
   .catch(() => renderCollaborationState({ available: false, members: [], invitations: [] }));
 document.addEventListener('keydown', event => {

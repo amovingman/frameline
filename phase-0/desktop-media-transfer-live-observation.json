@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T07:18:43.420Z",
+  "scope": "Disposable desktop media transfers and orderly-restart recovery",
+  "transport": "https-numeric-loopback-test-ca",
+  "assetBytes": 16777247,
+  "browser": {
+    "explicitReviewBeforeMediaBytes": true,
+    "initialEstimatedUploadBytes": 16777247,
+    "reuseEstimatedUploadBytes": 0,
+    "uploadVerified": true,
+    "downloadCancelledAtBytes": 1048576,
+    "retainedDownloadChunks": 1,
+    "destinationAbsentWhilePartial": true,
+    "resumedDownloadHashMatches": true,
+    "viewerUploadDisabled": true,
+    "viewerDownloadedExactBytes": true,
+    "otherAccountJobsHidden": true,
+    "signOutHidesJobs": true,
+    "ownerReceiptsRestoredAfterAccountSwitchAndPageReload": true,
+    "credentialProvider": "Isolated encrypted fixture provider; not OS-vault evidence"
+  },
+  "native": {
+    "qaAppProcesses": 3,
+    "priorQaProcessesExitedBeforeReplacement": true,
+    "partialUploadCancelledAtBytes": 1048576,
+    "uploadQuitAtBytes": 2097152,
+    "retainedServerUploadChunks": 2,
+    "uploadRestoredPaused": true,
+    "noAutomaticUploadBeforeExplicitResume": true,
+    "sameUploadJobRecovered": true,
+    "uploadVerified": true,
+    "downloadQuitAtBytes": 1048576,
+    "retainedDownloadChunks": 1,
+    "partialDestinationAbsent": true,
+    "downloadRestoredPaused": true,
+    "noAutomaticDownloadBeforeExplicitResume": true,
+    "downloadVerified": true,
+    "downloadHashMatches": true,
+    "completedUploadTimestampPreserved": true,
+    "destinationMode": "0600",
+    "credentialsRestoredWithoutRetyping": true,
+    "vaultMode": "0600",
+    "plaintextCredentialsAbsentFromVault": true,
+    "identicalContentStoredIndependentlyInTwoProjects": true
+  },
+  "responsive": {
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflow": [
+      0,
+      0,
+      0
+    ],
+    "phoneVisibleButtonsMinimumPx": 44,
+    "inspectionRounds": 2
+  },
+  "validation": {
+    "tests": 629,
+    "failed": 0,
+    "skipped": 0,
+    "packagingPassed": true
+  },
+  "cleanup": {
+    "nativeQaTransferDirectoryRemoved": true,
+    "disposableFixtureDirectoryRemoved": true,
+    "fixtureLocatorRemoved": true,
+    "savedServiceEntries": 0,
+    "qaServiceStopped": true,
+    "qaBrowserTabClosed": true,
+    "viewportReset": true,
+    "ordinaryAppRelaunchedWithoutTestCa": true,
+    "ordinaryAppHasNoSelectedProjectOrTransfers": true,
+    "systemCertificateTrustChanged": false
+  },
+  "limits": [
+    "The native checks used an unsigned development Electron build on this Mac, synthetic media, and a process-only test CA; they do not establish signed-release credential policy or public hosting.",
+    "Browser file/destination selection used an isolated fixture adapter; native upload and download used the actual operating-system dialogs.",
+    "Both app interruptions were orderly quits with terminal exits verified before relaunch; no mid-write crash or machine power-loss test is claimed.",
+    "Transfers were explicit standalone assets, not canonical revision/media bindings, editor relinking, or safe project apply.",
+    "The 16 MiB fixture is workflow evidence, not representative large-media throughput or a supported 64 GiB performance claim."
+  ]
+}

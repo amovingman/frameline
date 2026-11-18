@@ -19,6 +19,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/service-host.js', 'src/service-host-config.js', 'src/service-host-cli.js',
   'src/service-admin.js', 'src/service-admin-cli.js',
   'src/durable-asset-service.js', 'src/asset-http-transport.js', 'src/asset-http-client.js',
+  'src/asset-file-transfer.js', 'src/desktop-asset-transfers.js',
   'src/resolve-trial-discovery.js', 'src/resolve-trial-session.js', 'src/resolve-rename-trial.js', 'src/resolve-trial-history.js',
   'src/resolve-portable-trial-audit.js', 'src/resolve-audit-history.js',
   'src/resolve-history-transfer.js',
