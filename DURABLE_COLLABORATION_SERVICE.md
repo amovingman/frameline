@@ -45,6 +45,8 @@ The full suite passed all 495 tests with no failures or skips; packaging validat
 
 ## Remaining product and deployment work
 
+The [standalone host and operator tools](SERVICE_HOST.md) now own local TLS, bounded requests/connections, initialization, shutdown, and account/project provisioning. Their separate process proof verifies graceful restart through the actual launcher. This extends the local runtime without establishing production persistence or managed operations.
+
 This runtime remains a local service foundation. Production hosting and database/object-storage adapters, managed encryption keys, off-device backups, disaster recovery, distributed coordination, account/recovery delivery, and operational monitoring remain open. A later [desktop service integration](DESKTOP_SERVICE_SYNC.md) adds sign-in and explicit metadata operations against an existing service, with verified browser/native HTTPS and desktop restart behavior. Media storage/transfer and safe editor apply are separate gates.
 
 See [revision network sync](REVISION_NETWORK_SYNC.md) for the already-tested transport boundary and its loopback/TLS scope, [service foundations](SERVICE_FOUNDATION.md) for immutable history and maintenance contracts, and the [security model](SECURITY_MODEL.md) for trust boundaries.

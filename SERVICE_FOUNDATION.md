@@ -20,6 +20,8 @@ A [combined encrypted local runtime](DURABLE_COLLABORATION_SERVICE.md) now persi
 
 ## Remaining deployment gates
 
+The [standalone HTTPS host](SERVICE_HOST.md) now provides explicit initialization, strict private configuration, bounded network admission, graceful shutdown, and local stdin-based account/project provisioning. A disposable two-process HTTPS proof preserved acknowledged revisions, sessions, roles, and idempotent retries. It is runnable single-host tooling; no provider or processing region is selected and no external service is deployed.
+
 Before this becomes a hosted service, Frameline still needs deployment/data-processing region decisions, production database and object-storage adapters, hosted identity and database enforcement for the proven authentication/authorization rules, managed transport and encryption keys, operational monitoring, and tested disaster recovery in the chosen environment.
 
 ## Identity, authorization, and sync

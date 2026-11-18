@@ -177,7 +177,7 @@ For this workspace, commit verified features locally and preserve the user’s l
 ## Phase 3 — Cloud history and collaboration
 
 ### 3.1 Service and data model
-- [ ] Select deployment and data-processing regions based on user needs.
+- [ ] Select deployment and data-processing regions based on user needs. A standalone HTTPS launcher and stdin-only local account/project tools now have a disposable two-process restart proof, including sessions, viewer restrictions, acknowledged history, and idempotent retry. Provider, region, production keys, and managed operations remain open; see `SERVICE_HOST.md`.
 - [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. An injected authorized HTTP boundary and asynchronous metadata client passed a disposable two-account loopback exchange. Desktop HTTPS sign-in and scoped metadata operations passed browser and native checks, including full app restart; hosted deployment remains open. See `REVISION_NETWORK_SYNC.md` and `DESKTOP_SERVICE_SYNC.md` for validation scope.
 - [x] Add an executable domain store for content-addressed immutable manifests, revision metadata, projects, and branch heads.
 - [x] Use compare-and-swap branch-head updates with expected-head and revision-parent checks.
