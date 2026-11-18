@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T13:45:28.689Z",
+  "scope": "Self-hosted owner-created read-only immutable revision links",
+  "fixture": {
+    "syntheticAccounts": true,
+    "syntheticResolveObservation": true,
+    "loopbackOnly": true,
+    "publicDeployment": false
+  },
+  "service": {
+    "combinedStateSchema": 5,
+    "projectId": "share-links-qa",
+    "branch": "main",
+    "currentHeadRevisionId": "220e8fbd-354c-4729-8af3-d8cefd401b57",
+    "pinnedRevisionId": "060b3a4b-4b3b-4cdf-a57d-fdd8cff7c1a5",
+    "links": [
+      {
+        "id": "7c8ff58a-61ae-4a4e-a199-9a7d670b33e9",
+        "revisionId": "060b3a4b-4b3b-4cdf-a57d-fdd8cff7c1a5",
+        "ttlMs": 3600000,
+        "status": "revoked"
+      },
+      {
+        "id": "29226254-5a63-4ccf-86c8-34dbb39f3810",
+        "revisionId": "060b3a4b-4b3b-4cdf-a57d-fdd8cff7c1a5",
+        "ttlMs": 86400000,
+        "status": "revoked"
+      }
+    ],
+    "createdEvents": 2,
+    "revokedEvents": 2
+  },
+  "native": {
+    "actualElectronPreloadAndMainProcess": true,
+    "noLocalEditorSelectionRequired": true,
+    "oneDayLinkCreatedAndCopied": true,
+    "copiedAcknowledgmentVisible": true,
+    "updatedHeadKeptExistingLinksPinned": true,
+    "linkRevoked": true,
+    "remainingBrowserLinkRevoked": true,
+    "signOutClearedPrivateRows": true,
+    "signOutDisabledCopy": true,
+    "remainingCredentialEntries": 0,
+    "editorMutationCalls": 0,
+    "singleQuitExitsAfterDeferredCleanup": true,
+    "singleQuitScope": "Normal signed-out app with no active transfer or editor operation"
+  },
+  "browser": {
+    "actualRendererAndDesktopController": true,
+    "oneHourLinkCreatedAndCopied": true,
+    "clipboardCallbackWrites": 1,
+    "ownerReviewContainsNoToken": true,
+    "recipientUsesProductionViewerAssets": true,
+    "recipientRedeemsOverActualHttps": true,
+    "explicitOpenRequired": true,
+    "fragmentRemovedBeforeRedemption": true,
+    "exactNativeLinkRedeemed": true,
+    "oldLinkStayedPinnedAfterBranchAdvance": true,
+    "fullMetadataContainedPinnedClip": true,
+    "newHeadClipAbsentFromPinnedMetadata": true,
+    "freshRevokedRecipientDenied": true,
+    "deniedRecipientMetadataHidden": true,
+    "viewerManagementDisabled": true,
+    "viewerPrivateLinkRows": 0
+  },
+  "visual": {
+    "rounds": 2,
+    "recipientWidths": [
+      1440,
+      768,
+      390
+    ],
+    "recipientHorizontalOverflow": false,
+    "recipientPlexFontLoaded": true,
+    "nativeDesktopOwnerLayoutInspected": true,
+    "ownerBrowserViewportLimitation": "Browser viewport override affected the recipient tab; owner browser measurements remained at 1280 pixels. Owner controls were verified in native desktop and browser roles.",
+    "singularPluralLabelsFixed": true,
+    "primaryFindings": 0,
+    "incumbentPaletteAdvisories": 31,
+    "narrowFalsePositiveIgnore": {
+      "rule": "design-system-color",
+      "value": "rgb(0, 0, 0)",
+      "file": "src/share-viewer.html",
+      "evidence": "Live computed brand and body are rgb(237, 237, 238); the offline parser could not resolve the routed stylesheet."
+    }
+  },
+  "automatedEvidence": {
+    "httpsRequests": 62,
+    "hostProcesses": 3,
+    "freshClientProcesses": 3,
+    "exactLostCreateAcknowledgmentRetry": true,
+    "immutablePinning": true,
+    "revocationSurvivesRestart": true,
+    "expiryUsesAdvancedServerClock": true,
+    "deletedProjectAndFormerOwnerDenied": true,
+    "tokenAloneDeniedProtectedApis": true,
+    "fullSuitePassed": 1057,
+    "fullSuiteSkipped": 0,
+    "securitySuitePassed": 670,
+    "securitySuiteSkipped": 0,
+    "postSuiteSingularPluralViewerTestsPassed": 6,
+    "packageInputsValidated": true,
+    "postSuiteFocusedTestsPassed": 75
+  },
+  "safeToApply": false,
+  "limits": [
+    "Anyone holding an active link can read its pinned metadata. Revocation and expiry cannot erase metadata already read or copied.",
+    "Creation retry keys remain private and in memory; cross-restart offline copy drafts are unavailable.",
+    "Managed hosting, physical cross-device deployment, media bytes and editor apply remain outside this workflow."
+  ],
+  "cleanup": {
+    "fixtureServiceProcessesTerminal": true,
+    "provisionalFixtureExitCode": 0,
+    "finalFixtureExitCode": 0,
+    "ownedTemporaryFilesRemoved": true,
+    "browserTabsClosed": true,
+    "viewportOverrideReset": true,
+    "normalAppRelaunchedWithoutFixtureCa": true,
+    "normalAppSignedOut": true
+  }
+}

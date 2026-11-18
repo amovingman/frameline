@@ -9,6 +9,7 @@ const { createDurableCollaborationService } = require('./durable-collaboration-s
 const { createRevisionHttpHandler } = require('./revision-http-transport');
 const { createDurableAssetService } = require('./durable-asset-service');
 const { createAssetHttpHandler, isAssetRequest } = require('./asset-http-transport');
+const { createShareViewerHandler, isShareViewerRequest } = require('./share-viewer');
 
 function fail(code) { return Object.assign(new Error(code), { code }); }
 function nested(parent, child) {
@@ -31,6 +32,7 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
   const runtime = await createDurableCollaborationService({ directory: config.directory, keyring: config.keyring, initialize });
   const handler = createRevisionHttpHandler({ service: runtime.service, identity: runtime.identity,
     listProjects: context => runtime.projects.list(context) });
+  const shareViewer = createShareViewerHandler();
   let assets = null, assetHandler = null;
   try {
     if (config.assets) {
@@ -51,7 +53,7 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Connection: 'close' });
       req.resume(); res.end(bytes); return;
     }
-    const pending = Promise.resolve().then(() => (assetHandler && isAssetRequest(req) ? assetHandler : handler)(req, res))
+    const pending = Promise.resolve().then(() => (isShareViewerRequest(req) ? shareViewer : assetHandler && isAssetRequest(req) ? assetHandler : handler)(req, res))
       .catch(() => { res.destroy(); }).finally(() => handlers.delete(pending));
     handlers.add(pending);
   });

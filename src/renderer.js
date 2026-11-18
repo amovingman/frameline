@@ -51,6 +51,19 @@ let branchReviewCandidateChoice = '';
 let branchReviewAction = null;
 let branchReviewNotice = '';
 const branchReviewRows = new Map();
+let shareLinksState = null;
+let shareLinksVersion = -1;
+let shareLinksAccountKey = '';
+let shareLinksAccessKey = '';
+let shareLinksEvidenceKey = '';
+let shareLinksProjectChoice = '';
+let shareLinksBranchChoice = '';
+let shareLinksProjectOptionsKey = '';
+let shareLinksBranchOptionsKey = '';
+let shareLinksTtlDraft = '86400000';
+let shareLinksAction = null;
+let shareLinksNotice = '';
+const shareLinksRows = new Map();
 let projectActivityState = null;
 let projectActivityVersion = -1;
 let projectActivityContext = '';
@@ -467,6 +480,189 @@ function serviceErrorLabel(code) {
     'credential-vault-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.'
   })[code] || 'The service action could not finish. Check the connection or sign in again, then retry.';
 }
+function currentShareLinksAccount() {
+  return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
+    ? JSON.stringify([serviceState.origin, serviceState.account.id]) : '';
+}
+function shareLinksSelectionMatches(state = shareLinksState) {
+  const project = serviceState?.projects?.find(item => item.id === state?.selection?.projectId);
+  return !!currentShareLinksAccount() && currentShareLinksAccount() === shareLinksAccountKey && !!project
+    && project.branches.includes(state.selection.branch);
+}
+function syncShareLinksAccount() {
+  const account = currentShareLinksAccount();
+  const access = JSON.stringify([account, serviceState?.status, (serviceState?.projects || []).map(item => [item.id, item.role, item.branches])]);
+  if (account !== shareLinksAccountKey) {
+    shareLinksAccountKey = account; shareLinksState = null; shareLinksAction = null; shareLinksNotice = '';
+    shareLinksEvidenceKey = ''; shareLinksProjectChoice = ''; shareLinksBranchChoice = ''; shareLinksTtlDraft = '86400000';
+  }
+  renderShareLinks();
+  if (access !== shareLinksAccessKey) { shareLinksAccessKey = access; readShareLinksState(); }
+}
+async function readShareLinksState() {
+  if (!window.desktop?.getShareLinksState) return;
+  const account = currentShareLinksAccount();
+  try { renderShareLinksState(await window.desktop.getShareLinksState(), account); }
+  catch { if (account === currentShareLinksAccount()) { shareLinksNotice = 'Sharing state could not be read. Refresh sharing to retry.'; renderShareLinks(); } }
+}
+function shareLinksReceiptMatches(action, state) {
+  const project = serviceState?.projects?.find(item => item.id === action?.selection?.projectId);
+  if (!action || !state?.scopeId || !state.available || action.account !== currentShareLinksAccount()
+    || project?.role !== 'owner' || !project.branches.includes(action.selection.branch)
+    || state.role !== 'owner' || state.role !== action.role || state.selection?.projectId !== action.selection?.projectId
+    || state.selection?.branch !== action.selection?.branch || typeof state.outcome?.linkId !== 'string' || !state.outcome.linkId
+    || action.receiptId && state.outcome.linkId !== action.receiptId) return false;
+  return action.method === 'copyShareLink' && (state.outcome.kind === 'copied'
+    || state.outcome.kind === 'copy-failed' && typeof state.outcome.revoked === 'boolean') && state.outcome.revisionId === action.headRevisionId
+    || action.method === 'revokeShareLink' && state.outcome.kind === 'revoked' && state.outcome.linkId === action.linkId;
+}
+function renderShareLinksState(state, expectedAccount = currentShareLinksAccount()) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < shareLinksVersion
+    || expectedAccount !== currentShareLinksAccount()) return false;
+  const evidence = JSON.stringify([state.scopeId, state.selection, state.headRevisionId, state.role]);
+  if (evidence !== shareLinksEvidenceKey) {
+    shareLinksEvidenceKey = evidence; shareLinksTtlDraft = '86400000'; shareLinksNotice = '';
+    if (shareLinksAction && shareLinksAction.method !== 'selectShareLinks') {
+      if (shareLinksReceiptMatches(shareLinksAction, state)) shareLinksAction.receiptId = state.outcome.linkId;
+      else shareLinksAction = null;
+    }
+  }
+  shareLinksState = state; shareLinksVersion = state.version;
+  if (state.selection && !shareLinksProjectChoice) { shareLinksProjectChoice = state.selection.projectId; shareLinksBranchChoice = state.selection.branch; }
+  renderShareLinks(); return true;
+}
+function shareLinksErrorLabel(code) {
+  return ({
+    'share-links-invalid': 'Choose a service branch and one of the supported link expiration periods.',
+    'share-links-unavailable': 'Select an accessible service branch as its owner, then refresh sharing.',
+    'share-links-capacity': 'The service link limit was reached. Revoke unused links or contact the administrator.',
+    'share-cursor-invalid': 'This page is no longer valid. Refresh sharing to start with the newest links.',
+    'share-head-stale': 'The service head changed. Refresh sharing and review the revision before copying a new link.',
+    'share-revision-unavailable': 'The pinned revision is unavailable. Refresh sharing to check the current service revision.',
+    'share-idempotency-conflict': 'The pending link no longer matches its saved request. Refresh sharing before retrying.',
+    'share-link-not-found': 'This link is unavailable. Refresh sharing to read the current list.',
+    'share-link-unavailable': 'This link is unavailable or no longer active. Refresh sharing to check its status.',
+    'share-links-selection-changed': 'The account, branch or head changed. Refresh sharing before continuing.',
+    'share-selection-changed': 'The account, branch or head changed. Refresh sharing before continuing.',
+    'share-links-refresh-required': 'Refresh sharing to verify the revision before creating or revoking links.',
+    'share-refresh-required': 'Refresh sharing to verify the revision before creating or revoking links.',
+    'share-links-busy': 'Another sharing action is running. Wait for it to finish, then retry.',
+    'share-links-display-limit': 'The display limit was reached. Refresh sharing to start with the newest links.',
+    'share-display-limit': 'The display limit was reached. Refresh sharing to start with the newest links.',
+    'share-links-local-error': 'Sharing state could not be read locally. Refresh sharing to retry.',
+    'share-local-error': 'Sharing state could not be read locally. Refresh sharing to retry.',
+    'share-clipboard-unavailable': 'The link could not be copied. Refresh sharing to check its revocation status before retrying.',
+    'share-copy-revoke-required': 'The link could not be copied, and revocation was not confirmed. Refresh sharing and revoke the link before creating another one.',
+    'clipboard-unavailable': 'The link could not be copied. Refresh sharing to check its revocation status before retrying.',
+    forbidden: 'Only a current project owner can create, list or revoke read-only links.'
+  })[code] || serviceErrorLabel(code);
+}
+function renderShareLinks() {
+  const account = currentShareLinksAccount(), projects = account ? serviceState?.projects || [] : [];
+  const projectSelect = document.getElementById('share-links-project'), branchSelect = document.getElementById('share-links-branch');
+  const projectKey = JSON.stringify(projects.map(item => [item.id, item.name, item.role]));
+  if (projectKey !== shareLinksProjectOptionsKey) {
+    shareLinksProjectOptionsKey = projectKey; projectSelect.replaceChildren(new Option('Choose a service project', ''));
+    for (const project of projects) projectSelect.add(new Option(`${project.name} · ${project.role}`, project.id));
+  }
+  const project = projects.find(item => item.id === shareLinksProjectChoice);
+  if (!project) { shareLinksProjectChoice = ''; shareLinksBranchChoice = ''; }
+  projectSelect.value = shareLinksProjectChoice;
+  const branches = project?.branches || [], branchKey = JSON.stringify([project?.id, branches]);
+  if (branchKey !== shareLinksBranchOptionsKey) {
+    shareLinksBranchOptionsKey = branchKey; branchSelect.replaceChildren(new Option('Choose a service branch', ''));
+    for (const branch of branches) branchSelect.add(new Option(branch, branch));
+  }
+  if (!branches.includes(shareLinksBranchChoice)) shareLinksBranchChoice = '';
+  branchSelect.value = shareLinksBranchChoice;
+  const state = shareLinksSelectionMatches() ? shareLinksState : null;
+  const selectedProject = projects.find(item => item.id === state?.selection?.projectId);
+  const owner = state?.role === 'owner' && selectedProject?.role === 'owner';
+  const ready = !!state?.available && !!state?.ready && owner;
+  const pending = shareLinksAction, busy = !!pending || !!state?.busy, connected = serviceState?.status === 'connected';
+  const hasAPI = typeof window.desktop?.getShareLinksState === 'function';
+  projectSelect.disabled = !account || busy || !hasAPI; branchSelect.disabled = !project || busy || !hasAPI;
+  document.getElementById('share-links-select').disabled = !account || !project || !shareLinksBranchChoice || busy || !window.desktop?.selectShareLinks;
+  document.getElementById('share-links-refresh').disabled = !state?.selection || !owner || busy || !window.desktop?.refreshShareLinks;
+  setServiceText(document.getElementById('share-links-selection'), state
+    ? `Sharing for ${selectedProject?.name || 'Service project'} · ${state.selection.branch} · ${state.role || 'unknown'} access` : '');
+  const revision = owner && state?.revision?.id === state.headRevisionId ? state.revision : null;
+  document.getElementById('share-links-revision').hidden = !revision;
+  setServiceText(document.getElementById('share-links-revision-message'), revision?.message || '');
+  setServiceText(document.getElementById('share-links-revision-stamp'), revision
+    ? `Revision ${revision.id.slice(0, 8)} · Saved ${serviceDate(revision.createdAt)} · Head checked ${serviceDate(state.checkedAt)}` : '');
+  for (const [id, value] of [['project-id', revision && state.selection.projectId], ['branch-name', revision && state.selection.branch], ['revision-id', revision?.id], ['manifest', revision?.manifestId]])
+    setServiceText(document.getElementById(`share-links-${id}`), value || '');
+  const ttl = document.getElementById('share-links-ttl'); ttl.value = shareLinksTtlDraft;
+  ttl.disabled = !ready || busy || !connected || !revision || !window.desktop?.copyShareLink;
+  document.getElementById('share-links-copy').disabled = ttl.disabled || !['3600000', '86400000', '604800000', '2592000000'].includes(shareLinksTtlDraft);
+  const links = owner ? (state?.links || []).filter(item => item.projectId === state.selection.projectId && item.branch === state.selection.branch) : [];
+  const ids = new Set(links.map(item => item.id)), list = document.getElementById('share-links-list');
+  for (const [id, view] of shareLinksRows) if (!ids.has(id)) { view.row.remove(); shareLinksRows.delete(id); }
+  links.forEach((link, index) => {
+    let view = shareLinksRows.get(link.id);
+    if (!view) {
+      const row = make('article', 'share-link-row'); row.setAttribute('role', 'listitem');
+      const title = make('h4'), detail = make('p'), stamp = make('p'), identity = make('details'), identityTitle = make('summary', '', 'Link revision identity');
+      const facts = make('dl', 'service-base-facts'), id = make('dd'), revisionId = make('dd'), manifest = make('dd');
+      facts.append(make('dt', '', 'Link ID'), id, make('dt', '', 'Pinned revision'), revisionId, make('dt', '', 'Manifest'), manifest); identity.append(identityTitle, facts);
+      const revoke = make('button', '', 'Revoke link'); revoke.type = 'button';
+      revoke.addEventListener('click', () => runShareLinksAction('revokeShareLink', { scopeId: shareLinksState?.scopeId, linkId: link.id }));
+      row.append(title, detail, stamp, identity, revoke); view = { row, title, detail, stamp, identity, id, revisionId, manifest, revoke }; shareLinksRows.set(link.id, view);
+    }
+    const statuses = { active: 'Active at last check', expired: 'Expired', revoked: 'Revoked', unavailable: 'Unavailable' };
+    setServiceText(view.title, link.revisionMessage);
+    setServiceText(view.detail, `${statuses[link.status] || 'Status unavailable'} · Pinned revision ${link.revisionId.slice(0, 8)}`);
+    setServiceText(view.stamp, `Created ${serviceDate(link.createdAt)} · Expires ${serviceDate(link.expiresAt)}${link.revokedAt !== null ? ` · Revoked ${serviceDate(link.revokedAt)}` : ''}`);
+    setServiceText(view.id, link.id); setServiceText(view.revisionId, link.revisionId); setServiceText(view.manifest, link.manifestId);
+    view.revoke.hidden = link.status === 'revoked'; view.revoke.disabled = !ready || busy || !connected || !window.desktop?.revokeShareLink;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  setServiceText(document.getElementById('share-links-checked'), owner && state?.checkedAt ? `Link status checked ${serviceDate(state.checkedAt)}.` : '');
+  setServiceText(document.getElementById('share-links-range'), owner && (ready || links.length)
+    ? `${links.length} link${links.length === 1 ? '' : 's'} shown${Number.isSafeInteger(state.total) ? ` of ${state.total}` : ''}` : '');
+  const more = document.getElementById('share-links-more'); more.hidden = !owner || !state?.nextCursor;
+  more.disabled = !ready || busy || !window.desktop?.refreshShareLinks;
+  const status = !hasAPI ? 'Read-only sharing is unavailable in this build.' : !account ? 'Sign in and select a service branch to manage read-only links.'
+    : pending ? pending.method === 'copyShareLink' ? 'Creating and copying the read-only link…' : pending.method === 'revokeShareLink' ? 'Revoking the link…' : 'Loading sharing metadata…'
+      : shareLinksNotice || (state && !owner ? 'Only current project owners can create, list or revoke read-only links. Editor and viewer access does not include link management.'
+        : state?.error ? shareLinksErrorLabel(state.error) : !state ? 'Select a service project and branch to manage read-only links.'
+          : !ready ? 'Refresh sharing to verify the current revision and link statuses.' : !revision ? 'This service branch is empty. Save and publish a revision before creating a link.'
+            : 'Each successful action creates a new link to the revision shown above. Existing links keep their pinned revision.');
+  setServiceText(document.getElementById('share-links-status'), status); document.getElementById('share-links-panel').setAttribute('aria-busy', String(busy));
+}
+async function runShareLinksAction(method, input) {
+  const account = currentShareLinksAccount(), scopeId = shareLinksState?.scopeId;
+  if (!account || shareLinksAction || shareLinksState?.busy || !window.desktop?.[method]) return;
+  if (['copyShareLink', 'revokeShareLink'].includes(method) && (!scopeId || input?.scopeId !== scopeId)) return;
+  const action = { method, account, scopeId, selection: shareLinksState?.selection ? { ...shareLinksState.selection } : null,
+    role: shareLinksState?.role, headRevisionId: shareLinksState?.headRevisionId, linkId: input?.linkId }, focused = document.activeElement;
+  shareLinksAction = action; shareLinksNotice = ''; renderShareLinks();
+  try {
+    const state = await window.desktop[method](input);
+    if (shareLinksAction !== action || account !== currentShareLinksAccount()) return;
+    if (['copyShareLink', 'revokeShareLink'].includes(method) && shareLinksState?.scopeId !== scopeId && !shareLinksReceiptMatches(action, state)) return;
+    const accepted = renderShareLinksState(state, account);
+    if (accepted && shareLinksReceiptMatches(action, state)) {
+      shareLinksNotice = state.outcome.kind === 'copied'
+        ? `Read-only link copied for revision ${state.outcome.revisionId.slice(0, 8)}. Expires ${serviceDate(state.outcome.expiresAt)}.`
+        : state.outcome.kind === 'copy-failed' ? state.outcome.revoked
+          ? 'The link could not be copied and was revoked.'
+          : `The link could not be copied, and revocation was not confirmed. Refresh sharing and revoke link ${state.outcome.linkId.slice(0, 8)} before creating another one.`
+          : 'Link revoked.';
+      if (!state.ready || state.error) shareLinksNotice += ' Refresh sharing to reload the current state.';
+    } else if (accepted && method === 'copyShareLink' && !state.outcome && ['sync-network-unavailable', 'service-connection-failed'].includes(state.error)) {
+      shareLinksNotice = 'The create request was not confirmed. It may have created a link. Refresh sharing to check before retrying.';
+    }
+  } catch { if (shareLinksAction === action && account === currentShareLinksAccount()) shareLinksNotice = 'The sharing action could not finish. Refresh sharing to check the current state before retrying.'; }
+  finally {
+    const finishing = shareLinksAction === action; if (finishing) shareLinksAction = null; renderShareLinks();
+    if (finishing && focused && account === currentShareLinksAccount() && (document.activeElement === document.body || document.activeElement === focused)) {
+      const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById('share-links-status');
+      target.focus({ preventScroll: true });
+    }
+  }
+}
 function currentBranchReviewAccount() {
   return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
     ? JSON.stringify([serviceState.origin, serviceState.account.id]) : '';
@@ -817,6 +1013,7 @@ function renderServicePanel() {
   renderServiceComparison();
   syncProjectActivityContext(); renderProjectActivity();
   syncBranchReviewAccount();
+  syncShareLinksAccount();
 }
 function renderServiceState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
@@ -1046,7 +1243,8 @@ function renderProjectActivity() {
     'member.invited': 'Project invitation created', 'member.joined': 'Member joined', 'member.role-changed': 'Member permissions changed',
     'member.removed': 'Member removed', 'owner.transferred': 'Project ownership transferred', 'project.deleted': 'Project deleted',
     'branch.protection-changed': 'Branch protection changed', 'approval.requested': 'Branch review requested',
-    'approval.recorded': 'Branch approval recorded', 'approval.applied': 'Approved revision published' };
+    'approval.recorded': 'Branch approval recorded', 'approval.applied': 'Approved revision published',
+    'share.created': 'Read-only link created', 'share.revoked': 'Read-only link revoked' };
   items.forEach((event, index) => {
     const view = projectActivityRow(event), unread = event.read === false;
     setServiceText(view.title, `${labels[event.type] || 'Project updated'}${unread ? ' · Unread' : ''}`);
@@ -2020,6 +2218,22 @@ document.getElementById('relink-action').addEventListener('click', async () => {
     notice.textContent = 'Could not relink history. Rescan the export and retry.';
   } finally { button.disabled = false; }
 });
+document.getElementById('share-links-project').addEventListener('change', event => {
+  shareLinksProjectChoice = event.target.value; shareLinksBranchChoice = ''; renderShareLinks();
+});
+document.getElementById('share-links-branch').addEventListener('change', event => { shareLinksBranchChoice = event.target.value; renderShareLinks(); });
+document.getElementById('share-links-select-form').addEventListener('submit', event => {
+  event.preventDefault(); const project = serviceState?.projects?.find(item => item.id === shareLinksProjectChoice);
+  if (project?.branches.includes(shareLinksBranchChoice)) runShareLinksAction('selectShareLinks', { projectId: project.id, branch: shareLinksBranchChoice });
+});
+document.getElementById('share-links-refresh').addEventListener('click', () => runShareLinksAction('refreshShareLinks', { append: false }));
+document.getElementById('share-links-more').addEventListener('click', () => runShareLinksAction('refreshShareLinks', { append: true }));
+document.getElementById('share-links-ttl').addEventListener('change', event => { shareLinksTtlDraft = event.target.value; renderShareLinks(); });
+document.getElementById('share-links-copy-form').addEventListener('submit', event => {
+  event.preventDefault(); if (document.getElementById('share-links-copy').disabled) return;
+  runShareLinksAction('copyShareLink', { scopeId: shareLinksState.scopeId, ttlMs: Number(shareLinksTtlDraft) });
+});
+window.desktop?.onShareLinksState?.(state => renderShareLinksState(state));
 document.getElementById('branch-review-project').addEventListener('change', event => {
   branchReviewProjectChoice = event.target.value; branchReviewBranchChoice = ''; renderBranchReview();
 });

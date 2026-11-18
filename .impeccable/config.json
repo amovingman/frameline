@@ -37,6 +37,15 @@
         ],
         "createdAt": "2026-11-09T02:37:50.554Z",
         "reason": "Agent: comparison panel has 20px inset beside side borders; mobile removes those borders and adds 24px above its top rule. Detector combines responsive border and padding states."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgb(0, 0, 0)",
+        "files": [
+          "src/share-viewer.html"
+        ],
+        "createdAt": "2026-11-18T13:39:45.089Z",
+        "reason": "Codex verified live CSS: /share/viewer.css maps to src/share-viewer.css; brand and body compute to rgb(237, 237, 238), with Plex fonts loaded. The offline parser could not resolve the routed stylesheet and reported default black."
       }
     ]
   }

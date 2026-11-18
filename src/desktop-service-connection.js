@@ -4,12 +4,13 @@ const { createRevisionHttpClient } = require('./revision-http-client');
 const { createAssetHttpClient } = require('./asset-http-client');
 const { COMMENT_ERROR_CODES } = require('./review-comments-protocol');
 const { BRANCH_REVIEW_ERROR_CODES } = require('./branch-review-protocol');
+const { SHARE_ERROR_CODES } = require('./share-links-protocol');
 
 const ENTRY = 'desktop-service-connection';
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 const TOKEN = /^[A-Za-z0-9._~=-]{16,4096}$/;
 const AUTH_ERRORS = new Set(['access-token-invalid', 'refresh-token-invalid', 'credentials-invalid', 'service-sign-in-required']);
-const REQUEST_ERRORS = new Set([...AUTH_ERRORS, ...COMMENT_ERROR_CODES, ...BRANCH_REVIEW_ERROR_CODES, 'forbidden', 'rate-limit-exceeded', 'project-not-found', 'manifest-not-found',
+const REQUEST_ERRORS = new Set([...AUTH_ERRORS, ...COMMENT_ERROR_CODES, ...BRANCH_REVIEW_ERROR_CODES, ...SHARE_ERROR_CODES, 'forbidden', 'rate-limit-exceeded', 'project-not-found', 'manifest-not-found',
   'manifest-project-mismatch', 'revision-not-found', 'parent-revision-not-found', 'branch-not-found', 'branch-head-changed',
   'revision-parent-mismatch', 'source-revision-exists', 'idempotency-key-reused', 'branch-approval-required', 'approval-head-stale',
   'request-too-large', 'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers',
@@ -104,7 +105,8 @@ function createDesktopServiceConnection({ directory, vault, createClient = creat
     const arities = { putManifest: 2, createRevision: 1, compareAndSwapBranch: 1, getBranch: 2, getRevision: 2,
       getManifest: 2, findRevisionBySource: 2, getAccount: 0, listProjects: 0, listActivity: 2, listNotifications: 2, markNotificationRead: 3,
       listReviewComments: 3, addReviewComment: 1, resolveReviewComment: 3,
-      getBranchReview: 3, setBranchProtection: 1, requestBranchApproval: 1, approveBranchRequest: 3 };
+      getBranchReview: 3, setBranchProtection: 1, requestBranchApproval: 1, approveBranchRequest: 3,
+      getShareReview: 3, createShareLink: 1, revokeShareLink: 2 };
     function protect(client, methods) { return Object.fromEntries(Object.entries(methods).filter(([name]) => typeof client[name] === 'function')
       .map(([name, count]) => [name, (...args) => track((async () => {
         checked(value);

@@ -3,7 +3,7 @@ function fail(code) { const error = new Error(code); error.code = code; return e
 // Every operation resolves authorization before touching the history store.
 // Asset access is represented even though the current history store does not
 // persist media bytes.
-function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null,
+function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null, shareLinks = null,
   branchProtection = null }) {
   if (!history || !access || !identity || typeof identity.authenticate !== 'function') throw fail('authorized-service-invalid');
   function checked(context, projectId, resource, action, operation) {
@@ -53,6 +53,13 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
       actorId => { if (!branchProtection?.request) throw fail('branch-review-unavailable'); return branchProtection.request(actorId, input); }),
     approveBranchRequest: (context, input) => checked(context, input?.projectId, 'approval', 'write',
       actorId => { if (!branchProtection?.approve) throw fail('branch-review-unavailable'); return branchProtection.approve(actorId, input); }),
+    getShareReview: (context, projectId, branch, page) => checked(context, projectId, 'project', 'write',
+      actorId => { if (!shareLinks) throw fail('share-links-unavailable'); return shareLinks.getReview(actorId, projectId, branch, page); }),
+    createShareLink: (context, input) => checked(context, input?.projectId, 'project', 'write',
+      actorId => { if (!shareLinks) throw fail('share-links-unavailable'); return shareLinks.create(actorId, input); }),
+    revokeShareLink: (context, input) => checked(context, input?.projectId, 'project', 'write',
+      actorId => { if (!shareLinks) throw fail('share-links-unavailable'); return shareLinks.revoke(actorId, input); }),
+    redeemShareLink: input => { if (!shareLinks) throw fail('share-link-unavailable'); return shareLinks.redeem(input); },
     getManifest: (context, projectId, manifestId) => checked(context, projectId, 'revision', 'read',
       () => history.getManifest(projectId, manifestId)),
     getRevision: (context, projectId, revisionId) => checked(context, projectId, 'revision', 'read',

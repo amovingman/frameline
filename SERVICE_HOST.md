@@ -86,7 +86,15 @@ Start the service with its intended trusted certificate. In desktop History, sig
 
 In desktop History, **Branch approvals** can select an accessible service project and branch without a local FCPXML export. An owner can require zero through five independent approvals. A protected push saves immutable metadata and leaves its queue entry blocked until a review request for the exact head/proposal/policy has enough eligible approvals. The requester then retries the queued push. Reviewers cannot be the requester or revision author, and current access is rechecked before publication. Viewers can read the review status. See [branch approvals](COLLABORATION_FOUNDATIONS.md#branch-approvals-on-a-self-hosted-service) for expiry, policy changes, capacities, and historical acknowledgment retry. These are metadata controls and do not apply editor changes.
 
-Combined encrypted state now migrates schemas 1, 2, and 3 to schema 4 while preserving prior history, comments, and activity. Back up the service and encryption configuration before deploying an upgrade; an older runtime will refuse the newer state.
+Branch protection was introduced in combined schema 4 and is preserved by the current schema-5 upgrade described below.
+
+## Read-only revision links
+
+The launcher serves `/share` and its bundled static assets over the same TLS listener. Owners use History → **Read-only sharing** to select a service branch, verify its head, choose expiration, and create/copy a link. Anyone holding that link can read its pinned revision metadata until expiry, revocation, loss of the issuer's owner access, or project deletion. The link cannot read media, comments, account details, or other revisions and cannot write. The branch may advance while the link remains pinned to its original revision.
+
+The recipient opens the shared page and explicitly chooses **Open shared revision**. The capability is removed from the address before redemption and is sent only in a same-origin JSON request. Query tokens, authorization headers, and cross-origin redemption are refused. Responses are not cached; static assets use bundled fonts, strict CSP, no-referrer policy, and no framing. Anonymous redemption has bounded body, concurrency, peer, and global rate limits. A public deployment still needs its own trusted hostname/certificate and operational protections. See [sharing behavior and limits](COLLABORATION_FOUNDATIONS.md#read-only-sharing).
+
+Combined schema 5 upgrades valid schemas 1–4, preserving existing identity, history, comments, activity, and branch protection. Take a consistent service/configuration backup before upgrading; older runtimes refuse newer state. No share links are backfilled during migration.
 
 ## Optional media service
 

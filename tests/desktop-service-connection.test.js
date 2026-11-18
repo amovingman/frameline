@@ -277,3 +277,40 @@ test('branch review wrapper preserves only the finite safe branch error catalog'
   await assert.rejects(client.getBranchReview('film', 'main', {}), { code: 'service-connection-failed', message: 'service-connection-failed' });
   assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /token-secret|credential-secret|\/private\//);
 });
+
+test('share SDK wrappers bind 3/1/2 arguments, combine signals and retire captured clients without exposing anonymous redemption', async t => {
+  const calls = []; let waiting = null;
+  const f = fixture({ clientMethods: ({ getAccessToken }) => ({
+    ...Object.fromEntries([['getShareReview', 3], ['createShareLink', 1], ['revokeShareLink', 2]].map(([name, arity]) => [name, async (...args) => {
+      const options = args[arity]; calls.push({ name, args: args.slice(0, arity), signal: options.signal });
+      if (waiting) {
+        waiting.started.resolve(options.signal);
+        if (waiting.external) await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(error('sync-cancelled')), { once: true }));
+        else await waiting.release.promise;
+      }
+      await getAccessToken(); return { valid: true };
+    }])),
+    async redeemShareLink() { throw Error('Anonymous redemption must not join the desktop authenticated facade'); }
+  }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  const page = { limit: 20, cursor: null }, input = { projectId: 'film', branch: 'main', expectedHead: 'revision', ttlMs: 3600000, idempotencyKey: 'retry-share' };
+  await client.getShareReview('film', 'main', page); await client.createShareLink(input); await client.revokeShareLink('film', 'link');
+  assert.deepEqual(calls.map(value => value.args), [['film', 'main', page], [input], ['film', 'link']]);
+  assert(calls.every(value => value.signal instanceof AbortSignal)); assert.equal(client.redeemShareLink, undefined);
+  waiting = { started: defer(), external: true }; const abort = new AbortController(), listing = client.getShareReview('film', 'main', page, { signal: abort.signal });
+  const signal = await waiting.started.promise; abort.abort(); assert.equal(signal.aborted, true); await assert.rejects(listing, { code: 'sync-cancelled' });
+  waiting = { started: defer(), release: defer() }; const revoking = client.revokeShareLink('film', 'link');
+  const disconnectSignal = await waiting.started.promise, disconnect = value.disconnect(); assert.equal(disconnectSignal.aborted, true); waiting.release.resolve();
+  await assert.rejects(revoking, { code: 'service-sign-in-required' }); await disconnect;
+  await assert.rejects(client.createShareLink(input), { code: 'service-sign-in-required' });
+  assert.doesNotMatch(JSON.stringify(f.events), /token-secret|idempotencyKey|access-token-secret|\/private\//);
+});
+
+test('share SDK failures expose only the finite share error catalog and preserve credential privacy', async t => {
+  const { SHARE_ERROR_CODES } = require('../src/share-links-protocol'); let code;
+  const f = fixture({ clientMethods: () => ({ async getShareReview() { throw error(code); } }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  for (code of SHARE_ERROR_CODES) await assert.rejects(client.getShareReview('film', 'main', {}), { code, message: code });
+  code = 'share-private-token-secret'; await assert.rejects(client.getShareReview('film', 'main', {}), { code: 'service-connection-failed', message: 'service-connection-failed' });
+  assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /token-secret|\/private\//);
+});

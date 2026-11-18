@@ -7,6 +7,8 @@ const { validateReviewCommentAnchor, normalizeReviewCommentBody,
   validateReviewComment, validateReviewCommentsPage } = require('./review-comments-protocol');
 const { validBranchReviewCursor, validateBranchReview, validateBranchProtectionPolicy,
   validateBranchApprovalRequest } = require('./branch-review-protocol');
+const { validShareToken, validShareCursor, validateShareReview, validateShareCreation, validateShareLink,
+  validateSharedRevision, MIN_SHARE_TTL_MS, MAX_SHARE_TTL_MS } = require('./share-links-protocol');
 
 const MAX_HTTP_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -32,7 +34,10 @@ const ERRORS = new Map([
   ...['branch-review-invalid', 'branch-review-cursor-invalid', 'approval-request-invalid'].map(code => [code, 400]),
   ...['branch-review-unavailable', 'branch-policy-version-conflict', 'branch-not-protected', 'approval-request-unavailable',
     'approval-policy-stale', 'approval-candidate-invalid', 'branch-review-idempotency-conflict'].map(code => [code, 409]),
-  ['approval-forbidden', 403], ['branch-review-capacity', 503]
+  ['approval-forbidden', 403], ['branch-review-capacity', 503],
+  ...['share-links-invalid', 'share-cursor-invalid'].map(code => [code, 400]),
+  ...['share-head-stale', 'share-revision-unavailable', 'share-idempotency-conflict'].map(code => [code, 409]),
+  ['share-link-not-found', 404], ['share-link-unavailable', 404], ['share-links-unavailable', 503], ['share-links-capacity', 503]
 ]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -56,7 +61,7 @@ function header(req, name) {
   return value;
 }
 const ACTIVITY_TYPES = new Set(['revision.created', 'branch.changed', 'pull.completed', 'branch.protection-changed',
-  'approval.requested', 'approval.recorded', 'approval.applied', 'member.invited', 'member.joined',
+  'approval.requested', 'approval.recorded', 'approval.applied', 'share.created', 'share.revoked', 'member.invited', 'member.joined',
   'member.role-changed', 'member.removed', 'owner.transferred', 'project.deleted']);
 function validActivityCursor(value) {
   if (typeof value !== 'string' || value.length > 2048 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value)) return false;
@@ -125,6 +130,19 @@ function route(req) {
   try { parts = pathname.slice(1).split('/').map(part => decodeURIComponent(part)); }
   catch { throw fail('request-invalid'); }
   if (parts.some(part => !ID.test(part))) throw fail('request-invalid');
+  if (parts.length === 2 && parts[0] === 'shares' && parts[1] === 'redeem') {
+    if (query !== undefined) throw fail('request-invalid');
+    return { kind: 'redeemShareLink', methods: ['POST'], anonymous: true };
+  }
+  if (parts[0] === 'projects' && parts[2] === 'branches' && parts.length === 5 && parts[4] === 'share-links') {
+    let page;
+    if (req.method === 'GET') {
+      try { page = activityPage(query); }
+      catch (error) { throw fail(error.code === 'activity-cursor-invalid' ? 'share-cursor-invalid' : 'share-links-invalid'); }
+      if (page.cursor !== null && !validShareCursor(page.cursor)) throw fail('share-cursor-invalid');
+    } else if (query !== undefined) throw fail('request-invalid');
+    return { projectId: parts[1], branch: parts[3], kind: req.method === 'GET' ? 'getShareReview' : 'createShareLink', methods: ['GET', 'POST'], page };
+  }
   if (parts[0] === 'projects' && parts[2] === 'branches' && parts.length === 5 && parts[4] === 'review') {
     return { projectId: parts[1], branch: parts[3], kind: 'getBranchReview', methods: ['GET'], page: branchReviewPage(query) };
   }
@@ -142,6 +160,9 @@ function route(req) {
       methods: ['GET', 'POST'], page };
   }
   if (query !== undefined || req.url.length > 2048) throw fail('request-invalid');
+  if (parts[0] === 'projects' && parts.length === 5 && parts[2] === 'share-links' && parts[4] === 'revocation') {
+    return { projectId: parts[1], item: parts[3], kind: 'revokeShareLink', methods: ['PUT'] };
+  }
   if (parts[0] === 'projects' && parts[2] === 'branches') {
     if (parts.length === 5 && ['protection', 'approval-requests'].includes(parts[4])) {
       return { projectId: parts[1], branch: parts[3], kind: parts[4] === 'protection' ? 'setBranchProtection' : 'requestBranchApproval',
@@ -189,6 +210,25 @@ function createAuthLimiter() {
     }
     if (++bucket.count > 60) throw fail('rate-limit-exceeded');
   };
+}
+function createShareRedeemLimiter({ now = Date.now } = {}) {
+  const peers = new Map(); let global = { count: 0, expiresAt: 0 };
+  return addressHash => {
+    const at = now(); if (global.expiresAt <= at) global = { count: 0, expiresAt: at + 60_000 };
+    if (global.count >= 120) throw fail('rate-limit-exceeded');
+    let peer = peers.get(addressHash);
+    if (!peer || peer.expiresAt <= at) {
+      for (const [key, value] of peers) if (value.expiresAt <= at) peers.delete(key);
+      if (!peer && peers.size >= 256) throw fail('rate-limit-exceeded');
+      peer = { count: 0, expiresAt: at + 60_000 }; peers.set(addressHash, peer);
+    }
+    if (peer.count >= 20) throw fail('rate-limit-exceeded'); peer.count++; global.count++;
+  };
+}
+function sameOrigin(req, value) {
+  try { const origin = new URL(value), host = header(req, 'host');
+    return typeof host === 'string' && origin.protocol === 'https:' && value === origin.origin && origin.host === host.toLowerCase();
+  } catch { return false; }
 }
 function authBody(kind, body) {
   if (kind === 'signIn') {
@@ -248,16 +288,19 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
     || identity !== null && !['signIn', 'refresh', 'signOut', 'authenticate', 'getUser'].every(name => typeof identity[name] === 'function')
     || listProjects !== null && typeof listProjects !== 'function') throw fail('http-transport-invalid');
   const globalAuthLimit = createAuthLimiter();
+  const shareRedeemLimit = createShareRedeemLimiter(); let shareRedeems = 0;
   return async function revisionHttpHandler(req, res) {
-    let context = createRequestContext();
+    let context = createRequestContext(), shareAdmitted = false, shareRequest = false;
     try {
       if (!req.socket?.encrypted && !(allowLoopbackHttp
         && ['127.0.0.1', '::1'].includes(req.socket?.remoteAddress))) throw fail('secure-transport-required');
-      if (header(req, 'origin') !== undefined) throw fail('browser-request-forbidden');
+      const requestOrigin = header(req, 'origin');
       if (header(req, 'x-api-version') !== API_VERSION) throw fail('api-version-unsupported');
       context = createRequestContext({ 'x-request-id': header(req, 'x-request-id'),
         'idempotency-key': header(req, 'idempotency-key') });
       const target = route(req);
+      shareRequest = target.kind === 'redeemShareLink';
+      if (requestOrigin !== undefined && !(target.kind === 'redeemShareLink' && sameOrigin(req, requestOrigin))) throw fail('browser-request-forbidden');
       if (!target.methods.includes(req.method)) {
         res.setHeader('Allow', target.methods.join(', '));
         throw fail('method-not-allowed');
@@ -267,18 +310,38 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
         if (typeof authorization !== 'string' || !/^Bearer [a-zA-Z0-9._~+\/-]{1,4096}={0,2}$/.test(authorization)) throw fail('access-token-invalid');
         context = { ...context, accessToken: authorization.slice(7) };
       } else {
-        if (!identity) throw fail('route-not-found');
         const rateContext = { addressHash: createHash('sha256').update(String(req.socket?.remoteAddress || 'unknown')).digest('hex'), action: target.kind };
-        globalAuthLimit(rateContext); await authRateLimit(rateContext);
+        if (target.kind === 'redeemShareLink') {
+          if (typeof service.redeemShareLink !== 'function') throw fail('route-not-found');
+          if (authorization !== undefined) throw fail('share-link-unavailable');
+          if (shareRedeems >= 8) throw fail('share-links-unavailable');
+          shareRedeemLimit(rateContext.addressHash); shareRedeems++; shareAdmitted = true;
+        } else { if (!identity) throw fail('route-not-found'); globalAuthLimit(rateContext); await authRateLimit(rateContext); }
       }
       if (['listActivity', 'listNotifications', 'markNotificationRead', 'listReviewComments', 'addReviewComment', 'resolveReviewComment',
-        'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest']
+        'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'getShareReview', 'createShareLink', 'revokeShareLink']
         .includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
-      const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192
-        : ['markNotificationRead', 'resolveReviewComment', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest'].includes(target.kind) ? 1024
+      const body = await readBody(req, req.method !== 'GET', target.kind === 'redeemShareLink' ? 512 : target.anonymous ? 8192
+        : ['markNotificationRead', 'resolveReviewComment', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'createShareLink', 'revokeShareLink'].includes(target.kind) ? 1024
           : target.kind === 'addReviewComment' ? 24 * 1024 : MAX_HTTP_BYTES);
       let data;
-      if (target.kind === 'getBranchReview') {
+      if (target.kind === 'redeemShareLink') {
+        if (!record(body) || Object.keys(body).join('|') !== 'token' || !validShareToken(body.token)) throw fail('share-link-unavailable');
+        data = validateSharedRevision(await service.redeemShareLink({ token: body.token }));
+      } else if (target.kind === 'getShareReview') {
+        data = validateShareReview(await service.getShareReview(context, target.projectId, target.branch, target.page), target.projectId, target.branch, target.page);
+      } else if (target.kind === 'createShareLink') {
+        fields(body, ['expectedHead', 'ttlMs'], ['expectedHead', 'ttlMs']); identifier(body.expectedHead);
+        if (!Number.isSafeInteger(body.ttlMs) || body.ttlMs < MIN_SHARE_TTL_MS || body.ttlMs > MAX_SHARE_TTL_MS) throw fail('share-links-invalid');
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        data = validateShareCreation(await service.createShareLink(context, { projectId: target.projectId, branch: target.branch,
+          ...body, idempotencyKey: context.idempotencyKey }), target.projectId, { branch: target.branch, revisionId: body.expectedHead });
+        if (data.link.expiresAt - data.link.createdAt !== body.ttlMs) throw fail('service-unavailable');
+      } else if (target.kind === 'revokeShareLink') {
+        fields(body, ['revoked'], ['revoked']); if (body.revoked !== true) throw fail('body-invalid');
+        data = validateShareLink(await service.revokeShareLink(context, { projectId: target.projectId, linkId: target.item }), target.projectId, { linkId: target.item });
+        if (data.status !== 'revoked') throw fail('service-unavailable');
+      } else if (target.kind === 'getBranchReview') {
         data = validateBranchReview(await service.getBranchReview(context, target.projectId, target.branch, target.page),
           target.projectId, target.branch, target.page);
       } else if (target.kind === 'setBranchProtection') {
@@ -355,9 +418,12 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
       send(res, 200, responseEnvelope(context, data));
     } catch (error) {
       const code = ERRORS.has(error?.code) ? error.code : 'service-unavailable';
-      if (!req.complete) { res.shouldKeepAlive = false; req.resume(); }
+      if (!req.complete) { res.shouldKeepAlive = false;
+        if (shareRequest) { res.setHeader('Connection', 'close'); req.pause(); }
+        else req.resume();
+      }
       send(res, ERRORS.get(code), { apiVersion: API_VERSION, requestId: context.requestId, error: { code } });
-    }
+    } finally { if (shareAdmitted) shareRedeems--; }
   };
 }
 function send(res, status, envelope) {
@@ -366,8 +432,8 @@ function send(res, status, envelope) {
   if (bytes.length > MAX_HTTP_BYTES) throw fail('response-too-large');
   if (res.destroyed || res.writableEnded) return;
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.length,
-    'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
   res.end(bytes);
 }
 
-module.exports = { createRevisionHttpHandler, MAX_HTTP_BYTES, validActivityCursor, validateProjectFeedPage };
+module.exports = { createRevisionHttpHandler, MAX_HTTP_BYTES, validActivityCursor, validateProjectFeedPage, createShareRedeemLimiter };

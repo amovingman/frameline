@@ -1,7 +1,7 @@
 const { randomUUID, createHmac, timingSafeEqual } = require('node:crypto');
 const { fingerprint } = require('./project-api-contracts');
 
-const TYPES = new Set(['revision.created', 'branch.changed', 'pull.completed', 'branch.protection-changed', 'approval.requested', 'approval.recorded', 'approval.applied',
+const TYPES = new Set(['revision.created', 'branch.changed', 'pull.completed', 'branch.protection-changed', 'approval.requested', 'approval.recorded', 'approval.applied', 'share.created', 'share.revoked',
   'member.invited', 'member.joined', 'member.role-changed', 'member.removed', 'owner.transferred', 'project.deleted']);
 const MAX_EVENTS = 20_000, MAX_RECIPIENTS = 100_000, MAX_RECEIPTS = 100_000, MAX_BYTES = 16 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;

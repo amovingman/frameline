@@ -53,6 +53,17 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.on('branch-review:state', handle);
     return () => ipcRenderer.removeListener('branch-review:state', handle);
   },
+  getShareLinksState: () => ipcRenderer.invoke('share-links:state'),
+  selectShareLinks: input => ipcRenderer.invoke('share-links:select', input),
+  refreshShareLinks: input => ipcRenderer.invoke('share-links:refresh', input),
+  copyShareLink: input => ipcRenderer.invoke('share-links:copy', input),
+  revokeShareLink: input => ipcRenderer.invoke('share-links:revoke', input),
+  onShareLinksState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('share-links:state', handle);
+    return () => ipcRenderer.removeListener('share-links:state', handle);
+  },
   onResolveServiceState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);

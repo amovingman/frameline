@@ -7,6 +7,8 @@ const { validReviewCommentCursor, validateReviewCommentAnchor, normalizeReviewCo
   validateReviewComment, validateReviewCommentsPage } = require('./review-comments-protocol');
 const { BRANCH_REVIEW_ERROR_CODES, validateBranchReviewPageInput, validateBranchReview,
   validateBranchProtectionPolicy, validateBranchApprovalRequest } = require('./branch-review-protocol');
+const { SHARE_ERROR_CODES, validateSharePageInput, validateShareReview, validateShareCreation, validateShareLink,
+  validateSharedRevision, validShareToken, MIN_SHARE_TTL_MS, MAX_SHARE_TTL_MS } = require('./share-links-protocol');
 
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -18,7 +20,7 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceede
   'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers', 'activity-page-invalid',
   'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found',
   'comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
-  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity', ...BRANCH_REVIEW_ERROR_CODES]);
+  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity', ...BRANCH_REVIEW_ERROR_CODES, ...SHARE_ERROR_CODES]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function segment(value) {
   if (typeof value !== 'string' || !ID.test(value)) throw fail('sync-request-invalid');
@@ -113,7 +115,7 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     if (!response.ok) {
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
       if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
-      if (['activity-state-invalid', 'comment-capacity', 'branch-review-capacity'].includes(envelope.error.code)) throw fail(envelope.error.code);
+      if (['activity-state-invalid', 'comment-capacity', 'branch-review-capacity', 'share-links-capacity', 'share-links-unavailable'].includes(envelope.error.code)) throw fail(envelope.error.code);
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -130,6 +132,27 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     return validateProjectFeedPage(result, projectId, { limit, notifications: resource === 'notifications' });
   }
   return {
+    getShareReview: async (projectId, branch, page = {}, options = {}) => {
+      const checked = validateSharePageInput(page);
+      return validateShareReview(await request('GET', `${project(projectId)}/branches/${segment(branch)}/share-links?limit=${checked.limit}${checked.cursor === null ? '' : `&cursor=${checked.cursor}`}`, undefined, options),
+        projectId, branch, checked);
+    },
+    createShareLink: async (input, options = {}) => {
+      if (!fields(input, ['projectId', 'branch', 'expectedHead', 'ttlMs', 'idempotencyKey']) || !identifier(input.expectedHead)
+        || !identifier(input.idempotencyKey) || !Number.isSafeInteger(input.ttlMs) || input.ttlMs < MIN_SHARE_TTL_MS || input.ttlMs > MAX_SHARE_TTL_MS) throw fail('share-links-invalid');
+      const result = validateShareCreation(await request('POST', `${project(input.projectId)}/branches/${segment(input.branch)}/share-links`,
+        { expectedHead: input.expectedHead, ttlMs: input.ttlMs }, { ...options, idempotencyKey: input.idempotencyKey }), input.projectId,
+      { branch: input.branch, revisionId: input.expectedHead });
+      if (result.link.expiresAt - result.link.createdAt !== input.ttlMs) throw fail('sync-response-invalid'); return result;
+    },
+    revokeShareLink: async (projectId, linkId, options = {}) => {
+      const result = validateShareLink(await request('PUT', `${project(projectId)}/share-links/${segment(linkId)}/revocation`, { revoked: true }, options), projectId, { linkId });
+      if (result.status !== 'revoked') throw fail('sync-response-invalid'); return result;
+    },
+    redeemShareLink: async (input, options = {}) => {
+      if (!fields(input, ['token']) || !validShareToken(input.token)) throw fail('share-link-unavailable');
+      return validateSharedRevision(await request('POST', '/shares/redeem', { token: input.token }, { ...options, anonymous: true }));
+    },
     getBranchReview: async (projectId, branch, page = {}, options = {}) => {
       const checked = validateBranchReviewPageInput(page);
       const query = `limit=${checked.limit}${checked.requestCursor === null ? '' : `&requestCursor=${checked.requestCursor}`}${checked.candidateCursor === null ? '' : `&candidateCursor=${checked.candidateCursor}`}`;

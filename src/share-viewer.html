@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="frameline-api-version" content="__API_VERSION__">
+  <title>Shared revision · Frameline</title>
+  <script src="/share/viewer.js"></script>
+  <link rel="stylesheet" href="/share/viewer.css">
+</head>
+<body>
+  <header class="page brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i></span><strong>Frameline</strong><span>Revision viewer</span></header>
+  <main class="page">
+    <section class="opening" aria-labelledby="page-title">
+      <h1 id="page-title">Shared revision</h1>
+      <p>Inspect one saved revision shared by the project owner.</p>
+      <button id="open-share" type="button" disabled>Open shared revision</button>
+      <p id="share-status" role="status" aria-live="polite">Checking the link in this tab…</p>
+      <noscript><p>JavaScript is required to open this private share link. The link is never submitted automatically.</p></noscript>
+    </section>
+    <article id="revision" hidden aria-labelledby="revision-title">
+      <div class="revision-title"><h2 id="revision-title" tabindex="-1"></h2><span>Read only</span></div>
+      <p id="revision-message" class="revision-message"></p>
+      <dl id="revision-facts" class="facts"></dl>
+      <section class="metadata" aria-labelledby="metadata-title"><h2 id="metadata-title">Captured metadata</h2><div id="revision-summary"></div></section>
+      <details id="metadata-details"><summary>Full revision metadata</summary><p>This is the saved metadata document. It contains no media bytes.</p><pre id="metadata-json" tabindex="0" aria-label="Full saved revision metadata JSON"></pre></details>
+      <p class="scope-note">Access was checked when this revision was opened. This view does not show the current editor state, download media, or apply changes.</p>
+    </article>
+  </main>
+</body>
+</html>
