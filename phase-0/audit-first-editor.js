@@ -15,6 +15,7 @@ const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator')
 const { compareResolveRecovery } = require('../src/resolve-recovery-comparison');
 const { parseEffectObservation, compareEffectObservations, describeEffectCoverage } = require('../src/resolve-effect-observation');
 const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
+const { auditRelinkIdentity } = require('./audit-relink-identity');
 
 const root = path.join(__dirname, 'resolve-xml-proof');
 const structure = path.join(__dirname, 'compatibility-corpus');
@@ -324,12 +325,13 @@ function auditFirstEditor() {
   const properties = readPropertyGuardEvidence();
   const desktopProperties = readDesktopPropertyEvidence();
   const richInterruption = readRichInterruptionEvidence();
+  const relinkIdentity = auditRelinkIdentity();
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
     gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair. Supplements observe ${effects.observedEffects} effect type ID and ${properties.returnedPropertyKeys} returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved.`),
     gate('release-version-corpus', 'open', 'Only the named Free 21.1.2 build is editor-backed; no release support range is declared.'),
-    gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures; XML association is candidate-only and track identity is index-only.`),
+    gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures. A separate repeated-media relink fixture retains ${relinkIdentity.occurrenceCount} occurrence IDs and ${relinkIdentity.mediaPoolItemCount} media-pool IDs through relocation, save/reopen and original-path restoration. XML association is candidate-only and track identity is index-only.`),
     gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open.'),
     gate('editor-choice-stop-or-revisit', 'blocked', `External Free connection was unavailable in the ${external.observedOn} local probe; the internal Lua Console bridge now captures read-only fixtures, but safe apply and full coverage remain unproven.`),
     gate('lossless-editor-fields', 'blocked', `Paired coverage leaves ${pairedCoverage.timelines[0].unobservable.length} construct/identity categories unobservable. Native edit and no-edit control each change ${native.changedDuringNoEditControl} members; common opaque line tags do not prove semantic equivalence.`),
@@ -345,12 +347,14 @@ function auditFirstEditor() {
       propertyGuardReport: properties.hash,
       desktopPropertyGuardReport: desktopProperties.hash,
       richInterruptionRecoveryReport: richInterruption.hash,
+      relinkIdentityReport: relinkIdentity.sourceHash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
       mixedConstructs: { ...mixed.itemCounts, reciprocalLinkedPairs: mixed.reciprocalLinkedPairs,
         ofxCountChanges: mixed.ofxCountChanges },
       retainedApiItems: ledger.retained.length, candidateStatus: ledger.status,
+      relinkIdentity,
       recovery, effectMetadata: { observedItems: effects.observedItems, observedEffects: effects.observedEffects,
         enabledStateChanges: effects.enabledStateChanges, schema3Changes: effects.schema3Changes,
         restoredBytesMatch: effects.restoredBytesMatch, effectParametersObserved: false, persistentEffectIdentityProven: false },

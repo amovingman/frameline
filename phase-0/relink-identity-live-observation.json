@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "editor": "DaVinci Resolve Free",
+  "resolveVersion": "21.1.2.10",
+  "os": "macOS",
+  "projectName": "Frameline Relink Identity Proof",
+  "projectId": "c1cfdc86-bf6b-4fd3-af73-9a2c0ef998e1",
+  "timelineId": "37b33211-ad5a-4e91-9f5c-47d891d55866",
+  "nativeUiVerified": true,
+  "desktopIntegrated": false,
+  "method": "MediaPool.RelinkClips",
+  "files": {
+    "baseline": {
+      "name": "live-relink-identity-baseline.json",
+      "sha256": "055fcac10a01a069b8b29e77c9d41efd3a0e9e5407a93e0fe1b89a5b4ec557f7"
+    },
+    "relocated": {
+      "name": "live-relink-identity-relocated.json",
+      "sha256": "055fcac10a01a069b8b29e77c9d41efd3a0e9e5407a93e0fe1b89a5b4ec557f7"
+    },
+    "reopened": {
+      "name": "live-relink-identity-reopened.json",
+      "sha256": "055fcac10a01a069b8b29e77c9d41efd3a0e9e5407a93e0fe1b89a5b4ec557f7"
+    },
+    "restored": {
+      "name": "live-relink-identity-restored.json",
+      "sha256": "055fcac10a01a069b8b29e77c9d41efd3a0e9e5407a93e0fe1b89a5b4ec557f7"
+    },
+    "receipts": {
+      "name": "live-relink-identity-receipts.json",
+      "sha256": "8093e5a92139067860898bbaf73f02879b5c5db880085834f0182e80229acc11"
+    },
+    "commandForward": {
+      "name": "live-relink-identity-command-forward.json",
+      "sha256": "14f412700b16bd6bfb4264190d762a53316e02599a2aaeac85b48b8179bc3e27"
+    },
+    "commandReverse": {
+      "name": "live-relink-identity-command-reverse.json",
+      "sha256": "14f412700b16bd6bfb4264190d762a53316e02599a2aaeac85b48b8179bc3e27"
+    }
+  },
+  "spikeSourceSha256": "6713664b8c182dccba9bf93300874eb4eba51418d178e7822d37256adf1ff7f4",
+  "commandBuilderSha256": "b01dbe9baad77c6b00aee408d071fa5e678c28604e6476aba18dda30bc055dda",
+  "timelineCount": 1,
+  "occurrenceCount": 5,
+  "mediaPoolItemCount": 3,
+  "repeatedMediaGroups": 2,
+  "coverage": {
+    "schemaVersion": 2,
+    "itemCount": 5,
+    "effectCount": 0,
+    "propertyKeyCount": 39,
+    "propertyValueCount": 110,
+    "unavailablePropertyReads": 0,
+    "trackCount": 2,
+    "unavailableTrackStateReads": 0
+  },
+  "representedObservationBytesUnchanged": true,
+  "relocatedPathsVerified": true,
+  "relocatedStateSavedAndReopened": true,
+  "originalPathsRestoredAndReopened": true,
+  "reusableForwardCommandVerified": true,
+  "reusableReverseCommandVerified": true,
+  "previousFixture": {
+    "expectedObservationMatched": true,
+    "projectId": "fd704a42-b9f6-492b-904a-943fd0344412",
+    "projectName": "Frameline Restore Probe",
+    "proofProjectSaved": true
+  },
+  "contentHashCheckLocation": "node-outside-editor",
+  "runtimeContentHashGuard": false,
+  "trackIdentityProven": false,
+  "apiToExportMappingProven": false,
+  "linkedAudioVideoTested": false,
+  "fullNativePropertiesVerified": false,
+  "readOnly": true,
+  "safeToApply": false
+}

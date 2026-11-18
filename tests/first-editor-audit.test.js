@@ -20,6 +20,11 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
   assert.equal(report.gates.find(gate => gate.id === 'editor-choice-stop-or-revisit').status, 'blocked');
   assert.equal(report.observations.xmlExplicitAudioEntries, 1);
   assert.equal(report.observations.retainedApiItems, 5);
+  assert.equal(report.sources.relinkIdentityReport, '59edb9e25a3afdcbb3b90196d5243a6ccf95750ae690abbe6582ed6d9804a1e3');
+  assert.equal(report.observations.relinkIdentity.occurrenceCount, 5);
+  assert.equal(report.observations.relinkIdentity.mediaPoolItemCount, 3);
+  assert.equal(report.observations.relinkIdentity.stableTrackIdentityProven, false);
+  assert.equal(report.gates.find(gate => gate.id === 'stable-clip-and-track-identity').status, 'blocked');
   assert.deepEqual(report.observations.mixedConstructs,
     { video: 3, audio: 49, transition: 1, reciprocalLinkedPairs: 1, ofxCountChanges: 1 });
   assert.deepEqual(report.observations.observedDifferenceKinds, { 'item-changed': 2 });

@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "projectId": "c1cfdc86-bf6b-4fd3-af73-9a2c0ef998e1",
+  "media": [
+    {
+      "mediaPoolId": "ab5efe9e-b7da-4bd7-937c-fab22cf7c378",
+      "name": "alps.jpg",
+      "size": 228947,
+      "sha256": "ec455c615a91ff8bcab929709e559ea09dd2e8db199f7fe399edf9298bee7899",
+      "originalBefore": {
+        "size": 228947,
+        "sha256": "ec455c615a91ff8bcab929709e559ea09dd2e8db199f7fe399edf9298bee7899"
+      },
+      "relocatedBefore": {
+        "size": 228947,
+        "sha256": "ec455c615a91ff8bcab929709e559ea09dd2e8db199f7fe399edf9298bee7899"
+      },
+      "originalAfter": {
+        "size": 228947,
+        "sha256": "ec455c615a91ff8bcab929709e559ea09dd2e8db199f7fe399edf9298bee7899"
+      },
+      "relocatedAfter": {
+        "size": 228947,
+        "sha256": "ec455c615a91ff8bcab929709e559ea09dd2e8db199f7fe399edf9298bee7899"
+      }
+    },
+    {
+      "mediaPoolId": "1b228889-236a-4919-a34d-70d326a8984d",
+      "name": "summit.jpg",
+      "size": 528641,
+      "sha256": "fc83db8d2c747996309e3d1df0ece471025ff52b755ea0be54d5561af4fdea0a",
+      "originalBefore": {
+        "size": 528641,
+        "sha256": "fc83db8d2c747996309e3d1df0ece471025ff52b755ea0be54d5561af4fdea0a"
+      },
+      "relocatedBefore": {
+        "size": 528641,
+        "sha256": "fc83db8d2c747996309e3d1df0ece471025ff52b755ea0be54d5561af4fdea0a"
+      },
+      "originalAfter": {
+        "size": 528641,
+        "sha256": "fc83db8d2c747996309e3d1df0ece471025ff52b755ea0be54d5561af4fdea0a"
+      },
+      "relocatedAfter": {
+        "size": 528641,
+        "sha256": "fc83db8d2c747996309e3d1df0ece471025ff52b755ea0be54d5561af4fdea0a"
+      }
+    },
+    {
+      "mediaPoolId": "670ccae5-0546-447b-9da0-b698e9f0103a",
+      "name": "silence.wav",
+      "size": 96044,
+      "sha256": "0a8f76d89c709043814cb74f331a4578d17ff61256303bd0019a263d053f86e8",
+      "originalBefore": {
+        "size": 96044,
+        "sha256": "0a8f76d89c709043814cb74f331a4578d17ff61256303bd0019a263d053f86e8"
+      },
+      "relocatedBefore": {
+        "size": 96044,
+        "sha256": "0a8f76d89c709043814cb74f331a4578d17ff61256303bd0019a263d053f86e8"
+      },
+      "originalAfter": {
+        "size": 96044,
+        "sha256": "0a8f76d89c709043814cb74f331a4578d17ff61256303bd0019a263d053f86e8"
+      },
+      "relocatedAfter": {
+        "size": 96044,
+        "sha256": "0a8f76d89c709043814cb74f331a4578d17ff61256303bd0019a263d053f86e8"
+      }
+    }
+  ],
+  "relocated": {
+    "assets": [
+      {
+        "matchesRelocated": true,
+        "mediaPoolId": "1b228889-236a-4919-a34d-70d326a8984d",
+        "name": "summit.jpg"
+      },
+      {
+        "matchesRelocated": true,
+        "mediaPoolId": "ab5efe9e-b7da-4bd7-937c-fab22cf7c378",
+        "name": "alps.jpg"
+      },
+      {
+        "matchesRelocated": true,
+        "mediaPoolId": "670ccae5-0546-447b-9da0-b698e9f0103a",
+        "name": "silence.wav"
+      }
+    ],
+    "projectId": "c1cfdc86-bf6b-4fd3-af73-9a2c0ef998e1",
+    "relinkReturnedTrue": true
+  },
+  "reopened": {
+    "assets": [
+      {
+        "matchesRelocated": true,
+        "mediaPoolId": "1b228889-236a-4919-a34d-70d326a8984d",
+        "name": "summit.jpg"
+      },
+      {
+        "matchesRelocated": true,
+        "mediaPoolId": "ab5efe9e-b7da-4bd7-937c-fab22cf7c378",
+        "name": "alps.jpg"
+      },
+      {
+        "matchesRelocated": true,
+        "mediaPoolId": "670ccae5-0546-447b-9da0-b698e9f0103a",
+        "name": "silence.wav"
+      }
+    ],
+    "projectId": "c1cfdc86-bf6b-4fd3-af73-9a2c0ef998e1",
+    "savedAndReopened": true
+  },
+  "restored": {
+    "assets": [
+      {
+        "matchesOriginal": true,
+        "mediaPoolId": "1b228889-236a-4919-a34d-70d326a8984d",
+        "name": "summit.jpg"
+      },
+      {
+        "matchesOriginal": true,
+        "mediaPoolId": "ab5efe9e-b7da-4bd7-937c-fab22cf7c378",
+        "name": "alps.jpg"
+      },
+      {
+        "matchesOriginal": true,
+        "mediaPoolId": "670ccae5-0546-447b-9da0-b698e9f0103a",
+        "name": "silence.wav"
+      }
+    ],
+    "projectId": "c1cfdc86-bf6b-4fd3-af73-9a2c0ef998e1",
+    "savedAndReopened": true
+  },
+  "previousFixture": {
+    "expectedObservationMatched": true,
+    "projectId": "fd704a42-b9f6-492b-904a-943fd0344412",
+    "projectName": "Frameline Restore Probe",
+    "proofProjectSaved": true
+  },
+  "contentHashCheckLocation": "node-outside-editor",
+  "runtimeContentHashGuard": false
+}
