@@ -14,6 +14,7 @@ const { createProjectActivity, validateActivityState } = require('./project-acti
 const { createServiceReviewComments, validateServiceReviewCommentsState, createServiceReviewAnchorVerifier } = require('./service-review-comments');
 const { createServiceBranchProtection, validateServiceBranchProtectionState } = require('./service-branch-protection');
 const { createServiceShareLinks, validateServiceShareLinksState } = require('./service-share-links');
+const { createServiceNotifications, validateServiceNotificationsState } = require('./service-notifications');
 
 const MAX_STATE_BYTES = 64 * 1024 * 1024, MAX_FILE_BYTES = 96 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, SHA = /^[a-f0-9]{64}$/;
@@ -86,9 +87,9 @@ function validateHistory(input) {
 
 function validateCollaborationState(input) {
   try {
-    if (input?.schemaVersion > 5) throw fail('collaboration-state-newer-version');
+    if (input?.schemaVersion > 6) throw fail('collaboration-state-newer-version');
     const legacy = input?.schemaVersion === 1;
-    if (!exact(input, ['schemaVersion', 'generation', 'paginationKey', 'identity', 'access', 'history', ...(legacy ? [] : ['activity']), ...(input?.schemaVersion >= 3 ? ['comments'] : []), ...(input?.schemaVersion >= 4 ? ['branchProtection'] : []), ...(input?.schemaVersion === 5 ? ['shareLinks'] : [])]) || ![1, 2, 3, 4, 5].includes(input.schemaVersion)
+    if (!exact(input, ['schemaVersion', 'generation', 'paginationKey', 'identity', 'access', 'history', ...(legacy ? [] : ['activity']), ...(input?.schemaVersion >= 3 ? ['comments'] : []), ...(input?.schemaVersion >= 4 ? ['branchProtection'] : []), ...(input?.schemaVersion >= 5 ? ['shareLinks'] : []), ...(input?.schemaVersion === 6 ? ['notifications'] : [])]) || ![1, 2, 3, 4, 5, 6].includes(input.schemaVersion)
       || !Number.isSafeInteger(input.generation) || input.generation < 0
       || typeof input.paginationKey !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(input.paginationKey)) throw fail('collaboration-state-invalid');
     const identity = validateIdentityState(input.identity), access = validateAccessState(input.access), history = validateHistory(input.history);
@@ -172,7 +173,7 @@ function validateCollaborationState(input) {
       countEvent(actualEvents, event.type, event.projectId, event.actorId, event.subjectId);
     }
     if (fingerprint([...expectedEvents.entries()].sort()) !== fingerprint([...actualEvents.entries()].sort())) throw fail('collaboration-state-invalid');
-    const shareLinks = validateServiceShareLinksState(input.schemaVersion === 5 ? input.shareLinks : { version: 1, links: [], idempotency: [] }, input.paginationKey);
+    const shareLinks = validateServiceShareLinksState(input.schemaVersion >= 5 ? input.shareLinks : { version: 1, links: [], idempotency: [] }, input.paginationKey);
     const links = new Map(shareLinks.links.map(item => [item.id, item]));
     const expectedShareEvents = new Map(), actualShareEvents = new Map();
     for (const link of shareLinks.links) {
@@ -187,7 +188,25 @@ function validateCollaborationState(input) {
       countEvent(actualShareEvents, event.type, event.projectId, event.actorId, event.subjectId);
     }
     if (fingerprint([...expectedShareEvents.entries()].sort()) !== fingerprint([...actualShareEvents.entries()].sort())) throw fail('collaboration-state-invalid');
-    const output = { schemaVersion: 5, generation: input.generation, paginationKey: input.paginationKey, identity, access, history, activity, comments, branchProtection, shareLinks };
+    const notifications = validateServiceNotificationsState(input.schemaVersion === 6 ? input.notifications
+      : { version: 1, preferences: [], consents: [], idempotency: [], jobs: [] }, input.paginationKey);
+    const eventPositions = new Map(activity.events.map((event, index) => [event.id, { event, index }]));
+    const consents = new Map(notifications.consents.map(item => [item.id, item]));
+    for (const item of [...notifications.preferences, ...notifications.consents, ...notifications.idempotency, ...notifications.jobs]) {
+      if (!users.has(item.userId) || !projects.has(item.projectId)) throw fail('collaboration-state-invalid');
+    }
+    for (const consent of notifications.consents) if (consent.afterSequence > activity.events.length
+      || consent.afterSequence > 0 && activity.events[consent.afterSequence - 1].id !== consent.afterEventId) throw fail('collaboration-state-invalid');
+    for (const job of notifications.jobs) {
+      const consent = consents.get(job.consentId); let previous = -1;
+      for (const eventId of job.eventIds) {
+        const item = eventPositions.get(eventId);
+        if (!item || item.event.projectId !== job.projectId || !item.event.recipientIds.includes(job.userId)
+          || item.index < consent.afterSequence || item.index <= previous) throw fail('collaboration-state-invalid');
+        previous = item.index;
+      }
+    }
+    const output = { schemaVersion: 6, generation: input.generation, paginationKey: input.paginationKey, identity, access, history, activity, comments, branchProtection, shareLinks, notifications };
     if (Buffer.byteLength(JSON.stringify(output)) > MAX_STATE_BYTES) throw fail('collaboration-state-invalid');
     return output;
   } catch (error) {
@@ -196,10 +215,10 @@ function validateCollaborationState(input) {
 }
 
 async function createDurableCollaborationService({ directory, keyring, now = () => Date.now(),
-  deliverRecovery = null, storage = fs, lockTimeoutMs = 5000, initialize = false } = {}) {
+  deliverRecovery = null, storage = fs, lockTimeoutMs = 5000, initialize = false, notificationDeliveryAvailable = false } = {}) {
   const validRing = ring => ring && typeof ring.encrypt === 'function' && typeof ring.decrypt === 'function';
   if (!path.isAbsolute(directory || '') || !validRing(keyring) || typeof now !== 'function'
-    || typeof initialize !== 'boolean'
+    || typeof initialize !== 'boolean' || typeof notificationDeliveryAvailable !== 'boolean'
     || deliverRecovery !== null && typeof deliverRecovery !== 'function'
     || !Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 0 || lockTimeoutMs > 30000) throw fail('collaboration-service-invalid');
   try {
@@ -275,7 +294,7 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
       const afterRole = afterProject?.roles.find(member => member.userId === event.subjectId)?.role;
       const noop = ['member.joined', 'member.role-changed'].includes(event.type) && beforeRole === afterRole;
       if (!noop) activity.record({ ...event, type: event.type === 'member.joined' && beforeRole ? 'member.role-changed' : event.type,
-        recipientIds: afterProject?.roles.map(member => member.userId) || [] });
+        recipientIds: [...(afterProject?.roles.map(member => member.userId) || []), ...(event.type === 'member.removed' ? [event.subjectId] : [])] });
       previousAccess = after;
     } });
     activity = createProjectActivity({ access, now, initialState: state?.activity, paginationKey });
@@ -284,10 +303,12 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     const branchProtection = createServiceBranchProtection({ history, access, activity, initialState: state?.branchProtection, paginationKey, now });
     const shareLinks = createServiceShareLinks({ history, access, activity, initialState: state?.shareLinks, paginationKey, now,
       isActiveUser: userId => identity.getUser(userId).status === 'active' });
-    const snapshot = () => validateCollaborationState({ schemaVersion: 5, generation: state?.generation || 0, paginationKey,
-      identity: identity.snapshot(), access: access.snapshot(), history: history.snapshot(), activity: activity.snapshot(), comments: comments.snapshot(), branchProtection: branchProtection.snapshot(), shareLinks: shareLinks.snapshot() });
+    const notifications = createServiceNotifications({ identity, access, history, activity, initialState: state?.notifications,
+      paginationKey, now, deliveryAvailable: notificationDeliveryAvailable });
+    const snapshot = () => validateCollaborationState({ schemaVersion: 6, generation: state?.generation || 0, paginationKey,
+      identity: identity.snapshot(), access: access.snapshot(), history: history.snapshot(), activity: activity.snapshot(), comments: comments.snapshot(), branchProtection: branchProtection.snapshot(), shareLinks: shareLinks.snapshot(), notifications: notifications.snapshot() });
     const actor = context => identity.authenticate(context?.accessToken).userId;
-    return { identity, access, history, activity, comments, branchProtection, shareLinks, snapshot, actor };
+    return { identity, access, history, activity, comments, branchProtection, shareLinks, notifications, snapshot, actor };
   }
   function transact(action, { rotate = null } = {}) {
     if (closing) return Promise.reject(fail('collaboration-service-closed'));
@@ -329,6 +350,7 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     const userId = world.actor(context);
     if (!world.access.accountRemovalPlan(userId).ready) throw fail('ownership-transfer-required');
     const before = world.access.snapshot();
+    world.notifications.disable(userId);
     const result = world.identity.deleteAccount(userId, password); world.access.removeUser(userId);
     const after = world.access.snapshot();
     for (const project of before.projects) if (project.roles.some(member => member.userId === userId)) {
@@ -349,6 +371,8 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
   };
   return {
     identity, members,
+    notifications: Object.fromEntries(['schedule', 'claim', 'prepare', 'acknowledge', 'fail']
+      .map(method => [method, (...args) => transact(world => world.notifications[method](...args))])),
     teams: { create: (context, name) => transact(world => world.access.createTeam(world.actor(context), name)),
       invite: (context, teamId, email, role) => transact(world => world.access.invite(world.actor(context), teamId, email, role)) },
     projects: { list: context => transact(world => {
@@ -369,9 +393,10 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     service: Object.fromEntries(['putManifest', 'createRevision', 'updateBranch', 'getManifest', 'getRevision',
       'findRevisionBySource', 'listRevisions', 'getBranch', 'listActivity', 'listNotifications', 'markNotificationRead', 'authorizeAsset', 'authorizeAssetPolicy',
       'listReviewComments', 'addReviewComment', 'resolveReviewComment', 'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest',
-      'getShareReview', 'createShareLink', 'revokeShareLink', 'redeemShareLink']
+      'getShareReview', 'createShareLink', 'revokeShareLink', 'redeemShareLink', 'getAccountNotifications', 'markAccountNotificationRead',
+      'getNotificationPreferences', 'setNotificationPreferences', 'disableNotificationDelivery', 'unsubscribeNotifications']
       .map(method => [method, (...args) => transact(world => createAuthorizedProjectService(world)[method](...args))])),
-    getStatus: () => transact(world => ({ schemaVersion: 5, generation: world.snapshot().generation })),
+    getStatus: () => transact(world => ({ schemaVersion: 6, generation: world.snapshot().generation })),
     rotateEncryption: next => validRing(next) ? transact(() => ({ rotated: true }), { rotate: next })
       : Promise.reject(fail('collaboration-service-invalid')),
     close: async () => { closing = true; await pending; }

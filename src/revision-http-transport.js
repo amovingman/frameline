@@ -9,6 +9,8 @@ const { validBranchReviewCursor, validateBranchReview, validateBranchProtectionP
   validateBranchApprovalRequest } = require('./branch-review-protocol');
 const { validShareToken, validShareCursor, validateShareReview, validateShareCreation, validateShareLink,
   validateSharedRevision, MIN_SHARE_TTL_MS, MAX_SHARE_TTL_MS } = require('./share-links-protocol');
+const { validNotificationToken, validNotificationCursor, validateAccountNotifications,
+  validateNotificationPreferences } = require('./notification-protocol');
 
 const MAX_HTTP_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -37,7 +39,10 @@ const ERRORS = new Map([
   ['approval-forbidden', 403], ['branch-review-capacity', 503],
   ...['share-links-invalid', 'share-cursor-invalid'].map(code => [code, 400]),
   ...['share-head-stale', 'share-revision-unavailable', 'share-idempotency-conflict'].map(code => [code, 409]),
-  ['share-link-not-found', 404], ['share-link-unavailable', 404], ['share-links-unavailable', 503], ['share-links-capacity', 503]
+  ['share-link-not-found', 404], ['share-link-unavailable', 404], ['share-links-unavailable', 503], ['share-links-capacity', 503],
+  ...['notification-invalid', 'notification-cursor-invalid'].map(code => [code, 400]),
+  ...['notification-preference-version-conflict', 'notification-idempotency-conflict', 'notification-delivery-unavailable'].map(code => [code, 409]),
+  ['notification-unavailable', 503], ['notification-capacity', 503]
 ]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -121,6 +126,20 @@ function branchReviewPage(query) {
   }
   return result;
 }
+function notificationPage(query) {
+  const result = { limit: 20, cursor: null, filter: 'all' };
+  if (query === undefined) return result;
+  if (!query) throw fail('notification-invalid');
+  const seen = new Set();
+  for (const part of query.split('&')) {
+    const [key, value, extra] = part.split('=');
+    if (extra !== undefined || !['limit', 'cursor', 'filter'].includes(key) || seen.has(key)) throw fail('notification-invalid'); seen.add(key);
+    if (key === 'limit') { if (!/^[1-9][0-9]{0,2}$/.test(value || '') || Number(value) > 100) throw fail('notification-invalid'); result.limit = Number(value); }
+    else if (key === 'filter') { if (!['all', 'unread'].includes(value)) throw fail('notification-invalid'); result.filter = value; }
+    else { if (!validNotificationCursor(value)) throw fail('notification-cursor-invalid'); result.cursor = value; }
+  }
+  return result;
+}
 function route(req) {
   // Parse origin-form paths directly: URL normalization must not hide dot segments.
   if (typeof req.url !== 'string' || req.url.length > 8192 || !req.url.startsWith('/')
@@ -130,6 +149,12 @@ function route(req) {
   try { parts = pathname.slice(1).split('/').map(part => decodeURIComponent(part)); }
   catch { throw fail('request-invalid'); }
   if (parts.some(part => !ID.test(part))) throw fail('request-invalid');
+  if (parts.length === 2 && parts[0] === 'notifications' && parts[1] === 'unsubscribe') {
+    if (query !== undefined) throw fail('request-invalid'); return { kind: 'unsubscribeNotifications', methods: ['POST'], anonymous: true };
+  }
+  if (parts.length === 2 && parts[0] === 'account' && parts[1] === 'notifications') {
+    return { kind: 'getAccountNotifications', methods: ['GET'], page: notificationPage(query) };
+  }
   if (parts.length === 2 && parts[0] === 'shares' && parts[1] === 'redeem') {
     if (query !== undefined) throw fail('request-invalid');
     return { kind: 'redeemShareLink', methods: ['POST'], anonymous: true };
@@ -160,6 +185,13 @@ function route(req) {
       methods: ['GET', 'POST'], page };
   }
   if (query !== undefined || req.url.length > 2048) throw fail('request-invalid');
+  if (parts[0] === 'account' && parts[1] === 'notifications') {
+    if (parts.length === 4 && parts[3] === 'read') return { kind: 'markAccountNotificationRead', item: parts[2], methods: ['PUT'] };
+    if (parts.length === 3 && parts[2] === 'disable-delivery') return { kind: 'disableNotificationDelivery', methods: ['POST'] };
+  }
+  if (parts[0] === 'projects' && parts.length === 3 && parts[2] === 'notification-preferences') {
+    return { projectId: parts[1], kind: req.method === 'GET' ? 'getNotificationPreferences' : 'setNotificationPreferences', methods: ['GET', 'PUT'] };
+  }
   if (parts[0] === 'projects' && parts.length === 5 && parts[2] === 'share-links' && parts[4] === 'revocation') {
     return { projectId: parts[1], item: parts[3], kind: 'revokeShareLink', methods: ['PUT'] };
   }
@@ -289,8 +321,9 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
     || listProjects !== null && typeof listProjects !== 'function') throw fail('http-transport-invalid');
   const globalAuthLimit = createAuthLimiter();
   const shareRedeemLimit = createShareRedeemLimiter(); let shareRedeems = 0;
+  const unsubscribeLimit = createShareRedeemLimiter(); let unsubscribes = 0;
   return async function revisionHttpHandler(req, res) {
-    let context = createRequestContext(), shareAdmitted = false, shareRequest = false;
+    let context = createRequestContext(), shareAdmitted = false, shareRequest = false, unsubscribeAdmitted = false, unsubscribeRequest = false;
     try {
       if (!req.socket?.encrypted && !(allowLoopbackHttp
         && ['127.0.0.1', '::1'].includes(req.socket?.remoteAddress))) throw fail('secure-transport-required');
@@ -300,7 +333,8 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
         'idempotency-key': header(req, 'idempotency-key') });
       const target = route(req);
       shareRequest = target.kind === 'redeemShareLink';
-      if (requestOrigin !== undefined && !(target.kind === 'redeemShareLink' && sameOrigin(req, requestOrigin))) throw fail('browser-request-forbidden');
+      unsubscribeRequest = target.kind === 'unsubscribeNotifications';
+      if (requestOrigin !== undefined && !((shareRequest || unsubscribeRequest) && sameOrigin(req, requestOrigin))) throw fail('browser-request-forbidden');
       if (!target.methods.includes(req.method)) {
         res.setHeader('Allow', target.methods.join(', '));
         throw fail('method-not-allowed');
@@ -316,16 +350,54 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
           if (authorization !== undefined) throw fail('share-link-unavailable');
           if (shareRedeems >= 8) throw fail('share-links-unavailable');
           shareRedeemLimit(rateContext.addressHash); shareRedeems++; shareAdmitted = true;
+        } else if (unsubscribeRequest) {
+          if (typeof service.unsubscribeNotifications !== 'function') throw fail('route-not-found');
+          if (unsubscribes >= 8) throw fail('notification-unavailable');
+          unsubscribeLimit(rateContext.addressHash); unsubscribes++; unsubscribeAdmitted = true;
         } else { if (!identity) throw fail('route-not-found'); globalAuthLimit(rateContext); await authRateLimit(rateContext); }
       }
       if (['listActivity', 'listNotifications', 'markNotificationRead', 'listReviewComments', 'addReviewComment', 'resolveReviewComment',
-        'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'getShareReview', 'createShareLink', 'revokeShareLink']
+        'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'getShareReview', 'createShareLink', 'revokeShareLink',
+        'getAccountNotifications', 'markAccountNotificationRead', 'getNotificationPreferences', 'setNotificationPreferences', 'disableNotificationDelivery']
         .includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
-      const body = await readBody(req, req.method !== 'GET', target.kind === 'redeemShareLink' ? 512 : target.anonymous ? 8192
-        : ['markNotificationRead', 'resolveReviewComment', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'createShareLink', 'revokeShareLink'].includes(target.kind) ? 1024
-          : target.kind === 'addReviewComment' ? 24 * 1024 : MAX_HTTP_BYTES);
+      let body;
+      try { body = await readBody(req, req.method !== 'GET', shareRequest || unsubscribeRequest ? 512 : target.anonymous ? 8192
+        : ['markNotificationRead', 'resolveReviewComment', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'createShareLink', 'revokeShareLink',
+          'markAccountNotificationRead', 'setNotificationPreferences', 'disableNotificationDelivery'].includes(target.kind) ? 1024
+          : target.kind === 'addReviewComment' ? 24 * 1024 : MAX_HTTP_BYTES); }
+      catch (error) {
+        if (unsubscribeRequest && ['body-invalid', 'content-type-invalid'].includes(error.code)) {
+          body = null;
+          if (error.code === 'content-type-invalid') { res.shouldKeepAlive = false; res.setHeader('Connection', 'close'); req.pause(); }
+        } else throw error;
+      }
       let data;
-      if (target.kind === 'redeemShareLink') {
+      if (unsubscribeRequest) {
+        data = record(body) && Object.keys(body).join('|') === 'token' && validNotificationToken(body.token)
+          ? await service.unsubscribeNotifications({ token: body.token }) : { unsubscribed: true };
+        if (!record(data) || Object.keys(data).join('|') !== 'unsubscribed' || data.unsubscribed !== true) throw fail('service-unavailable');
+        data = { unsubscribed: true };
+      } else if (target.kind === 'getAccountNotifications') {
+        data = validateAccountNotifications(await service.getAccountNotifications(context, target.page), target.page);
+      } else if (target.kind === 'markAccountNotificationRead') {
+        fields(body, ['read'], ['read']); if (body.read !== true) throw fail('notification-invalid');
+        const result = await service.markAccountNotificationRead(context, target.item);
+        if (!record(result) || Object.keys(result).sort().join('|') !== 'eventId|read' || result.eventId !== target.item || result.read !== true) throw fail('service-unavailable');
+        data = { eventId: result.eventId, read: true };
+      } else if (target.kind === 'getNotificationPreferences') {
+        data = validateNotificationPreferences(await service.getNotificationPreferences(context, target.projectId), target.projectId);
+      } else if (target.kind === 'setNotificationPreferences') {
+        fields(body, ['expectedVersion', 'mode', 'digestHourUtc'], ['expectedVersion', 'mode', 'digestHourUtc']);
+        if (!Number.isSafeInteger(body.expectedVersion) || body.expectedVersion < 0 || !['off', 'immediate', 'daily'].includes(body.mode)
+          || !Number.isSafeInteger(body.digestHourUtc) || body.digestHourUtc < 0 || body.digestHourUtc > 23) throw fail('notification-invalid');
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        data = validateNotificationPreferences(await service.setNotificationPreferences(context, { projectId: target.projectId,
+          ...body, idempotencyKey: context.idempotencyKey }), target.projectId);
+        if (data.mode !== body.mode || data.digestHourUtc !== body.digestHourUtc || ![body.expectedVersion, body.expectedVersion + 1].includes(data.version)) throw fail('service-unavailable');
+      } else if (target.kind === 'disableNotificationDelivery') {
+        fields(body, [], []); const result = await service.disableNotificationDelivery(context);
+        if (!record(result) || Object.keys(result).join('|') !== 'disabled' || result.disabled !== true) throw fail('service-unavailable'); data = { disabled: true };
+      } else if (target.kind === 'redeemShareLink') {
         if (!record(body) || Object.keys(body).join('|') !== 'token' || !validShareToken(body.token)) throw fail('share-link-unavailable');
         data = validateSharedRevision(await service.redeemShareLink({ token: body.token }));
       } else if (target.kind === 'getShareReview') {
@@ -419,11 +491,11 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
     } catch (error) {
       const code = ERRORS.has(error?.code) ? error.code : 'service-unavailable';
       if (!req.complete) { res.shouldKeepAlive = false;
-        if (shareRequest) { res.setHeader('Connection', 'close'); req.pause(); }
+        if (shareRequest || unsubscribeRequest) { res.setHeader('Connection', 'close'); req.pause(); }
         else req.resume();
       }
       send(res, ERRORS.get(code), { apiVersion: API_VERSION, requestId: context.requestId, error: { code } });
-    } finally { if (shareAdmitted) shareRedeems--; }
+    } finally { if (shareAdmitted) shareRedeems--; if (unsubscribeAdmitted) unsubscribes--; }
   };
 }
 function send(res, status, envelope) {

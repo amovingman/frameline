@@ -76,6 +76,13 @@ function createProjectActivity({ access, now = () => Date.now(), initialState = 
     authorize(actorId, projectId);
     const event = state.events.find(event => event.id === eventId && received(event, actorId, projectId));
     if (!event) throw fail('notification-not-found');
+    return markRecipientRead(actorId, eventId);
+  }
+  // Trusted account-inbox composition checks current visibility first, including
+  // a removed recipient's redacted permission-loss notice.
+  function markRecipientRead(actorId, eventId) {
+    const event = state.events.find(event => event.id === eventId && event.recipientIds.includes(actorId));
+    if (!validId(actorId) || !event) throw fail('notification-not-found');
     const key = `${actorId}:${eventId}`;
     if (!Object.hasOwn(state.receipts, key)) {
       if (Object.keys(state.receipts).length >= MAX_RECEIPTS) throw fail('activity-capacity-exceeded');
@@ -121,7 +128,7 @@ function createProjectActivity({ access, now = () => Date.now(), initialState = 
     return { projectId, items, nextCursor, unreadCount };
   }
   function subscribe(listener) { if (typeof listener !== 'function') throw fail('activity-listener-invalid'); listeners.add(listener); return () => listeners.delete(listener); }
-  return { record, list, notifications, markRead, subscribe, snapshot: () => structuredClone(state), verify: () => { validateActivityState(state); return true; },
+  return { record, list, notifications, markRead, markRecipientRead, subscribe, snapshot: () => structuredClone(state), verify: () => { validateActivityState(state); return true; },
     listPage: (actorId, projectId, options) => page('activity', actorId, projectId, options),
     notificationPage: (actorId, projectId, options) => page('notifications', actorId, projectId, options) };
 }

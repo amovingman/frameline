@@ -3,7 +3,7 @@ function fail(code) { const error = new Error(code); error.code = code; return e
 // Every operation resolves authorization before touching the history store.
 // Asset access is represented even though the current history store does not
 // persist media bytes.
-function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null, shareLinks = null,
+function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null, shareLinks = null, notifications = null,
   branchProtection = null }) {
   if (!history || !access || !identity || typeof identity.authenticate !== 'function') throw fail('authorized-service-invalid');
   function checked(context, projectId, resource, action, operation) {
@@ -60,6 +60,14 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
     revokeShareLink: (context, input) => checked(context, input?.projectId, 'project', 'write',
       actorId => { if (!shareLinks) throw fail('share-links-unavailable'); return shareLinks.revoke(actorId, input); }),
     redeemShareLink: input => { if (!shareLinks) throw fail('share-link-unavailable'); return shareLinks.redeem(input); },
+    getAccountNotifications: (context, page) => { if (!notifications) throw fail('notification-unavailable'); return notifications.getInbox(identity.authenticate(context?.accessToken).userId, page); },
+    markAccountNotificationRead: (context, eventId) => { if (!notifications) throw fail('notification-unavailable'); return notifications.markRead(identity.authenticate(context?.accessToken).userId, eventId); },
+    getNotificationPreferences: (context, projectId) => checked(context, projectId, 'project', 'read',
+      actorId => { if (!notifications) throw fail('notification-unavailable'); return notifications.getPreference(actorId, projectId); }),
+    setNotificationPreferences: (context, input) => checked(context, input?.projectId, 'project', 'read',
+      actorId => { if (!notifications) throw fail('notification-unavailable'); return notifications.setPreference(actorId, input); }),
+    disableNotificationDelivery: context => { if (!notifications) throw fail('notification-unavailable'); return notifications.disable(identity.authenticate(context?.accessToken).userId); },
+    unsubscribeNotifications: input => notifications ? notifications.unsubscribe(input) : { unsubscribed: true },
     getManifest: (context, projectId, manifestId) => checked(context, projectId, 'revision', 'read',
       () => history.getManifest(projectId, manifestId)),
     getRevision: (context, projectId, revisionId) => checked(context, projectId, 'revision', 'read',

@@ -28,7 +28,13 @@ async function main(args = process.argv.slice(2)) {
     } finally { await assets?.close(); await runtime.close(); }
     log(process.stdout, { event: 'service-initialized' }); return;
   }
-  const host = await startServiceHost({ config: await loadServiceHostConfig(args[2]) });
+  let deliveryReceipt = { accepted: 0, failed: 0, cancelled: 0, error: null };
+  const host = await startServiceHost({ config: await loadServiceHostConfig(args[2]), onNotificationStatus: status => {
+    if (['accepted', 'failed', 'cancelled', 'error'].some(key => status[key] !== deliveryReceipt[key])) {
+      deliveryReceipt = { accepted: status.accepted, failed: status.failed, cancelled: status.cancelled, error: status.error };
+      log(process.stdout, { event: 'notification-delivery', ...deliveryReceipt });
+    }
+  } });
   log(process.stdout, { event: 'service-ready', address: host.address });
   let stopping = false;
   const stop = async () => {

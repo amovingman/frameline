@@ -64,6 +64,19 @@ let shareLinksTtlDraft = '86400000';
 let shareLinksAction = null;
 let shareLinksNotice = '';
 const shareLinksRows = new Map();
+let accountUpdatesState = null;
+let accountUpdatesVersion = -1;
+let accountUpdatesAccountKey = '';
+let accountUpdatesAccessKey = '';
+let accountUpdatesAction = null;
+let accountUpdatesFilter = 'all';
+let accountUpdatesNotice = '';
+let notificationPreferencesNotice = '';
+let notificationProjectChoice = '';
+let notificationProjectOptionsKey = '';
+let notificationPreferenceEvidenceKey = '';
+let notificationPreferenceDraft = { mode: 'off', digestHourUtc: '9' };
+const accountUpdateRows = new Map();
 let projectActivityState = null;
 let projectActivityVersion = -1;
 let projectActivityContext = '';
@@ -479,6 +492,184 @@ function serviceErrorLabel(code) {
     'credential-storage-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.',
     'credential-vault-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.'
   })[code] || 'The service action could not finish. Check the connection or sign in again, then retry.';
+}
+function currentAccountUpdatesAccount() {
+  return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
+    ? JSON.stringify([serviceState.origin, serviceState.account.id]) : '';
+}
+function syncAccountUpdatesAccount() {
+  const account = currentAccountUpdatesAccount();
+  const access = JSON.stringify([account, serviceState?.status, (serviceState?.projects || []).map(item => [item.id, item.role])]);
+  if (account !== accountUpdatesAccountKey) {
+    accountUpdatesAccountKey = account; accountUpdatesState = null; accountUpdatesAction = null; accountUpdatesNotice = ''; accountUpdatesFilter = 'all';
+    notificationProjectChoice = ''; notificationPreferencesNotice = ''; notificationPreferenceEvidenceKey = '';
+    notificationPreferenceDraft = { mode: 'off', digestHourUtc: '9' };
+  }
+  const preference = accountUpdatesState?.preference;
+  const project = serviceState?.projects?.find(item => item.id === preference?.projectId);
+  if (preference?.projectId && project?.role !== preference.role) {
+    notificationPreferenceDraft = { mode: 'off', digestHourUtc: '9' }; notificationPreferencesNotice = '';
+    if (accountUpdatesAction?.method === 'saveNotificationPreferences') accountUpdatesAction = null;
+  }
+  renderAccountUpdates();
+  if (access !== accountUpdatesAccessKey) { accountUpdatesAccessKey = access; readAccountUpdatesState(); }
+}
+async function readAccountUpdatesState() {
+  if (!window.desktop?.getAccountUpdatesState) return;
+  const account = currentAccountUpdatesAccount();
+  try { renderAccountUpdatesState(await window.desktop.getAccountUpdatesState(), account); }
+  catch { if (account === currentAccountUpdatesAccount()) { accountUpdatesNotice = 'Account updates could not be read. Refresh account updates to retry.'; renderAccountUpdates(); } }
+}
+function accountUpdatesReceiptMatches(action, state) {
+  if (!action || !state?.scopeId || !state.available || action.account !== currentAccountUpdatesAccount()) return false;
+  if (action.method === 'markAccountUpdateRead') return state.outcome?.kind === 'read' && state.outcome.eventId === action.eventId;
+  if (action.method === 'disableNotificationDelivery') return state.outcome?.kind === 'delivery-disabled';
+  if (action.method !== 'saveNotificationPreferences' || state.outcome?.kind !== 'preferences-saved') return false;
+  const preference = state.preference, project = serviceState?.projects?.find(item => item.id === action.projectId);
+  return preference?.projectId === action.projectId && state.outcome.projectId === action.projectId && preference.role === action.role
+    && project?.role === action.role && Number.isSafeInteger(state.outcome.version)
+    && [action.preferenceVersion, action.preferenceVersion + 1].includes(state.outcome.version);
+}
+function renderAccountUpdatesState(state, expectedAccount = currentAccountUpdatesAccount()) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < accountUpdatesVersion
+    || expectedAccount !== currentAccountUpdatesAccount()) return false;
+  const preference = state.preference;
+  const evidence = JSON.stringify([currentAccountUpdatesAccount(), preference?.scopeId, preference?.projectId, preference?.role, preference?.value?.version]);
+  const changedScope = state.scopeId !== accountUpdatesState?.scopeId;
+  if (evidence !== notificationPreferenceEvidenceKey) {
+    notificationPreferenceEvidenceKey = evidence; notificationPreferencesNotice = '';
+    notificationPreferenceDraft = { mode: preference?.value?.mode || 'off', digestHourUtc: String(preference?.value?.digestHourUtc ?? 9) };
+  }
+  if (accountUpdatesAction && (changedScope || accountUpdatesAction.method === 'saveNotificationPreferences' && evidence !== accountUpdatesAction.preferenceEvidence)) {
+    if (accountUpdatesAction.method !== 'selectNotificationProject' && !accountUpdatesReceiptMatches(accountUpdatesAction, state)) accountUpdatesAction = null;
+  }
+  accountUpdatesState = state; accountUpdatesVersion = state.version;
+  if (preference?.projectId && !notificationProjectChoice) notificationProjectChoice = preference.projectId;
+  renderAccountUpdates(); return true;
+}
+function accountUpdatesErrorLabel(code) {
+  return ({
+    'notification-invalid': 'Check the selected project, delivery mode and UTC hour.',
+    'notification-unavailable': 'Account updates are unavailable. Sign in again or refresh after reconnecting.',
+    'notification-cursor-invalid': 'This page is no longer valid. Refresh account updates to start with the newest entries.',
+    'notification-not-found': 'This update is no longer available. Refresh account updates.',
+    'notification-capacity': 'The service notification limit was reached. Contact the administrator.',
+    'notification-preference-version-conflict': 'Your email preferences changed elsewhere. Load them again before saving.',
+    'notification-idempotency-conflict': 'The pending preference request no longer matches. Load the preferences and review your choices before retrying.',
+    'notification-delivery-unavailable': 'Email delivery is not configured on this service. You can keep email off and read updates here.',
+    'account-updates-selection-changed': 'The account or preference target changed. Refresh updates or load the selected preferences again.',
+    'account-updates-refresh-required': 'Load the current email preferences before saving.',
+    'account-updates-busy': 'Another account update action is running. Wait for it to finish, then retry.',
+    'account-updates-display-limit': 'The update display limit was reached. Refresh account updates to start with the newest entries.',
+    'account-updates-local-error': 'Account update state could not be read locally. Refresh account updates to retry.'
+  })[code] || serviceErrorLabel(code);
+}
+function renderAccountUpdates() {
+  const account = currentAccountUpdatesAccount();
+  const state = account && account === accountUpdatesAccountKey ? accountUpdatesState : null;
+  const available = !!state?.available, preference = state?.preference, pending = accountUpdatesAction;
+  const busy = !!pending || !!state?.busy || !!preference?.busy, connected = serviceState?.status === 'connected';
+  const hasAPI = typeof window.desktop?.getAccountUpdatesState === 'function';
+  document.getElementById('account-updates-refresh').disabled = !available || busy || !window.desktop?.refreshAccountUpdates;
+  const filter = document.getElementById('account-updates-filter'); filter.value = accountUpdatesFilter;
+  filter.disabled = !available || busy || !window.desktop?.refreshAccountUpdates;
+  const watch = document.getElementById('account-updates-watch'); watch.checked = !!state?.watch;
+  watch.disabled = !available || !!pending || !window.desktop?.setAccountUpdatesWatch;
+  setServiceText(document.getElementById('account-updates-unread'), available && state.ready === true && Number.isSafeInteger(state.checkedAt) && Number.isSafeInteger(state.unreadCount)
+    ? `${state.unreadCount} unread account update${state.unreadCount === 1 ? '' : 's'}` : 'Unread not checked');
+  const items = available && state.filter === accountUpdatesFilter ? (state.items || []).filter(item => item.accessLost
+    || serviceState?.projects?.some(project => project.id === item.projectId)) : [];
+  const ids = new Set(items.map(item => item.id)), list = document.getElementById('account-updates-list');
+  for (const [id, view] of accountUpdateRows) if (!ids.has(id)) { view.row.remove(); accountUpdateRows.delete(id); }
+  const labels = { 'revision.created': 'Revision published', 'branch.changed': 'Branch updated', 'pull.completed': 'Pull completed',
+    'member.invited': 'Project invitation created', 'member.joined': 'Member joined', 'member.role-changed': 'Member permissions changed',
+    'member.removed': 'Member removed', 'owner.transferred': 'Project ownership transferred', 'project.deleted': 'Project deleted',
+    'branch.protection-changed': 'Branch protection changed', 'approval.requested': 'Branch review requested', 'approval.recorded': 'Branch approval recorded',
+    'approval.applied': 'Approved revision published', 'share.created': 'Read-only link created', 'share.revoked': 'Read-only link revoked' };
+  items.forEach((item, index) => {
+    let view = accountUpdateRows.get(item.id);
+    if (!view) {
+      const row = make('article', 'account-update-row'); row.setAttribute('role', 'listitem');
+      const body = make('div'), title = make('h4'), project = make('p'), stamp = make('p'), read = make('button', '', 'Mark read'); read.type = 'button';
+      read.addEventListener('click', () => runAccountUpdatesAction('markAccountUpdateRead', { scopeId: accountUpdatesState?.scopeId, eventId: item.id }));
+      body.append(title, project, stamp); row.append(body, read); view = { row, title, project, stamp, read }; accountUpdateRows.set(item.id, view);
+    }
+    setServiceText(view.title, item.accessLost ? 'Your project access ended' : labels[item.type] || 'Project updated');
+    setServiceText(view.project, item.accessLost ? 'Project details are no longer available to this account.' : item.projectName || 'Project update');
+    setServiceText(view.stamp, `${serviceDate(item.at)} · ${item.read ? 'Read' : 'Unread'}`);
+    view.read.hidden = item.read === true; view.read.disabled = busy || !available || !connected || !window.desktop?.markAccountUpdateRead;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  const status = !hasAPI ? 'Account updates are unavailable in this build.' : !available ? 'Sign in to refresh account updates.'
+    : pending && ['refreshAccountUpdates', 'markAccountUpdateRead', 'setAccountUpdatesWatch'].includes(pending.method) ? 'Updating account updates…'
+      : accountUpdatesNotice || (state?.error ? accountUpdatesErrorLabel(state.error) : !state?.checkedAt ? 'Refresh account updates to check for project updates.'
+        : !items.length ? accountUpdatesFilter === 'unread' ? 'No unread updates in this account view.' : 'No updates in this account view.' : 'Opening this feed does not mark updates read.');
+  setServiceText(document.getElementById('account-updates-status'), status);
+  setServiceText(document.getElementById('account-updates-stamp'), available && state.checkedAt ? `Account updates checked ${serviceDate(state.checkedAt)}.` : '');
+  setServiceText(document.getElementById('account-updates-range'), items.length || state?.checkedAt ? `${items.length} update${items.length === 1 ? '' : 's'} shown` : '');
+  const more = document.getElementById('account-updates-more'); more.hidden = !available || !state?.nextCursor;
+  more.disabled = busy || !window.desktop?.refreshAccountUpdates;
+  const projects = account ? serviceState?.projects || [] : [], select = document.getElementById('notification-preferences-project');
+  const optionsKey = JSON.stringify(projects.map(item => [item.id, item.name, item.role]));
+  if (optionsKey !== notificationProjectOptionsKey) {
+    notificationProjectOptionsKey = optionsKey; select.replaceChildren(new Option('Choose a service project', ''));
+    for (const project of projects) select.add(new Option(`${project.name} · ${project.role}`, project.id));
+  }
+  const project = projects.find(item => item.id === notificationProjectChoice); if (!project) notificationProjectChoice = '';
+  select.value = notificationProjectChoice; select.disabled = !available || busy || !window.desktop?.selectNotificationProject;
+  const pref = project && preference?.projectId === project.id && preference.role === project.role ? preference : null;
+  const loaded = !!pref?.ready && !!pref.value, deliveryAvailable = !!(pref?.value?.deliveryAvailable ?? pref?.deliveryAvailable);
+  document.getElementById('notification-preferences-load').disabled = !available || !pref || busy || !window.desktop?.refreshNotificationPreferences;
+  document.getElementById('notification-preferences-disable').disabled = !available || busy || !connected || !state?.scopeId || !window.desktop?.disableNotificationDelivery;
+  setServiceText(document.getElementById('notification-preferences-email'), serviceState?.account?.email ? `Account email: ${serviceState.account.email}` : '');
+  const fields = document.getElementById('notification-preferences-fields'); fields.disabled = !loaded || busy || !connected || !window.desktop?.saveNotificationPreferences;
+  const mode = document.getElementById('notification-preferences-mode'); mode.value = notificationPreferenceDraft.mode;
+  for (const option of mode.options || []) if (option.value !== 'off') option.disabled = !deliveryAvailable;
+  const hour = document.getElementById('notification-preferences-hour'); if (hour.value !== notificationPreferenceDraft.digestHourUtc) hour.value = notificationPreferenceDraft.digestHourUtc;
+  document.getElementById('notification-preferences-hour-field').hidden = notificationPreferenceDraft.mode !== 'daily';
+  hour.required = notificationPreferenceDraft.mode === 'daily';
+  const validHour = /^\d{1,2}$/.test(notificationPreferenceDraft.digestHourUtc) && Number(notificationPreferenceDraft.digestHourUtc) <= 23;
+  const changed = loaded && (notificationPreferenceDraft.mode !== pref.value.mode || Number(notificationPreferenceDraft.digestHourUtc) !== pref.value.digestHourUtc);
+  document.getElementById('notification-preferences-save').disabled = fields.disabled || !changed || !['off', 'immediate', 'daily'].includes(notificationPreferenceDraft.mode)
+    || !validHour || notificationPreferenceDraft.mode !== 'off' && !deliveryAvailable;
+  const prefStatus = notificationPreferencesNotice || (pref?.error ? accountUpdatesErrorLabel(pref.error)
+    : !project ? 'Choose a project and load its preferences. Email is off by default.' : !loaded ? 'Load email preferences before making changes.'
+      : !deliveryAvailable ? 'Email delivery is not configured on this service. You can turn email off and read updates in this app.'
+        : `Saved setting: ${pref.value.mode === 'daily' ? `Daily digest after ${pref.value.digestHourUtc}:00 UTC` : pref.value.mode === 'immediate' ? 'Immediate email' : 'Off'}. Changes affect only your account for this project.`);
+  setServiceText(document.getElementById('notification-preferences-status'), prefStatus);
+  document.getElementById('account-updates-panel').setAttribute('aria-busy', String(busy));
+}
+async function runAccountUpdatesAction(method, input) {
+  const account = currentAccountUpdatesAccount(), scopeId = accountUpdatesState?.scopeId, preference = accountUpdatesState?.preference;
+  if (!account || accountUpdatesAction || accountUpdatesState?.busy || preference?.busy || !window.desktop?.[method]) return;
+  if (['markAccountUpdateRead', 'disableNotificationDelivery'].includes(method) && (!scopeId || input?.scopeId !== scopeId)) return;
+  if (method === 'saveNotificationPreferences' && (!preference?.scopeId || input?.scopeId !== preference.scopeId)) return;
+  const action = { method, account, scopeId, projectId: preference?.projectId, role: preference?.role, preferenceVersion: preference?.value?.version,
+    preferenceEvidence: notificationPreferenceEvidenceKey, eventId: input?.eventId }, focused = document.activeElement;
+  accountUpdatesAction = action;
+  if (['selectNotificationProject', 'refreshNotificationPreferences', 'saveNotificationPreferences', 'disableNotificationDelivery'].includes(method)) notificationPreferencesNotice = '';
+  else accountUpdatesNotice = '';
+  renderAccountUpdates();
+  try {
+    const state = await window.desktop[method](input);
+    if (accountUpdatesAction !== action || account !== currentAccountUpdatesAccount()) return;
+    const accepted = renderAccountUpdatesState(state, account);
+    if (accepted && accountUpdatesReceiptMatches(action, state)) {
+      if (state.outcome.kind === 'read') accountUpdatesNotice = 'Update marked read.';
+      else notificationPreferencesNotice = state.outcome.kind === 'delivery-disabled' ? 'All email delivery is off for this account.' : 'Your email preferences were saved.';
+      if (state.outcome.kind !== 'read' && (state.preference?.error || !state.preference?.ready && state.preference?.projectId)) notificationPreferencesNotice += ' Load email preferences to read the current settings.';
+    }
+  } catch { if (accountUpdatesAction === action && account === currentAccountUpdatesAccount()) {
+    if (['selectNotificationProject', 'refreshNotificationPreferences', 'saveNotificationPreferences', 'disableNotificationDelivery'].includes(method)) notificationPreferencesNotice = 'The email preference action could not finish. Load the preferences and retry.';
+    else accountUpdatesNotice = 'The account update action could not finish. Refresh account updates and retry.';
+  } }
+  finally {
+    const finishing = accountUpdatesAction === action; if (finishing) accountUpdatesAction = null; renderAccountUpdates();
+    if (finishing && focused && account === currentAccountUpdatesAccount() && (document.activeElement === document.body || document.activeElement === focused)) {
+      const statusId = ['selectNotificationProject', 'refreshNotificationPreferences', 'saveNotificationPreferences', 'disableNotificationDelivery'].includes(method) ? 'notification-preferences-status' : 'account-updates-status';
+      const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById(statusId); target.focus({ preventScroll: true });
+    }
+  }
 }
 function currentShareLinksAccount() {
   return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
@@ -1014,6 +1205,7 @@ function renderServicePanel() {
   syncProjectActivityContext(); renderProjectActivity();
   syncBranchReviewAccount();
   syncShareLinksAccount();
+  syncAccountUpdatesAccount();
 }
 function renderServiceState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
@@ -2218,6 +2410,34 @@ document.getElementById('relink-action').addEventListener('click', async () => {
     notice.textContent = 'Could not relink history. Rescan the export and retry.';
   } finally { button.disabled = false; }
 });
+document.getElementById('account-updates-refresh').addEventListener('click', () => runAccountUpdatesAction('refreshAccountUpdates', { append: false, filter: accountUpdatesFilter }));
+document.getElementById('account-updates-more').addEventListener('click', () => runAccountUpdatesAction('refreshAccountUpdates', { append: true, filter: accountUpdatesFilter }));
+document.getElementById('account-updates-filter').addEventListener('change', event => {
+  accountUpdatesFilter = event.target.value === 'unread' ? 'unread' : 'all'; renderAccountUpdates();
+  runAccountUpdatesAction('refreshAccountUpdates', { append: false, filter: accountUpdatesFilter });
+});
+document.getElementById('account-updates-watch').addEventListener('change', event => runAccountUpdatesAction('setAccountUpdatesWatch', event.target.checked));
+document.getElementById('notification-preferences-project').addEventListener('change', event => {
+  notificationProjectChoice = event.target.value; notificationPreferenceDraft = { mode: 'off', digestHourUtc: '9' }; notificationPreferencesNotice = '';
+  renderAccountUpdates(); runAccountUpdatesAction('selectNotificationProject', notificationProjectChoice || null);
+});
+document.getElementById('notification-preferences-load').addEventListener('click', () => runAccountUpdatesAction('refreshNotificationPreferences'));
+document.getElementById('notification-preferences-mode').addEventListener('change', event => {
+  notificationPreferenceDraft.mode = ['off', 'immediate', 'daily'].includes(event.target.value) ? event.target.value : 'off';
+  if (notificationPreferenceDraft.mode !== 'daily' && (!/^\d{1,2}$/.test(notificationPreferenceDraft.digestHourUtc) || Number(notificationPreferenceDraft.digestHourUtc) > 23))
+    notificationPreferenceDraft.digestHourUtc = String(accountUpdatesState?.preference?.value?.digestHourUtc ?? 9);
+  renderAccountUpdates();
+});
+document.getElementById('notification-preferences-hour').addEventListener('input', event => {
+  notificationPreferenceDraft.digestHourUtc = event.target.value; renderAccountUpdates();
+});
+document.getElementById('notification-preferences-form').addEventListener('submit', event => {
+  event.preventDefault(); if (document.getElementById('notification-preferences-save').disabled) return;
+  runAccountUpdatesAction('saveNotificationPreferences', { scopeId: accountUpdatesState.preference.scopeId, mode: notificationPreferenceDraft.mode,
+    digestHourUtc: Number(notificationPreferenceDraft.digestHourUtc) });
+});
+document.getElementById('notification-preferences-disable').addEventListener('click', () => runAccountUpdatesAction('disableNotificationDelivery', { scopeId: accountUpdatesState?.scopeId }));
+window.desktop?.onAccountUpdatesState?.(state => renderAccountUpdatesState(state));
 document.getElementById('share-links-project').addEventListener('change', event => {
   shareLinksProjectChoice = event.target.value; shareLinksBranchChoice = ''; renderShareLinks();
 });

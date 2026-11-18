@@ -106,3 +106,15 @@ test('direct host construction rejects overlapping media and identity stores bef
   }
   await assert.rejects(fs.stat(path.join(config.directory, 'collaboration.enc.json')), { code: 'ENOENT' });
 });
+
+test('optional notification configuration is validated before storage initialization and absent mail starts no worker', async t => {
+  const config = await fixture(t);
+  await assert.rejects(startServiceHost({ config: { ...config, notifications: {
+    publicOrigin: 'http://mail.example.test', from: 'updates@example.test',
+    smtp: { host: 'mail.example.test', port: 465, username: null, password: null }
+  } }, initialize: true, allowEphemeralPort: true }), { code: 'service-host-config-invalid' });
+  await assert.rejects(fs.stat(path.join(config.directory, 'collaboration.enc.json')), { code: 'ENOENT' });
+  const host = await startServiceHost({ config, initialize: true, allowEphemeralPort: true }); t.after(() => host.close());
+  assert.equal(host.getNotificationStatus(), null); assert.equal(await host.runNotificationDelivery(), null);
+  await host.close(); await assert.rejects(host.runNotificationDelivery(), { code: 'service-host-closed' });
+});

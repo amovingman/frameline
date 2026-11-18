@@ -9,6 +9,8 @@ const { BRANCH_REVIEW_ERROR_CODES, validateBranchReviewPageInput, validateBranch
   validateBranchProtectionPolicy, validateBranchApprovalRequest } = require('./branch-review-protocol');
 const { SHARE_ERROR_CODES, validateSharePageInput, validateShareReview, validateShareCreation, validateShareLink,
   validateSharedRevision, validShareToken, MIN_SHARE_TTL_MS, MAX_SHARE_TTL_MS } = require('./share-links-protocol');
+const { NOTIFICATION_ERROR_CODES, validNotificationToken, validateNotificationPageInput,
+  validateAccountNotifications, validateNotificationPreferences } = require('./notification-protocol');
 
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -20,7 +22,8 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceede
   'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers', 'activity-page-invalid',
   'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found',
   'comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
-  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity', ...BRANCH_REVIEW_ERROR_CODES, ...SHARE_ERROR_CODES]);
+  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity', ...BRANCH_REVIEW_ERROR_CODES,
+  ...SHARE_ERROR_CODES, ...NOTIFICATION_ERROR_CODES]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function segment(value) {
   if (typeof value !== 'string' || !ID.test(value)) throw fail('sync-request-invalid');
@@ -115,7 +118,8 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     if (!response.ok) {
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
       if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
-      if (['activity-state-invalid', 'comment-capacity', 'branch-review-capacity', 'share-links-capacity', 'share-links-unavailable'].includes(envelope.error.code)) throw fail(envelope.error.code);
+      if (['activity-state-invalid', 'comment-capacity', 'branch-review-capacity', 'share-links-capacity', 'share-links-unavailable',
+        'notification-unavailable', 'notification-capacity'].includes(envelope.error.code)) throw fail(envelope.error.code);
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -132,6 +136,35 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     return validateProjectFeedPage(result, projectId, { limit, notifications: resource === 'notifications' });
   }
   return {
+    getAccountNotifications: async (page = {}, options = {}) => {
+      const checked = validateNotificationPageInput(page);
+      return validateAccountNotifications(await request('GET', `/account/notifications?limit=${checked.limit}&filter=${checked.filter}${checked.cursor === null ? '' : `&cursor=${checked.cursor}`}`, undefined, options), checked);
+    },
+    markAccountNotificationRead: async (eventId, options = {}) => {
+      const result = await request('PUT', `/account/notifications/${segment(eventId)}/read`, { read: true }, options);
+      if (!fields(result, ['eventId', 'read']) || result.eventId !== eventId || result.read !== true) throw fail('sync-response-invalid'); return { eventId, read: true };
+    },
+    getNotificationPreferences: async (projectId, options = {}) => validateNotificationPreferences(
+      await request('GET', `${project(projectId)}/notification-preferences`, undefined, options), projectId),
+    setNotificationPreferences: async (input, options = {}) => {
+      if (!fields(input, ['projectId', 'expectedVersion', 'mode', 'digestHourUtc', 'idempotencyKey']) || !identifier(input.idempotencyKey)
+        || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0 || !['off', 'immediate', 'daily'].includes(input.mode)
+        || !Number.isSafeInteger(input.digestHourUtc) || input.digestHourUtc < 0 || input.digestHourUtc > 23) throw fail('notification-invalid');
+      const result = validateNotificationPreferences(await request('PUT', `${project(input.projectId)}/notification-preferences`,
+        { expectedVersion: input.expectedVersion, mode: input.mode, digestHourUtc: input.digestHourUtc }, { ...options, idempotencyKey: input.idempotencyKey }), input.projectId);
+      if (result.mode !== input.mode || result.digestHourUtc !== input.digestHourUtc
+        || ![input.expectedVersion, input.expectedVersion + 1].includes(result.version)) throw fail('sync-response-invalid'); return result;
+    },
+    disableNotificationDelivery: async (options = {}) => {
+      const result = await request('POST', '/account/notifications/disable-delivery', {}, options);
+      if (!fields(result, ['disabled']) || result.disabled !== true) throw fail('sync-response-invalid'); return { disabled: true };
+    },
+    unsubscribeNotifications: async (input, options = {}) => {
+      if (!fields(input, ['token'])) throw fail('notification-invalid');
+      if (!validNotificationToken(input.token)) return { unsubscribed: true };
+      const result = await request('POST', '/notifications/unsubscribe', { token: input.token }, { ...options, anonymous: true });
+      if (!fields(result, ['unsubscribed']) || result.unsubscribed !== true) throw fail('sync-response-invalid'); return { unsubscribed: true };
+    },
     getShareReview: async (projectId, branch, page = {}, options = {}) => {
       const checked = validateSharePageInput(page);
       return validateShareReview(await request('GET', `${project(projectId)}/branches/${segment(branch)}/share-links?limit=${checked.limit}${checked.cursor === null ? '' : `&cursor=${checked.cursor}`}`, undefined, options),

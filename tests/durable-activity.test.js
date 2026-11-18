@@ -72,9 +72,9 @@ test('a pre-publication write failure cannot persist history without its event o
 });
 
 test('combined schema1 migration preserves credentials/history and adds empty activity atomically without replay', async t => {
-  const f = await fixture(t); const created = await revision(f); const old = await f.state(); old.schemaVersion = 1; delete old.activity; delete old.comments; delete old.branchProtection; delete old.shareLinks;
+  const f = await fixture(t); const created = await revision(f); const old = await f.state(); old.schemaVersion = 1; delete old.activity; delete old.comments; delete old.branchProtection; delete old.shareLinks;delete old.notifications;
   await f.runtime.close(); const envelope = JSON.parse(await fs.readFile(f.filename)); envelope.record = f.keyring.encrypt(old); await fs.writeFile(f.filename, JSON.stringify(envelope));
-  await f.reopen(); const migrated = await f.state(); assert.equal(migrated.schemaVersion, 5); assert.equal(migrated.generation, old.generation + 1);
+  await f.reopen(); const migrated = await f.state(); assert.equal(migrated.schemaVersion, 6); assert.equal(migrated.generation, old.generation + 1);
   for (const field of ['identity', 'access', 'history', 'paginationKey']) assert.deepEqual(migrated[field], old[field]);
   assert.deepEqual(migrated.activity, { version: 1, events: [], receipts: {} });
   assert.equal((await f.runtime.identity.authenticate(f.editorContext.accessToken)).userId, f.editor.id);
@@ -84,7 +84,7 @@ test('combined schema1 migration preserves credentials/history and adds empty ac
 });
 
 test('failed and uncertain schema migration preserve evidence and recover without duplicated notifications', async t => {
-  const f = await fixture(t); await revision(f); const old = await f.state(); old.schemaVersion = 1; delete old.activity; delete old.comments; delete old.branchProtection; delete old.shareLinks;
+  const f = await fixture(t); await revision(f); const old = await f.state(); old.schemaVersion = 1; delete old.activity; delete old.comments; delete old.branchProtection; delete old.shareLinks;delete old.notifications;
   await f.runtime.close(); const envelope = JSON.parse(await fs.readFile(f.filename)); envelope.record = f.keyring.encrypt(old); const legacy = Buffer.from(JSON.stringify(envelope)); await fs.writeFile(f.filename, legacy);
   const failing = { ...fs, async open(filename, ...args) { const handle = await fs.open(filename, ...args); if (!filename.endsWith('.tmp')) return handle;
     return { writeFile: (...args) => handle.writeFile(...args), close: () => handle.close(), async sync() { throw new Error('disk'); } }; } };
@@ -137,7 +137,7 @@ test('legacy colon-delimited opaque project and branch IDs remain writable after
   const { createCloudHistoryStore } = require('../src/cloud-history-store');
   const f = await fixture(t); const state = await f.state(); const teamId = state.access.teams[0].id;
   await f.runtime.projects.create(f.ownerContext, { projectId: 'C:film', name: 'Colon film', teamId });
-  const legacy = await f.state(); legacy.schemaVersion = 1; delete legacy.activity; delete legacy.comments; delete legacy.branchProtection; delete legacy.shareLinks;
+  const legacy = await f.state(); legacy.schemaVersion = 1; delete legacy.activity; delete legacy.comments; delete legacy.branchProtection; delete legacy.shareLinks;delete legacy.notifications;
   const history = createCloudHistoryStore(legacy.history); history.createBranch('C:film', 'C:review'); legacy.history = history.snapshot();
   await f.runtime.close(); const envelope = JSON.parse(await fs.readFile(f.filename)); envelope.record = f.keyring.encrypt(legacy); await fs.writeFile(f.filename, JSON.stringify(envelope));
   await f.reopen(); const stored = await f.runtime.service.putManifest(f.ownerContext, 'C:film', manifest('b'));
@@ -160,7 +160,7 @@ test('account deletion atomically records each actual membership removal and pre
   await f.runtime.projects.delete(f.ownerContext, 'deleted-viewer-film');
   const before = await f.state(); assert.equal(before.identity.users.find(user => user.id === f.editor.id).status, 'active');
   await f.runtime.identity.deleteAccount(f.editorContext, 'editor fixture password');
-  const committed = await f.state(); assert.equal(validateCollaborationState(committed).schemaVersion, 5);
+  const committed = await f.state(); assert.equal(validateCollaborationState(committed).schemaVersion, 6);
   const removal = (await f.runtime.service.listActivity(f.ownerContext, 'film')).items[0];
   assert.deepEqual(Object.keys(removal).sort(), ['id', 'projectId', 'actorId', 'type', 'subjectId', 'at'].sort());
   assert.equal(removal.type, 'member.removed'); assert.equal(removal.actorId, f.editor.id); assert.equal(removal.subjectId, f.editor.id);

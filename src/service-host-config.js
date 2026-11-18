@@ -16,6 +16,31 @@ const exact = (value, required, optional = []) => object(value) && required.ever
   && Object.keys(value).every(key => [...required, ...optional].includes(key));
 const absolute = value => typeof value === 'string' && value.length > 0 && value.length <= 4096
   && !/[\x00-\x1f\x7f]/.test(value) && path.isAbsolute(value);
+const dnsName = value => typeof value === 'string' && value.length > 0 && value.length <= 253
+  && value.split('.').every(label => /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(label));
+function validateNotificationConfig(value) {
+  const invalid = () => { throw fail('service-host-config-invalid'); };
+  if (!exact(value, ['publicOrigin', 'from', 'smtp']) || typeof value.publicOrigin !== 'string'
+    || value.publicOrigin.length > 2048 || !value.publicOrigin.startsWith('https://') || /[\x00-\x20\x7f]/.test(value.publicOrigin)
+    || typeof value.from !== 'string' || value.from.length > 254
+    || !/^[\x21-\x7e]+$/.test(value.from) || !exact(value.smtp, ['host', 'port', 'username', 'password'])) invalid();
+  let origin;
+  try { origin = new URL(value.publicOrigin); } catch { invalid(); }
+  if (origin.protocol !== 'https:' || origin.username || origin.password || origin.search || origin.hash || origin.pathname !== '/') invalid();
+  const parts = value.from.split('@');
+  if (parts.length !== 2 || parts[0].length > 64 || !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(parts[0]) || parts[0].startsWith('.')
+    || parts[0].endsWith('.') || parts[0].includes('..') || !dnsName(parts[1])) invalid();
+  const smtp = value.smtp;
+  if (typeof smtp.host !== 'string' || smtp.host !== smtp.host.trim() || smtp.host.length > 253
+    || /[\x00-\x20\x7f\[\]%/@?#\\]/.test(smtp.host)
+    || !(isIP(smtp.host) || dnsName(smtp.host) && !/^[0-9.]+$/.test(smtp.host))
+    || !Number.isSafeInteger(smtp.port) || smtp.port < 1 || smtp.port > 65535
+    || (smtp.username === null) !== (smtp.password === null)
+    || smtp.username !== null && (typeof smtp.username !== 'string' || smtp.username.length < 1 || smtp.username.length > 256
+      || /[\x00-\x1f\x7f]/.test(smtp.username) || typeof smtp.password !== 'string' || smtp.password.length < 1
+      || smtp.password.length > 1024 || /[\x00-\x1f\x7f]/.test(smtp.password))) invalid();
+  return { publicOrigin: origin.origin, from: value.from, smtp: { host: smtp.host, port: smtp.port, username: smtp.username, password: smtp.password } };
+}
 
 async function readFile(filename, limit, privateFile, code) {
   let handle;
@@ -55,7 +80,7 @@ async function load(configPath, includeTls) {
   let value;
   try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(configFile.bytes)); }
   catch { throw fail('service-host-config-invalid'); }
-  if (!exact(value, ['schemaVersion', 'directory', 'port', 'tls', 'keyring'], ['host', 'assets']) || value.schemaVersion !== 1
+  if (!exact(value, ['schemaVersion', 'directory', 'port', 'tls', 'keyring'], ['host', 'assets', 'notifications']) || value.schemaVersion !== 1
     || !absolute(value.directory) || !Number.isSafeInteger(value.port) || value.port < 1 || value.port > 65535
     || value.host !== undefined && (typeof value.host !== 'string' || !isIP(value.host) || value.host.includes('%'))
     || !exact(value.tls, ['certFile', 'keyFile']) || !absolute(value.tls.certFile) || !absolute(value.tls.keyFile)
@@ -89,6 +114,7 @@ async function load(configPath, includeTls) {
   const config = { directory: path.resolve(value.directory), host: value.host || '127.0.0.1', port: value.port,
     keyring: createKeyring(keys, value.keyring.activeKeyId) };
   if (value.assets) config.assets = { directory: path.resolve(value.assets.directory), signingKey: Buffer.from(value.assets.signingKey, 'base64') };
+  if (value.notifications !== undefined) config.notifications = validateNotificationConfig(value.notifications);
   if (includeTls) {
     const [cert, key] = await Promise.all([readFile(value.tls.certFile, MAX_CERT_BYTES, false, 'service-host-tls-unavailable'),
       readFile(value.tls.keyFile, MAX_KEY_BYTES, true, 'service-host-tls-unavailable')]);
@@ -100,4 +126,4 @@ async function load(configPath, includeTls) {
 }
 const loadServiceHostConfig = configPath => load(configPath, true);
 const loadServiceStorageConfig = configPath => load(configPath, false);
-module.exports = { loadServiceHostConfig, loadServiceStorageConfig, MAX_CONFIG_BYTES };
+module.exports = { loadServiceHostConfig, loadServiceStorageConfig, MAX_CONFIG_BYTES, validateNotificationConfig };

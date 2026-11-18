@@ -31,6 +31,7 @@ const { createDesktopResolveServiceSync, describeResolveServiceComparison } = re
 const { createDesktopResolveComments } = require('./desktop-resolve-comments');
 const { createDesktopBranchReview } = require('./desktop-branch-review');
 const { createDesktopShareLinks } = require('./desktop-share-links');
+const { createDesktopAccountUpdates } = require('./desktop-account-updates');
 const { createDesktopAssetTransfers, safeAssetTransferError } = require('./desktop-asset-transfers');
 const { createDesktopProjectActivity } = require('./desktop-project-activity');
 const { fingerprint } = require('./project-api-contracts');
@@ -45,6 +46,7 @@ let projectSession;
 let desktopResolveComments;
 let desktopBranchReview;
 let desktopShareLinks;
+let desktopAccountUpdates;
 let resolveReviewSession;
 let resolveTrialSession;
 let resolveHistoryTransfer;
@@ -309,7 +311,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       Promise.resolve(desktopProjectActivity?.connectionChanged()).catch(() => {});
       Promise.resolve(desktopResolveComments?.connectionChanged()).catch(() => {});
       Promise.resolve(desktopBranchReview?.connectionChanged()).catch(() => {});
-      Promise.resolve(desktopShareLinks?.connectionChanged()).catch(() => {}); } });
+      Promise.resolve(desktopShareLinks?.connectionChanged()).catch(() => {});
+      Promise.resolve(desktopAccountUpdates?.connectionChanged()).catch(() => {}); } });
   desktopRevisionSync = createDesktopRevisionSync({ directory: path.join(app.getPath('userData'), 'service-sync'),
     connection: serviceConnection, store: localMetadataStore,
     getSelection: () => {
@@ -336,6 +339,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('branch-review:state', state); } });
   desktopShareLinks = createDesktopShareLinks({ connection: serviceConnection, writeClipboard: text => clipboard.writeText(text),
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('share-links:state', state); } });
+  desktopAccountUpdates = createDesktopAccountUpdates({ connection: serviceConnection,
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('account-updates:state', state); } });
   desktopAssetTransfers = createDesktopAssetTransfers({ directory: path.join(app.getPath('userData'), 'asset-transfers'),
     connection: serviceConnection, getSelection: assetTransferSelection, onChange: publishAssetTransferState });
   desktopProjectActivity = createDesktopProjectActivity({ connection: serviceConnection,
@@ -433,6 +438,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('share-links:refresh', (_event, input) => desktopShareLinks.refreshShareLinks(input));
   ipcMain.handle('share-links:copy', (_event, input) => desktopShareLinks.copyShareLink(input));
   ipcMain.handle('share-links:revoke', (_event, input) => desktopShareLinks.revokeShareLink(input));
+  ipcMain.handle('account-updates:state', () => desktopAccountUpdates.getState());
+  ipcMain.handle('account-updates:refresh', (_event, input) => desktopAccountUpdates.refreshAccountUpdates(input));
+  ipcMain.handle('account-updates:read', (_event, input) => desktopAccountUpdates.markAccountUpdateRead(input));
+  ipcMain.handle('account-updates:watch', (_event, enabled) => desktopAccountUpdates.setAccountUpdatesWatch(enabled));
+  ipcMain.handle('account-updates:select', (_event, projectId) => desktopAccountUpdates.selectNotificationProject(projectId));
+  ipcMain.handle('account-updates:preferences', () => desktopAccountUpdates.refreshNotificationPreferences());
+  ipcMain.handle('account-updates:save', (_event, input) => desktopAccountUpdates.saveNotificationPreferences(input));
+  ipcMain.handle('account-updates:disable', (_event, input) => desktopAccountUpdates.disableNotificationDelivery(input));
   ipcMain.handle('resolve-service:select', (_event, projectId) => resolveServiceAction(() => desktopResolveServiceSync.select(projectId)));
   for (const method of ['bind', 'unlink', 'check', 'push', 'fetch', 'retry', 'cancel']) {
     ipcMain.handle(`resolve-service:${method}`, (_event, input) => resolveServiceAction(() => desktopResolveServiceSync[method](input)));
@@ -1132,6 +1145,6 @@ app.on('before-quit', event => {
   mediaShutdown = true;
   // Let the prevented native quit event unwind before requesting the final quit.
   const finish = () => { mediaShutdownReady = true; setImmediate(() => app.quit()); };
-  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
+  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
     .then(() => serviceConnection?.dispose()).then(finish, finish);
 });

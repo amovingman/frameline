@@ -314,3 +314,43 @@ test('share SDK failures expose only the finite share error catalog and preserve
   code = 'share-private-token-secret'; await assert.rejects(client.getShareReview('film', 'main', {}), { code: 'service-connection-failed', message: 'service-connection-failed' });
   assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /token-secret|\/private\//);
 });
+
+test('account notification and preference wrappers preserve input positions, aborts and the authenticated-only facade', async t => {
+  const calls = []; let waiting = null;
+  const f = fixture({ clientMethods: ({ getAccessToken }) => ({
+    ...Object.fromEntries([['getAccountNotifications', 1], ['markAccountNotificationRead', 1], ['getNotificationPreferences', 1],
+      ['setNotificationPreferences', 1], ['disableNotificationDelivery', 0]].map(([name, arity]) => [name, async (...args) => {
+      const options = args[arity]; calls.push({ name, args: args.slice(0, arity), signal: options.signal });
+      if (waiting) {
+        waiting.started.resolve(options.signal);
+        if (waiting.external) await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(error('sync-cancelled')), { once: true }));
+        else await waiting.release.promise;
+      }
+      await getAccessToken(); return { valid: true };
+    }])),
+    async unsubscribeNotifications() { throw Error('Anonymous opt-out is separate from the authenticated facade'); }
+  }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  const page = { limit: 20, cursor: null, filter: 'unread' }, input = { projectId: 'film', expectedVersion: 0, mode: 'daily', digestHourUtc: 9, idempotencyKey: 'preference-retry' };
+  await client.getAccountNotifications(page); await client.markAccountNotificationRead('event'); await client.getNotificationPreferences('film');
+  await client.setNotificationPreferences(input); await client.disableNotificationDelivery();
+  assert.deepEqual(calls.map(value => value.args), [[page], ['event'], ['film'], [input], []]);
+  assert(calls.every(value => value.signal instanceof AbortSignal)); assert.equal(client.unsubscribeNotifications, undefined);
+  waiting = { started: defer(), external: true }; const abort = new AbortController(), listing = client.getAccountNotifications(page, { signal: abort.signal });
+  const signal = await waiting.started.promise; abort.abort(); assert.equal(signal.aborted, true); await assert.rejects(listing, { code: 'sync-cancelled' });
+  waiting = { started: defer(), release: defer() }; const disabling = client.disableNotificationDelivery();
+  const disconnectSignal = await waiting.started.promise, disconnect = value.disconnect(); assert.equal(disconnectSignal.aborted, true); waiting.release.resolve();
+  await assert.rejects(disabling, { code: 'service-sign-in-required' }); await disconnect;
+  await assert.rejects(client.setNotificationPreferences(input), { code: 'service-sign-in-required' });
+  assert.doesNotMatch(JSON.stringify(f.events), /token-secret|idempotencyKey|access-token-secret|\/private\//);
+});
+
+test('notification wrapper preserves finite errors without publishing credentials or treating arbitrary prefixes as safe', async t => {
+  const { NOTIFICATION_ERROR_CODES } = require('../src/notification-protocol'); let code;
+  const f = fixture({ clientMethods: () => ({ async getAccountNotifications() { throw error(code); } }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  for (code of NOTIFICATION_ERROR_CODES) await assert.rejects(client.getAccountNotifications({}), { code, message: code });
+  code = 'notification-private-smtp-password';
+  await assert.rejects(client.getAccountNotifications({}), { code: 'service-connection-failed', message: 'service-connection-failed' });
+  assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /token-secret|smtp-password|\/private\//);
+});

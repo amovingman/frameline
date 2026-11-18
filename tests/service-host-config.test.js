@@ -96,3 +96,41 @@ test('optional asset storage requires a separate directory and a private canonic
   await setup.write({ ...setup.config, assets: { ...assets, directory: alias } });
   await assert.rejects(loadServiceStorageConfig(setup.configPath), { code: 'service-host-config-invalid' });
 });
+
+test('optional mail configuration stays private and loads explicit implicit-TLS endpoints without network discovery', async t => {
+  const setup = await fixture(t), notifications = { publicOrigin: 'https://notify.example.test/', from: 'updates@example.test',
+    smtp: { host: 'no-resolve.invalid', port: 465, username: null, password: null } };
+  await setup.write({ ...setup.config, notifications });
+  const loaded = await loadServiceHostConfig(setup.configPath);
+  assert.deepEqual(loaded.notifications, { ...notifications, publicOrigin: 'https://notify.example.test' });
+  assert.deepEqual((await loadServiceStorageConfig(setup.configPath)).notifications, loaded.notifications);
+  for (const host of ['127.0.0.1', '::1', 'mail.example.test']) {
+    const value = { ...notifications, smtp: { host, port: 65535, username: 'fixture-user', password: 'private SMTP password' } };
+    await setup.write({ ...setup.config, notifications: value });
+    assert.deepEqual((await loadServiceStorageConfig(setup.configPath)).notifications.smtp, value.smtp);
+  }
+  await setup.write(setup.config); assert.equal((await loadServiceStorageConfig(setup.configPath)).notifications, undefined);
+});
+
+test('mail configuration rejects header injection, transport fallbacks, URLs, malformed ranges and incomplete credentials', async t => {
+  const setup = await fixture(t), valid = { publicOrigin: 'https://notify.example.test', from: 'updates@example.test',
+    smtp: { host: 'mail.example.test', port: 465, username: null, password: null } };
+  const edits = [value => { value.publicOrigin = 'http://notify.example.test'; }, value => { value.publicOrigin += '/path'; },
+    value => { value.publicOrigin += '?token=private'; }, value => { value.publicOrigin = 'https://user:password@notify.example.test'; },
+    value => { value.publicOrigin += '\r\n'; }, value => { value.from = 'Display <updates@example.test>'; },
+    value => { value.from = 'updates@example.test\r\nBcc: other@example.test'; }, value => { value.from = 'études@example.test'; },
+    value => { value.from = `${'x'.repeat(65)}@example.test`; }, value => { value.from = 'bad..dots@example.test'; },
+    value => { value.smtp.host = 'https://mail.example.test'; }, value => { value.smtp.host = 'mail.example.test:465'; },
+    value => { value.smtp.host = '[::1]'; }, value => { value.smtp.host = 'fe80::1%en0'; }, value => { value.smtp.host = '999.1.1.1'; },
+    value => { value.smtp.port = 0; }, value => { value.smtp.port = 65536; }, value => { value.smtp.port = '465'; },
+    value => { value.smtp.username = 'name'; }, value => { value.smtp.password = 'password'; },
+    value => { value.smtp.username = 'name'; value.smtp.password = 'bad\r\npassword'; },
+    value => { value.smtp.rejectUnauthorized = false; }, value => { value.smtp.starttls = true; },
+    value => { value.smtp.tls = false; }, value => { value.extra = true; }];
+  for (const edit of edits) {
+    const value = structuredClone(valid); edit(value); await setup.write({ ...setup.config, notifications: value });
+    await assert.rejects(loadServiceStorageConfig(setup.configPath), error => error.code === 'service-host-config-invalid'
+      && error.message === error.code && !JSON.stringify(error).includes('password'));
+  }
+  await setup.write({ ...setup.config, notifications: null }); await assert.rejects(loadServiceHostConfig(setup.configPath), { code: 'service-host-config-invalid' });
+});

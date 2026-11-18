@@ -64,6 +64,20 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.on('share-links:state', handle);
     return () => ipcRenderer.removeListener('share-links:state', handle);
   },
+  getAccountUpdatesState: () => ipcRenderer.invoke('account-updates:state'),
+  refreshAccountUpdates: input => ipcRenderer.invoke('account-updates:refresh', input),
+  markAccountUpdateRead: input => ipcRenderer.invoke('account-updates:read', input),
+  setAccountUpdatesWatch: enabled => ipcRenderer.invoke('account-updates:watch', enabled),
+  selectNotificationProject: projectId => ipcRenderer.invoke('account-updates:select', projectId),
+  refreshNotificationPreferences: () => ipcRenderer.invoke('account-updates:preferences'),
+  saveNotificationPreferences: input => ipcRenderer.invoke('account-updates:save', input),
+  disableNotificationDelivery: input => ipcRenderer.invoke('account-updates:disable', input),
+  onAccountUpdatesState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('account-updates:state', handle);
+    return () => ipcRenderer.removeListener('account-updates:state', handle);
+  },
   onResolveServiceState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);

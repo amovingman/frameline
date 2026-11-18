@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18",
+  "scope": "Disposable self-hosted HTTPS collaboration, native Electron main/preload/OS vault, actual account controller browser bridge, and owned loopback implicit-TLS fake mail submission server on one Mac.",
+  "native": {
+    "withoutLocalEditorSelection": true,
+    "explicitImmediateOptInSaved": true,
+    "cleanQuitBeforeNewRevision": true,
+    "ownedQuitExitCodes": [
+      0,
+      0,
+      0
+    ],
+    "backgroundDeliveryWhileDesktopClosed": true,
+    "backgroundMailCount": 1,
+    "sessionAndImmediatePreferenceRecovered": true,
+    "explicitReadReceiptRecoveredAfterAnotherRestart": true,
+    "appOpenWatchOffAfterRestart": true,
+    "dailyUtcHour": 9,
+    "dailyPreferenceSaved": true,
+    "manualUnsubscribeReadBackAsOff": true,
+    "uncheckedCountCopyCorrectedAndObservedAfterRestart": true
+  },
+  "daily": {
+    "clock": "Injected clock in a private runtime and production worker; public service and desktop clocks stayed real. This was not an elapsed 24-hour wait.",
+    "noMailBeforeNextCutoff": true,
+    "acceptedDigestAfter24HourAdvance": true,
+    "repeatTickDidNotDuplicate": true,
+    "digestEventCount": 1,
+    "furtherEventAnd24HourAdvanceAfterUnsubscribeProducedNoMail": true
+  },
+  "browser": {
+    "viewerDefaultEmailOffIndependentOfOwner": true,
+    "viewerCouldSaveOwnImmediatePreference": true,
+    "accessRemovalClearedProjectDetails": true,
+    "genericPermissionLossNoticeReadable": true,
+    "explicitReadAcknowledged": true,
+    "allEmailOffAfterAccessLoss": true,
+    "manualProjectUnsubscribeRequiredButton": true,
+    "unsubscribeFragmentClearedBeforeRequest": true,
+    "unsubscribeWidths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflowAtThoseWidths": false,
+    "bundledPlexFontLoaded": true
+  },
+  "delivery": {
+    "externalEmailSent": false,
+    "acceptedTestMessages": 2,
+    "immediateEvents": 2,
+    "dailyEvents": 1,
+    "bothJobsDeliveredWithOneAttempt": true,
+    "finalOwnerMode": "off",
+    "finalViewerMode": "off",
+    "recipientReadReceipts": 2
+  },
+  "validation": {
+    "fullSuite": {
+      "passed": 1176,
+      "failed": 0,
+      "skipped": 0,
+      "beforeFinalUncheckedCountCopyFix": true
+    },
+    "securitySuite": {
+      "passed": 789,
+      "failed": 0,
+      "skipped": 0,
+      "beforeFinalUncheckedCountCopyFix": true,
+      "note": "Initial simultaneous full/security run timed out in an existing Resolve process proof; security passed when run alone."
+    },
+    "finalFocusedControllerAndRenderer": {
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0
+    },
+    "packageInputsAndArchivePassed": true,
+    "httpsProcessProof": {
+      "requests": 44,
+      "hostProcesses": 3,
+      "clientProcesses": 3,
+      "file": "tests/self-hosted-notifications-proof.test.js"
+    }
+  },
+  "design": {
+    "direction": "Existing graphite and Plex interface retained.",
+    "rounds": 2,
+    "fixed": "Unchecked account inbox no longer presents its default unread zero as measured data.",
+    "newSuppressions": 0,
+    "standing": "31 pre-existing palette advisories retained; no new palette or layout exceptions.",
+    "review": "Native preference controls and all three unsubscribe widths remained readable and operable, with no horizontal clipping."
+  },
+  "cleanup": {
+    "nativeAndBrowserSignedOut": true,
+    "nativeCredentialEntries": 0,
+    "browserCredentialEntries": 0,
+    "ownedFixtureTerminalExitCode": 0,
+    "privateFixtureDataAndCapabilitiesRemoved": true,
+    "temporaryBrowserTabsClosed": true,
+    "viewportReset": true,
+    "normalAppRestoredWithoutTestCaOrEditorExperimentFlag": true
+  },
+  "remaining": "No real provider, public deployment, physical cross-device test, elapsed daily cycle, power-loss guarantee, automatic email retention cleanup, or general editor apply was established."
+}
