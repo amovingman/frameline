@@ -5,6 +5,20 @@ const { API_VERSION } = require('../src/project-api-contracts');
 const { createRevisionHttpClient } = require('../src/revision-http-client');
 const secret = 'disposable-credential-123456789';
 const setup = fetch => createRevisionHttpClient({ origin: 'https://api.example.test', getAccessToken: async () => secret, fetch });
+
+test('token refresh connectivity failures remain retryable while sensitive accessor failures stay generic', async () => {
+  for (const [code, expected] of [['service-offline', 'sync-network-unavailable'], ['sync-network-unavailable', 'sync-network-unavailable'],
+    ['service-sign-in-required', 'access-token-invalid'], ['credential-storage-unavailable', 'access-token-invalid'],
+    ['/Users/private/token', 'access-token-invalid']]) {
+    let requests = 0;
+    const client = createRevisionHttpClient({ origin: 'https://api.example.test', getAccessToken: async () => {
+      throw Object.assign(new Error('/Users/private Bearer private-token'), { code });
+    }, fetch: async () => { requests++; throw new Error('must not send'); } });
+    await assert.rejects(client.getBranch('film-1', 'main'), error => error.code === expected
+      && error.message === expected && !/private|Users|Bearer/.test(JSON.stringify(error)));
+    assert.equal(requests, 0);
+  }
+});
 const reply = (options, data, status = 200) => new Response(JSON.stringify({ apiVersion: API_VERSION,
   requestId: options.headers['x-request-id'], ...(status === 200 ? { data } : { error: { code: data } }) }),
 { status, headers: { 'content-type': 'application/json' } });

@@ -20,6 +20,20 @@ const mediaAuditJobRows = new Map();
 const mediaAuditDependencyPages = {};
 const mediaAuditDependencyOpen = new Set();
 let syncBusy = false;
+let serviceState = null;
+let serviceStateVersion = -1;
+let serviceActionBusy = false;
+let serviceActionNotice = '';
+let serviceLocalSelectionKey = null;
+let serviceProjectChoice = '';
+let serviceBranchChoice = '';
+let serviceBindingChoiceKey = '';
+let serviceProjectsRenderKey = '';
+let serviceBranchesRenderKey = '';
+let serviceFetchedRenderKey = '';
+let serviceFetchedVisible = 20;
+let serviceOriginInitialized = false;
+const syncOperationRows = new Map();
 let collaborationBusy = false;
 let collaborationProjectId = null;
 let currentCollaborationState = { available: false, members: [], invitations: [] };
@@ -144,6 +158,12 @@ function renderAppState(state) {
     refreshCollaborationState();
   }
   renderMediaAuditJobs();
+  const nextServiceSelection = `${state?.selectedProject?.id || ''}:${state?.currentBranch || 'main'}:${state?.revisions?.[0]?.id || ''}`;
+  if (nextServiceSelection !== serviceLocalSelectionKey) {
+    serviceLocalSelectionKey = nextServiceSelection;
+    refreshServiceState();
+  }
+  renderServicePanel();
 }
 
 function renderScan(scan) {
@@ -280,46 +300,256 @@ function syncErrorLabel(code) {
 function renderSyncState(state) {
   const list = document.getElementById('sync-operations');
   const summary = document.getElementById('sync-summary');
-  const service = document.getElementById('sync-service-state');
-  list.replaceChildren();
-  service.textContent = state?.connected ? 'Connected' : 'Local only';
   const operations = state?.operations || [];
+  const ids = new Set(operations.map(operation => operation.id));
+  for (const [id, view] of syncOperationRows) {
+    if (!ids.has(id)) { view.row.remove(); syncOperationRows.delete(id); }
+  }
+  let empty = list.querySelector('.sync-empty');
   if (!operations.length) {
-    summary.textContent = state?.connected ? 'No sync work is queued' : 'No hosted service is configured';
-    list.append(make('p', 'sync-empty', state?.connected
-      ? 'Local and remote history have no pending operations.'
-      : 'The durable queue is ready, but this build cannot push until a service connection is configured.'));
+    setServiceText(summary, 'No queued pushes');
+    if (!empty) { empty = make('p', 'sync-empty'); list.append(empty); }
+    setServiceText(empty, state?.connected ? 'A completed push leaves this queue. Check history to compare branch heads.'
+      : 'Queued pushes appear here after a service project is linked.');
     return;
   }
-  summary.textContent = `${operations.length} queued operation${operations.length === 1 ? '' : 's'}`;
-  operations.forEach(operation => {
-    const row = make('article', 'sync-operation');
-    const details = make('div', 'sync-operation-main');
-    const title = make('div', 'sync-operation-title');
-    title.append(make('strong', '', `Push ${operation.branch}`), make('span', `sync-state ${operation.status}`, operation.status.replace('-', ' ')));
-    const completed = operation.progress?.completed || 0; const total = operation.progress?.total || 0;
-    details.append(title, make('p', '', operation.lastError ? syncErrorLabel(operation.lastError)
-      : `${completed} of ${total} revision${total === 1 ? '' : 's'} uploaded`));
-    const progress = make('progress', 'sync-progress'); progress.max = Math.max(total, 1); progress.value = completed;
-    progress.setAttribute('aria-label', `${completed} of ${total} revisions uploaded`); details.append(progress);
-    const actions = make('div', 'sync-actions');
-    if (operation.actions.includes('retry')) {
-      const retry = make('button', '', 'Retry'); retry.type = 'button'; retry.disabled = syncBusy || !operation.recoverable;
-      retry.addEventListener('click', () => runSyncAction('retry', operation.id)); actions.append(retry);
+  empty?.remove();
+  setServiceText(summary, `${operations.length} queued push${operations.length === 1 ? '' : 'es'}`);
+  operations.forEach((operation, index) => {
+    let view = syncOperationRows.get(operation.id);
+    if (!view) {
+      const row = make('article', 'sync-operation'), details = make('div', 'sync-operation-main');
+      const title = make('div', 'sync-operation-title'), name = make('strong'), status = make('span', 'sync-state');
+      const description = make('p'), progress = make('progress', 'sync-progress'), actions = make('div', 'sync-actions');
+      title.append(name, status); details.append(title, description, progress);
+      const retry = make('button', '', 'Retry'), cancel = make('button', '', 'Cancel'); retry.type = cancel.type = 'button';
+      retry.addEventListener('click', () => runSyncAction('retry', operation.id));
+      cancel.addEventListener('click', () => runSyncAction('cancel', operation.id));
+      actions.append(retry, cancel); row.append(details, actions);
+      view = { row, name, status, description, progress, retry, cancel }; syncOperationRows.set(operation.id, view);
     }
-    const cancel = make('button', '', 'Cancel'); cancel.type = 'button'; cancel.disabled = syncBusy;
-    cancel.addEventListener('click', () => runSyncAction('cancel', operation.id)); actions.append(cancel);
-    row.append(details, actions); list.append(row);
+    setServiceText(view.name, `Push ${operation.branch}`);
+    setServiceText(view.status, operation.status.replaceAll('-', ' ')); view.status.className = `sync-state ${operation.status}`;
+    const completed = operation.progress?.completed || 0; const total = operation.progress?.total || 0;
+    setServiceText(view.description, operation.lastError ? syncErrorLabel(operation.lastError)
+      : `${completed} of ${total} revision${total === 1 ? '' : 's'} acknowledged`);
+    view.progress.max = Math.max(total, 1); view.progress.value = completed;
+    view.progress.setAttribute('aria-label', `${completed} of ${total} revisions acknowledged`);
+    view.retry.hidden = !operation.actions?.includes('retry');
+    view.retry.disabled = syncBusy || serviceActionBusy || !!serviceState?.busy || !operation.recoverable;
+    view.cancel.disabled = syncBusy;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
   });
 }
 
 async function runSyncAction(action, id) {
-  if (syncBusy) return; syncBusy = true;
+  if (syncBusy) return; syncBusy = true; renderServicePanel();
   try {
     const state = await (action === 'retry' ? window.desktop.retrySync(id) : window.desktop.cancelSync(id));
-    renderSyncState(state);
-  } catch { renderSyncState({ connected: false, operations: [] }); }
-  finally { syncBusy = false; }
+    if (Number.isSafeInteger(state?.version)) renderServiceState(state); else renderSyncState(state);
+  } catch { serviceActionNotice = 'The queued push could not be updated. Refresh the service state and try again.'; }
+  finally { syncBusy = false; renderServicePanel(); }
+}
+
+function setServiceText(node, value) { if (node && node.textContent !== value) node.textContent = value; }
+function serviceErrorLabel(code) {
+  return ({
+    'service-sign-in-required': 'Your account details were not accepted or the session expired. Enter your service account details to sign in again.',
+    'service-offline': 'The service could not be reached. Check the connection, then refresh projects or check history.',
+    'service-access-denied': 'Your account no longer has access to this service project. Refresh projects or choose another project.',
+    'service-credential-storage-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.',
+    'service-project-required': 'Choose a local FCPXML export and save a revision before linking or pushing history.',
+    'service-project-unavailable': 'Link this local branch to an accessible service project. Refresh projects if access changed.',
+    'service-viewer-read-only': 'Viewer access allows fetching history. Pushing requires editor or owner access.',
+    'service-selection-changed': 'The selected local branch changed. Check history again for the current branch.',
+    'service-sync-busy': 'Another service action is still running. Wait for it to finish before trying again.',
+    'service-binding-invalid': 'The saved service mapping could not be read. Keep the app data for recovery before trying again.',
+    'service-storage-unavailable': 'Local service data could not be saved. Check disk space and file permissions, then retry.',
+    'sync-history-invalid': 'The fetched history could not be verified. Local revisions are unchanged. Contact the service administrator.',
+    'credentials-invalid': 'The email or password was not accepted. Check your account details and sign in again.',
+    'access-token-invalid': 'Your session has expired. Sign in again to continue.',
+    'refresh-token-invalid': 'Your session has expired. Sign in again to continue.',
+    'secure-transport-required': 'Enter an HTTPS service URL supplied by your administrator.',
+    'sync-origin-invalid': 'Enter a valid HTTPS service URL without a path, query, or embedded credentials.',
+    'service-origin-invalid': 'Enter a valid HTTPS service URL without a path, query, or embedded credentials.',
+    'sync-network-unavailable': 'The service could not be reached. Check the connection, then refresh projects or check history.',
+    'forbidden': 'Your account no longer has access to this service project. Refresh projects or choose another project.',
+    'project-not-found': 'This service project is no longer available. Refresh projects to choose an accessible project.',
+    'branch-not-found': 'This service branch is no longer available. Refresh projects to choose another branch.',
+    'sync-branch-conflict': 'The service branch changed during the push. Check and fetch history before continuing.',
+    'sync-reconciliation-required': 'Both branches changed. Fetch history to inspect the revisions before reconciling.',
+    'sync-project-unbound': 'Link this local branch to a service project first.',
+    'revision-scan-required': 'Scan a local FCPXML export and save a revision before pushing.',
+    'branch-project-required': 'Choose a local FCPXML export before linking a service project.',
+    'revision-source-changed': 'The export changed since scanning. Rescan and save a revision before pushing.',
+    'credential-storage-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.',
+    'credential-vault-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.'
+  })[code] || 'The service action could not finish. Check the connection or sign in again, then retry.';
+}
+function serviceSelectionMatches(state = serviceState) {
+  return !!state?.selection && state.selection.localProjectId === currentAppState?.selectedProject?.id
+    && state.selection.branch === (currentAppState?.currentBranch || 'main');
+}
+function serviceProjectOptions() {
+  const projects = serviceState?.projects || [];
+  const projectSelect = document.getElementById('service-project');
+  const key = JSON.stringify(projects.map(project => [project.id, project.name, project.role, project.branches]));
+  if (key !== serviceProjectsRenderKey) {
+    serviceProjectsRenderKey = key; projectSelect.replaceChildren(new Option(projects.length ? 'Choose a service project' : 'No accessible service projects', ''));
+    for (const project of projects) projectSelect.add(new Option(`${project.name} · ${project.role}`, project.id));
+  }
+  if (!projects.some(project => project.id === serviceProjectChoice)) serviceProjectChoice = '';
+  if (projectSelect.value !== serviceProjectChoice) projectSelect.value = serviceProjectChoice;
+  const project = projects.find(item => item.id === serviceProjectChoice);
+  const branches = project?.branches || [];
+  const branchSelect = document.getElementById('service-branch');
+  const branchKey = JSON.stringify([project?.id, branches]);
+  if (branchKey !== serviceBranchesRenderKey) {
+    serviceBranchesRenderKey = branchKey; branchSelect.replaceChildren(new Option('Choose a service branch', ''));
+    for (const branch of branches) branchSelect.add(new Option(branch, branch));
+  }
+  if (!branches.includes(serviceBranchChoice)) serviceBranchChoice = branches.includes('main') ? 'main' : branches[0] || '';
+  if (branchSelect.value !== serviceBranchChoice) branchSelect.value = serviceBranchChoice;
+  setServiceText(document.getElementById('service-project-role'), project ? project.role === 'viewer'
+    ? 'Viewer access: fetching history is available; pushing revisions requires editor or owner access.'
+    : `${project.role === 'owner' ? 'Owner' : 'Editor'} access permits pushing verified revision metadata.`
+    : projects.length ? 'Choose a project to see its branches and your access role.' : 'Refresh projects after an administrator grants your account project access.');
+  return project;
+}
+function serviceDate(value) {
+  if (value === null || value === undefined || value === '') return 'Time unavailable';
+  const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : 'Time unavailable';
+}
+function renderFetchedServiceHistory(fetched) {
+  const details = document.getElementById('service-fetched-history'); details.hidden = !fetched;
+  if (!fetched) {
+    if (serviceFetchedRenderKey) {
+      document.getElementById('service-fetched-list').replaceChildren();
+      setServiceText(document.getElementById('service-fetched-summary'), 'Fetched service history');
+      setServiceText(document.getElementById('service-fetched-stamp'), '');
+      setServiceText(document.getElementById('service-fetched-range'), ''); details.open = false;
+    }
+    serviceFetchedRenderKey = ''; return;
+  }
+  const rows = Array.isArray(fetched.revisions) ? fetched.revisions : [];
+  const fetchKey = JSON.stringify([fetched.checkedAt, fetched.head, rows.map(row => row.id)]);
+  const previousFetch = serviceFetchedRenderKey.split('|')[0];
+  if (previousFetch !== fetchKey) serviceFetchedVisible = 20;
+  const key = `${fetchKey}|${serviceFetchedVisible}`;
+  if (key === serviceFetchedRenderKey) return;
+  serviceFetchedRenderKey = key;
+  const total = fetched.total ?? fetched.revisionCount ?? rows.length;
+  const visible = Math.min(serviceFetchedVisible, rows.length);
+  setServiceText(document.getElementById('service-fetched-summary'), `Fetched service history · ${total} revision${total === 1 ? '' : 's'}`);
+  setServiceText(document.getElementById('service-fetched-stamp'), `${fetched.manifestCount} manifest${fetched.manifestCount === 1 ? '' : 's'} · ${fetched.checkedAt === null || fetched.checkedAt === undefined ? 'Fetch time unavailable' : `Fetched ${serviceDate(fetched.checkedAt)}`}${fetched.head ? ` · Head ${fetched.head.slice(0, 12)}` : ''}`);
+  setServiceText(document.getElementById('service-fetched-range'), rows.length
+    ? `Showing 1–${visible} of ${total} revisions, newest first.${rows.length < total ? ` This view includes the latest ${rows.length}; older revisions are not listed here.` : ''}`
+    : total ? `${total} revisions were fetched; revision details are unavailable in this view.` : 'The service branch has no revisions.');
+  const list = document.getElementById('service-fetched-list'); list.replaceChildren();
+  for (const revision of rows.slice(0, visible)) {
+    const row = make('article', 'service-fetched-revision');
+    row.append(make('h4', '', revision.message), make('p', '', `Author ${revision.authorId}`),
+      make('p', '', `${serviceDate(revision.createdAt)} · ${revision.id}`)); list.append(row);
+  }
+  document.getElementById('service-fetched-more').hidden = visible >= rows.length;
+}
+function renderServicePanel() {
+  const state = serviceState;
+  const status = state?.status || 'not-configured';
+  const busy = serviceActionBusy || !!state?.busy;
+  const available = typeof window.desktop?.getServiceState === 'function';
+  const account = state?.account;
+  const contact = !!account && ['connected', 'offline'].includes(status);
+  const signedIn = !!account && status !== 'sign-in-required';
+  const matching = serviceSelectionMatches(state);
+  const binding = matching ? state?.binding : null;
+  const form = document.getElementById('service-connect-form');
+  form.hidden = signedIn;
+  document.getElementById('service-connection-help').hidden = signedIn;
+  form.querySelectorAll('input, button').forEach(control => { control.disabled = busy || !available; });
+  setServiceText(document.getElementById('service-connect'), busy && status === 'connecting' ? 'Signing in…' : 'Sign in');
+  if (!serviceOriginInitialized && state?.origin) {
+    serviceOriginInitialized = true;
+    if (state.origin && !document.getElementById('service-origin').value) document.getElementById('service-origin').value = state.origin;
+    if (account?.email && !document.getElementById('service-email').value) document.getElementById('service-email').value = account.email;
+  }
+  const statusText = { 'not-configured': 'Local only', connecting: 'Connecting', connected: 'Connected', offline: 'Offline', 'sign-in-required': 'Sign in required' }[status] || 'Local only';
+  setServiceText(document.getElementById('sync-service-state'), statusText);
+  const descriptions = { 'not-configured': 'Sign in to an existing Frameline service account.', connecting: 'Connecting to the service…',
+    connected: 'Your service account is connected.', offline: 'The service is unavailable. Last known project access is shown.',
+    'sign-in-required': 'Sign in again to continue with service history.' };
+  setServiceText(document.getElementById('service-summary'), available ? descriptions[status] || descriptions['not-configured'] : 'Service connections are unavailable in this build.');
+  document.getElementById('service-account-row').hidden = !account;
+  setServiceText(document.getElementById('service-account-email'), account?.email || '');
+  setServiceText(document.getElementById('service-account-origin'), state?.origin || '');
+  document.getElementById('service-disconnect').disabled = busy || !available;
+  const notice = serviceActionNotice || (state?.error ? serviceErrorLabel(state.error) : '');
+  document.getElementById('service-notice').hidden = !notice; setServiceText(document.getElementById('service-notice'), notice);
+  document.getElementById('service-panel').setAttribute('aria-busy', String(busy));
+  document.getElementById('service-project-area').hidden = !account;
+  const bindingKey = matching && binding ? `${state.selection.localProjectId}:${state.selection.branch}:${binding.remoteProjectId}:${binding.remoteBranch}` : '';
+  if (bindingKey !== serviceBindingChoiceKey) {
+    serviceBindingChoiceKey = bindingKey;
+    if (binding) { serviceProjectChoice = binding.remoteProjectId; serviceBranchChoice = binding.remoteBranch; }
+  }
+  const project = serviceProjectOptions();
+  document.getElementById('service-project').disabled = busy || !contact;
+  document.getElementById('service-branch').disabled = busy || !contact || !project;
+  document.getElementById('service-projects-refresh').disabled = busy || !contact;
+  const local = currentAppState?.selectedProject;
+  const localBranch = currentAppState?.currentBranch || 'main';
+  setServiceText(document.getElementById('service-local-selection'), local?.id
+    ? `Local branch: ${local.name} · ${localBranch}` : 'Choose a local FCPXML export before linking a service project.');
+  document.getElementById('service-bind').disabled = busy || !state?.connected || !local?.id || !matching || !project || !serviceBranchChoice;
+  document.getElementById('service-bound-row').hidden = !binding;
+  setServiceText(document.getElementById('service-binding-summary'), binding
+    ? `Linked to ${binding.remoteProjectName} · ${binding.remoteBranch} · ${binding.role} access` : '');
+  document.getElementById('service-unlink').disabled = busy || !binding;
+  document.getElementById('service-unlink').title = 'Remove this local mapping. Service revisions stay on the service.';
+  const sync = matching ? state?.sync : null;
+  const syncLabels = { unbound: binding ? 'Check the linked branch heads before pushing.' : 'Link this local branch to a service project to check history.',
+    checking: busy ? 'Checking local and service branch heads…' : 'Check history to compare the local and service branch heads.', 'in-sync': 'Saved revision history matches the linked service branch.',
+    'local-ahead': 'The local branch has revisions ready to push.', 'remote-ahead': 'The service branch has newer revisions. Fetch history to inspect them.',
+    diverged: 'Both branches changed. Fetch history to inspect the revisions; reconciliation is not available.',
+    offline: 'The service is unavailable. Check history when the connection returns.', error: serviceErrorLabel(sync?.error) };
+  setServiceText(document.getElementById('service-sync-status'), syncLabels[sync?.status || 'unbound'] || syncLabels.unbound);
+  const hasRevision = !!currentAppState?.revisions?.length;
+  const ready = hasRevision && currentAppState?.scanStatus === 'ready' && !currentAppState?.error && local?.format === 'FCPXML';
+  const writeRole = binding && ['owner', 'editor'].includes(binding.role);
+  document.getElementById('service-check').disabled = busy || !contact || !binding;
+  document.getElementById('service-fetch').disabled = busy || !state?.connected || !binding;
+  document.getElementById('service-push').disabled = busy || !state?.connected || !binding || !writeRole || !ready || sync?.status !== 'local-ahead';
+  setServiceText(document.getElementById('service-sync-help'), binding?.role === 'viewer'
+    ? 'Viewer access allows fetching history. Pushing requires editor or owner access.'
+    : !ready ? 'Scan the selected FCPXML export and save a local revision before pushing.'
+      : !binding ? 'Link the selected local branch to a service project before checking history.'
+        : sync?.status === 'local-ahead' ? 'Push sends the verified saved revisions on this local branch.'
+          : 'Check history after saving a revision. Push becomes available when the local branch is ahead.');
+  renderFetchedServiceHistory(matching ? state?.fetched : null);
+  renderSyncState(state);
+}
+function renderServiceState(state) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
+  if ((state.error && state.error !== serviceState?.error)
+    || state.status === 'sign-in-required' && serviceState?.status !== 'sign-in-required') document.getElementById('service-password').value = '';
+  serviceStateVersion = state.version; serviceState = state; renderServicePanel();
+}
+async function refreshServiceState() {
+  if (!window.desktop?.getServiceState) return;
+  try { renderServiceState(await window.desktop.getServiceState()); }
+  catch { serviceActionNotice = 'Could not refresh the service state. Try again after the app is ready.'; renderServicePanel(); }
+}
+async function runServiceAction(method, input) {
+  if (serviceActionBusy || serviceState?.busy || typeof window.desktop?.[method] !== 'function') return;
+  serviceActionBusy = true; serviceActionNotice = ''; renderServicePanel();
+  try {
+    renderServiceState(await window.desktop[method](input));
+    if (method === 'fetchServiceRevisions' && serviceState?.fetched && serviceSelectionMatches()) document.getElementById('service-fetched-history').open = true;
+  } catch { serviceActionNotice = 'The service action could not finish. Check your connection and try again.'; }
+  finally {
+    document.getElementById('service-password').value = '';
+    serviceActionBusy = false; renderServicePanel();
+  }
 }
 
 function renderCollaborationState(state) {
@@ -333,7 +563,7 @@ function renderCollaborationState(state) {
   if (!state?.available) {
     summary.textContent = 'Choose a project to manage collaborators';
     list.append(make('p', 'members-empty', 'Project invitations become available after selecting a local FCPXML export.'));
-    notice.textContent = 'Invitations are recorded locally. This build does not send email.';
+    notice.textContent = 'These invitations are recorded only on this device. Service access is managed by your administrator.';
     return;
   }
   const pending = state.invitations.filter(item => item.status === 'pending').length;
@@ -354,7 +584,7 @@ function renderCollaborationState(state) {
     'invitation-exists': 'A pending invitation already exists for this email.',
     'invitation-forbidden': 'Only the project owner can create editor or viewer invitations.'
   })[state.error] || 'The invitation could not be created.'
-    : 'Invitations are recorded locally. This build does not send email.';
+    : 'These invitations are recorded only on this device. Service access is managed by your administrator.';
 }
 
 async function refreshCollaborationState() {
@@ -413,10 +643,10 @@ function drawHistoryWindow() {
       make('small', '', `${revision.author} · ${revision.branch}`),
       make('small', 'history-reference', `${revision.manifestVersion === 2 ? 'Read-only scan' : 'Scan'} · ${revision.contentHash.slice(0, 10)} · ${revision.id.slice(0, 8)}`));
     const state = make('div', 'history-state');
-    const syncLabels = { synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local only' };
+    const syncLabels = { synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local revision' };
     const saved = make('time', '', new Date(revision.createdAt).toLocaleString());
     saved.dateTime = revision.createdAt;
-    state.append(make('strong', `revision-sync-state ${revision.syncState}`, syncLabels[revision.syncState] || 'Local only'), saved);
+    state.append(make('strong', `revision-sync-state ${revision.syncState}`, syncLabels[revision.syncState] || 'Local revision'), saved);
     row.append(make('span', 'history-id', String(revisions.length - index).padStart(2, '0')), main, state);
     list.append(row);
   });
@@ -480,7 +710,7 @@ function renderRevisionDetail(revision, error, comparison = null, comparisonErro
     ['Saved', new Date(revision.createdAt).toLocaleString()],
     ['Author', revision.author],
     ['Branch', revision.branch || 'Unknown'],
-    ['Sync state', ({ synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local only' })[revision.syncState] || 'Local only'],
+    ['Sync state', ({ synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local revision' })[revision.syncState] || 'Local revision'],
     ['Sequence', manifest.sequence.name],
     ['Timing', `${manifest.sequence.durationFrames} frames · ${manifest.sequence.frameDuration} per frame`],
     ['Parent', revision.parentRevisionId || 'First revision'],
@@ -738,6 +968,36 @@ document.getElementById('cancel-scan').addEventListener('click', async () => {
 });
 document.getElementById('revision-form').addEventListener('submit', saveRevision);
 document.getElementById('invite-form').addEventListener('submit', inviteCollaborator);
+document.getElementById('service-connect-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const password = document.getElementById('service-password');
+  const input = { origin: document.getElementById('service-origin').value.trim(),
+    email: document.getElementById('service-email').value.trim(), password: password.value };
+  password.value = '';
+  runServiceAction('connectService', input);
+});
+document.getElementById('service-disconnect').addEventListener('click', () => {
+  document.getElementById('service-password').value = '';
+  runServiceAction('disconnectService');
+});
+document.getElementById('service-projects-refresh').addEventListener('click', () => runServiceAction('refreshServiceProjects'));
+document.getElementById('service-project').addEventListener('change', event => {
+  serviceProjectChoice = event.target.value; serviceBranchChoice = ''; renderServicePanel();
+});
+document.getElementById('service-branch').addEventListener('change', event => {
+  serviceBranchChoice = event.target.value; renderServicePanel();
+});
+document.getElementById('service-binding-form').addEventListener('submit', event => {
+  event.preventDefault();
+  runServiceAction('bindServiceProject', { remoteProjectId: serviceProjectChoice, remoteBranch: serviceBranchChoice });
+});
+document.getElementById('service-unlink').addEventListener('click', () => runServiceAction('unlinkServiceProject'));
+document.getElementById('service-check').addEventListener('click', () => runServiceAction('checkServiceSync'));
+document.getElementById('service-push').addEventListener('click', () => runServiceAction('pushServiceRevisions'));
+document.getElementById('service-fetch').addEventListener('click', () => runServiceAction('fetchServiceRevisions'));
+document.getElementById('service-fetched-more').addEventListener('click', () => {
+  serviceFetchedVisible += 20; renderFetchedServiceHistory(serviceSelectionMatches() ? serviceState?.fetched : null);
+});
 document.getElementById('branch-form').addEventListener('submit', event => {
   event.preventDefault();
   changeBranch(document.getElementById('branch-name').value, true);
@@ -760,7 +1020,13 @@ document.getElementById('relink-action').addEventListener('click', async () => {
   } finally { button.disabled = false; }
 });
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
-window.desktop?.getSyncState?.().then(renderSyncState).catch(() => renderSyncState({ connected: false, operations: [] }));
+if (window.desktop?.getServiceState) {
+  window.desktop.onServiceState?.(renderServiceState);
+  refreshServiceState();
+} else {
+  renderServicePanel();
+  window.desktop?.getSyncState?.().then(renderSyncState).catch(() => renderSyncState({ connected: false, operations: [] }));
+}
 window.desktop?.getCollaborationState?.().then(renderCollaborationState)
   .catch(() => renderCollaborationState({ available: false, members: [], invitations: [] }));
 document.addEventListener('keydown', event => {

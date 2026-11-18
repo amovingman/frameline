@@ -1,5 +1,6 @@
 'use strict';
 const { TextDecoder } = require('node:util');
+const { createHash } = require('node:crypto');
 const { API_VERSION, createRequestContext, responseEnvelope } = require('./project-api-contracts');
 const { validateRevisionManifest } = require('./revision-manifest');
 
@@ -9,6 +10,7 @@ const SERVICE_METHODS = ['putManifest', 'getManifest', 'createRevision', 'getRev
   'findRevisionBySource', 'getBranch', 'updateBranch'];
 const ERRORS = new Map([
   ['access-token-invalid', 401], ['forbidden', 403], ['rate-limit-exceeded', 429],
+  ['credentials-invalid', 401], ['refresh-token-invalid', 401],
   ...['project-not-found', 'manifest-not-found', 'revision-not-found', 'parent-revision-not-found',
     'branch-not-found'].map(code => [code, 404]),
   ...['branch-head-changed', 'revision-parent-mismatch', 'source-revision-exists',
@@ -48,6 +50,14 @@ function route(req) {
   let parts;
   try { parts = req.url.slice(1).split('/').map(part => decodeURIComponent(part)); }
   catch { throw fail('request-invalid'); }
+  if (parts.some(part => !ID.test(part))) throw fail('request-invalid');
+  if (parts.length === 1 && parts[0] === 'account') return { kind: 'account', methods: ['GET'] };
+  if (parts.length === 1 && parts[0] === 'projects') return { kind: 'projects', methods: ['GET'] };
+  if (parts[0] === 'auth' && parts[1] === 'sessions') {
+    if (parts.length === 2) return { kind: 'signIn', methods: ['POST'], anonymous: true };
+    if (parts.length === 3 && parts[2] === 'refresh') return { kind: 'refreshSession', methods: ['POST'], anonymous: true };
+    if (parts.length === 3 && parts[2] === 'sign-out') return { kind: 'signOut', methods: ['POST'], anonymous: true };
+  }
   if (parts[0] !== 'projects' || !ID.test(parts[1] || '')) throw fail('route-not-found');
   if (parts.some(part => !ID.test(part))) throw fail('request-invalid');
   const [, projectId, resource, item, sourceId] = parts;
@@ -61,10 +71,34 @@ function route(req) {
   if (resource === 'branches' && parts.length === 4) return { projectId, item, kind: 'branch', methods: ['GET', 'PUT'] };
   throw fail('route-not-found');
 }
-async function readBody(req, writing) {
+function createAuthLimiter() {
+  const buckets = new Map();
+  return ({ addressHash }) => {
+    const now = Date.now(); let bucket = buckets.get(addressHash);
+    if (!bucket || bucket.expiresAt <= now) {
+      if (buckets.size >= 4096) for (const [key, value] of buckets) if (value.expiresAt <= now) buckets.delete(key);
+      if (!bucket && buckets.size >= 4096) throw fail('rate-limit-exceeded');
+      bucket = { count: 0, expiresAt: now + 60_000 }; buckets.set(addressHash, bucket);
+    }
+    if (++bucket.count > 60) throw fail('rate-limit-exceeded');
+  };
+}
+function authBody(kind, body) {
+  if (kind === 'signIn') {
+    fields(body, ['email', 'password'], ['email', 'password']);
+    if (typeof body.email !== 'string' || body.email.length > 254 || /[\x00-\x1f\x7f]/.test(body.email)
+      || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())
+      || typeof body.password !== 'string' || body.password.length < 1 || body.password.length > 1024) throw fail('body-invalid');
+    return [body.email.trim().toLowerCase(), body.password];
+  }
+  fields(body, ['refreshToken'], ['refreshToken']);
+  if (typeof body.refreshToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.refreshToken)) throw fail('body-invalid');
+  return [body.refreshToken];
+}
+async function readBody(req, writing, maxBytes = MAX_HTTP_BYTES) {
   const length = header(req, 'content-length');
   if (length !== undefined && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)))) throw fail('request-invalid');
-  if (Number(length) > MAX_HTTP_BYTES) throw fail('request-too-large');
+  if (Number(length) > maxBytes) throw fail('request-too-large');
   if (header(req, 'content-encoding') !== undefined) throw fail('content-type-invalid');
   if (writing && !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(header(req, 'content-type') || '')) throw fail('content-type-invalid');
   if (!writing && (Number(length) > 0 || header(req, 'transfer-encoding') !== undefined)) throw fail('body-invalid');
@@ -77,8 +111,8 @@ async function readBody(req, writing) {
     function end() { cleanup(); resolve(); }
     function data(chunk) {
       size += chunk.length;
-      if (size > MAX_HTTP_BYTES || (!writing && size)) {
-        cleanup(); reject(fail(size > MAX_HTTP_BYTES ? 'request-too-large' : 'body-invalid')); return;
+      if (size > maxBytes || (!writing && size)) {
+        cleanup(); reject(fail(size > maxBytes ? 'request-too-large' : 'body-invalid')); return;
       }
       chunks.push(chunk);
     }
@@ -100,9 +134,13 @@ function revisionInput(body, projectId, idempotencyKey) {
 // This factory never creates or starts a server. The caller owns TLS, header/body
 // timeouts, maxHeaderSize, connection limits and shutdown. Proxy headers are not
 // transport evidence. Plain HTTP is supported solely for explicit loopback tests.
-function createRevisionHttpHandler({ service, allowLoopbackHttp = false } = {}) {
+function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identity = null, listProjects = null,
+  authRateLimit = () => {} } = {}) {
   if (!service || !SERVICE_METHODS.every(name => typeof service[name] === 'function')
-    || typeof allowLoopbackHttp !== 'boolean') throw fail('http-transport-invalid');
+    || typeof allowLoopbackHttp !== 'boolean' || typeof authRateLimit !== 'function'
+    || identity !== null && !['signIn', 'refresh', 'signOut', 'authenticate', 'getUser'].every(name => typeof identity[name] === 'function')
+    || listProjects !== null && typeof listProjects !== 'function') throw fail('http-transport-invalid');
+  const globalAuthLimit = createAuthLimiter();
   return async function revisionHttpHandler(req, res) {
     let context = createRequestContext();
     try {
@@ -112,17 +150,35 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false } = {}) 
       if (header(req, 'x-api-version') !== API_VERSION) throw fail('api-version-unsupported');
       context = createRequestContext({ 'x-request-id': header(req, 'x-request-id'),
         'idempotency-key': header(req, 'idempotency-key') });
-      const authorization = header(req, 'authorization');
-      if (typeof authorization !== 'string' || !/^Bearer [a-zA-Z0-9._~+\/-]{1,4096}={0,2}$/.test(authorization)) throw fail('access-token-invalid');
-      context = { ...context, accessToken: authorization.slice(7) };
       const target = route(req);
       if (!target.methods.includes(req.method)) {
         res.setHeader('Allow', target.methods.join(', '));
         throw fail('method-not-allowed');
       }
-      const body = await readBody(req, req.method !== 'GET');
+      const authorization = header(req, 'authorization');
+      if (!target.anonymous) {
+        if (typeof authorization !== 'string' || !/^Bearer [a-zA-Z0-9._~+\/-]{1,4096}={0,2}$/.test(authorization)) throw fail('access-token-invalid');
+        context = { ...context, accessToken: authorization.slice(7) };
+      } else {
+        if (!identity) throw fail('route-not-found');
+        const rateContext = { addressHash: createHash('sha256').update(String(req.socket?.remoteAddress || 'unknown')).digest('hex'), action: target.kind };
+        globalAuthLimit(rateContext); await authRateLimit(rateContext);
+      }
+      const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192 : MAX_HTTP_BYTES);
       let data;
-      if (target.kind === 'putManifest') {
+      if (target.anonymous) {
+        const method = target.kind === 'refreshSession' ? 'refresh' : target.kind;
+        data = await identity[method](...authBody(target.kind, body));
+      } else if (target.kind === 'account' || target.kind === 'projects') {
+        if (!identity || target.kind === 'projects' && !listProjects) throw fail('route-not-found');
+        const session = await identity.authenticate(context.accessToken);
+        if (target.kind === 'projects') data = await listProjects(context);
+        else {
+          const user = await identity.getUser(session.userId);
+          if (!user || user.status !== 'active') throw fail('access-token-invalid');
+          data = { id: user.id, email: user.email, status: 'active' };
+        }
+      } else if (target.kind === 'putManifest') {
         fields(body, ['manifest'], ['manifest']);
         try { validateRevisionManifest(body.manifest); } catch { throw fail('manifest-invalid'); }
         data = await service.putManifest(context, target.projectId, body.manifest);

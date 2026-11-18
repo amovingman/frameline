@@ -1,4 +1,4 @@
-const { app, BrowserWindow, clipboard, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, shell, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
@@ -24,6 +24,9 @@ const { createMediaAuditJobs } = require('./media-audit-jobs');
 const { createMediaAuditView } = require('./media-audit-view');
 const { resolveFolderCandidates, sanitizeResolutionReport } = require('./local-media-readiness');
 const { createSyncQueue } = require('./sync-queue');
+const { createCredentialVault } = require('./credential-vault');
+const { createDesktopServiceConnection } = require('./desktop-service-connection');
+const { createDesktopRevisionSync } = require('./desktop-revision-sync');
 const { createAccessControl } = require('./access-control');
 const { createFirstRun } = require('./first-run');
 const { createDiagnosticsReport } = require('./diagnostics-report');
@@ -56,6 +59,9 @@ let privateMediaAudits = {};
 let mediaAuditJobs;
 let mediaAuditView;
 let syncQueue;
+let serviceConnection;
+let desktopRevisionSync;
+let latestServiceState = null;
 let collaborationAccess;
 let collaborationTeam;
 let firstRun;
@@ -211,6 +217,19 @@ function createWindow() {
   window.loadFile(path.join(__dirname, 'index.html'));
 }
 
+function publishServiceState(state) {
+  latestServiceState = state;
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('service:state', state);
+}
+async function serviceAction(action) {
+  try { await action(); return await desktopRevisionSync.getState(); }
+  catch {
+    logger.warn('service.action-failed', { code: 'service-connection-failed' });
+    const state = await desktopRevisionSync.getState().catch(() => ({ ...serviceConnection.getState(), operations: [] }));
+    return { ...state, error: 'service-connection-failed' };
+  }
+}
+
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   adapterMetrics = createAdapterMetrics();
   localMetadataStore = createLocalMetadataStore(app.getPath('userData'));
@@ -218,6 +237,16 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
     scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, localMetadataStore);
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
+  serviceConnection = createDesktopServiceConnection({ directory: path.join(app.getPath('userData'), 'service'),
+    vault: createCredentialVault({ directory: path.join(app.getPath('userData'), 'service-secrets'), safeStorage }),
+    onChange: () => desktopRevisionSync?.connectionChanged() });
+  desktopRevisionSync = createDesktopRevisionSync({ directory: path.join(app.getPath('userData'), 'service-sync'),
+    connection: serviceConnection, store: localMetadataStore,
+    getSelection: () => {
+      const state = projectSession.getState();
+      return state.selectedProject?.id ? { localProjectId: state.selectedProject.id, branch: state.currentBranch } : null;
+    }, onChange: publishServiceState });
+  serviceConnection.initialize().then(() => desktopRevisionSync.getState()).then(publishServiceState).catch(() => {});
   collaborationAccess = createAccessControl();
   collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
   firstRun = createFirstRun({ directory: path.join(app.getPath('userData'), 'onboarding') });
@@ -257,7 +286,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('onboarding:get', () => firstRun.read());
   ipcMain.handle('onboarding:save', (_event, selection) => firstRun.save(selection));
   const diagnostic = () => createDiagnosticsReport({ appVersion: app.getVersion(), state: projectSession.getState(),
-    syncState: { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot() });
+    syncState: latestServiceState || { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot() });
   ipcMain.handle('diagnostics:preview', () => {
     const { report, sha256 } = diagnostic(); return { report, sha256 };
   });
@@ -270,15 +299,18 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     try { await fs.writeFile(choice.filePath, current.bytes, { flag: 'wx', mode: 0o600 }); return { saved: true }; }
     catch { return { saved: false, error: 'diagnostics-save-failed' }; }
   });
-  ipcMain.handle('sync:get-state', () => ({ connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }));
-  ipcMain.handle('sync:retry', (_event, id) => {
-    try { syncQueue.retry(id); return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }; }
-    catch (error) { return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect(), error: error.code || 'sync-operation-unavailable' }; }
-  });
-  ipcMain.handle('sync:cancel', (_event, id) => {
-    try { syncQueue.cancel(id); return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect() }; }
-    catch (error) { return { connected: false, serviceStatus: 'not-configured', operations: syncQueue.inspect(), error: error.code || 'sync-operation-unavailable' }; }
-  });
+  ipcMain.handle('sync:get-state', () => desktopRevisionSync.getState());
+  ipcMain.handle('sync:retry', (_event, id) => serviceAction(() => desktopRevisionSync.retry(id)));
+  ipcMain.handle('sync:cancel', (_event, id) => serviceAction(() => desktopRevisionSync.cancel(id)));
+  ipcMain.handle('service:state', () => desktopRevisionSync.getState());
+  ipcMain.handle('service:connect', (_event, input) => serviceAction(() => serviceConnection.connect(input)));
+  ipcMain.handle('service:disconnect', () => serviceAction(() => serviceConnection.disconnect()));
+  ipcMain.handle('service:refresh-projects', () => serviceAction(() => serviceConnection.refreshProjects()));
+  ipcMain.handle('service:bind', (_event, input) => serviceAction(() => desktopRevisionSync.bind(input)));
+  ipcMain.handle('service:unlink', () => serviceAction(() => desktopRevisionSync.unlink()));
+  ipcMain.handle('service:check', () => serviceAction(() => desktopRevisionSync.check()));
+  ipcMain.handle('service:push', () => serviceAction(() => desktopRevisionSync.push()));
+  ipcMain.handle('service:fetch', () => serviceAction(() => desktopRevisionSync.fetch()));
   ipcMain.handle('collaboration:get-state', () => getCollaborationState());
   ipcMain.handle('collaboration:invite', (_event, email, role) => {
     const projectId = projectSession.getState().selectedProject?.id;
@@ -673,6 +705,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return projectSession.getState();
     }
     const selectedPath = result.filePaths[0];
+    desktopRevisionSync.selectionChanged();
     mediaAuditJobs.selectionChanged();
     const state = await projectSession.select(selectedPath);
     selectedProjectPath = state.error === 'unsupported-format' ? null : selectedPath;
@@ -688,9 +721,11 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       if (state.scanStatus === 'ready') logger.info('project.scan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
       else logger.warn('project.scan-failed', { code: state.error });
     }
+    desktopRevisionSync.selectionChanged();
     return state;
   });
   ipcMain.handle('project:rescan', async () => {
+    desktopRevisionSync.selectionChanged();
     mediaAuditJobs.selectionChanged();
     const previousHash = projectSession.getState().scan?.sourceHash;
     const state = await projectSession.rescan();
@@ -702,7 +737,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
     return state;
   });
-  ipcMain.handle('project:cancel-scan', () => projectSession.cancelScan());
+  ipcMain.handle('project:cancel-scan', () => { const state = projectSession.cancelScan(); desktopRevisionSync.selectionChanged(); return state; });
   ipcMain.handle('project:prepare-review-copy', async () => {
     if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
     const state = projectSession.getState();
@@ -826,15 +861,23 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } finally { mediaAuditBusy = false; }
   });
   ipcMain.handle('project:save-revision', async (_event, message) => {
+    desktopRevisionSync.selectionChanged();
     const state = await projectSession.saveRevision(message);
     if (state.revisionError) logger.warn('revision.save-failed', { code: state.revisionError });
     else if (state.revisionStatus === 'idle' && state.revisions.length) logger.info('revision.saved', { projectId: state.selectedProject.id, revisionId: state.revisions[0].id });
-    return state;
+    desktopRevisionSync.selectionChanged(); return state;
   });
   ipcMain.handle('project:open-revision', async (_event, revisionId) => projectSession.openRevision(revisionId));
-  ipcMain.handle('project:create-branch', async (_event, name) => projectSession.createBranch(name));
-  ipcMain.handle('project:switch-branch', async (_event, name) => projectSession.switchBranch(name));
-  ipcMain.handle('project:relink', async (_event, projectId) => { mediaAuditJobs.selectionChanged(); return projectSession.relinkProject(projectId); });
+  ipcMain.handle('project:create-branch', async (_event, name) => {
+    desktopRevisionSync.selectionChanged(); const state = await projectSession.createBranch(name); desktopRevisionSync.selectionChanged(); return state;
+  });
+  ipcMain.handle('project:switch-branch', async (_event, name) => {
+    desktopRevisionSync.selectionChanged(); const state = await projectSession.switchBranch(name); desktopRevisionSync.selectionChanged(); return state;
+  });
+  ipcMain.handle('project:relink', async (_event, projectId) => {
+    mediaAuditJobs.selectionChanged(); desktopRevisionSync.selectionChanged();
+    const state = await projectSession.relinkProject(projectId); desktopRevisionSync.selectionChanged(); return state;
+  });
   ipcMain.handle('project:export-revisions', async () => {
     try {
       const bundle = await projectSession.exportRevisions();
@@ -869,7 +912,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       const stat = await fs.stat(filePath);
       if (stat.size > 50 * 1024 * 1024) return { error: 'revision-transfer-too-large' };
       const bundle = JSON.parse(await fs.readFile(filePath, 'utf8'));
-      return await projectSession.importRevisions(bundle);
+      desktopRevisionSync.selectionChanged(); const value = await projectSession.importRevisions(bundle); desktopRevisionSync.selectionChanged(); return value;
     } catch (error) {
       const code = error instanceof SyntaxError ? 'revision-transfer-invalid' : error.code || 'metadata-unavailable';
       logger.warn('revision.import-failed', { code });
@@ -888,10 +931,10 @@ app.on('window-all-closed', () => {
 
 let mediaShutdown = false, mediaShutdownReady = false;
 app.on('before-quit', event => {
-  if (!mediaAuditJobs?.isBusy() || mediaShutdownReady) return;
+  if (mediaShutdownReady || !mediaAuditJobs && !serviceConnection) return;
   event.preventDefault();
   if (mediaShutdown) return;
   mediaShutdown = true;
   const finish = () => { mediaShutdownReady = true; app.quit(); };
-  mediaAuditJobs.dispose().then(finish, finish);
+  Promise.allSettled([mediaAuditJobs?.dispose(), desktopRevisionSync?.dispose(), serviceConnection?.dispose()]).then(finish, finish);
 });

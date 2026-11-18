@@ -1,5 +1,5 @@
 const { fingerprint } = require('./project-api-contracts');
-const { createCloudHistoryStore, validateState } = require('./cloud-history-store');
+const { createCloudHistoryStore, validateState, migrateServiceState, manifestStorageKey } = require('./cloud-history-store');
 
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function createServiceBackup(store) {
@@ -12,8 +12,8 @@ function createServiceBackup(store) {
 function restoreServiceBackup(backup, options) {
   if (!backup || backup.format !== 'frameline-service-backup' || backup.version !== 1
     || backup.sha256 !== fingerprint(backup.state)) throw fail('backup-invalid');
-  validateState(backup.state);
-  return createCloudHistoryStore(backup.state, options);
+  const migrated = migrateServiceState(backup.state); validateState(migrated);
+  return createCloudHistoryStore(migrated, options);
 }
 function runRestoreDrill(store, options) {
   const backup = createServiceBackup(store);
@@ -21,11 +21,14 @@ function runRestoreDrill(store, options) {
   return { verified: fingerprint(restored.snapshot()) === backup.sha256, backupHash: backup.sha256 };
 }
 function retentionReport(store) {
-  const state = store.snapshot();
-  const referenced = new Set(Object.values(state.revisions).map(item => item.manifestId));
+  const state = migrateServiceState(store.snapshot());
+  const referenced = new Set(Object.values(state.revisions).map(item => manifestStorageKey(item.projectId, item.manifestId)));
   const retained = []; const eligible = [];
-  for (const id of Object.keys(state.manifests).sort()) (referenced.has(id) ? retained : eligible).push(id);
-  return { schemaVersion: 1, retainedManifestIds: retained, eligibleUnreferencedManifestIds: eligible,
+  const manifests = Object.entries(state.manifests).sort(([, a], [, b]) => {
+    const left = JSON.stringify([a.projectId, a.id]), right = JSON.stringify([b.projectId, b.id]); return left < right ? -1 : left > right ? 1 : 0;
+  });
+  for (const [key, manifest] of manifests) (referenced.has(key) ? retained : eligible).push({ projectId: manifest.projectId, manifestId: manifest.id });
+  return { schemaVersion: 2, retainedManifests: retained, eligibleUnreferencedManifests: eligible,
     deletionPerformed: false };
 }
 module.exports = { createServiceBackup, restoreServiceBackup, runRestoreDrill, retentionReport };

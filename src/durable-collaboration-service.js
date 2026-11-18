@@ -6,7 +6,7 @@ const { randomUUID, randomBytes } = require('node:crypto');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { createIdentityService, validateIdentityState } = require('./identity-service');
 const { createAccessControl, validateAccessState } = require('./access-control');
-const { createCloudHistoryStore } = require('./cloud-history-store');
+const { createCloudHistoryStore, migrateServiceState, manifestStorageKey } = require('./cloud-history-store');
 const { createAuthorizedProjectService } = require('./authorized-project-service');
 const { validateRevisionManifest } = require('./revision-manifest');
 const { fingerprint } = require('./project-api-contracts');
@@ -21,7 +21,8 @@ const text = (value, limit) => typeof value === 'string' && value.trim() && valu
 function fail(code) { return Object.assign(new Error(code), { code }); }
 
 function validateHistory(input) {
-  if (!exact(input, ['schemaVersion', 'projects', 'manifests', 'revisions', 'idempotency']) || input.schemaVersion !== 2
+  input = migrateServiceState(input);
+  if (!exact(input, ['schemaVersion', 'projects', 'manifests', 'revisions', 'idempotency']) || input.schemaVersion !== 3
     || !['projects', 'manifests', 'revisions', 'idempotency'].every(key => record(input[key]))) throw fail('collaboration-state-invalid');
   for (const key of ['projects', 'manifests', 'revisions', 'idempotency']) {
     if (Object.keys(input[key]).length > 100000) throw fail('collaboration-state-invalid');
@@ -32,10 +33,10 @@ function validateHistory(input) {
       || !Object.hasOwn(project.branches, 'main') || Object.keys(project.branches).length > 10000
       || Object.entries(project.branches).some(([name, head]) => !validId(name) || head !== null && !validId(head))) throw fail('collaboration-state-invalid');
   }
-  for (const [id, manifest] of Object.entries(input.manifests)) {
-    if (!exact(manifest, ['id', 'projectId', 'document', 'createdAt']) || manifest.id !== id
+  for (const [key, manifest] of Object.entries(input.manifests)) {
+    if (!exact(manifest, ['id', 'projectId', 'document', 'createdAt']) || key !== manifestStorageKey(manifest.projectId, manifest.id)
       || !validId(manifest.projectId) || !Object.hasOwn(input.projects, manifest.projectId)
-      || id !== `sha256:${fingerprint(manifest.document)}` || !date(manifest.createdAt)) throw fail('collaboration-state-invalid');
+      || manifest.id !== `sha256:${fingerprint(manifest.document)}` || !date(manifest.createdAt)) throw fail('collaboration-state-invalid');
     try { validateRevisionManifest(manifest.document); } catch { throw fail('collaboration-state-invalid'); }
   }
   for (const [id, revision] of Object.entries(input.revisions)) {
@@ -44,8 +45,9 @@ function validateHistory(input) {
       || revision.parentRevisionId !== null && !validId(revision.parentRevisionId)
       || revision.sourceRevisionId !== null && !validId(revision.sourceRevisionId)
       || !text(revision.message, 240) || !date(revision.createdAt)) throw fail('collaboration-state-invalid');
-    if (!Object.hasOwn(input.projects, revision.projectId) || !Object.hasOwn(input.manifests, revision.manifestId)
-      || input.manifests[revision.manifestId].projectId !== revision.projectId
+    const key = manifestStorageKey(revision.projectId, revision.manifestId);
+    if (!Object.hasOwn(input.projects, revision.projectId) || !Object.hasOwn(input.manifests, key)
+      || input.manifests[key].projectId !== revision.projectId
       || revision.parentRevisionId !== null && (!Object.hasOwn(input.revisions, revision.parentRevisionId)
         || input.revisions[revision.parentRevisionId].projectId !== revision.projectId)) throw fail('collaboration-state-invalid');
   }
@@ -117,7 +119,7 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     directory = await storage.realpath(directory);
   } catch { throw fail('collaboration-storage-unavailable'); }
   const filename = path.join(directory, 'collaboration.enc.json');
-  let ring = keyring, pending = Promise.resolve(), closing = false, uncertain = false, observedKeyId = null, initialized = false;
+  let ring = keyring, pending = Promise.resolve(), closing = false, uncertain = false, observedKeyId = null, initialized = false, needsMigration = false;
   function validateEnvelope(value) {
     const base64 = (text, length = null) => typeof text === 'string' && Buffer.from(text, 'base64').toString('base64') === text
       && (length === null || Buffer.from(text, 'base64').length === length);
@@ -127,7 +129,7 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
   }
   async function read() {
     let handle;
-    observedKeyId = null;
+    observedKeyId = null; needsMigration = false;
     try {
       handle = await storage.open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
       const stat = await handle.stat();
@@ -138,7 +140,8 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
       if (file?.schemaVersion > 1) throw fail('collaboration-state-newer-version');
       if (!exact(file, ['schemaVersion', 'generation', 'record']) || file.schemaVersion !== 1) throw fail('collaboration-state-invalid');
       validateEnvelope(file.record);
-      const value = validateCollaborationState(ring.decrypt(file.record));
+      const original = ring.decrypt(file.record), value = validateCollaborationState(original);
+      needsMigration = fingerprint(original) !== fingerprint(value);
       if (file.generation !== value.generation) throw fail('collaboration-state-invalid');
       observedKeyId = file.record.keyId;
       return value;
@@ -194,7 +197,7 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
         const world = hydrate(previous, effects);
         output = await action(world);
         const value = world.snapshot();
-        if (!previous || rotate || fingerprint(previous) !== fingerprint(value)) {
+        if (!previous || needsMigration || rotate || fingerprint(previous) !== fingerprint(value)) {
           if (value.generation === Number.MAX_SAFE_INTEGER) throw fail('collaboration-state-invalid');
           value.generation++; await write(value, rotate || ring, rotate !== null);
           if (rotate) ring = rotate;
@@ -234,7 +237,14 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
     identity, members,
     teams: { create: (context, name) => transact(world => world.access.createTeam(world.actor(context), name)),
       invite: (context, teamId, email, role) => transact(world => world.access.invite(world.actor(context), teamId, email, role)) },
-    projects: { create: (context, input) => transact(world => {
+    projects: { list: context => transact(world => {
+      const userId = world.actor(context), history = world.history.snapshot();
+      return { projects: world.access.snapshot().projects.flatMap(project => {
+        const role = project.deletedAt === null && project.roles.find(member => member.userId === userId)?.role;
+        return role ? [{ id: project.id, name: history.projects[project.id].name, role,
+          branches: Object.keys(history.projects[project.id].branches).sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b)) }] : [];
+      }).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)) };
+    }), create: (context, input) => transact(world => {
       const actor = world.actor(context), before = world.access.snapshot().projects.find(project => project.id === input.projectId);
       if (before) world.access.authorize(actor, { projectId: input.projectId, resource: 'project', action: 'write' });
       const value = world.history.createProject(input);

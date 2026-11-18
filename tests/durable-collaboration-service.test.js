@@ -7,6 +7,7 @@ const path = require('node:path');
 const { createDurableCollaborationService, validateCollaborationState } = require('../src/durable-collaboration-service');
 const { createKeyring } = require('../src/security-controls');
 const { fingerprint } = require('../src/project-api-contracts');
+const { manifestStorageKey } = require('../src/cloud-history-store');
 const master = Buffer.alloc(32, 3), current = Buffer.alloc(32, 4);
 const ring = () => createKeyring({ old: master }, 'old');
 const password = 'disposable durable password';
@@ -158,7 +159,7 @@ test('strict combined validation rejects dangling references, cyclic history and
     change(s => { s.history.revisions[revision.id].authorId = 'missing-user'; }),
     change(s => { s.history.revisions[revision.id].parentRevisionId = revision.id; }),
     change(s => { s.history.projects.film.branches.main = 'missing-revision'; }),
-    change(s => { s.history.manifests[stored.id].projectId = 'constructor'; }),
+    change(s => { s.history.manifests[manifestStorageKey('film', stored.id)].projectId = 'constructor'; }),
     change(s => { s.history.revisions[revision.id].rawToken = 'private'; }),
     change(s => { s.history.projects.extra = { ...s.history.projects.film, id: 'extra' }; })]) {
     assert.throws(() => validateCollaborationState(altered), { code: 'collaboration-state-invalid' });
@@ -209,4 +210,46 @@ test('account deletion atomically retains historical tombstones without granting
   const state = await value.state();
   assert.equal(state.access.projects[0].roles.find(member => member.userId === value.user.id).role, 'owner');
   assert.equal(state.access.teams[0].members.find(member => member.userId === value.user.id).role, 'viewer');
+});
+
+test('identical manifest content has independent project references through durable reopen', async t => {
+  const value = await fixture(t), team = await project(value);
+  await value.runtime.projects.create(value.context, { projectId: 'second-film', name: 'Second film', teamId: team.id });
+  const first = await value.runtime.service.putManifest(value.context, 'film', manifest());
+  const second = await value.runtime.service.putManifest(value.context, 'second-film', manifest());
+  assert.equal(first.id, second.id);
+  for (const projectId of ['film', 'second-film']) {
+    const revision = await value.runtime.service.createRevision(value.context, { projectId, manifestId: first.id,
+      sourceRevisionId: `source-${projectId}`, message: 'Identical content', idempotencyKey: `revision-${projectId}` });
+    await value.runtime.service.updateBranch(value.context, { projectId, branch: 'main', expectedRevisionId: null,
+      revisionId: revision.id, idempotencyKey: `branch-${projectId}` });
+  }
+  const reopened = await value.open(), state = await value.state();
+  assert.equal(state.history.schemaVersion, 3); assert.equal(Object.keys(state.history.manifests).length, 2);
+  for (const projectId of ['film', 'second-film']) {
+    assert.equal((await reopened.service.getManifest(value.context, projectId, first.id)).projectId, projectId);
+    assert((await reopened.service.getBranch(value.context, projectId, 'main')).revisionId);
+  }
+});
+
+test('encrypted legacy history migrates its scoped references atomically once without changing recorded idempotency', async t => {
+  const value = await fixture(t); await project(value);
+  const stored = await value.runtime.service.putManifest(value.context, 'film', manifest());
+  const revision = await value.runtime.service.createRevision(value.context, { projectId: 'film', manifestId: stored.id,
+    message: 'Legacy cut', sourceRevisionId: 'legacy-source', idempotencyKey: 'legacy-revision' });
+  await value.runtime.service.updateBranch(value.context, { projectId: 'film', branch: 'main', expectedRevisionId: null,
+    revisionId: revision.id, idempotencyKey: 'legacy-branch' });
+  const legacy = await value.state(), generation = legacy.generation;
+  legacy.history = { ...legacy.history, schemaVersion: 2,
+    manifests: Object.fromEntries(Object.values(legacy.history.manifests).map(item => [item.id, item])) };
+  const priorIdempotency = structuredClone(legacy.history.idempotency);
+  await fs.writeFile(value.filename, JSON.stringify({ schemaVersion: 1, generation, record: ring().encrypt(legacy) }));
+  const reopened = await value.open(), migrated = await value.state();
+  assert.equal(migrated.generation, generation + 1); assert.equal(migrated.history.schemaVersion, 3);
+  assert.deepEqual(migrated.history.idempotency, priorIdempotency);
+  assert.equal((await reopened.service.getBranch(value.context, 'film', 'main')).revisionId, revision.id);
+  const retried = await reopened.service.createRevision(value.context, { projectId: 'film', manifestId: stored.id,
+    message: 'Legacy cut', sourceRevisionId: 'legacy-source', idempotencyKey: 'legacy-revision' });
+  assert.equal(retried.id, revision.id);
+  const again = await value.open(); assert.equal((await again.getStatus()).generation, generation + 1);
 });

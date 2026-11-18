@@ -11,6 +11,21 @@ contextBridge.exposeInMainWorld('desktop', {
   getSyncState: () => ipcRenderer.invoke('sync:get-state'),
   retrySync: id => ipcRenderer.invoke('sync:retry', id),
   cancelSync: id => ipcRenderer.invoke('sync:cancel', id),
+  getServiceState: () => ipcRenderer.invoke('service:state'),
+  connectService: input => ipcRenderer.invoke('service:connect', input),
+  disconnectService: () => ipcRenderer.invoke('service:disconnect'),
+  refreshServiceProjects: () => ipcRenderer.invoke('service:refresh-projects'),
+  bindServiceProject: input => ipcRenderer.invoke('service:bind', input),
+  unlinkServiceProject: () => ipcRenderer.invoke('service:unlink'),
+  checkServiceSync: () => ipcRenderer.invoke('service:check'),
+  pushServiceRevisions: () => ipcRenderer.invoke('service:push'),
+  fetchServiceRevisions: () => ipcRenderer.invoke('service:fetch'),
+  onServiceState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('service:state', handle);
+    return () => ipcRenderer.removeListener('service:state', handle);
+  },
   getCollaborationState: () => ipcRenderer.invoke('collaboration:get-state'),
   inviteCollaborator: (email, role) => ipcRenderer.invoke('collaboration:invite', email, role),
   chooseProject: () => ipcRenderer.invoke('project:choose'),

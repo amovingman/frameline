@@ -6,6 +6,7 @@ const { API_VERSION } = require('./project-api-contracts');
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceeded', 'project-not-found',
+  'credentials-invalid', 'refresh-token-invalid',
   'manifest-not-found', 'manifest-project-mismatch', 'revision-not-found', 'parent-revision-not-found',
   'branch-not-found', 'branch-head-changed', 'revision-parent-mismatch', 'source-revision-exists',
   'idempotency-key-reused', 'branch-approval-required', 'approval-head-stale', 'request-too-large',
@@ -19,10 +20,25 @@ function fields(value, keys) {
   return value && typeof value === 'object' && !Array.isArray(value)
     && Object.keys(value).sort().join('|') === keys.slice().sort().join('|');
 }
+const identifier = value => typeof value === 'string' && ID.test(value);
+const bearer = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)
+  && Buffer.from(value, 'base64url').toString('base64url') === value;
+const timestamp = value => Number.isSafeInteger(value) && value > 0 && value <= 8_640_000_000_000_000;
+const emailAddress = value => typeof value === 'string' && value.length <= 254 && value === value.trim().toLowerCase()
+  && !/[\x00-\x1f\x7f]/.test(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const label = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 120
+  && !/[\\/\x00-\x1f\x7f]/.test(value) && !/^[a-z]:/i.test(value);
+function checkedSession(value) {
+  if (!fields(value, ['sessionId', 'accessToken', 'refreshToken', 'accessExpiresAt', 'refreshExpiresAt'])
+    || !identifier(value.sessionId) || !bearer(value.accessToken) || !bearer(value.refreshToken)
+    || value.accessToken === value.refreshToken || !timestamp(value.accessExpiresAt) || !timestamp(value.refreshExpiresAt)
+    || value.accessExpiresAt > value.refreshExpiresAt) throw fail('sync-response-invalid');
+  return value;
+}
 
 // Main-process/client code only. No token, URL, response text or remote error
 // message is attached to an error; redirects never forward authorization.
-function createRevisionHttpClient({ origin, getAccessToken, fetch: send = globalThis.fetch,
+function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: send = globalThis.fetch,
   allowLoopbackHttp = false, timeoutMs = 30000, maxBytes = LIMIT } = {}) {
   let base;
   try { base = new URL(origin); } catch { throw fail('sync-origin-invalid'); }
@@ -34,7 +50,7 @@ function createRevisionHttpClient({ origin, getAccessToken, fetch: send = global
   if (typeof getAccessToken !== 'function' || typeof send !== 'function' || typeof allowLoopbackHttp !== 'boolean'
     || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000
     || !Number.isSafeInteger(maxBytes) || maxBytes < 256 || maxBytes > LIMIT) throw fail('sync-client-invalid');
-  async function request(method, route, body, { signal, idempotencyKey = null } = {}) {
+  async function request(method, route, body, { signal, idempotencyKey = null, anonymous = false } = {}) {
     if (signal !== undefined && signal !== null && !(signal instanceof AbortSignal)) throw fail('sync-request-invalid');
     if (signal?.aborted) throw fail('sync-cancelled');
     if (idempotencyKey !== null && (typeof idempotencyKey !== 'string' || !ID.test(idempotencyKey))) throw fail('sync-request-invalid');
@@ -42,12 +58,18 @@ function createRevisionHttpClient({ origin, getAccessToken, fetch: send = global
     try { if (body !== undefined) encoded = JSON.stringify(body); } catch { throw fail('sync-request-invalid'); }
     if (encoded !== undefined && Buffer.byteLength(encoded) > maxBytes) throw fail('sync-request-too-large');
     let token;
-    try { token = await getAccessToken(); } catch { throw fail('access-token-invalid'); }
-    if (typeof token !== 'string' || !/^[A-Za-z0-9._~=-]{16,4096}$/.test(token)) throw fail('access-token-invalid');
+    if (!anonymous) {
+      try { token = await getAccessToken(); }
+      catch (error) {
+        throw fail(['service-offline', 'sync-network-unavailable'].includes(error?.code) ? 'sync-network-unavailable' : 'access-token-invalid');
+      }
+      if (typeof token !== 'string' || !/^[A-Za-z0-9._~=-]{16,4096}$/.test(token)) throw fail('access-token-invalid');
+    }
     if (signal?.aborted) throw fail('sync-cancelled');
     const requestId = randomUUID(), timeout = AbortSignal.timeout(timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
-    const headers = { accept: 'application/json', authorization: `Bearer ${token}`, 'x-request-id': requestId, 'x-api-version': API_VERSION };
+    const headers = { accept: 'application/json', 'x-request-id': requestId, 'x-api-version': API_VERSION };
+    if (!anonymous) headers.authorization = `Bearer ${token}`;
     if (encoded !== undefined) headers['content-type'] = 'application/json';
     if (idempotencyKey !== null) headers['idempotency-key'] = idempotencyKey;
     let response, bytes;
@@ -82,6 +104,7 @@ function createRevisionHttpClient({ origin, getAccessToken, fetch: send = global
     if (envelope?.apiVersion !== API_VERSION || envelope.requestId !== requestId) throw fail('sync-response-invalid');
     if (!response.ok) {
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
+      if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -90,6 +113,36 @@ function createRevisionHttpClient({ origin, getAccessToken, fetch: send = global
   }
   const project = id => `/projects/${segment(id)}`;
   return {
+    signIn: async (email, password, options = {}) => {
+      if (typeof email !== 'string' || !emailAddress(email.trim().toLowerCase())
+        || typeof password !== 'string' || password.length < 1 || password.length > 1024) throw fail('sync-request-invalid');
+      return checkedSession(await request('POST', '/auth/sessions', { email: email.trim().toLowerCase(), password }, { ...options, anonymous: true }));
+    },
+    refreshSession: async (refreshToken, options = {}) => {
+      if (!bearer(refreshToken)) throw fail('sync-request-invalid');
+      return checkedSession(await request('POST', '/auth/sessions/refresh', { refreshToken }, { ...options, anonymous: true }));
+    },
+    signOut: async (refreshToken, options = {}) => {
+      if (!bearer(refreshToken)) throw fail('sync-request-invalid');
+      const result = await request('POST', '/auth/sessions/sign-out', { refreshToken }, { ...options, anonymous: true });
+      if (!fields(result, ['signedOut']) || result.signedOut !== true) throw fail('sync-response-invalid'); return result;
+    },
+    getAccount: async options => {
+      const result = await request('GET', '/account', undefined, options);
+      if (!fields(result, ['id', 'email', 'status']) || !identifier(result.id) || !emailAddress(result.email)
+        || result.status !== 'active') throw fail('sync-response-invalid'); return result;
+    },
+    listProjects: async options => {
+      const result = await request('GET', '/projects', undefined, options); const ids = new Set();
+      if (!fields(result, ['projects']) || !Array.isArray(result.projects) || result.projects.length > 10_000
+        || result.projects.some(item => {
+          if (!fields(item, ['id', 'name', 'role', 'branches']) || !identifier(item.id) || ids.has(item.id)
+            || !label(item.name) || !['owner', 'editor', 'viewer'].includes(item.role) || !Array.isArray(item.branches)
+            || item.branches.length > 10_000 || !item.branches.every(identifier)
+            || new Set(item.branches).size !== item.branches.length) return true;
+          ids.add(item.id); return false;
+        })) throw fail('sync-response-invalid'); return result;
+    },
     putManifest: (id, manifest, options) => request('PUT', `${project(id)}/manifests`, { manifest }, options),
     createRevision: (input, options = {}) => request('POST', `${project(input.projectId)}/revisions`, {
       manifestId: input.manifestId, parentRevisionId: input.parentRevisionId ?? null, message: input.message,

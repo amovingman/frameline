@@ -178,17 +178,17 @@ For this workspace, commit verified features locally and preserve the user’s l
 
 ### 3.1 Service and data model
 - [ ] Select deployment and data-processing regions based on user needs.
-- [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. An injected authorized HTTP boundary and asynchronous metadata client passed a disposable two-account loopback exchange; hosted deployment and desktop configuration remain open. See `REVISION_NETWORK_SYNC.md` for validation scope.
+- [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. An injected authorized HTTP boundary and asynchronous metadata client passed a disposable two-account loopback exchange. Desktop HTTPS sign-in and scoped metadata operations passed browser and native checks, including full app restart; hosted deployment remains open. See `REVISION_NETWORK_SYNC.md` and `DESKTOP_SERVICE_SYNC.md` for validation scope.
 - [x] Add an executable domain store for content-addressed immutable manifests, revision metadata, projects, and branch heads.
 - [x] Use compare-and-swap branch-head updates with expected-head and revision-parent checks.
 - [x] Define and test service-state migration, verified backup/restore, restore drills, and non-destructive retention reporting. A combined encrypted local identity/access/history runtime now commits through cooperative local locking and flushed replacement. Its disposable HTTP process-restart proof preserved acknowledged history, sessions, roles, idempotent retry, and revocations; injected-failure checks cover rollback and uncertain writes. Production persistence and disaster recovery remain open. See `DURABLE_COLLABORATION_SERVICE.md`.
 - [x] Add request IDs, exact-input idempotency keys, signed bounded pagination, and API version envelopes to the service foundation.
 
 ### 3.2 Accounts, authorization, and security
-- [x] Add an executable identity foundation for sign-in, sign-out, rotating refresh tokens, generic account recovery, session revocation, and deletion. No hosted identity service or desktop sign-in UI is deployed.
+- [x] Add an executable identity foundation for sign-in, sign-out, rotating refresh tokens, generic account recovery, session revocation, and deletion. Desktop HTTPS sign-in and macOS OS-backed credential restoration passed a full app restart without retyping; final sign-out removed the saved entry. Hosted identity provisioning, recovery delivery, and signed-release credential policy remain open.
 - [x] Define teams, expiring invitations, owner/editor/viewer project roles, and explicit permission boundaries.
 - [x] Enforce project-scoped authorization through a service wrapper before project, revision, branch, and asset operations.
-- [x] Add a main-process-only Electron `safeStorage` credential vault with atomic encrypted persistence and rotation; preload exposes no credential or token API.
+- [x] Add a main-process-only Electron `safeStorage` credential vault with atomic encrypted persistence and rotation; preload exposes no vault access or stored token values.
 - [x] Require HTTPS service origins, add AES-256-GCM stored-record envelopes, and support key-ID rotation. Hosted TLS and managed keys remain deployment work.
 - [x] Add per-principal/action rate limits, hash-chained audit events, session-revoking account deletion, and ownership-orphan refusal.
 - [x] Threat-model malicious project files, archive traversal, symlinks, path disclosure, token theft, and unauthorized asset access in `SECURITY_MODEL.md`.
@@ -197,10 +197,10 @@ For this workspace, commit verified features locally and preserve the user’s l
 - [x] Add an executable sync service that validates local revision bundles, uploads content-addressed manifests and immutable revisions idempotently, and advances remote branches by compare-and-swap. An asynchronous network path passed a disposable two-account loopback exchange with session-bound authors and project access checks; it does not deploy a service.
 - [x] Fetch a remote branch head, ordered revision history, and required manifests without fetching media.
 - [x] Track in-sync, local-ahead, remote-ahead, and diverged states with explicit push, fetch, or reconciliation-branch actions.
-- [x] Add a durable, exact-input-deduplicated push queue that pauses offline, applies bounded exponential retry to transient network failures, and relies on the sync service's stable idempotency keys when connectivity returns. Asynchronous processing passed a real loopback retry after a committed branch acknowledgment was lost, recovering a fresh on-disk queue without duplicate revisions. Hosted persistence and desktop connection remain open.
+- [x] Add a durable, exact-input-deduplicated push queue that pauses offline, applies bounded exponential retry to transient network failures, and relies on the sync service's stable idempotency keys when connectivity returns. Asynchronous processing passed a real loopback retry after a committed branch acknowledgment was lost, recovering a fresh on-disk queue without duplicate revisions. Desktop queues use explicit service/account/local-branch/remote-branch scopes covered by controller tests; browser/native HTTPS metadata operations passed. Hosted persistence remains open.
 - [x] Detect branch-head races before and during push, preserve the concurrent remote head, and return explicit fetch/reconciliation actions without overwriting remote work.
 - [x] Store fetched revision and manifest metadata in a content-addressed, integrity-checked local cache for offline browsing and pull-planning inputs; media remains excluded.
-- [x] Expose durable revision-level sync progress, explicit retry and cancel controls, and recoverable network/conflict states in the desktop history view. Hosted transport remains unconfigured.
+- [x] Expose durable revision-level sync progress, explicit retry and cancel controls, and recoverable network/conflict states in the desktop history view. The service panel's sign-in, branch linking, check/push/fetch, viewer restrictions, and read-only fetched rows passed browser/native HTTPS checks. Full native restart recovered credentials, the mapping after matching-source reselection, and fetched cache; responsive checks passed. No hosted service is deployed by this build.
 
 ### 3.4 Sharing and team workflow
 - [x] Add owner-only project invitations for editor/viewer roles, token-free member and pending-invite listings, and a desktop access panel. Invitations remain local until hosted delivery exists.

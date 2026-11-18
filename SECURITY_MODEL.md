@@ -6,7 +6,7 @@ A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) p
 
 ## Trust boundaries
 
-- The Electron renderer is untrusted. It receives display-safe project state through the narrow preload API and never receives access tokens, refresh tokens, service credentials, media paths, or credential-vault methods.
+- The Electron renderer is untrusted. A user-entered sign-in password exists briefly in the form and dedicated IPC request; the form clears immediately on submission. The renderer receives display-safe state but never receives stored access/refresh tokens, media paths, or credential-vault methods. Passwords are absent from saved credentials and state/events. See `DESKTOP_SERVICE_SYNC.md` for verified browser/native behavior and unsigned-development-app limits.
 - The Electron main process may read user-selected project files and use the operating system protected secret facility through `safeStorage`.
 - Project API requests require an authenticated session and a project-scoped authorization decision. A resource ID alone grants no access.
 - FCPXML, JSON snapshots, revision bundles, archives, filenames, and collaborator-controlled metadata are untrusted input.

@@ -1,6 +1,6 @@
 # Revision metadata network sync
 
-This milestone adds an injectable HTTP boundary and asynchronous client, sync service, and durable push processing for revision metadata. Disposable two-account loopback, local TLS, full-suite, and packaging checks have passed. It does not configure a service connection in the desktop app or deploy a service.
+This milestone adds an injectable HTTP boundary and asynchronous client, sync service, and durable push processing for revision metadata. Disposable two-account loopback, local TLS, full-suite, and packaging checks have passed. It did not configure a desktop connection or deploy a service; the later [desktop service integration](DESKTOP_SERVICE_SYNC.md) now provides account sign-in and explicit metadata operations, with its own validation status.
 
 ## Transport and authorization
 
@@ -10,7 +10,7 @@ Requests carry an API version and a bearer credential in the `Authorization` hea
 
 HTTPS is required by default. An explicit disposable-fixture option permits HTTP only for loopback connections. The server checks the actual socket address and encryption state, rather than trusting forwarded headers. The client accepts only a root service origin without embedded credentials, path, query, or fragment; HTTP fixtures require a numeric loopback address. Redirects are refused. Its default request timeout is 30 seconds, and streamed response bytes are bounded even when no content length is provided. It checks the API version and returned request ID before accepting a response.
 
-The client obtains the current access token from a supplied callback for each request. It belongs in the main-process service layer; this milestone does not wire it into the desktop app, add a renderer token API, or provide a desktop sign-in/configuration flow.
+The client obtains the current access token from a supplied callback for each request. The later desktop integration supplies that callback from a main-process connection manager with encrypted credential storage and single-flight refresh. No renderer token API is exposed.
 
 The metadata routes cover content-addressed manifest writes/reads, immutable revision creation/read/source lookup, and branch reads/compare-and-swap updates. Request and response bodies are each capped at 8 MiB. This surface transfers revision metadata and manifests, without media bytes or arbitrary server file access.
 
@@ -28,7 +28,7 @@ Reconnecting retries immutable writes with stable, bounded idempotency keys. Rev
 
 Branch movement remains compare-and-swap against an expected head and the new revision's parent. Concurrent remote work is preserved. A changed head requires fetch and reconciliation instead of an overwrite. Aborting processing preserves its pending intent for another attempt; explicit queue cancellation removes that intent and aborts the active request. Cancellation cannot retract a remote mutation that has already committed.
 
-The queue journal and fetched cache are local metadata. They do not store access credentials or media contents. Production use still needs an account-to-service binding and a configured credential provider; this milestone does not make the desktop History view connected.
+The queue journal and fetched cache are local metadata. They do not store access credentials or media contents. The later desktop integration scopes each queue/cache to an explicit origin/account/local-branch/remote-branch binding; see `DESKTOP_SERVICE_SYNC.md` for its verified browser/native workflow and limitations.
 
 ## Validation
 
@@ -50,6 +50,6 @@ A later [durable local collaboration runtime](DURABLE_COLLABORATION_SERVICE.md) 
 
 ## Remaining deployment work
 
-Deployment/data-processing regions, production TLS hosting, durable service storage and backup operations, managed keys, account provisioning/recovery delivery, operational monitoring, and desktop authentication/configuration remain open. Sharing links, cross-device notifications, media transfer, synced-base integration, and safe project apply also remain separate roadmap work.
+Deployment/data-processing regions, production TLS hosting, durable service storage and backup operations, managed keys, account provisioning/recovery delivery, and operational monitoring remain open. Desktop authentication/configuration passed the later milestone's browser/native HTTPS and restart checks; signed-release credential policy remains open. Sharing links, cross-device notifications, media transfer, synced-base integration, and safe project apply also remain separate roadmap work.
 
 The transport uses Node's documented [HTTP server APIs](https://nodejs.org/api/http.html) and [fetch API](https://nodejs.org/api/globals.html#fetch), while the authorization and immutable-history rules remain repository domain contracts.
