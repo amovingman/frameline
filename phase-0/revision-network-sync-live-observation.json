@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T04:24:32.769Z",
+  "transport": "numeric-loopback-http-opt-in",
+  "scope": "Disposable authenticated revision metadata exchange; no desktop connection or hosted deployment",
+  "authorizedAccounts": 2,
+  "outsiderAccounts": 1,
+  "networkRequests": 41,
+  "offlineQueuePreserved": true,
+  "unavailableServerRetried": true,
+  "committedBranchAcknowledgmentLost": true,
+  "queueRecoveredFromDisk": true,
+  "retryCreatedNoDuplicateRevisions": true,
+  "fetchedRevisionCount": 2,
+  "mediaFetched": false,
+  "authorBoundToSession": true,
+  "outsiderBranchAndSourceLookupDenied": true,
+  "concurrentBranchWriterPreserved": true,
+  "removedMemberDenied": true,
+  "verifiedCacheAvailableOffline": true,
+  "limits": [
+    "HTTP was explicitly allowed for this loopback fixture only.",
+    "Identity and server history were in memory.",
+    "No production hosting, TLS termination, desktop authentication or cross-device deployment is claimed."
+  ]
+}

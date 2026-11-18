@@ -178,7 +178,7 @@ For this workspace, commit verified features locally and preserve the user’s l
 
 ### 3.1 Service and data model
 - [ ] Select deployment and data-processing regions based on user needs.
-- [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. Deployment and transport remain open.
+- [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. An injected authorized HTTP boundary and asynchronous metadata client passed a disposable two-account loopback exchange; hosted deployment and desktop configuration remain open. See `REVISION_NETWORK_SYNC.md` for validation scope.
 - [x] Add an executable domain store for content-addressed immutable manifests, revision metadata, projects, and branch heads.
 - [x] Use compare-and-swap branch-head updates with expected-head and revision-parent checks.
 - [x] Define and test service-state migration, verified backup/restore, restore drills, and non-destructive retention reporting.
@@ -194,10 +194,10 @@ For this workspace, commit verified features locally and preserve the user’s l
 - [x] Threat-model malicious project files, archive traversal, symlinks, path disclosure, token theft, and unauthorized asset access in `SECURITY_MODEL.md`.
 
 ### 3.3 Push, fetch, and offline sync
-- [x] Add an executable sync service that validates local revision bundles, uploads content-addressed manifests and immutable revisions idempotently, and advances remote branches by compare-and-swap.
+- [x] Add an executable sync service that validates local revision bundles, uploads content-addressed manifests and immutable revisions idempotently, and advances remote branches by compare-and-swap. An asynchronous network path passed a disposable two-account loopback exchange with session-bound authors and project access checks; it does not deploy a service.
 - [x] Fetch a remote branch head, ordered revision history, and required manifests without fetching media.
 - [x] Track in-sync, local-ahead, remote-ahead, and diverged states with explicit push, fetch, or reconciliation-branch actions.
-- [x] Add a durable, exact-input-deduplicated push queue that pauses offline, applies bounded exponential retry to transient network failures, and relies on the sync service's stable idempotency keys when connectivity returns.
+- [x] Add a durable, exact-input-deduplicated push queue that pauses offline, applies bounded exponential retry to transient network failures, and relies on the sync service's stable idempotency keys when connectivity returns. Asynchronous processing passed a real loopback retry after a committed branch acknowledgment was lost, recovering a fresh on-disk queue without duplicate revisions. Hosted persistence and desktop connection remain open.
 - [x] Detect branch-head races before and during push, preserve the concurrent remote head, and return explicit fetch/reconciliation actions without overwriting remote work.
 - [x] Store fetched revision and manifest metadata in a content-addressed, integrity-checked local cache for offline browsing and pull-planning inputs; media remains excluded.
 - [x] Expose durable revision-level sync progress, explicit retry and cancel controls, and recoverable network/conflict states in the desktop history view. Hosted transport remains unconfigured.

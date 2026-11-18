@@ -1,6 +1,6 @@
 # Collaboration and media identity foundations
 
-The service code in this repository runs in process. It has no hosted route, cross-device event delivery, or persistent deployment. The following APIs establish safe behavior for the next five roadmap items without representing them as shipped cloud features.
+The service foundations run locally. An injectable authorized HTTP boundary and asynchronous metadata-sync client passed a disposable two-account loopback exchange; they do not provision a listening service or connect the desktop to an account. Hosted deployment, cross-device event delivery, and persistent service storage remain open. See [revision network sync](REVISION_NETWORK_SYNC.md) for transport scope and validation status.
 
 ## Read-only sharing
 

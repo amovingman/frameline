@@ -13,6 +13,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/resolve-observation-values.js', 'src/resolve-observation-three-way.js',
   'src/resolve-preview-source.js', 'src/resolve-capture-file.js',
   'src/media-audit-jobs.js', 'src/media-job-queue.js', 'src/media-audit-view.js',
+  'src/revision-http-client.js', 'src/revision-http-transport.js', 'src/revision-sync-async.js',
   'src/resolve-trial-discovery.js', 'src/resolve-trial-session.js', 'src/resolve-rename-trial.js', 'src/resolve-trial-history.js',
   'src/resolve-portable-trial-audit.js', 'src/resolve-audit-history.js',
   'src/resolve-history-transfer.js',
