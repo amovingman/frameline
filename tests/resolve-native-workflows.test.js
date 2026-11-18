@@ -27,3 +27,27 @@ test('recorded native startup recovery and history transfer evidence retain thei
   assert.equal(transfer.transactionAuditsPreserved, true); assert.equal(transfer.localRevisionIdsRemapped, true);
   assert.equal(transfer.backupMode, 0o600); assert.equal(transfer.nativeBackupsIncluded, false); assert.equal(transfer.safeToApply, false);
 });
+
+test('recorded completed-trial replay evidence distinguishes a native flag reset from an editor restart', () => {
+  const report = evidence('completed-trial-replay-live-observation.json', '26c460e5e0326d17653b7f3c48e3b27f9130ec190e3355dcfaff609713b1987d');
+  const fixture = fs.readFileSync(path.join(__dirname, '../phase-0/resolve-xml-proof/live-properties-enabled.json'));
+  const hash = createHash('sha256').update(fixture).digest('hex');
+  assert.equal(report.nativeConsoleVerified, true);
+  assert.equal(report.processLocalConsumedEntryCleared, true);
+  assert.equal(report.resolveRestarted, false);
+  assert.equal(report.replayRefused, true);
+  assert.equal(report.refusal, 'Trial outcome already recorded');
+  assert.equal(report.status, 'rolled-back');
+  assert.equal(report.forcedFailure, true);
+  for (const field of ['sourceObservationSha256', 'resultObservationSha256', 'afterRefusedReplayObservationSha256']) {
+    assert.equal(report[field], hash);
+  }
+  assert.equal(report.coverage.propertyValueCount, 443);
+  assert.equal(report.coverage.unavailablePropertyReads, 0);
+  assert.equal(report.trialFilesUnchangedOnReplay, true);
+  assert.equal(report.backup.archiveVerified, true);
+  assert.equal(report.backup.mode, 0o600);
+  assert.equal(report.desktopIntegrated, false);
+  assert.equal(report.safeToApply, false);
+  assert.equal(report.fullNativePropertiesVerified, false);
+});

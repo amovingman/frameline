@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "editor": "DaVinci Resolve Free",
+  "resolveVersion": "21.1.2.10",
+  "os": "macOS",
+  "projectName": "Frameline Restore Probe",
+  "transactionId": "5c419466bf42ecd7c5930e40d7981032",
+  "forcedFailure": true,
+  "status": "rolled-back",
+  "sourceObservationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+  "resultObservationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+  "afterRefusedReplayObservationSha256": "903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21",
+  "coverage": {
+    "schemaVersion": 2,
+    "itemCount": 53,
+    "effectCount": 1,
+    "propertyKeyCount": 43,
+    "propertyValueCount": 443,
+    "unavailablePropertyReads": 0,
+    "trackCount": 2,
+    "unavailableTrackStateReads": 0
+  },
+  "backup": {
+    "archiveVerified": true,
+    "sha256": "913ce7cb69ba13a48f34c3f358679cfd9e5d83c10fb170cbdc7b74c5bbc732fc",
+    "size": 69402,
+    "mode": 384
+  },
+  "issuedCommandSha256": "2edd5b0991732b60c001012ca0130c153de9d644aeea2eafe900917d669d2495",
+  "nativeConsoleVerified": true,
+  "processLocalConsumedEntryCleared": true,
+  "resolveRestarted": false,
+  "replayRefused": true,
+  "refusal": "Trial outcome already recorded",
+  "trialFilesUnchangedOnReplay": true,
+  "desktopIntegrated": false,
+  "readOnly": true,
+  "safeToApply": false,
+  "fullNativePropertiesVerified": false
+}

@@ -14,6 +14,9 @@ const { saveRenameTrialRevision } = require('../src/resolve-trial-history');
 const { createLocalMetadataStore } = require('../src/local-metadata');
 const { createResolveRevisionManifest } = require('../src/resolve-revision-manifest');
 const { createHash } = require('node:crypto');
+const syncFs = require('node:fs');
+
+const luaLibrary = process.env.FRAMELINE_LUA_LIBRARY || '/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/libluajit-5.1.2.dylib';
 
 async function fixture(t) {
   const directory = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'rename-trial-test-'));
@@ -36,6 +39,36 @@ async function exportFixture(trial) {
   assert.equal(zipped.status, 0);
   await fs.chmod(trial.backupPath, 0o666);
 }
+
+test('issued commands reject completed or partially recorded outcomes in a fresh Lua runtime before editor access',
+  { skip: !syncFs.existsSync(luaLibrary) && 'Set FRAMELINE_LUA_LIBRARY to execute the Lua mock on this host' }, async t => {
+    const options = await fixture(t);
+    const trial = await prepareRenameTrial(options);
+    await exportFixture(trial);
+    const issued = await issueRenameTrial({ directory: trial.directory, forceFailure: true });
+    function runGuard(expected, calls, filesystem = true) {
+      const script = `local calls=0;resolve={GetProjectManager=function() calls=calls+1;error('Unexpected editor access') end};
+        ${filesystem ? "bmd={fileexists=function(filename) local f=io.open(filename,'rb');if not f then return false end;f:close();return true end};" : 'bmd=nil;'}
+        local ok,err=pcall(function() ${issued.command} end);
+        assert(not ok and tostring(err):find(${JSON.stringify(expected)},1,true),tostring(err));assert(calls==${calls});`;
+      return spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), luaLibrary],
+        { input: script, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    }
+    // This mock reads the actual transaction filesystem. Each invocation starts
+    // a new Lua VM, with no process-local consumed table or open editor project.
+    for (const name of ['result.json', 'result-snapshot.json', 'result-effects.json',
+      'recovery-result.json', 'recovery-result-snapshot.json', 'recovery-result-effects.json']) {
+      const filename = path.join(trial.directory, name);
+      await fs.writeFile(filename, 'incomplete', { mode: 0o600 });
+      const run = runGuard('Trial outcome already recorded', 0);
+      assert.equal(run.status, 0, `${name}: ${run.stderr}`);
+      await fs.unlink(filename);
+    }
+    const unavailable = runGuard('Trial filesystem guard unavailable', 0, false);
+    assert.equal(unavailable.status, 0, unavailable.stderr);
+    const untouched = runGuard('Unexpected editor access', 1);
+    assert.equal(untouched.status, 0, untouched.stderr);
+  });
 
 test('requires a private directory, exact named project, and exactly one observed rename', async t => {
   const options = await fixture(t);
