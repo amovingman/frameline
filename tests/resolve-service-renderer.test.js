@@ -52,6 +52,7 @@ function fixture() {
     document, make, Option: function(text, value) { const node = make('option', '', text); node.value = value; return node; },
     setServiceText: (node, value) => { node.textContent = value; }, serviceDate: value => String(value),
     serviceErrorLabel: () => 'Check history and retry.', syncErrorLabel: () => 'Retry the queued push.' });
+  context.syncResolveCommentsContext = () => {};
   context.renderResolveState = value => { context.resolveState = value; };
   vm.runInContext(source.slice(start, end), context);
   return { state, context, element, render: () => context.renderResolveServicePanel() };

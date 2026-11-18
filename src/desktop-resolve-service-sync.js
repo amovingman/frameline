@@ -2,6 +2,7 @@
 const { fingerprint } = require('./project-api-contracts');
 const { createDesktopRevisionSync } = require('./desktop-revision-sync');
 const { createServiceResolveComparison } = require('./service-resolve-comparison');
+const { validateResolveRevisionManifest } = require('./resolve-revision-manifest');
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const fail = code => Object.assign(new Error(code), { code });
@@ -112,6 +113,22 @@ function createDesktopResolveServiceSync({ directory, connection, store, getCapt
     const result = await controller.getPrivateComparison();
     return lastPreview === expected && result && fingerprint(result.binding) === fingerprint(expected.binding) ? result : null;
   }
+  async function getCommentTarget() {
+    const picked = selected, currentEpoch = epoch;
+    if (!picked) throw fail('service-resolve-project-required');
+    const incoming = await controller.getPrivateIncoming();
+    const graph = await store.getResolveRevisionGraph(picked.projectId);
+    if (closed || epoch !== currentEpoch || selected !== picked || graph.currentBranch !== picked.branch) throw fail('service-selection-changed');
+    const latest = await controller.getPrivateIncoming();
+    if (fingerprint(latest) !== fingerprint(incoming)) throw fail('service-selection-changed');
+    try { validateResolveRevisionManifest(incoming.manifest); }
+    catch { throw fail('service-resolve-comparison-unsupported'); }
+    if (incoming.manifest.snapshot.project_id !== graph.editorProjectId) throw fail('service-resolve-comparison-unsupported');
+    const account = connection.getState(), project = account.projects?.find(item => item.id === incoming.scope.remoteProjectId);
+    if (!accountKey() || incoming.scope.originHash !== fingerprint(account.origin) || incoming.scope.accountId !== account.account?.id
+      || project?.role !== incoming.role || !project.branches.includes(incoming.scope.remoteBranch)) throw fail('service-selection-changed');
+    return incoming;
+  }
   async function readPreviewSources(expectedBinding) {
     if (!lastPreview || fingerprint(expectedBinding) !== fingerprint(lastPreview.binding)) throw fail('service-resolve-preview-stale');
     const expected = lastPreview, previous = clone(lastPreview); let state, result;
@@ -142,7 +159,7 @@ function createDesktopResolveServiceSync({ directory, connection, store, getCapt
     return decorated(await controller[method](input));
   }
   async function dispose() { closed = true; epoch++; invalidate(); await controller.dispose(); }
-  return { getState, select, preview, getPreview, readPreviewSources, selectionChanged, captureChanged: selectionChanged,
+  return { getState, select, preview, getPreview, getCommentTarget, readPreviewSources, selectionChanged, captureChanged: selectionChanged,
     connectionChanged, dispose,
     bind: input => action('bind', input), unlink: () => action('unlink'), check: () => action('check'),
     push: () => action('push'), fetch: () => action('fetch'), retry: id => action('retry', id), cancel: id => action('cancel', id) };

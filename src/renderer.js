@@ -59,6 +59,17 @@ let resolveServicePreviewSource = 'saved-head';
 let resolveServiceVisibleJobs = 20;
 const resolveServiceJobRows = new Map();
 const resolveServiceQueueActions = new Set();
+let resolveCommentsState = null;
+let resolveCommentsVersion = -1;
+let resolveCommentsContext = '';
+let resolveCommentsAccessKey = '';
+let resolveCommentsScopeId = null;
+let resolveCommentsAction = null;
+let resolveCommentsNotice = '';
+let resolveCommentsDraft = emptyResolveCommentDraft();
+let resolveCommentsTimelineKey = '';
+let resolveCommentsClipKey = '';
+const resolveCommentRows = new Map();
 const syncOperationRows = new Map();
 let assetTransferState = null;
 let assetTransferStateVersion = -1;
@@ -2203,6 +2214,208 @@ document.getElementById('resolve-history-export').addEventListener('click', () =
 document.getElementById('resolve-history-import').addEventListener('click', () => resolveTransferAction('import'));
 document.getElementById('resolve-history-transfer-confirm').addEventListener('click', () => resolveTransferAction('confirm'));
 document.getElementById('resolve-history-transfer-cancel').addEventListener('click', () => resolveTransferAction('cancel'));
+function emptyResolveCommentDraft() {
+  return { body: '', timelineId: '', kind: 'clip', clipId: '', startFrame: '', endFrame: '' };
+}
+function currentResolveCommentsContext() {
+  return resolveServiceScopeMatches() && resolveServiceState?.binding && resolveServiceState?.fetched?.head
+    ? JSON.stringify([resolveServiceExpectedContext(), resolveServiceState.fetched.head]) : '';
+}
+function resetResolveCommentsDraft() {
+  resolveCommentsDraft = emptyResolveCommentDraft(); resolveCommentsTimelineKey = ''; resolveCommentsClipKey = '';
+}
+function syncResolveCommentsContext() {
+  const context = currentResolveCommentsContext();
+  const accessKey = JSON.stringify([context, serviceState?.status, resolveServiceState?.binding?.role]);
+  if (context !== resolveCommentsContext) {
+    resolveCommentsContext = context; resolveCommentsState = null; resolveCommentsScopeId = null;
+    resolveCommentsAction = null; resolveCommentsNotice = ''; resetResolveCommentsDraft();
+    document.getElementById('resolve-comments-identity').open = false;
+  }
+  renderResolveComments();
+  if (accessKey !== resolveCommentsAccessKey) { resolveCommentsAccessKey = accessKey; readResolveCommentsState(); }
+}
+function applyResolveCommentsState(state, expectedContext = currentResolveCommentsContext()) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < resolveCommentsVersion
+    || expectedContext !== currentResolveCommentsContext()) return false;
+  if (state.target && (!expectedContext || state.target.serviceProjectId !== resolveServiceState?.binding?.remoteProjectId
+    || state.target.revisionId !== resolveServiceState?.fetched?.head)) return false;
+  if (state.scopeId !== resolveCommentsScopeId) {
+    if (resolveCommentsScopeId) resolveCommentsAction = null;
+    resetResolveCommentsDraft(); resolveCommentsNotice = ''; resolveCommentsScopeId = state.scopeId || null;
+  }
+  resolveCommentsVersion = state.version; resolveCommentsState = state; renderResolveComments(); return true;
+}
+async function readResolveCommentsState() {
+  if (!window.desktop?.getResolveComments) return;
+  const context = currentResolveCommentsContext();
+  try { applyResolveCommentsState(await window.desktop.getResolveComments(), context); }
+  catch { if (context === currentResolveCommentsContext()) { resolveCommentsNotice = 'Could not read comment state. Refresh comments to retry.'; renderResolveComments(); } }
+}
+function resolveCommentsErrorLabel(code) {
+  return ({ 'comments-invalid': 'Check the comment text and choose an anchor from this incoming revision.',
+    'comment-anchor-invalid': 'Choose a valid clip or frame range from this incoming revision.',
+    'comment-anchor-unverified': 'The anchor could not be verified in this revision. Refresh comments and choose it again.',
+    'comment-revision-unsupported': 'Comments require a supported saved Resolve observation revision.',
+    'comment-not-found': 'The comment is unavailable. Refresh comments to read the current thread.',
+    'comment-idempotency-conflict': 'This pending comment no longer matches its saved request. Refresh comments and review the draft before retrying.',
+    'comment-cursor-invalid': 'The comment page is no longer valid. Refresh comments to start with the newest page.',
+    'comment-capacity': 'The service comment limit was reached. Contact the project owner.',
+    'comments-display-limit': 'The comment display limit was reached. Refresh comments to start with the newest page.',
+    'comments-unavailable': 'Fetch incoming Resolve history for an accessible linked project, then refresh comments.',
+    'comments-busy': 'Another comment action is running. Wait for it to finish, then retry.',
+    'comments-selection-changed': 'The incoming comment target changed. Refresh comments for the current fetched revision.',
+    'comments-refresh-required': 'Refresh comments to verify this revision’s thread before posting.',
+    'comments-target-too-large': 'The incoming snapshot exceeds the comment anchor limits. Comments are unavailable for this revision.',
+    'comments-local-error': 'Comment state could not be read locally. Refresh comments to retry.',
+    forbidden: 'Your account cannot perform this comment action. Check project access or sign in again.',
+    'access-token-invalid': 'Your service session expired. Sign in again before refreshing comments.',
+    'service-sign-in-required': 'Sign in through Service history, then refresh comments.',
+    'service-offline': 'The service is unavailable. Previously loaded comments may be shown; refresh after reconnecting.',
+    'sync-network-unavailable': 'The service is unavailable. Previously loaded comments may be shown; refresh after reconnecting.' })[code]
+    || 'The comment action could not finish. Refresh comments and try again.';
+}
+function resolveCommentAnchor(state = resolveCommentsState) {
+  const draft = resolveCommentsDraft, timeline = state?.timelines?.find(item => item.id === draft.timelineId);
+  if (!timeline) return null;
+  if (draft.kind === 'clip') return timeline.clips.some(item => item.id === draft.clipId)
+    ? { kind: 'clip', timelineId: timeline.id, clipId: draft.clipId } : null;
+  const start = Number(draft.startFrame), end = Number(draft.endFrame);
+  return draft.kind === 'range' && draft.startFrame !== '' && draft.endFrame !== '' && Number.isSafeInteger(start) && Number.isSafeInteger(end)
+    && start >= timeline.startFrame && end > start && end <= timeline.endFrame
+    ? { kind: 'range', timelineId: timeline.id, startFrame: start, endFrame: end } : null;
+}
+function resolveCommentAnchorLabel(anchor, timelines) {
+  const timeline = timelines.find(item => item.id === anchor.timelineId), name = timeline?.name || 'Timeline';
+  if (anchor.kind === 'clip') {
+    const clip = timeline?.clips.find(item => item.id === anchor.clipId);
+    const frames = clip && Number.isSafeInteger(clip.startFrame) && Number.isSafeInteger(clip.endFrame)
+      ? `frames ${clip.startFrame}–${clip.endFrame} (end excluded)` : 'Frame range unavailable';
+    return `${name} · ${clip?.name || 'Clip'} · ${frames}`;
+  }
+  return `${name} · frames ${anchor.startFrame}–${anchor.endFrame} (end excluded)`;
+}
+function renderResolveComments() {
+  const context = currentResolveCommentsContext(), state = context && context === resolveCommentsContext ? resolveCommentsState : null;
+  const target = state?.target, available = !!state?.available && !!target, ready = available && !!state.ready;
+  const pending = resolveCommentsAction?.context === context ? resolveCommentsAction : null, busy = !!pending || !!state?.busy;
+  const canPost = ready && !!state.postingAvailable && ['owner', 'editor'].includes(state.role) && typeof window.desktop?.addResolveComment === 'function';
+  const timelines = target ? state.timelines || [] : [], draft = resolveCommentsDraft;
+  setServiceText(document.getElementById('resolve-comments-target'), target
+    ? `${target.revisionMessage || 'Fetched incoming observation'} · service revision ${target.revisionId}`
+    : 'Fetch incoming Resolve history to choose the comment target.');
+  setServiceText(document.getElementById('resolve-comments-stamp'), target ? `Incoming history fetched ${serviceDate(target.fetchedAt)} · ${state.role || 'unknown'} access` : '');
+  document.getElementById('resolve-comments-identity').hidden = !target;
+  for (const [id, value] of [['project-id', target?.serviceProjectId], ['revision-id', target?.revisionId], ['manifest', target?.manifestSha256]]) {
+    setServiceText(document.getElementById(`resolve-comments-${id}`), value || '');
+  }
+  const timelineSelect = document.getElementById('resolve-comments-timeline');
+  const timelineKey = JSON.stringify([state?.scopeId, timelines.map(item => [item.id, item.name, item.startFrame, item.endFrame])]);
+  if (timelineKey !== resolveCommentsTimelineKey) {
+    resolveCommentsTimelineKey = timelineKey; timelineSelect.replaceChildren(new Option('Choose a timeline', ''));
+    for (const timeline of timelines) timelineSelect.add(new Option(timeline.name || timeline.id, timeline.id));
+  }
+  const timeline = timelines.find(item => item.id === draft.timelineId);
+  if (!timeline) { draft.timelineId = ''; draft.clipId = ''; }
+  if (timelineSelect.value !== draft.timelineId) timelineSelect.value = draft.timelineId;
+  const clipSelect = document.getElementById('resolve-comments-clip'), clips = timeline?.clips || [];
+  const clipKey = JSON.stringify([state?.scopeId, timeline?.id, clips.map(item => [item.id, item.name])]);
+  if (clipKey !== resolveCommentsClipKey) {
+    resolveCommentsClipKey = clipKey; clipSelect.replaceChildren(new Option('Choose a clip', ''));
+    for (const clip of clips) clipSelect.add(new Option(`${clip.name || 'Unnamed clip'} · ${clip.id}`, clip.id));
+  }
+  if (!clips.some(item => item.id === draft.clipId)) draft.clipId = '';
+  if (clipSelect.value !== draft.clipId) clipSelect.value = draft.clipId;
+  document.getElementById('resolve-comments-kind').value = draft.kind;
+  document.getElementById('resolve-comments-clip-field').hidden = draft.kind !== 'clip';
+  document.getElementById('resolve-comments-range-fields').hidden = draft.kind !== 'range';
+  clipSelect.required = draft.kind === 'clip';
+  for (const [id, value] of [['start', draft.startFrame], ['end', draft.endFrame]]) {
+    const input = document.getElementById(`resolve-comments-${id}`); if (input.value !== value) input.value = value;
+    input.required = draft.kind === 'range'; input.min = timeline ? String(timeline.startFrame + (id === 'end' ? 1 : 0)) : '';
+    input.max = timeline ? String(timeline.endFrame - (id === 'start' ? 1 : 0)) : '';
+  }
+  setServiceText(document.getElementById('resolve-comments-frame-help'), timeline
+    ? `Absolute timeline frames ${timeline.startFrame}–${timeline.endFrame}. The end frame is excluded.`
+    : 'Use absolute timeline frame numbers. The end frame is excluded.');
+  const body = document.getElementById('resolve-comments-body'); if (body.value !== draft.body) body.value = draft.body;
+  setServiceText(document.getElementById('resolve-comments-count'), `${draft.body.length} / 1000 characters`);
+  document.getElementById('resolve-comments-fields').disabled = !canPost || busy;
+  document.getElementById('resolve-comments-post').disabled = !canPost || busy || !draft.body.trim() || draft.body.length > 1000 || !resolveCommentAnchor(state);
+  const refresh = document.getElementById('resolve-comments-refresh');
+  refresh.disabled = !context || busy || !window.desktop?.refreshResolveComments;
+  setServiceText(refresh, pending?.method === 'refreshResolveComments' ? 'Refreshing…' : 'Refresh comments');
+  const items = target ? (state.items || []).filter(item => item.projectId === target.serviceProjectId && item.revisionId === target.revisionId) : [];
+  const ids = new Set(items.map(item => item.id));
+  for (const [id, view] of resolveCommentRows) if (!ids.has(id)) { view.row.remove(); resolveCommentRows.delete(id); }
+  const list = document.getElementById('resolve-comments-list');
+  items.forEach((item, index) => {
+    let view = resolveCommentRows.get(item.id);
+    if (!view) {
+      const row = make('article', 'resolve-comment-row'); row.setAttribute('role', 'listitem');
+      const meta = make('p', 'resolve-comment-meta'), anchor = make('p', 'resolve-comment-anchor'), text = make('p', 'resolve-comment-body');
+      const resolve = make('button', '', 'Resolve comment'); resolve.type = 'button';
+      resolve.addEventListener('click', () => runResolveCommentsAction('resolveResolveComment', item.id));
+      row.append(meta, anchor, text, resolve); view = { row, meta, anchor, text, resolve }; resolveCommentRows.set(item.id, view);
+    }
+    const author = resolveServiceState?.account?.id && item.authorId === resolveServiceState.account.id ? 'You' : `Member ${item.authorId.slice(0, 8)}`;
+    view.meta.title = `Author ID: ${item.authorId}`;
+    setServiceText(view.meta, `${author} · ${serviceDate(item.createdAt)} · ${item.status === 'resolved' ? `Resolved${item.resolvedAt ? ` ${serviceDate(item.resolvedAt)}` : ''}` : 'Open'}`);
+    setServiceText(view.anchor, resolveCommentAnchorLabel(item.anchor, timelines)); setServiceText(view.text, item.body);
+    view.resolve.hidden = item.status !== 'open' || item.canResolve !== true;
+    view.resolve.disabled = busy || !ready || !available || !window.desktop?.resolveResolveComment;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  const status = !window.desktop?.getResolveComments ? 'Revision comments are unavailable in this build.'
+    : !context ? 'Fetch incoming Resolve history for the linked project before reading comments.'
+      : pending ? pending.method === 'addResolveComment' ? 'Posting comment…' : pending.method === 'resolveResolveComment' ? 'Recording the resolution…' : 'Refreshing comments…'
+        : resolveCommentsNotice || (state?.error ? resolveCommentsErrorLabel(state.error)
+          : !ready ? 'Refresh comments to read this revision’s thread before posting.'
+            : state.role === 'viewer' ? 'Viewer access allows reading comments. Posting requires editor or owner access.'
+              : !items.length ? 'No comments have been recorded for this incoming revision.' : 'Comments remain attached to this incoming revision.');
+  setServiceText(document.getElementById('resolve-comments-status'), status);
+  setServiceText(document.getElementById('resolve-comments-range'), ready || items.length ? `${items.length} comment${items.length === 1 ? '' : 's'} shown` : '');
+  const more = document.getElementById('resolve-comments-more'); more.hidden = !state?.nextCursor;
+  more.disabled = busy || !ready || !window.desktop?.refreshResolveComments;
+}
+async function runResolveCommentsAction(method, input) {
+  const context = currentResolveCommentsContext(), scopeId = resolveCommentsState?.scopeId;
+  if (!context || resolveCommentsAction || resolveCommentsState?.busy || typeof window.desktop?.[method] !== 'function') return;
+  if (method === 'addResolveComment' && input?.scopeId !== scopeId) {
+    resolveCommentsNotice = 'The comment target changed. Review the current fetched revision before posting.'; renderResolveComments(); return;
+  }
+  const action = { method, context }, focused = document.activeElement, body = resolveCommentsDraft.body;
+  resolveCommentsAction = action; resolveCommentsNotice = ''; renderResolveComments();
+  let added = false;
+  try {
+    const state = await window.desktop[method](input);
+    if (resolveCommentsAction !== action || context !== currentResolveCommentsContext()
+      || method !== 'refreshResolveComments' && resolveCommentsState?.scopeId !== scopeId) return;
+    const accepted = applyResolveCommentsState(state, context);
+    if (accepted && context === currentResolveCommentsContext() && scopeId && state.scopeId === scopeId) {
+      if (method === 'addResolveComment' && state.outcome?.kind === 'added' && state.outcome.commentId) {
+        added = true; if (resolveCommentsDraft.body === body) resolveCommentsDraft.body = '';
+        resolveCommentsNotice = `Comment posted.${state.error || !state.ready ? ' Refresh comments to reload the thread.' : ''}`;
+      } else if (method === 'resolveResolveComment' && state.outcome?.kind === 'resolved') {
+        resolveCommentsNotice = `Comment marked resolved.${state.error || !state.ready ? ' Refresh comments to reload the thread.' : ''}`;
+      }
+    }
+  } catch {
+    if (resolveCommentsAction === action && context === currentResolveCommentsContext() && resolveCommentsState?.scopeId === scopeId)
+      resolveCommentsNotice = 'The comment action could not finish. Your draft is retained; refresh comments or retry.';
+  }
+  finally {
+    if (resolveCommentsAction === action) {
+      resolveCommentsAction = null; renderResolveComments();
+      if (focused && context === currentResolveCommentsContext() && (document.activeElement === document.body || document.activeElement === focused)) {
+        const target = added && !document.getElementById('resolve-comments-fields').disabled ? document.getElementById('resolve-comments-body')
+          : focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById('resolve-comments-status');
+        target.focus({ preventScroll: true });
+      }
+    }
+  }
+}
+
 function resolveServiceExpectedContext() {
   const account = serviceState?.account;
   return JSON.stringify([serviceState?.origin || null, account?.id || null,
@@ -2360,6 +2573,7 @@ function renderResolveServicePanel() {
       : base?.status !== 'recorded' ? 'Check history to record a verified shared base before previewing.'
         : !fetched?.head ? 'Fetch history to capture incoming observations before previewing.'
           : 'Preview the saved branch head or latest verified capture against the recorded base and fetched incoming observations.');
+  syncResolveCommentsContext();
 }
 function renderResolveServiceJobs(operations, busy, contact) {
   const list = document.getElementById('resolve-service-jobs'), visible = operations.slice(0, resolveServiceVisibleJobs);
@@ -2676,6 +2890,30 @@ document.getElementById('resolve-service-preview').addEventListener('click', asy
   const title = document.getElementById(resolveState?.sourceMode === 'service-history' && resolveState.servicePreview
     ? 'resolve-service-provenance-title' : 'resolve-service-status');
   title.tabIndex = -1; title.focus();
+});
+document.getElementById('resolve-comments-refresh').addEventListener('click', () => runResolveCommentsAction('refreshResolveComments', false));
+document.getElementById('resolve-comments-more').addEventListener('click', () => runResolveCommentsAction('refreshResolveComments', true));
+document.getElementById('resolve-comments-timeline').addEventListener('change', event => {
+  resolveCommentsDraft.timelineId = event.target.value; resolveCommentsDraft.clipId = '';
+  resolveCommentsDraft.startFrame = ''; resolveCommentsDraft.endFrame = ''; renderResolveComments();
+});
+document.getElementById('resolve-comments-kind').addEventListener('change', event => {
+  resolveCommentsDraft.kind = event.target.value === 'range' ? 'range' : 'clip'; renderResolveComments();
+});
+document.getElementById('resolve-comments-clip').addEventListener('change', event => {
+  resolveCommentsDraft.clipId = event.target.value; renderResolveComments();
+});
+for (const [id, key] of [['start', 'startFrame'], ['end', 'endFrame'], ['body', 'body']]) {
+  document.getElementById(`resolve-comments-${id}`).addEventListener('input', event => {
+    resolveCommentsDraft[key] = event.target.value; renderResolveComments();
+  });
+}
+document.getElementById('resolve-comments-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const anchor = resolveCommentAnchor(), state = resolveCommentsState, body = resolveCommentsDraft.body;
+  if (!anchor || !body.trim() || body.length > 1000 || !state?.available || !state.ready || !state.postingAvailable
+    || !['owner', 'editor'].includes(state.role) || document.getElementById('resolve-comments-post').disabled) return;
+  runResolveCommentsAction('addResolveComment', { scopeId: state.scopeId, anchor, body });
 });
 window.desktop?.onResolveServiceState?.(renderResolveServiceState);
 refreshResolveServiceState();

@@ -31,6 +31,16 @@ contextBridge.exposeInMainWorld('desktop', {
   retryResolveServiceSync: id => ipcRenderer.invoke('resolve-service:retry', id),
   cancelResolveServiceSync: id => ipcRenderer.invoke('resolve-service:cancel', id),
   previewResolveServiceHistory: input => ipcRenderer.invoke('resolve-service:preview', input),
+  getResolveComments: () => ipcRenderer.invoke('resolve-comments:state'),
+  refreshResolveComments: (append = false) => ipcRenderer.invoke('resolve-comments:refresh', append),
+  addResolveComment: input => ipcRenderer.invoke('resolve-comments:add', input),
+  resolveResolveComment: commentId => ipcRenderer.invoke('resolve-comments:resolve', commentId),
+  onResolveCommentsState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('resolve-comments:state', handle);
+    return () => ipcRenderer.removeListener('resolve-comments:state', handle);
+  },
   onResolveServiceState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);

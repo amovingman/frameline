@@ -3,7 +3,7 @@ function fail(code) { const error = new Error(code); error.code = code; return e
 // Every operation resolves authorization before touching the history store.
 // Asset access is represented even though the current history store does not
 // persist media bytes.
-function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null,
+function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null,
   branchProtection = null }) {
   if (!history || !access || !identity || typeof identity.authenticate !== 'function') throw fail('authorized-service-invalid');
   function checked(context, projectId, resource, action, operation) {
@@ -55,6 +55,12 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
       actorId => activity ? activity.notificationPage(actorId, projectId, page) : { projectId, items: [], nextCursor: null, unreadCount: 0 }),
     markNotificationRead: (context, projectId, eventId) => checked(context, projectId, 'project', 'read',
       actorId => activity ? activity.markRead(actorId, projectId, eventId) : null),
+    listReviewComments: (context, projectId, revisionId, page) => checked(context, projectId, 'comment', 'read',
+      actorId => { if (!comments) throw fail('comments-unavailable'); return comments.list(actorId, projectId, revisionId, page); }),
+    addReviewComment: (context, input) => checked(context, input?.projectId, 'comment', 'write',
+      actorId => { if (!comments) throw fail('comments-unavailable'); return comments.add(actorId, input); }),
+    resolveReviewComment: (context, input) => checked(context, input?.projectId, 'comment', 'read',
+      actorId => { if (!comments) throw fail('comments-unavailable'); return comments.resolve(actorId, input); }),
     authorizeAsset: (context, projectId, action = 'read') => checked(context, projectId, 'asset', action,
       actorId => ({ allowed: true, actorId })),
     authorizeAssetPolicy: (context, projectId, action = 'read') => {

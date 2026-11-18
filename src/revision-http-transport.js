@@ -3,6 +3,8 @@ const { TextDecoder } = require('node:util');
 const { createHash } = require('node:crypto');
 const { API_VERSION, createRequestContext, responseEnvelope } = require('./project-api-contracts');
 const { validateRevisionManifest } = require('./revision-manifest');
+const { validateReviewCommentAnchor, normalizeReviewCommentBody,
+  validateReviewComment, validateReviewCommentsPage } = require('./review-comments-protocol');
 
 const MAX_HTTP_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -21,7 +23,10 @@ const ERRORS = new Map([
   ['secure-transport-required', 426], ['browser-request-forbidden', 403], ['route-not-found', 404],
   ['method-not-allowed', 405], ['content-type-invalid', 415], ['request-too-large', 413],
   ['response-too-large', 502], ['service-unavailable', 500], ['activity-page-invalid', 400], ['activity-cursor-invalid', 400],
-  ['activity-state-invalid', 500], ['activity-state-newer-version', 409], ['activity-capacity-exceeded', 409], ['notification-not-found', 404]
+  ['activity-state-invalid', 500], ['activity-state-newer-version', 409], ['activity-capacity-exceeded', 409], ['notification-not-found', 404],
+  ...['comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
+    'comment-cursor-invalid'].map(code => [code, 400]),
+  ['comment-not-found', 404], ['comment-idempotency-conflict', 409], ['comment-capacity', 503]
 ]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -100,7 +105,20 @@ function route(req) {
   if (parts[0] === 'projects' && ID.test(parts[1] || '') && parts.length === 3 && ['activity', 'notifications'].includes(parts[2])) {
     return { projectId: parts[1], kind: parts[2] === 'activity' ? 'listActivity' : 'listNotifications', methods: ['GET'], page: activityPage(query) };
   }
+  if (parts[0] === 'projects' && parts[2] === 'revisions' && parts[4] === 'comments' && parts.length === 5) {
+    let page;
+    if (req.method === 'GET') {
+      try { page = activityPage(query); }
+      catch (error) { throw fail(error.code === 'activity-cursor-invalid' ? 'comment-cursor-invalid' : 'comments-invalid'); }
+    } else if (query !== undefined) throw fail('request-invalid');
+    return { projectId: parts[1], revisionId: parts[3], kind: req.method === 'GET' ? 'listReviewComments' : 'addReviewComment',
+      methods: ['GET', 'POST'], page };
+  }
   if (query !== undefined || req.url.length > 2048) throw fail('request-invalid');
+  if (parts[0] === 'projects' && parts[2] === 'revisions' && parts[4] === 'comments'
+    && parts.length === 7 && parts[6] === 'resolve') {
+    return { projectId: parts[1], revisionId: parts[3], item: parts[5], kind: 'resolveReviewComment', methods: ['PUT'] };
+  }
   if (parts[0] === 'projects' && ID.test(parts[1] || '') && parts.length === 5 && parts[2] === 'notifications' && parts[4] === 'read') {
     return { projectId: parts[1], item: parts[3], kind: 'markNotificationRead', methods: ['PUT'] };
   }
@@ -217,10 +235,29 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
         const rateContext = { addressHash: createHash('sha256').update(String(req.socket?.remoteAddress || 'unknown')).digest('hex'), action: target.kind };
         globalAuthLimit(rateContext); await authRateLimit(rateContext);
       }
-      if (['listActivity', 'listNotifications', 'markNotificationRead'].includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
-      const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192 : target.kind === 'markNotificationRead' ? 1024 : MAX_HTTP_BYTES);
+      if (['listActivity', 'listNotifications', 'markNotificationRead', 'listReviewComments', 'addReviewComment', 'resolveReviewComment']
+        .includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
+      const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192
+        : ['markNotificationRead', 'resolveReviewComment'].includes(target.kind) ? 1024
+          : target.kind === 'addReviewComment' ? 24 * 1024 : MAX_HTTP_BYTES);
       let data;
-      if (target.kind === 'listActivity' || target.kind === 'listNotifications') {
+      if (target.kind === 'listReviewComments') {
+        data = validateReviewCommentsPage(await service.listReviewComments(context, target.projectId, target.revisionId, target.page),
+          target.projectId, target.revisionId, target.page);
+      } else if (target.kind === 'addReviewComment') {
+        fields(body, ['anchor', 'body'], ['anchor', 'body']);
+        const anchor = validateReviewCommentAnchor(body.anchor), text = normalizeReviewCommentBody(body.body);
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        data = validateReviewComment(await service.addReviewComment(context, { projectId: target.projectId,
+          revisionId: target.revisionId, anchor, body: text, idempotencyKey: context.idempotencyKey }),
+        { projectId: target.projectId, revisionId: target.revisionId, anchor, body: text });
+      } else if (target.kind === 'resolveReviewComment') {
+        fields(body, ['resolved'], ['resolved']); if (body.resolved !== true) throw fail('body-invalid');
+        data = validateReviewComment(await service.resolveReviewComment(context,
+          { projectId: target.projectId, revisionId: target.revisionId, commentId: target.item }),
+        { projectId: target.projectId, revisionId: target.revisionId, commentId: target.item });
+        if (data.status !== 'resolved') throw fail('service-unavailable');
+      } else if (target.kind === 'listActivity' || target.kind === 'listNotifications') {
         data = validateProjectFeedPage(await service[target.kind](context, target.projectId, target.page), target.projectId,
           { limit: target.page.limit, notifications: target.kind === 'listNotifications' });
       } else if (target.kind === 'markNotificationRead') {

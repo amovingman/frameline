@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T12:33:11.021Z",
+  "scope": "Self-hosted comments on an explicitly fetched immutable Resolve observation revision",
+  "fixture": {
+    "syntheticAccounts": true,
+    "copiedObservationWithSyntheticEditorProjectIdentity": true,
+    "loopbackOnly": true,
+    "publicDeployment": false
+  },
+  "service": {
+    "transport": "https",
+    "combinedStateSchema": 3,
+    "encryptedStateValidated": true,
+    "serverProjectId": "comments-resolve",
+    "editorProjectId": "b624da25-1b87-4113-ae78-c501d67fae96",
+    "revisionId": "1f812732-e7ba-45f4-8cb7-2744ffffe2b8",
+    "manifestSha256": "44be0f67b939abe5954ec26286e95ab56d7a87d2f121134d7c4551b32bb4c0bb",
+    "serverAndEditorProjectIdsDistinct": true,
+    "persistedTotal": 6,
+    "persistedOpen": 4,
+    "persistedResolved": 2,
+    "allAnchorsVerifiedAgainstExactRevision": true,
+    "allCommentsRetainSameRevision": true
+  },
+  "actions": [
+    {
+      "commentId": "4716399d-88c5-462b-89ea-b61bfa9cb22c",
+      "anchorKind": "clip",
+      "status": "resolved",
+      "revisionId": "1f812732-e7ba-45f4-8cb7-2744ffffe2b8"
+    },
+    {
+      "commentId": "3d434f2a-4a05-4c4f-ae2c-82fbf66bbcc1",
+      "anchorKind": "clip",
+      "status": "resolved",
+      "revisionId": "1f812732-e7ba-45f4-8cb7-2744ffffe2b8"
+    },
+    {
+      "commentId": "38f079ff-72fc-47ee-9e1d-ba37bc350027",
+      "anchorKind": "range",
+      "status": "open",
+      "revisionId": "1f812732-e7ba-45f4-8cb7-2744ffffe2b8"
+    }
+  ],
+  "native": {
+    "actualElectronPreloadAndMainProcess": true,
+    "explicitLinkAndFetch": true,
+    "clipPosted": true,
+    "absoluteHalfOpenRangePosted": true,
+    "clipResolved": true,
+    "savedSessionRecoveredAfterFullAppRestart": true,
+    "fetchedRevisionCacheRecoveredAfterFullAppRestart": true,
+    "commentsAndResolutionReadAfterRestart": true,
+    "commentsShownAfterRestart": 6,
+    "editorMutationCalls": 0,
+    "signOutClearedCommentBodies": true,
+    "signOutDisabledPosting": true,
+    "savedCredentialsRemovedAfterSignOut": true
+  },
+  "browser": {
+    "actualRendererAndAuthenticatedDesktopController": true,
+    "actualHttpsService": true,
+    "clipPostedAndResolved": true,
+    "unicodePlainTextPreserved": true,
+    "literalMarkupDidNotCreateElements": true,
+    "viewerReadSameSixComments": true,
+    "viewerPostingDisabled": true,
+    "viewerOtherMemberResolveActions": 0,
+    "unpostedRangeDraftStayedLocal": true
+  },
+  "visual": {
+    "rounds": 2,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflow": false,
+    "primaryFindings": 0,
+    "incumbentPaletteAdvisories": 31,
+    "newSuppressions": 0
+  },
+  "automatedEvidence": {
+    "httpsRequests": 36,
+    "durableRuntimeInstances": 3,
+    "roles": [
+      "owner",
+      "editor",
+      "viewer",
+      "outsider"
+    ],
+    "lostAcknowledgmentRetry": true,
+    "revokedSessionDenied": true,
+    "removedMemberDenied": true,
+    "wrongProjectOrAnchorDenied": true,
+    "fullSuitePassed": 872,
+    "fullSuiteSkipped": 0,
+    "securitySuitePassed": 485,
+    "securitySuiteSkipped": 0
+  },
+  "safeToApply": false,
+  "limits": [
+    "Comments attach to one immutable observed Resolve revision; they do not establish live-editor or cross-device identity and are never automatically remapped.",
+    "FCPXML comment anchors, editor apply, realtime notifications and public deployment are not supplied by this workflow.",
+    "Desktop failed-post retry keys remain in memory; cross-restart offline comment drafts/outbox are not provided."
+  ],
+  "cleanup": {
+    "allOwnedFixtureServiceProcessesTerminal": true,
+    "ownedFixtureTemporaryFilesRemoved": true,
+    "browserTabsClosed": true,
+    "viewportOverrideReset": true,
+    "normalAppRelaunchedWithoutFixtureCA": true,
+    "normalAppSignedOut": true
+  }
+}

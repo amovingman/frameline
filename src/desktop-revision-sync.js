@@ -416,6 +416,21 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     if (!stillCurrent(ctx, epoch) || comparison !== captured || visible.status !== 'ready') return null;
     return structuredClone(captured.privateResult);
   }
+  // Main-process composition only: an explicit fetch supplies the immutable
+  // remote comment target independently of local ancestry or preview choices.
+  async function getPrivateIncoming() {
+    const epoch = generation, ctx = await context();
+    let incoming;
+    try { incoming = ctx.cache.read(ctx.binding.remoteProjectId, ctx.selected.branch); }
+    catch (error) { if (error.code === 'revision-cache-miss') throw fail('comparison-fetch-required'); throw error; }
+    const revision = incoming.revisions.find(item => item.id === incoming.head);
+    const manifest = revision && incoming.manifests.find(item => item.id === revision.manifestId);
+    if (!revision || !manifest || !Number.isSafeInteger(incoming.checkedAt)) throw fail('comparison-fetch-required');
+    if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
+    const role = connection.getState().projects.find(item => item.id === ctx.binding.remoteProjectId)?.role;
+    if (!['owner', 'editor', 'viewer'].includes(role)) throw fail('service-project-unavailable');
+    return structuredClone({ scope: baseScope(ctx), role, revision, manifest: manifest.document, checkedAt: incoming.checkedAt });
+  }
   const retry = id => run(async (ctx, sync, signal, epoch, client) => {
     const job = ctx.queue.inspect().find(item => item.id === id); if (!job) throw fail('sync-operation-unavailable');
     if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch, client);
@@ -435,6 +450,6 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     const task = Promise.resolve().then(() => action(...args)).finally(() => controls.delete(task)); controls.add(task); return task;
   }
   return { getState, bind: (...args) => control(bindAction, args), unlink: (...args) => control(unlinkAction, args),
-    check, push, fetch, compare, getPrivateComparison, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
+    check, push, fetch, compare, getPrivateComparison, getPrivateIncoming, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
 }
 module.exports = { createDesktopRevisionSync };

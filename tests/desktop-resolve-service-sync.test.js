@@ -77,6 +77,44 @@ test('Resolve preview uses private captured sources, preserves history and publi
   for (const event of [...f.events, state]) safe(event, f.directory);
 });
 
+test('comment targets come only from explicitly fetched immutable service revisions without a preview or network read', async t => {
+  const f = await fixture(t);
+  await f.controller.select(f.projectId); await f.controller.bind({ remoteProjectId: 'remote-resolve', remoteBranch: 'main' });
+  await assert.rejects(f.controller.getCommentTarget(), { code: 'comparison-fetch-required' });
+  await f.controller.push(); await f.controller.fetch();
+  const requests = f.calls.length, target = await f.controller.getCommentTarget();
+  assert.equal(target.scope.remoteProjectId, 'remote-resolve');
+  assert.equal(target.scope.localProjectId, f.projectId);
+  assert.notEqual(target.revision.id, f.first.id);
+  assert.equal(target.revision.sourceRevisionId, f.first.id);
+  assert.equal(target.manifest.snapshot.project_id, 'resolve-editor-project');
+  assert.equal(target.role, 'owner'); assert.equal(f.calls.length, requests);
+  f.setCapture(null);
+  const changed = snapshot(); changed.timelines[0].items[0].name = 'Unpublished local work';
+  await f.actualStore.saveRevision(f.projectId, createResolveRevisionManifest(changed), 'Local child', f.first.id);
+  assert.deepEqual(await f.controller.getCommentTarget(), target, 'local captures and unsent edits cannot choose the comment revision');
+  target.manifest.snapshot.timelines[0].items[0].name = 'Tampered private copy';
+  assert.equal((await f.controller.getCommentTarget()).manifest.snapshot.timelines[0].items[0].name, 'Original clip');
+  safe(await f.controller.getState(), f.directory);
+});
+
+test('a fetch replacing the incoming head during a comment-target graph read refuses the stale target', async t => {
+  const f = await fixture(t); await f.prepare();
+  let entered, release, hold = true;
+  const ready = new Promise(resolve => { entered = resolve; }), blocked = new Promise(resolve => { release = resolve; });
+  f.setHook(async method => { if (method === 'graph' && hold) { hold = false; entered(); await blocked; } });
+  const reading = f.controller.getCommentTarget(); await ready;
+  const prior = f.history.getBranch('remote-resolve', 'main').revisionId;
+  const incoming = snapshot(); incoming.timelines[0].items[0].name = 'New fetched head';
+  const manifest = f.history.putManifest('remote-resolve', createResolveRevisionManifest(incoming));
+  const revision = f.history.createRevision({ projectId: 'remote-resolve', manifestId: manifest.id,
+    parentRevisionId: prior, authorId: 'owner', message: 'New incoming revision' });
+  f.history.compareAndSwapBranch({ projectId: 'remote-resolve', branch: 'main', expectedRevisionId: prior, revisionId: revision.id });
+  assert.equal((await f.controller.fetch()).error, null);
+  release(); await assert.rejects(reading, { code: 'service-selection-changed' });
+  assert.equal((await f.controller.getCommentTarget()).revision.id, revision.id);
+});
+
 test('capture expiry clears accepted private preview and its public ready claim', async t => {
   const f = await fixture(t); await f.prepare(); await f.controller.preview({ source: 'verified-capture' });
   const binding = (await f.controller.getPreview()).binding; f.setTime(301001);

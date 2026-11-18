@@ -3,6 +3,8 @@ const { randomUUID } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const { API_VERSION } = require('./project-api-contracts');
 const { validActivityCursor, validateProjectFeedPage } = require('./revision-http-transport');
+const { validReviewCommentCursor, validateReviewCommentAnchor, normalizeReviewCommentBody,
+  validateReviewComment, validateReviewCommentsPage } = require('./review-comments-protocol');
 
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -12,7 +14,9 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceede
   'branch-not-found', 'branch-head-changed', 'revision-parent-mismatch', 'source-revision-exists',
   'idempotency-key-reused', 'branch-approval-required', 'approval-head-stale', 'request-too-large',
   'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers', 'activity-page-invalid',
-  'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found']);
+  'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found',
+  'comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
+  'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity']);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function segment(value) {
   if (typeof value !== 'string' || !ID.test(value)) throw fail('sync-request-invalid');
@@ -107,7 +111,7 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     if (!response.ok) {
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
       if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
-      if (envelope.error.code === 'activity-state-invalid') throw fail('activity-state-invalid');
+      if (['activity-state-invalid', 'comment-capacity'].includes(envelope.error.code)) throw fail(envelope.error.code);
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -124,6 +128,27 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     return validateProjectFeedPage(result, projectId, { limit, notifications: resource === 'notifications' });
   }
   return {
+    listReviewComments: async (projectId, revisionId, page = {}, options = {}) => {
+      if (!page || typeof page !== 'object' || Array.isArray(page) || Object.keys(page).some(key => !['limit', 'cursor'].includes(key))) throw fail('comments-invalid');
+      const limit = page.limit === undefined ? 20 : page.limit, cursor = page.cursor === undefined ? null : page.cursor;
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw fail('comments-invalid');
+      if (cursor !== null && !validReviewCommentCursor(cursor)) throw fail('comment-cursor-invalid');
+      const result = await request('GET', `${project(projectId)}/revisions/${segment(revisionId)}/comments?limit=${limit}${cursor === null ? '' : `&cursor=${cursor}`}`, undefined, options);
+      return validateReviewCommentsPage(result, projectId, revisionId, { limit });
+    },
+    addReviewComment: async (input, options = {}) => {
+      if (!fields(input, ['projectId', 'revisionId', 'anchor', 'body', 'idempotencyKey']) || !identifier(input.idempotencyKey)) throw fail('sync-request-invalid');
+      const anchor = validateReviewCommentAnchor(input.anchor), body = normalizeReviewCommentBody(input.body);
+      const result = await request('POST', `${project(input.projectId)}/revisions/${segment(input.revisionId)}/comments`,
+        { anchor, body }, { ...options, idempotencyKey: input.idempotencyKey });
+      return validateReviewComment(result, { projectId: input.projectId, revisionId: input.revisionId, anchor, body });
+    },
+    resolveReviewComment: async (projectId, revisionId, commentId, options = {}) => {
+      const result = await request('PUT', `${project(projectId)}/revisions/${segment(revisionId)}/comments/${segment(commentId)}/resolve`,
+        { resolved: true }, options);
+      const checked = validateReviewComment(result, { projectId, revisionId, commentId });
+      if (checked.status !== 'resolved') throw fail('sync-response-invalid'); return checked;
+    },
     listActivity: (projectId, page = {}, options = {}) => feed(projectId, 'activity', page, options),
     listNotifications: (projectId, page = {}, options = {}) => feed(projectId, 'notifications', page, options),
     markNotificationRead: async (projectId, eventId, input = { read: true }, options = {}) => {

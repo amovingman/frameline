@@ -4,9 +4,9 @@ const ROLES = Object.freeze(['owner', 'editor', 'viewer']);
 const COLLABORATOR_ROLES = Object.freeze(['editor', 'viewer']);
 const PERMISSIONS = Object.freeze({
   owner: new Set(['project:read', 'project:write', 'project:delete', 'members:read', 'members:write',
-    'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write']),
-  editor: new Set(['project:read', 'members:read', 'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write']),
-  viewer: new Set(['project:read', 'members:read', 'revision:read', 'branch:read', 'asset:read'])
+    'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write', 'comment:read', 'comment:write']),
+  editor: new Set(['project:read', 'members:read', 'revision:read', 'revision:write', 'branch:read', 'branch:write', 'asset:read', 'asset:write', 'comment:read', 'comment:write']),
+  viewer: new Set(['project:read', 'members:read', 'revision:read', 'branch:read', 'asset:read', 'comment:read'])
 });
 const digest = value => createHash('sha256').update(value).digest('hex');
 function fail(code) { const error = new Error(code); error.code = code; return error; }
@@ -204,7 +204,7 @@ function createAccessControl({ now = () => Date.now(), invitationTtlMs = 7 * 24 
     })).sort((left, right) => left.expiresAt - right.expiresAt);
   }
   function authorize(userId, { projectId, resource, action }) {
-    if (!['project', 'members', 'revision', 'branch', 'asset'].includes(resource)
+    if (!['project', 'members', 'revision', 'branch', 'asset', 'comment'].includes(resource)
       || !['read', 'write', 'delete'].includes(action)) throw fail('authorization-request-invalid');
     const role = roleFor(userId, projectId);
     if (!role || !PERMISSIONS[role].has(`${resource}:${action}`)) throw fail('forbidden');
