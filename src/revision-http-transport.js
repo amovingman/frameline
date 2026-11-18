@@ -20,7 +20,8 @@ const ERRORS = new Map([
     'revision-invalid', 'manifest-invalid', 'invalid-idempotency-key'].map(code => [code, 400]),
   ['secure-transport-required', 426], ['browser-request-forbidden', 403], ['route-not-found', 404],
   ['method-not-allowed', 405], ['content-type-invalid', 415], ['request-too-large', 413],
-  ['response-too-large', 502], ['service-unavailable', 500]
+  ['response-too-large', 502], ['service-unavailable', 500], ['activity-page-invalid', 400], ['activity-cursor-invalid', 400],
+  ['activity-state-invalid', 500], ['activity-state-newer-version', 409], ['activity-capacity-exceeded', 409], ['notification-not-found', 404]
 ]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -43,14 +44,66 @@ function header(req, name) {
   if (count > 1 || (value !== undefined && typeof value !== 'string')) throw fail('invalid-request-headers');
   return value;
 }
+const ACTIVITY_TYPES = new Set(['revision.created', 'branch.changed', 'pull.completed', 'member.invited', 'member.joined',
+  'member.role-changed', 'member.removed', 'owner.transferred', 'project.deleted']);
+function validActivityCursor(value) {
+  if (typeof value !== 'string' || value.length > 2048 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value)) return false;
+  const [payload, signature] = value.split('.');
+  return Buffer.from(payload, 'base64url').toString('base64url') === payload
+    && Buffer.from(signature, 'base64url').length === 32 && Buffer.from(signature, 'base64url').toString('base64url') === signature;
+}
+function validateProjectFeedPage(value, projectId, { limit = 20, notifications = false } = {}) {
+  const exact = (item, keys) => record(item) && Object.keys(item).sort().join('|') === keys.slice().sort().join('|');
+  const identifier = item => typeof item === 'string' && ID.test(item);
+  if (!exact(value, ['projectId', 'items', 'nextCursor', 'unreadCount']) || value.projectId !== projectId || !identifier(value.projectId)
+    || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Array.isArray(value.items) || value.items.length > limit
+    || value.nextCursor !== null && !validActivityCursor(value.nextCursor)
+    || value.nextCursor !== null && value.items.length !== limit
+    || (notifications ? !Number.isSafeInteger(value.unreadCount) || value.unreadCount < 0 : value.unreadCount !== null)) throw fail('sync-response-invalid');
+  const seen = new Set(), keys = ['id', 'projectId', 'actorId', 'type', 'subjectId', 'at', ...(notifications ? ['read'] : [])];
+  const items = value.items.map(item => {
+    if (!exact(item, keys) || !identifier(item.id) || seen.has(item.id) || item.projectId !== projectId || !identifier(item.actorId)
+      || !ACTIVITY_TYPES.has(item.type) || item.subjectId !== null && !identifier(item.subjectId)
+      || !Number.isSafeInteger(item.at) || item.at < 0 || item.at > 8_640_000_000_000_000
+      || notifications && typeof item.read !== 'boolean') throw fail('sync-response-invalid');
+    seen.add(item.id); return Object.fromEntries(keys.map(key => [key, item[key]]));
+  });
+  if (notifications && value.unreadCount < items.filter(item => !item.read).length) throw fail('sync-response-invalid');
+  // Append order is authoritative. Wall-clock timestamps can tie or move backward.
+  return { projectId, items, nextCursor: value.nextCursor, unreadCount: value.unreadCount };
+}
+function activityPage(query) {
+  const result = { limit: 20, cursor: null };
+  if (query === undefined) return result;
+  if (!query) throw fail('activity-page-invalid');
+  const seen = new Set();
+  for (const part of query.split('&')) {
+    const [key, value, extra] = part.split('=');
+    if (extra !== undefined || !['limit', 'cursor'].includes(key) || seen.has(key)) throw fail('activity-page-invalid');
+    seen.add(key);
+    if (key === 'limit') {
+      if (!/^[1-9][0-9]{0,2}$/.test(value || '') || Number(value) > 100) throw fail('activity-page-invalid');
+      result.limit = Number(value);
+    } else { if (!validActivityCursor(value)) throw fail('activity-cursor-invalid'); result.cursor = value; }
+  }
+  return result;
+}
 function route(req) {
   // Parse origin-form paths directly: URL normalization must not hide dot segments.
-  if (typeof req.url !== 'string' || req.url.length > 2048 || !req.url.startsWith('/')
-    || /[?#\\\s]/.test(req.url)) throw fail('request-invalid');
+  if (typeof req.url !== 'string' || req.url.length > 4096 || !req.url.startsWith('/')
+    || /[#\\\s]/.test(req.url)) throw fail('request-invalid');
+  const [pathname, query, extra] = req.url.split('?'); if (extra !== undefined) throw fail('request-invalid');
   let parts;
-  try { parts = req.url.slice(1).split('/').map(part => decodeURIComponent(part)); }
+  try { parts = pathname.slice(1).split('/').map(part => decodeURIComponent(part)); }
   catch { throw fail('request-invalid'); }
   if (parts.some(part => !ID.test(part))) throw fail('request-invalid');
+  if (parts[0] === 'projects' && ID.test(parts[1] || '') && parts.length === 3 && ['activity', 'notifications'].includes(parts[2])) {
+    return { projectId: parts[1], kind: parts[2] === 'activity' ? 'listActivity' : 'listNotifications', methods: ['GET'], page: activityPage(query) };
+  }
+  if (query !== undefined || req.url.length > 2048) throw fail('request-invalid');
+  if (parts[0] === 'projects' && ID.test(parts[1] || '') && parts.length === 5 && parts[2] === 'notifications' && parts[4] === 'read') {
+    return { projectId: parts[1], item: parts[3], kind: 'markNotificationRead', methods: ['PUT'] };
+  }
   if (parts.length === 1 && parts[0] === 'account') return { kind: 'account', methods: ['GET'] };
   if (parts.length === 1 && parts[0] === 'projects') return { kind: 'projects', methods: ['GET'] };
   if (parts[0] === 'auth' && parts[1] === 'sessions') {
@@ -164,9 +217,18 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
         const rateContext = { addressHash: createHash('sha256').update(String(req.socket?.remoteAddress || 'unknown')).digest('hex'), action: target.kind };
         globalAuthLimit(rateContext); await authRateLimit(rateContext);
       }
-      const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192 : MAX_HTTP_BYTES);
+      if (['listActivity', 'listNotifications', 'markNotificationRead'].includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
+      const body = await readBody(req, req.method !== 'GET', target.anonymous ? 8192 : target.kind === 'markNotificationRead' ? 1024 : MAX_HTTP_BYTES);
       let data;
-      if (target.anonymous) {
+      if (target.kind === 'listActivity' || target.kind === 'listNotifications') {
+        data = validateProjectFeedPage(await service[target.kind](context, target.projectId, target.page), target.projectId,
+          { limit: target.page.limit, notifications: target.kind === 'listNotifications' });
+      } else if (target.kind === 'markNotificationRead') {
+        fields(body, ['read'], ['read']); if (body.read !== true) throw fail('body-invalid');
+        const result = await service.markNotificationRead(context, target.projectId, target.item);
+        if (!record(result) || Object.keys(result).sort().join('|') !== 'eventId|read' || result.eventId !== target.item || result.read !== true) throw fail('service-unavailable');
+        data = { eventId: result.eventId, read: true };
+      } else if (target.anonymous) {
         const method = target.kind === 'refreshSession' ? 'refresh' : target.kind;
         data = await identity[method](...authBody(target.kind, body));
       } else if (target.kind === 'account' || target.kind === 'projects') {
@@ -211,4 +273,4 @@ function send(res, status, envelope) {
   res.end(bytes);
 }
 
-module.exports = { createRevisionHttpHandler, MAX_HTTP_BYTES };
+module.exports = { createRevisionHttpHandler, MAX_HTTP_BYTES, validActivityCursor, validateProjectFeedPage };

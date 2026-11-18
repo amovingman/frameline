@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T08:31:46.755204+00:00",
+  "scope": "Disposable authenticated self-hosted project activity and recipient inbox, browser and native Electron",
+  "fixture": {
+    "accounts": 3,
+    "projects": 2,
+    "initialPublishedRevisions": 13,
+    "initialBranchUpdates": 13,
+    "mediaTransferred": false
+  },
+  "browser": {
+    "startsWithoutFeedNetworkOrWatch": true,
+    "firstInboxUnread": 28,
+    "firstPageRows": 20,
+    "openingDidNotMarkRead": true,
+    "explicitReadUnread": 27,
+    "olderPageTotalRows": 28,
+    "sameRecipientReceiptSurvivedRendererReload": true,
+    "watchRequiredExplicitOptIn": true,
+    "watchReceivedHttpsRevisionAndPermissionChange": true,
+    "watchedUnreadAfterThreeEvents": 30,
+    "permissionReadUnread": 29,
+    "allActivityPagedRowsBeforeRemoval": 33,
+    "allActivityResponseOmittedReadFlags": true,
+    "accessRemovalClearedPrivateRowsAndCount": true,
+    "accessRemovalStoppedWatch": true,
+    "genericAccessChangedNotice": true,
+    "accountSwitchResetFeedAndWatch": true,
+    "ownerInboxUnread": 2,
+    "ownerExplicitReadUnread": 1,
+    "hiddenReadControlRestoredFocusToStatus": true
+  },
+  "native": {
+    "actualPreloadAndIpc": true,
+    "editorInboxUnread": 30,
+    "explicitReadUnread": 29,
+    "watchedBeforeQuit": true,
+    "firstQaProcessExitedBeforeRestart": true,
+    "accountRestoredThroughOsVaultWithoutRetyping": true,
+    "matchingSourceRestoredBinding": true,
+    "restartWatchOff": true,
+    "restartFeedRequiredExplicitRefresh": true,
+    "firstReadReceiptPersistedAfterRestart": true,
+    "afterRestartUnread": 29,
+    "finalSignOutClearedSavedEntry": true,
+    "secondQaProcessExitedBeforeNormalRelaunch": true,
+    "normalStartupSignedOutAndNoSourceSelected": true
+  },
+  "visual": {
+    "rounds": 2,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflowPixels": [
+      0,
+      0,
+      0
+    ],
+    "minimumPhoneButtonHeightPixels": 44,
+    "incumbentGraphitePlexStyleRetained": true,
+    "newSuppressions": 0,
+    "repair": "Restore focus after activity actions without overriding user-selected focus.",
+    "primaryMechanicalFindings": 0,
+    "existingPaletteAdvisories": 31
+  },
+  "validation": {
+    "fullSuiteTests": 690,
+    "passed": 690,
+    "failed": 0,
+    "skipped": 0,
+    "packagingPassed": true,
+    "networkProof": "project-activity-network-observation.json",
+    "networkRequests": 68,
+    "networkHostProcesses": 3,
+    "failClosedSelectionErrorRegression": true,
+    "boundedCompletionPollingReplacedFixedDelay": true,
+    "securitySuiteTests": 246,
+    "securitySuitePassed": 246,
+    "accountDeletionMembershipAndCapacityRollbackRegression": true
+  },
+  "cleanup": {
+    "browserSignedOutAndClosed": true,
+    "viewportReset": true,
+    "fixtureServerExitedSuccessfully": true,
+    "disposableFixtureAndPrivateLocatorRemoved": true,
+    "nativeSavedServiceEntries": 0,
+    "nativeTransferDirectoryAbsentBeforeAndAfter": true,
+    "normalAppReopenedWithoutTestCa": true,
+    "systemTrustUnchanged": true
+  },
+  "limits": [
+    "The browser used actual renderer/controllers with fixture chooser and encrypted test-vault adapters; native checks used real Electron IPC and OS-vault account restoration.",
+    "Updates concern the linked project while the app is open; there is no account-wide background inbox, OS notification, email, digest, or closed-app delivery.",
+    "These are loopback HTTPS clients on one Mac, not a public deployment or two physical devices. The watch interval is not a delivery-time guarantee.",
+    "Permission removal produces a generic access-loss notice after the opted-in check; old project details are cleared and watch stops.",
+    "No validated pull-completed producer, general editor apply, production audit retention, crash during write, power-loss recovery, or signed-release credential policy is claimed."
+  ]
+}

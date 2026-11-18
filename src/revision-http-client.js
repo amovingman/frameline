@@ -2,6 +2,7 @@
 const { randomUUID } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const { API_VERSION } = require('./project-api-contracts');
+const { validActivityCursor, validateProjectFeedPage } = require('./revision-http-transport');
 
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
@@ -10,7 +11,8 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceede
   'manifest-not-found', 'manifest-project-mismatch', 'revision-not-found', 'parent-revision-not-found',
   'branch-not-found', 'branch-head-changed', 'revision-parent-mismatch', 'source-revision-exists',
   'idempotency-key-reused', 'branch-approval-required', 'approval-head-stale', 'request-too-large',
-  'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers']);
+  'manifest-invalid', 'revision-invalid', 'invalid-idempotency-key', 'invalid-request-headers', 'activity-page-invalid',
+  'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found']);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function segment(value) {
   if (typeof value !== 'string' || !ID.test(value)) throw fail('sync-request-invalid');
@@ -105,6 +107,7 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     if (!response.ok) {
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
       if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
+      if (envelope.error.code === 'activity-state-invalid') throw fail('activity-state-invalid');
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -112,7 +115,23 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     return envelope.data;
   }
   const project = id => `/projects/${segment(id)}`;
+  async function feed(projectId, resource, page, options) {
+    if (!page || typeof page !== 'object' || Array.isArray(page) || Object.keys(page).some(key => !['limit', 'cursor'].includes(key))) throw fail('activity-page-invalid');
+    const limit = page.limit === undefined ? 20 : page.limit, cursor = page.cursor === undefined ? null : page.cursor;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw fail('activity-page-invalid');
+    if (cursor !== null && !validActivityCursor(cursor)) throw fail('activity-cursor-invalid');
+    const result = await request('GET', `${project(projectId)}/${resource}?limit=${limit}${cursor === null ? '' : `&cursor=${cursor}`}`, undefined, options);
+    return validateProjectFeedPage(result, projectId, { limit, notifications: resource === 'notifications' });
+  }
   return {
+    listActivity: (projectId, page = {}, options = {}) => feed(projectId, 'activity', page, options),
+    listNotifications: (projectId, page = {}, options = {}) => feed(projectId, 'notifications', page, options),
+    markNotificationRead: async (projectId, eventId, input = { read: true }, options = {}) => {
+      if (!fields(input, ['read']) || input.read !== true) throw fail('sync-request-invalid');
+      const result = await request('PUT', `${project(projectId)}/notifications/${segment(eventId)}/read`, { read: true }, options);
+      if (!fields(result, ['eventId', 'read']) || result.eventId !== eventId || result.read !== true) throw fail('sync-response-invalid');
+      return { eventId, read: true };
+    },
     signIn: async (email, password, options = {}) => {
       if (typeof email !== 'string' || !emailAddress(email.trim().toLowerCase())
         || typeof password !== 'string' || password.length < 1 || password.length > 1024) throw fail('sync-request-invalid');

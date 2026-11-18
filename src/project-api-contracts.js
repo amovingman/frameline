@@ -39,6 +39,8 @@ const PROJECT_API_CONTRACTS = Object.freeze([
   ['PUT', '/projects/:projectId/assets/:assetId/archive', 'SetAssetArchived', 'AssetAvailability'],
   ['POST', '/projects/:projectId/pull-plans', 'CreatePullPlan', 'PullPlan'],
   ['GET', '/projects/:projectId/activity', 'ListActivity', 'ActivityPage'],
+  ['GET', '/projects/:projectId/notifications', 'ListNotifications', 'NotificationPage'],
+  ['PUT', '/projects/:projectId/notifications/:eventId/read', 'MarkNotificationRead', 'NotificationReceipt'],
   ['DELETE', '/users/:userId', 'DeleteAccount', 'DeletionReport']
 ].map(([method, path, request, response]) => Object.freeze({ method, path, request, response })));
 

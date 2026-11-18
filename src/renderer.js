@@ -33,6 +33,13 @@ let serviceBranchesRenderKey = '';
 let serviceFetchedRenderKey = '';
 let serviceFetchedVisible = 20;
 let serviceOriginInitialized = false;
+let projectActivityState = null;
+let projectActivityVersion = -1;
+let projectActivityContext = '';
+let projectActivityView = 'inbox';
+let projectActivityAction = null;
+let projectActivityNotice = '';
+const projectActivityRows = new Map();
 const syncOperationRows = new Map();
 let assetTransferState = null;
 let assetTransferStateVersion = -1;
@@ -544,6 +551,7 @@ function renderServicePanel() {
           : 'Check history after saving a revision. Push becomes available when the local branch is ahead.');
   renderFetchedServiceHistory(matching ? state?.fetched : null);
   renderSyncState(state);
+  syncProjectActivityContext(); renderProjectActivity();
 }
 function renderServiceState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
@@ -567,6 +575,130 @@ async function runServiceAction(method, input) {
   finally {
     document.getElementById('service-password').value = '';
     serviceActionBusy = false; renderServicePanel();
+  }
+}
+
+function currentProjectActivityContext() {
+  if (!serviceSelectionMatches() || !serviceState?.account || !serviceState?.binding) return '';
+  return JSON.stringify([serviceState.origin, serviceState.account.id, serviceState.selection.localProjectId,
+    serviceState.selection.branch, serviceState.binding.remoteProjectId, serviceState.binding.remoteBranch]);
+}
+function projectActivityScopeMatches(state = projectActivityState) {
+  const scope = state?.scope;
+  return !!currentProjectActivityContext() && !!scope && scope.accountId === serviceState?.account?.id
+    && scope.localProjectId === serviceState?.selection?.localProjectId && scope.localBranch === serviceState?.selection?.branch
+    && scope.remoteProjectId === serviceState?.binding?.remoteProjectId && scope.remoteBranch === serviceState?.binding?.remoteBranch;
+}
+function syncProjectActivityContext() {
+  const context = currentProjectActivityContext();
+  if (context === projectActivityContext) return;
+  projectActivityContext = context; projectActivityState = null; projectActivityView = 'inbox';
+  projectActivityAction = null; projectActivityNotice = '';
+  for (const view of projectActivityRows.values()) view.row.remove();
+  projectActivityRows.clear();
+  refreshProjectActivityState(context);
+}
+function projectActivityRow(event) {
+  if (projectActivityRows.has(event.id)) return projectActivityRows.get(event.id);
+  const row = make('div', 'project-activity-row'); row.setAttribute('role', 'listitem');
+  const body = make('div', 'project-activity-body'), title = make('h4'), meta = make('p'), subject = make('p');
+  const read = make('button', '', 'Mark read'); read.type = 'button';
+  read.addEventListener('click', () => runProjectActivityAction('markProjectNotificationRead', event.id));
+  body.append(title, meta, subject); row.append(body, read);
+  const view = { row, title, meta, subject, read }; projectActivityRows.set(event.id, view); return view;
+}
+function renderProjectActivity() {
+  const matching = projectActivityScopeMatches(), state = matching ? projectActivityState : null;
+  const available = !!state?.available, pending = projectActivityAction?.context === currentProjectActivityContext() ? projectActivityAction : null;
+  const busy = !!pending || !!state?.busy, list = document.getElementById('project-activity-list');
+  const blocked = state?.status === 'access-changed';
+  const items = blocked || !state || state.view !== projectActivityView ? [] : state.items || [];
+  const ids = new Set(items.map(event => event.id));
+  const focused = document.activeElement;
+  let removedFocus = false;
+  for (const [id, view] of projectActivityRows) if (!ids.has(id)) {
+    if (view.row.contains(focused)) removedFocus = true;
+    view.row.remove(); projectActivityRows.delete(id);
+  }
+  const labels = { 'revision.created': 'Revision published', 'branch.changed': 'Branch updated', 'pull.completed': 'Pull completed',
+    'member.invited': 'Project invitation created', 'member.joined': 'Member joined', 'member.role-changed': 'Member permissions changed',
+    'member.removed': 'Member removed', 'owner.transferred': 'Project ownership transferred', 'project.deleted': 'Project deleted' };
+  items.forEach((event, index) => {
+    const view = projectActivityRow(event), unread = event.read === false;
+    setServiceText(view.title, `${labels[event.type] || 'Project updated'}${unread ? ' · Unread' : ''}`);
+    setServiceText(view.meta, `Actor ${event.actorId} · ${serviceDate(event.at)}`);
+    setServiceText(view.subject, event.subjectId ? `${event.type === 'branch.changed' ? 'Branch' : 'Subject'} ${event.subjectId}` : 'Project-wide update');
+    const wasFocused = focused === view.read;
+    view.read.hidden = !unread; view.read.disabled = busy || !available;
+    view.read.setAttribute('aria-label', `Mark ${labels[event.type]?.toLowerCase() || 'project update'} read`);
+    if (wasFocused && !unread) removedFocus = true;
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  const refresh = document.getElementById('project-activity-refresh');
+  refresh.disabled = busy || !currentProjectActivityContext() || !window.desktop?.refreshProjectActivity;
+  setServiceText(refresh, pending?.method === 'refreshProjectActivity' ? 'Refreshing…' : 'Refresh activity');
+  const select = document.getElementById('project-activity-view');
+  select.disabled = busy || !available || !window.desktop?.refreshProjectActivity;
+  if (select.value !== projectActivityView) select.value = projectActivityView;
+  const watch = document.getElementById('project-activity-watch');
+  watch.checked = !!state?.watch; watch.disabled = busy || !available || !window.desktop?.setProjectActivityWatch;
+  setServiceText(document.getElementById('project-activity-unread'), state && state.status !== 'idle' && !blocked
+    ? `${(state.unreadCount || 0).toLocaleString()} unread` : 'Unread not checked');
+  const errorLabel = ({ 'activity-display-limit': 'Showing the most recent 500 updates. Refresh activity to start again with the newest page.',
+    'activity-input-invalid': 'Choose Inbox or All activity, then refresh activity.',
+    'activity-unavailable': 'Link an accessible service project, then refresh activity.',
+    'activity-busy': 'Another activity request is running. Wait for it to finish, then retry.',
+    'activity-selection-changed': 'The linked project changed. Refresh activity for the current project.',
+    'activity-local-error': 'Project updates could not be read locally. Refresh activity to retry.' })[state?.error];
+  const status = !currentProjectActivityContext() ? 'Sign in and link a service project to check its activity.'
+    : !window.desktop?.getProjectActivityState ? 'Project activity is unavailable in this build.'
+      : blocked ? 'Project access changed. Refresh projects and choose an accessible project.'
+        : state?.status === 'offline' ? 'The service is unavailable. These updates describe the last successful check; refresh when connected.'
+          : state?.status === 'error' ? 'Project updates could not be loaded. Refresh activity or sign in again, then retry.'
+            : projectActivityNotice || errorLabel || (busy || state?.status === 'loading' ? 'Checking project updates…'
+              : !state || state.status === 'idle' ? 'Refresh activity to check for project updates.'
+                : items.length ? 'Project-wide updates. Opening this list does not mark inbox items read.'
+                  : projectActivityView === 'inbox' ? 'No inbox updates were found for your account in this project.' : 'No recorded project activity was found.');
+  setServiceText(document.getElementById('project-activity-status'), status);
+  setServiceText(document.getElementById('project-activity-stamp'), state?.lastUpdatedAt && !blocked ? `Last checked ${serviceDate(state.lastUpdatedAt)}` : '');
+  setServiceText(document.getElementById('project-activity-range'), items.length ? `${items.length.toLocaleString()} update${items.length === 1 ? '' : 's'} shown${state?.nextCursor ? ' · Older updates available' : ''}` : '');
+  const more = document.getElementById('project-activity-more'); more.hidden = !state?.nextCursor || blocked;
+  more.disabled = busy || !available || !window.desktop?.loadOlderProjectActivity;
+  if (removedFocus) document.getElementById('project-activity-status').focus({ preventScroll: true });
+}
+function renderProjectActivityState(state, expectedContext = currentProjectActivityContext()) {
+  if (!state || expectedContext !== currentProjectActivityContext()) return;
+  if (Number.isSafeInteger(state.version) && state.version < projectActivityVersion) return;
+  if (state.scope && !projectActivityScopeMatches(state)) return;
+  if (Number.isSafeInteger(state.version)) projectActivityVersion = state.version;
+  projectActivityState = state;
+  const requestedView = projectActivityAction?.context === expectedContext && projectActivityAction.method === 'refreshProjectActivity'
+    ? projectActivityAction.view : null;
+  if (['inbox', 'activity'].includes(state.view) && (!requestedView || !state.busy || state.view === requestedView)) projectActivityView = state.view;
+  renderProjectActivity();
+}
+async function refreshProjectActivityState(context = currentProjectActivityContext()) {
+  if (!window.desktop?.getProjectActivityState) return;
+  try { renderProjectActivityState(await window.desktop.getProjectActivityState(), context); }
+  catch { if (context === currentProjectActivityContext()) { projectActivityNotice = 'Could not read project activity. Refresh activity to retry.'; renderProjectActivity(); } }
+}
+async function runProjectActivityAction(method, input) {
+  const context = currentProjectActivityContext();
+  if (!context || projectActivityAction || projectActivityState?.busy || typeof window.desktop?.[method] !== 'function') return;
+  const focused = document.activeElement;
+  const action = { context, method, view: input?.view }; projectActivityAction = action; projectActivityNotice = ''; renderProjectActivity();
+  try { renderProjectActivityState(await window.desktop[method](input), context); }
+  catch { if (context === currentProjectActivityContext()) projectActivityNotice = 'This update could not finish. Refresh activity and try again.'; }
+  finally {
+    if (projectActivityAction === action) {
+      projectActivityAction = null; renderProjectActivity();
+      if (context === currentProjectActivityContext() && focused
+        && (document.activeElement === document.body || document.activeElement === focused)) {
+        const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') && focused.getClientRects().length
+          ? focused : document.getElementById('project-activity-status');
+        target.focus({ preventScroll: true });
+      }
+    }
   }
 }
 
@@ -1384,6 +1516,13 @@ document.getElementById('service-fetch').addEventListener('click', () => runServ
 document.getElementById('service-fetched-more').addEventListener('click', () => {
   serviceFetchedVisible += 20; renderFetchedServiceHistory(serviceSelectionMatches() ? serviceState?.fetched : null);
 });
+document.getElementById('project-activity-refresh').addEventListener('click', () => runProjectActivityAction('refreshProjectActivity', { view: projectActivityView }));
+document.getElementById('project-activity-view').addEventListener('change', event => {
+  projectActivityView = event.target.value;
+  runProjectActivityAction('refreshProjectActivity', { view: projectActivityView });
+});
+document.getElementById('project-activity-watch').addEventListener('change', event => runProjectActivityAction('setProjectActivityWatch', event.target.checked));
+document.getElementById('project-activity-more').addEventListener('click', () => runProjectActivityAction('loadOlderProjectActivity'));
 document.getElementById('asset-choose-upload').addEventListener('click', () => runAssetTransferAction('prepareAssetUpload', {
   assetClass: document.getElementById('asset-class').value, maxBytesPerSecond: assetTransferLimit()
 }));
@@ -1460,6 +1599,8 @@ if (window.desktop?.getAssetTransferState) {
   window.desktop.onAssetTransferState?.(renderAssetTransferState);
   refreshAssetTransferState();
 } else renderAssetTransferPanel();
+window.desktop?.onProjectActivityState?.(renderProjectActivityState);
+refreshProjectActivityState(); renderProjectActivity();
 window.desktop?.getCollaborationState?.().then(renderCollaborationState)
   .catch(() => renderCollaborationState({ available: false, members: [], invitations: [] }));
 document.addEventListener('keydown', event => {

@@ -28,6 +28,7 @@ const { createCredentialVault } = require('./credential-vault');
 const { createDesktopServiceConnection } = require('./desktop-service-connection');
 const { createDesktopRevisionSync } = require('./desktop-revision-sync');
 const { createDesktopAssetTransfers, safeAssetTransferError } = require('./desktop-asset-transfers');
+const { createDesktopProjectActivity } = require('./desktop-project-activity');
 const { fingerprint } = require('./project-api-contracts');
 const { createAccessControl } = require('./access-control');
 const { createFirstRun } = require('./first-run');
@@ -64,6 +65,7 @@ let syncQueue;
 let serviceConnection;
 let desktopRevisionSync;
 let desktopAssetTransfers;
+let desktopProjectActivity;
 let latestServiceState = null;
 let collaborationAccess;
 let collaborationTeam;
@@ -224,9 +226,13 @@ function publishServiceState(state) {
   latestServiceState = state;
   for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('service:state', state);
   Promise.resolve(desktopAssetTransfers?.selectionChanged()).catch(() => {});
+  Promise.resolve(desktopProjectActivity?.selectionChanged()).catch(() => {});
 }
 function publishAssetTransferState(state) {
   for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('asset-transfer:state', state);
+}
+function publishProjectActivityState(state) {
+  for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('project-activity:state', state);
 }
 async function assetTransferSelection() {
   const state = await desktopRevisionSync.getState(), connection = serviceConnection.getState(), selected = projectSession.getState();
@@ -280,7 +286,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   serviceConnection = createDesktopServiceConnection({ directory: path.join(app.getPath('userData'), 'service'),
     vault: createCredentialVault({ directory: path.join(app.getPath('userData'), 'service-secrets'), safeStorage }),
-    onChange: () => { desktopRevisionSync?.connectionChanged(); Promise.resolve(desktopAssetTransfers?.connectionChanged()).catch(() => {}); } });
+    onChange: () => { desktopRevisionSync?.connectionChanged(); Promise.resolve(desktopAssetTransfers?.connectionChanged()).catch(() => {});
+      Promise.resolve(desktopProjectActivity?.connectionChanged()).catch(() => {}); } });
   desktopRevisionSync = createDesktopRevisionSync({ directory: path.join(app.getPath('userData'), 'service-sync'),
     connection: serviceConnection, store: localMetadataStore,
     getSelection: () => {
@@ -289,6 +296,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }, onChange: publishServiceState });
   desktopAssetTransfers = createDesktopAssetTransfers({ directory: path.join(app.getPath('userData'), 'asset-transfers'),
     connection: serviceConnection, getSelection: assetTransferSelection, onChange: publishAssetTransferState });
+  desktopProjectActivity = createDesktopProjectActivity({ connection: serviceConnection,
+    getSelection: assetTransferSelection, onChange: publishProjectActivityState });
   desktopAssetTransfers.getState().then(publishAssetTransferState).catch(() => {});
   serviceConnection.initialize().then(() => desktopRevisionSync.getState()).then(publishServiceState).catch(() => {});
   collaborationAccess = createAccessControl();
@@ -355,6 +364,11 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('service:check', () => serviceAction(() => desktopRevisionSync.check()));
   ipcMain.handle('service:push', () => serviceAction(() => desktopRevisionSync.push()));
   ipcMain.handle('service:fetch', () => serviceAction(() => desktopRevisionSync.fetch()));
+  ipcMain.handle('project-activity:state', () => desktopProjectActivity.getState());
+  ipcMain.handle('project-activity:refresh', (_event, input) => desktopProjectActivity.refresh(input));
+  ipcMain.handle('project-activity:older', () => desktopProjectActivity.loadOlder());
+  ipcMain.handle('project-activity:mark-read', (_event, id) => desktopProjectActivity.markRead(id));
+  ipcMain.handle('project-activity:watch', (_event, enabled) => desktopProjectActivity.setWatch(enabled));
   ipcMain.handle('asset-transfer:state', () => assetTransferAction(() => desktopAssetTransfers.getState()));
   ipcMain.handle('asset-transfer:prepare-upload', (_event, input) => assetTransferAction(async () => {
     const options = assetTransferOptions(input);
@@ -1016,6 +1030,6 @@ app.on('before-quit', event => {
   if (mediaShutdown) return;
   mediaShutdown = true;
   const finish = () => { mediaShutdownReady = true; app.quit(); };
-  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopRevisionSync?.dispose()])
+  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopRevisionSync?.dispose()])
     .then(() => serviceConnection?.dispose()).then(finish, finish);
 });

@@ -23,16 +23,19 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
     putManifest: (context, projectId, manifest) => checked(context, projectId, 'revision', 'write',
       () => history.putManifest(projectId, manifest)),
     createRevision: (context, input) => checked(context, input.projectId, 'revision', 'write', actorId => {
+      const replayed = input.idempotencyKey !== null && input.idempotencyKey !== undefined
+        && Object.hasOwn(history.snapshot().idempotency, input.idempotencyKey);
       const result = history.createRevision({ ...input, authorId: actorId });
-      activity?.record({ projectId: input.projectId, actorId, type: 'revision.created', subjectId: result.id,
+      if (!replayed) activity?.record({ projectId: input.projectId, actorId, type: 'revision.created', subjectId: result.id,
         recipientIds: access.listProjectMembers(actorId, input.projectId).map(item => item.userId) });
       return result;
     }),
     updateBranch: (context, input) => checked(context, input.projectId, 'branch', 'write', actorId => {
+      const previous = history.getBranch(input.projectId, input.branch).revisionId;
       branchProtection?.assertCanAdvance({ actorId, projectId: input.projectId, branch: input.branch,
         expectedHead: input.expectedRevisionId ?? null, revisionId: input.revisionId });
       const result = history.compareAndSwapBranch(input);
-      activity?.record({ projectId: input.projectId, actorId, type: 'branch.changed', subjectId: input.branch,
+      if (history.getBranch(input.projectId, input.branch).revisionId !== previous) activity?.record({ projectId: input.projectId, actorId, type: 'branch.changed', subjectId: input.branch,
         recipientIds: access.listProjectMembers(actorId, input.projectId).map(item => item.userId) });
       return result;
     }),
@@ -47,9 +50,9 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
     getBranch: (context, projectId, branch) => checked(context, projectId, 'branch', 'read',
       () => history.getBranch(projectId, branch)),
     listActivity: (context, projectId, page) => checked(context, projectId, 'project', 'read',
-      actorId => activity ? activity.list(actorId, projectId, page) : []),
-    listNotifications: (context, projectId) => checked(context, projectId, 'project', 'read',
-      actorId => activity ? activity.notifications(actorId, projectId) : []),
+      actorId => activity ? activity.listPage(actorId, projectId, page) : { projectId, items: [], nextCursor: null, unreadCount: null }),
+    listNotifications: (context, projectId, page) => checked(context, projectId, 'project', 'read',
+      actorId => activity ? activity.notificationPage(actorId, projectId, page) : { projectId, items: [], nextCursor: null, unreadCount: 0 }),
     markNotificationRead: (context, projectId, eventId) => checked(context, projectId, 'project', 'read',
       actorId => activity ? activity.markRead(actorId, projectId, eventId) : null),
     authorizeAsset: (context, projectId, action = 'read') => checked(context, projectId, 'asset', action,

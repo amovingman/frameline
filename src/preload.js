@@ -20,6 +20,17 @@ contextBridge.exposeInMainWorld('desktop', {
   checkServiceSync: () => ipcRenderer.invoke('service:check'),
   pushServiceRevisions: () => ipcRenderer.invoke('service:push'),
   fetchServiceRevisions: () => ipcRenderer.invoke('service:fetch'),
+  getProjectActivityState: () => ipcRenderer.invoke('project-activity:state'),
+  refreshProjectActivity: input => ipcRenderer.invoke('project-activity:refresh', input),
+  loadOlderProjectActivity: () => ipcRenderer.invoke('project-activity:older'),
+  markProjectNotificationRead: id => ipcRenderer.invoke('project-activity:mark-read', id),
+  setProjectActivityWatch: enabled => ipcRenderer.invoke('project-activity:watch', enabled),
+  onProjectActivityState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('project-activity:state', handle);
+    return () => ipcRenderer.removeListener('project-activity:state', handle);
+  },
   getAssetTransferState: () => ipcRenderer.invoke('asset-transfer:state'),
   prepareAssetUpload: input => ipcRenderer.invoke('asset-transfer:prepare-upload', input),
   confirmAssetUpload: id => ipcRenderer.invoke('asset-transfer:confirm-upload', id),

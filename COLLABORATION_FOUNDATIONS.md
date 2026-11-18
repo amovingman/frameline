@@ -1,6 +1,6 @@
 # Collaboration and media identity foundations
 
-The service foundations run locally. An injectable authorized HTTP boundary and asynchronous metadata-sync client passed a disposable two-account loopback exchange; they do not provision a listening service or connect the desktop to an account. Hosted deployment, cross-device event delivery, and persistent service storage remain open. See [revision network sync](REVISION_NETWORK_SYNC.md) for transport scope and validation status.
+The service foundations run locally. The [standalone host](SERVICE_HOST.md), [encrypted collaboration runtime](DURABLE_COLLABORATION_SERVICE.md), and [desktop service connection](DESKTOP_SERVICE_SYNC.md) now build on the authorized HTTP boundary and asynchronous metadata client. Hosted deployment and managed delivery remain open. See [revision network sync](REVISION_NETWORK_SYNC.md) for transport scope and validation status.
 
 ## Read-only sharing
 
@@ -8,9 +8,9 @@ The service foundations run locally. An injectable authorized HTTP boundary and 
 
 ## Notifications and activity
 
-`createProjectActivity` records append-only, hash-linked project events and recipient-scoped notification receipts. Authorized project members can list activity and their own inbox, and mark their own items read. Its event types cover revisions, branch changes, completed pulls, and membership lifecycle. The authorized history service now records revision and branch events when an activity store is provided. The access-control constructor accepts `onProjectEvent` to record invitation, join, role, removal, ownership, and deletion events. A future pull service must emit `pull.completed` after validated success. No email, push, polling transport, or desktop notification is configured.
+`createProjectActivity` records append-only, hash-linked project events and recipient-scoped notification receipts. The combined runtime now commits revision/branch and membership events atomically with domain changes, suppresses no-op/idempotent replay duplicates, and persists explicit read receipts. Authorized project members can page activity and their own inbox over HTTPS; the desktop adds explicit refresh, mark-read, and an opt-in 30-second app-open watch. `pull.completed` has no validated producer. No email, operating-system notification, digest, or delivery while the app is closed is configured.
 
-The activity store is serializable and validates its hash chain on recovery. The caller owns durable storage and must persist `snapshot()` atomically. Events contain IDs and type codes only, avoiding file paths, invitation tokens, and media names. Removed members immediately lose access to project history and their project inbox; an external delivery system may send a generic permission-change notice without project details.
+The combined runtime validates the activity hash chain, recipient receipts, and cross-state references on recovery. Schema-1 collaboration state upgrades to schema 2 with empty activity; it does not backfill or replay history. Standalone callers of `createProjectActivity` still own persistence of its snapshot. Public events contain safe IDs, type codes, and timestamps, omitting recipients, file paths, invitation tokens, and media names. Removed members immediately lose project feed/inbox access. See [project activity](PROJECT_ACTIVITY.md) for cursor scope, capacities, desktop limits, and the passed HTTPS restart proof; all 690 tests, packaging validation, and [browser/native checks](phase-0/project-activity-desktop-observation.json) passed within the documented loopback and app-open limits.
 
 ## Membership and deletion
 

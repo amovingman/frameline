@@ -30,6 +30,7 @@ function fixture(options = {}) {
       async listProjects() { await check(); return { projects: [{ id: 'film', name: 'Film', role: 'editor', branches: ['main'] }] }; },
       async getBranch(id, branch) { await check(); return { projectId: id, branch, revisionId: null }; }
     };
+    if (options.clientMethods) Object.assign(client, options.clientMethods({ getAccessToken, origin }));
     instances.push(client); return client;
   };
   const make = () => createDesktopServiceConnection({ directory: '/private/tmp/frameline-connection-test', vault, createClient, createAssetClient: options.createAssetClient,
@@ -214,4 +215,25 @@ test('policy and archive private client methods preserve input positions, bound 
   assert.deepEqual(calls[1].slice(0, 2), ['film', input]); assert.deepEqual(calls[2].slice(0, 3), ['film', 'asset', archive]);
   assert(calls[0][1] instanceof AbortSignal); assert(calls[1][2] instanceof AbortSignal); assert(calls[2][3] instanceof AbortSignal);
   assert.equal(value.getState().status, 'connected'); await value.disconnect(); assert.equal(calls[2][3].aborted, true);
+});
+
+test('activity SDK methods bind page/input positions and abort captured feed clients on disconnect', async t => {
+  const calls = []; let waiting = null;
+  const f = fixture({ clientMethods: ({ getAccessToken }) => ({
+    async listActivity(pid, page, options) { calls.push([pid, page, options.signal]);
+      if (waiting) { waiting.started.resolve(); await waiting.release.promise; } await getAccessToken();
+      return { projectId: pid, items: [], nextCursor: null, unreadCount: null }; },
+    async listNotifications(pid, page, options) { calls.push([pid, page, options.signal]); return { projectId: pid, items: [], nextCursor: null, unreadCount: 0 }; },
+    async markNotificationRead(pid, id, input, options) { calls.push([pid, id, input, options.signal]); throw error('notification-not-found'); }
+  }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); await connect(value); const client = value.getClient();
+  const page = { limit: 20, cursor: null }; await client.listActivity('film', page); await client.listNotifications('film', page);
+  await assert.rejects(client.markNotificationRead('film', 'event-1', { read: true }), { code: 'notification-not-found', message: 'notification-not-found' });
+  assert.deepEqual(calls[0].slice(0, 2), ['film', page]); assert.deepEqual(calls[2].slice(0, 3), ['film', 'event-1', { read: true }]);
+  assert(calls[0][2] instanceof AbortSignal); assert(calls[2][3] instanceof AbortSignal);
+  waiting = { started: defer(), release: defer() }; const pending = client.listActivity('film', page); await waiting.started.promise;
+  const signingOut = value.disconnect(); assert.equal(calls.at(-1)[2].aborted, true); waiting.release.resolve();
+  await assert.rejects(pending, { code: 'service-sign-in-required' }); await signingOut;
+  await assert.rejects(client.listNotifications('film', page), { code: 'service-sign-in-required' });
+  assert.doesNotMatch(JSON.stringify(f.events), /\/private\/|access-token-secret|refresh-token/);
 });

@@ -14,6 +14,8 @@ The client obtains the current access token from a supplied callback for each re
 
 The metadata routes cover content-addressed manifest writes/reads, immutable revision creation/read/source lookup, and branch reads/compare-and-swap updates. Request and response bodies are each capped at 8 MiB. This surface transfers revision metadata and manifests, without media bytes or arbitrary server file access.
 
+The later [project activity integration](PROJECT_ACTIVITY.md) adds authenticated `GET /projects/:projectId/activity`, `GET /projects/:projectId/notifications`, and `PUT /projects/:projectId/notifications/:eventId/read` with exact `{read:true}` input. Only the two feed routes accept `limit`/`cursor` query fields; limits default to 20 and stop at 100, and signed cursors are bounded to 2,048 characters and scoped to account/project/feed. Pages expose safe event fields and recipient-owned read state without private recipients or hashes. A separate 68-request, three-process HTTPS proof passed, together with all 690 tests, packaging validation, and browser/native checks within the bounds in `PROJECT_ACTIVITY.md`.
+
 Every operation goes through authentication and project-scoped authorization before history access. The history store also verifies that referenced manifests, parents, and revisions belong to the requested project. The authenticated user becomes a new revision's author; a body-supplied author cannot select another identity. Removing membership or deleting a project must prevent subsequent requests even if the client still holds a session.
 
 ## Asynchronous sync and offline work
@@ -50,6 +52,6 @@ A later [durable local collaboration runtime](DURABLE_COLLABORATION_SERVICE.md) 
 
 ## Remaining deployment work
 
-Deployment/data-processing regions, production TLS hosting, durable service storage and backup operations, managed keys, account provisioning/recovery delivery, and operational monitoring remain open. Desktop authentication/configuration passed the later milestone's browser/native HTTPS and restart checks; signed-release credential policy remains open. Sharing links, cross-device notifications, media transfer, synced-base integration, and safe project apply also remain separate roadmap work.
+Deployment/data-processing regions, production TLS hosting, production storage and backup operations, managed keys, account/recovery delivery, and operational monitoring remain open. Local encrypted storage and operator provisioning now have their own [host/runtime proofs](DURABLE_COLLABORATION_SERVICE.md). Desktop authentication/configuration passed the later milestone's browser/native HTTPS and restart checks; signed-release credential policy remains open. Project activity now has service-backed receipts and optional app-open polling; operating-system/email/digest/background delivery remains open. Sharing links, synced-base integration, and safe project apply remain separate roadmap work; [media transfers](DESKTOP_MEDIA_TRANSFERS.md) have a separate scope and evidence.
 
 The transport uses Node's documented [HTTP server APIs](https://nodejs.org/api/http.html) and [fetch API](https://nodejs.org/api/globals.html#fetch), while the authorization and immutable-history rules remain repository domain contracts.

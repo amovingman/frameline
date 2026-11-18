@@ -86,9 +86,9 @@ test('authorized commits and branch changes enter activity and collaborator inbo
   const manifest = service.putManifest(ownerContext, 'project-1', { schemaVersion: 1 });
   const revision = service.createRevision(ownerContext, { projectId: 'project-1', manifestId: manifest.id, message: 'Save' });
   service.updateBranch(ownerContext, { projectId: 'project-1', branch: 'main', revisionId: revision.id });
-  assert.deepEqual(service.listActivity(editorContext, 'project-1').map(e => e.type), ['branch.changed', 'revision.created']);
-  assert.equal(service.listNotifications(editorContext, 'project-1').length, 2);
-  assert.equal(service.listNotifications(ownerContext, 'project-1').length, 0);
+  assert.deepEqual(service.listActivity(editorContext, 'project-1').items.map(e => e.type), ['branch.changed', 'revision.created']);
+  assert.equal(service.listNotifications(editorContext, 'project-1').items.length, 2);
+  assert.equal(service.listNotifications(ownerContext, 'project-1').items.length, 0);
 });
 
 test('ownership transfer, member removal and deletion enforce lifecycle boundaries', () => {

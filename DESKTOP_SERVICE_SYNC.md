@@ -33,6 +33,10 @@ Fetched metadata is integrity checked, scoped, and stored locally with a fetch r
 
 The service stores manifest records within each project while preserving canonical content IDs. Identical saved manifest bytes can be pushed independently to two projects; sharing an ID does not grant access to another project's record. Valid legacy history is migrated to this scoped representation without changing revision IDs or branch heads.
 
+## Project activity
+
+The linked service project's **Project activity** panel adds explicit refresh of **Inbox** or **All activity**, recipient-owned **Mark read**, and older-page loading with a 500-item display cap. Opening the list does not mark items read. Its opt-in 30-second watch operates only while the app is open, starts off, and resets when the origin/account/local or remote branch scope changes. Access loss clears rows and reports a generic permission change. Read receipts persist on the service; this feature adds no operating-system notification, email, digest, or closed-app delivery. See [project activity](PROJECT_ACTIVITY.md) for durable schema-2 migration, cursor bounds, and the passed HTTPS process proof. This later milestone passed all 690 tests, packaging validation, and [browser/native checks](phase-0/project-activity-desktop-observation.json), including a full native restart with a retained read receipt and watching off.
+
 ## Validation and limits
 
 Connection-manager automated checks passed for safe display-state projection, vault restore, single-flight refresh, persistence failures, offline retry, revocation, generation-bound clients, sign-out/replacement races, and shutdown without credential removal. Targeted controller/durable-state and authorization/history migration/backup/retention checks passed, including the same-content/two-project and encrypted legacy-upgrade regressions.
@@ -45,4 +49,4 @@ The final suite passed all 539 tests with no failures or skips, and packaging va
 
 Injected-vault tests establish connection control flow; the native save/restart check is separate OS-backed evidence from this Mac. It used an unsigned development app and does not establish the credential-access policy of a signed/notarized release. Local test certificates do not configure production trust or hosting.
 
-Production deployment/regions, service operations, account/provisioning and recovery delivery, signed release behavior, remote synced-base integration, revision import/reconciliation, media transfer, and safe project apply remain open. The earlier [transport proof](REVISION_NETWORK_SYNC.md) and [encrypted service restart proof](DURABLE_COLLABORATION_SERVICE.md) remain useful evidence for their own boundaries.
+Production deployment/regions, service operations, self-service account provisioning and recovery delivery, signed release behavior, remote synced-base integration, revision import/reconciliation, revision-selected media integration, and safe project apply remain open. The earlier [transport proof](REVISION_NETWORK_SYNC.md) and [encrypted service restart proof](DURABLE_COLLABORATION_SERVICE.md) remain useful evidence for their own boundaries.

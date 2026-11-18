@@ -303,9 +303,16 @@ test('archive and class exclusion block old and new binary tickets while retaini
   await assert.rejects(read.readChunk('film', upload.assetId, 0), { code: 'asset-policy-excluded' });
   assert.equal((await api.completeUpload('film', upload.uploadId)).verified, true);
   const fresh = createAssetHttpHandler({ assets: f.assets, authorize: f.authorize, authorizePolicy: f.authorizePolicy, signingKey: randomBytes(32) });
+  t.after(() => fresh.close());
   const route = `/projects/film/assets/uploads/${upload.uploadId}/complete`;
-  assert.equal((await invoke(fresh, 'POST', route, {})).status, 202); await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal((await invoke(fresh, 'POST', route, {})).json.data.verified, true); await fresh.close();
+  assert.equal((await invoke(fresh, 'POST', route, {})).status, 202);
+  const deadline = Date.now() + 3000; let result;
+  do {
+    result = await invoke(fresh, 'POST', route, {});
+    if (result.status !== 202) break;
+    await new Promise(resolve => setTimeout(resolve, 2));
+  } while (Date.now() < deadline);
+  assert.equal(result.status, 200); assert.equal(result.json.data.verified, true);
 });
 
 test('a policy change blocks a previously issued PUT ticket before reading any chunk bytes', async t => {

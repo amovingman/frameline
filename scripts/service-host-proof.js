@@ -6,6 +6,8 @@ const net = require('node:net');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const { randomBytes, randomUUID, createHash } = require('node:crypto');
+const { createDurableCollaborationService } = require('../src/durable-collaboration-service');
+const { createKeyring } = require('../src/security-controls');
 
 const hostCli = path.resolve(__dirname, '../src/service-host-cli.js');
 const adminCli = path.resolve(__dirname, '../src/service-admin-cli.js');
@@ -59,6 +61,16 @@ const clientScript = String.raw`
         viewerSession = await connected(null).signIn(config.viewerEmail, config.password);
       }
       const owner = connected(ownerSession.accessToken), viewer = connected(viewerSession.accessToken);
+      if (config.phase === 'access-changed') {
+        await assert.rejects(viewer.listActivity(config.projectId, { limit: 1, cursor: config.activityCursor }), { code: 'forbidden' });
+        await assert.rejects(viewer.listNotifications(config.projectId, { limit: 1, cursor: config.inboxCursor }), { code: 'forbidden' });
+        await assert.rejects(viewer.markNotificationRead(config.projectId, config.readEventId, { read: true }), { code: 'forbidden' });
+        assert.equal((await viewer.listProjects()).projects.length, 0);
+        const events = await owner.listActivity(config.projectId, { limit: 100 });
+        assert.equal(events.items[0].type, 'member.removed');
+        assert.equal(events.items.length, config.activityIds.length + 1);
+        process.send({ type: 'result', data: { ownerSession, viewerSession, requests } }, () => process.disconnect()); return;
+      }
       assert.equal((await owner.getAccount()).id, config.ownerId);
       assert.equal((await viewer.getAccount()).id, config.viewerId);
       assert.deepEqual((await owner.listProjects()).projects.map(item => [item.id, item.role]), [[config.projectId, 'owner']]);
@@ -77,8 +89,40 @@ const clientScript = String.raw`
       await assert.rejects(viewer.compareAndSwapBranch({ projectId: config.projectId, branch: 'main',
         expectedRevisionId: null, revisionId: fetched.head }), { code: 'forbidden' });
       assert.equal((await owner.getBranch(config.projectId, 'main')).revisionId, fetched.head);
-      process.send({ type: 'result', data: { ownerSession, viewerSession, fetched, requests } }, () => process.disconnect());
-    } catch {
+      const activity = await viewer.listActivity(config.projectId, { limit: 100 });
+      assert.equal(activity.unreadCount, null); assert.equal(activity.nextCursor, null);
+      assert.equal(activity.items.filter(event => event.type === 'revision.created').length, 2);
+      assert.equal(activity.items.filter(event => event.type === 'branch.changed').length, 2);
+      assert(activity.items.every(event => !('recipientIds' in event) && !('hash' in event)));
+      const activityIds = activity.items.map(event => event.id);
+      const firstPage = await viewer.listActivity(config.projectId, { limit: 1 });
+      const activityCursor = firstPage.nextCursor; assert(activityCursor);
+      const older = await viewer.listActivity(config.projectId, { limit: 100, cursor: config.activityCursor || activityCursor });
+      assert.deepEqual([firstPage.items[0].id, ...older.items.map(event => event.id)], activityIds);
+      const inbox = await viewer.listNotifications(config.projectId, { limit: 1 });
+      const readEventId = inbox.items[0].id, inboxCursor = inbox.nextCursor; assert(inboxCursor);
+      assert.equal(inbox.unreadCount, config.phase === 'initial' ? 4 : 3);
+      if (config.phase === 'initial') {
+        assert.equal(inbox.items[0].read, false);
+        assert.deepEqual(await viewer.markNotificationRead(config.projectId, readEventId, { read: true }), { eventId: readEventId, read: true });
+        await viewer.markNotificationRead(config.projectId, readEventId, { read: true });
+      } else {
+        assert.deepEqual(activityIds, config.activityIds); assert.equal(readEventId, config.readEventId); assert.equal(inbox.items[0].read, true);
+        const restoredPage = await viewer.listNotifications(config.projectId, { limit: 100, cursor: config.inboxCursor });
+        assert.equal(restoredPage.items.length, 3);
+      }
+      const checked = await viewer.listNotifications(config.projectId, { limit: 100 });
+      assert.equal(checked.unreadCount, 3); assert.equal(checked.items.filter(event => event.read).length, 1);
+      const ownerInbox = await owner.listNotifications(config.projectId, { limit: 100 });
+      assert.equal(ownerInbox.items.length, 1); assert.equal(ownerInbox.items[0].type, 'member.joined');
+      await assert.rejects(viewer.markNotificationRead(config.projectId, ownerInbox.items[0].id, { read: true }), { code: 'notification-not-found' });
+      await assert.rejects(owner.listNotifications(config.projectId, { limit: 1, cursor: inboxCursor }), { code: 'activity-cursor-invalid' });
+      process.send({ type: 'result', data: { ownerSession, viewerSession, fetched, requests,
+        activityIds, activityCursor, inboxCursor, readEventId } }, () => process.disconnect());
+    } catch (error) {
+      const line = /\[eval\]:(\d+):\d+/.exec(error.stack || '')?.[1];
+      if (process.connected) process.send({ type: 'failure', data: {
+        code: /^[a-z0-9-]{1,80}$/.test(error.code || '') ? error.code : 'assertion-failed', line: line ? Number(line) : null } });
       process.stderr.write('service-host-client-proof-failed\n');
       process.exitCode = 1; if (process.connected) process.disconnect();
     }
@@ -165,10 +209,11 @@ async function runServiceHostProof() {
   async function runClient(input) {
     const record = start(['-e', clientScript, path.resolve(__dirname, '../src/revision-http-client.js'),
       path.resolve(__dirname, '../src/revision-sync-async.js')], { ipc: true, trust: true });
-    let result = null;
-    record.child.on('message', message => { if (message?.type === 'result') result = message.data; });
+    let result = null, failure;
+    record.child.on('message', message => { if (message?.type === 'result') result = message.data;
+      if (message?.type === 'failure') failure = message.data; });
     record.child.stdin.end(JSON.stringify(input)); await waitForExit(record);
-    assert.equal(record.exit.code, 0, 'Actual HTTPS client proof must finish successfully');
+    assert.equal(record.exit.code, 0, `Actual HTTPS client must finish ${input.phase}: ${failure?.code || 'unknown'} at worker line ${failure?.line || 'unknown'}`);
     assert(result); assert.equal(record.stdout, '');
     for (const session of [result.ownerSession, result.viewerSession]) {
       privateValues.push(session.accessToken, session.refreshToken); receiptSecrets.push(session.accessToken, session.refreshToken);
@@ -230,21 +275,36 @@ async function runServiceHostProof() {
     assert.deepEqual(await assertStatePrivate(), committed, 'Explicit initialization must preserve an existing encrypted store');
     const secondHost = await launchHost();
     const restarted = await runClient({ ...input, phase: 'restarted', ownerSession: first.ownerSession,
-      viewerSession: first.viewerSession, previousFetch: first.fetched });
+      viewerSession: first.viewerSession, previousFetch: first.fetched, activityIds: first.activityIds,
+      activityCursor: first.activityCursor, inboxCursor: first.inboxCursor, readEventId: first.readEventId });
     await stopHost(secondHost); await assertStatePrivate();
+    const runtime = await createDurableCollaborationService({ directory: dataDirectory,
+      keyring: createKeyring({ proof: Buffer.from(encryptionKey, 'base64') }, 'proof') });
+    try { await runtime.members.remove({ accessToken: first.ownerSession.accessToken }, projectId, viewer.id); }
+    finally { await runtime.close(); }
+    const thirdHost = await launchHost();
+    const removed = await runClient({ ...input, phase: 'access-changed', ownerSession: first.ownerSession,
+      viewerSession: first.viewerSession, activityIds: first.activityIds, activityCursor: first.activityCursor,
+      inboxCursor: first.inboxCursor, readEventId: first.readEventId });
+    await stopHost(thirdHost); await assertStatePrivate();
     assert.equal((await fs.stat(configPath)).mode & 0o777, 0o600);
     assert.equal((await fs.stat(keyFile)).mode & 0o777, 0o600);
     assert(children.every(record => record.terminal));
     for (const record of children) assertPrivateLogs(record);
     const receipt = { schemaVersion: 1, observedAt: new Date().toISOString(),
       scope: 'Disposable operator CLI and HTTPS service process proof', transport: 'https-numeric-loopback-test-ca',
-      authorizedAccounts: 2, hostProcesses: hostProcesses.length, networkRequests: first.requests + restarted.requests,
+      authorizedAccounts: 2, hostProcesses: hostProcesses.length, networkRequests: first.requests + restarted.requests + removed.requests,
       fetchedRevisionCount: restarted.fetched.revisions.length, mediaFetched: false,
       missingStoreServeRejected: true, explicitInitializationRequired: true, existingInitializationPreserved: true,
       insecureConfigRejected: true, insecureTlsKeyRejected: true, privateConfigMode: '0600', privateTlsKeyMode: '0600',
       encryptedStateMode: '0600', stdinOnlyAdministration: true, viewerMetadataWritesDenied: true,
       sessionAndProjectAccessPreservedAfterRestart: true, revisionHistoryPreservedAfterRestart: true,
       idempotentRetryCreatedNoDuplicateRevisions: true, acknowledgedBranchPreserved: true,
+      activityAndInboxPersistedAfterRestart: true, readReceiptPersistedAfterRestart: true,
+      idempotentRetryCreatedNoDuplicateEvents: true, recipientOwnedReadReceipt: true,
+      paginationCursorSurvivedRestart: true, crossAccountCursorRejected: true,
+      removedViewerFeedAndOldCursorDeniedAfterRestart: true, membershipRemovalEventPersisted: true,
+      publicEventsOmitRecipientsAndPrivateState: true,
       gracefulSigtermExit: true, priorSubprocessesTerminalBeforeRelaunch: true, allOwnedSubprocessesTerminated: true,
       publicLogsOmitCredentialsAndPrivatePaths: true, encryptedStateOmitsPlaintextCredentials: true,
       limits: ['The committed public TEST ONLY certificate and key were used solely on numeric loopback.',
