@@ -21,7 +21,7 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 ## Delivery workflow
 
-After every completed feature, commit and push the change to GitHub. Verify the remote commit, keep its pull request updated when using a feature branch, and report the GitHub link and whether the change has been merged into `main`.
+For this workspace, commit verified features locally and preserve the user’s local-only Git preference. Do not push unless the user explicitly requests it again.
 
 ---
 
@@ -74,7 +74,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 
 ### 1.2 Project adapter and normalized manifest
 - [x] Define the first version of a read-only timeline scan manifest with exact frame counts and unresolved identity; expand it before durable revisions.
-- [ ] Preserve editor-specific fields required for lossless round-trip writing. The first-editor audit reports six unobservable construct/identity categories and compares native rename evidence with a no-edit save/reopen control. Both runs change opaque project/media/sequence blobs, so those categories are not rename-specific; semantic equivalence and the full field inventory remain unproven.
+- [ ] Preserve editor-specific fields required for lossless round-trip writing. An opt-in supplement now captures returned documented item properties and track enabled/locked state. Live evidence covers 43 returned keys across 53 items and two tracks; the rename guard rejects a saved Pan change and restores the complete represented state after forced rollback. The first-editor audit still reports six unobservable construct/identity categories and opaque native blob changes during both edits and no-edit save/reopen. Semantic equivalence and the full field inventory remain unproven.
 - [x] Define and use an adapter contract for scan, source verification, stable-ID mapping, apply, save, and editor validation; the FCPXML adapter explicitly refuses unproven operations.
 - [x] Implement a read-only FCPXML adapter in the desktop app for the first top-level picture sequence, with unsupported-element warnings and no media-path exposure to the renderer.
 - [x] Allow an explicit read-only rescan of the selected file to refresh timeline and media availability, including retry after scan failure.
@@ -94,7 +94,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [x] Detect concurrent local writes and prevent silent branch-head replacement.
 - [x] Show local revision history backed by saved records for the selected export.
 - [x] Open revision details backed by saved manifests, with record integrity checks and recovery errors.
-- [x] Provide local revision export/import for backup and transfer before cloud sync exists. Resolve observation history now has dedicated reviewed export/import controls, preserving portable trial audits and importing into separate branches. The real service/renderer flow passed an isolated browser round trip; native Electron file-dialog verification remains pending desktop access.
+- [x] Provide local revision export/import for backup and transfer before cloud sync exists. Resolve observation history now has dedicated reviewed export/import controls, preserving portable trial audits and importing into separate branches. Browser and native Electron file-dialog round trips passed. Six native observation revisions imported onto a separate branch with remapped IDs and preserved audit data, while the current branch/head remained unchanged.
 - [x] Record a verified Resolve API capture as an immutable, read-only local observation revision keyed by its API project ID. Parent comparison ignores equivalent ordering; v2 transfers reject cross-project imports. The desktop can browse histories, create and switch branches, inspect bounded parent differences, and preview three verified revisions with a common ancestor after restart. Live Console capture and apply remain open.
 
 ### 1.4 Change detection and comparison
@@ -128,7 +128,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Produce a deterministic executable pull plan with changes, media requirements, and validation warnings. The preview assembles a read-only proposal and warnings, not an executable plan.
 - [ ] Bind each plan to hashes of the local project and incoming revision.
 - [ ] Recalculate a stale plan if the project changes before apply.
-- [ ] Persist enough plan state to recover from application interruption. New effect-guarded forced-rollback trials retain exact sources/review, backup, issued command generation, recovery inspection/action bindings, and a pinned history target. Live recovery after desktop restart verifies or restores the expected original state without reloading review files. Startup discovery now classifies and pages retained records with verified history links and safe preparation cancellation; its native startup/list-selection check remains pending. General pull plans remain open.
+- [ ] Persist enough plan state to recover from application interruption. New effect-guarded forced-rollback trials retain exact sources/review, backup, issued command generation, recovery inspection/action bindings, and a pinned history target. Live recovery after desktop restart verifies or restores the expected original state without reloading review files. Startup discovery now classifies and pages retained records with verified history links and safe preparation cancellation; its native startup/list-selection, cancellation and source-verification checks passed, and completed records stayed cleared after another restart. General pull plans remain open.
 
 ### 2.2 Conflict rules and resolution
 - [ ] Implement field-level conflicts with safe app-level apply rules for properties proven safe by the editor spike. The preview can review observed-field conflicts but cannot apply their choices.
@@ -246,7 +246,7 @@ After every completed feature, commit and push the change to GitHub. Verify the 
 - [ ] Add first-run onboarding for choosing an editor, project, and workspace. A first-run panel now records the experimental Resolve target and local workspace label, then opens the real project picker; choosing a storage location remains open.
 - [ ] Add accessible keyboard navigation and screen-reader labels for dense timeline and conflict UI. Arrow navigation and labels were added to working lists; a full keyboard and assistive-technology audit remains open.
 - [ ] Handle large projects with virtualized lists, incremental scans, caching, and cancellation. Revision history is windowed; FCPXML scans reuse hash-bound parsed inventory, refresh media in batches, and can be cancelled. Larger editor-backed performance evidence remains open.
-- [ ] Add crash recovery and restartable scans/uploads/applies. A path-free recovery journal describes reselect/rescan, verified chunk resume, and manual restore. The desktop recovers issued experimental rename drills through persistent command retirement, fresh effect inspection, verified source/reverse-name actions, and linked outcome revisions. Startup discovery/list code now passes automated and real-filesystem checks, with native UI verification pending. Integrated scan/upload recovery, general apply, and full editor validation remain open.
+- [ ] Add crash recovery and restartable scans/uploads/applies. A path-free recovery journal describes reselect/rescan, verified chunk resume, and manual restore. The desktop recovers issued experimental rename drills through persistent command retirement, fresh effect inspection, verified source/reverse-name actions, and linked outcome revisions. Startup discovery/list code passes automated, real-filesystem and native restart/recovery checks; completed records remain cleared after another app restart. Integrated scan/upload recovery, general apply, and full editor validation remain open.
 - [ ] Create diagnostics export with explicit privacy review and path redaction. The desktop now previews a counts-and-codes-only report and saves only the reviewed hash; a broader production diagnostics package remains open.
 - [x] Establish support process and compatibility issue templates. See `SUPPORT.md` and `.github/ISSUE_TEMPLATE/compatibility.yml`.
 

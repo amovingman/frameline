@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "source": "installed-resolve-21.1.2.10-scripting-reference",
+  "referenceSha256": "2a6c156fcba727b73e16fdc21b90e77db9b914c08c5bf5b53b584380a972f8d7",
+  "properties": {
+    "TransformEnabled": {
+      "type": "boolean"
+    },
+    "Pan": {
+      "type": "decimal"
+    },
+    "Tilt": {
+      "type": "decimal"
+    },
+    "ZoomX": {
+      "type": "decimal"
+    },
+    "ZoomY": {
+      "type": "decimal"
+    },
+    "ZoomGang": {
+      "type": "boolean"
+    },
+    "RotationAngle": {
+      "type": "decimal"
+    },
+    "AnchorPointX": {
+      "type": "decimal"
+    },
+    "AnchorPointY": {
+      "type": "decimal"
+    },
+    "Pitch": {
+      "type": "decimal"
+    },
+    "Yaw": {
+      "type": "decimal"
+    },
+    "FlipX": {
+      "type": "boolean"
+    },
+    "FlipY": {
+      "type": "boolean"
+    },
+    "CroppingEnabled": {
+      "type": "boolean"
+    },
+    "CropLeft": {
+      "type": "decimal"
+    },
+    "CropRight": {
+      "type": "decimal"
+    },
+    "CropTop": {
+      "type": "decimal"
+    },
+    "CropBottom": {
+      "type": "decimal"
+    },
+    "CropSoftness": {
+      "type": "decimal"
+    },
+    "CropRetain": {
+      "type": "boolean"
+    },
+    "DynamicZoomEnabled": {
+      "type": "boolean"
+    },
+    "DynamicZoomEase": {
+      "type": "decimal"
+    },
+    "CompositeEnabled": {
+      "type": "boolean"
+    },
+    "CompositeMode": {
+      "type": "decimal"
+    },
+    "Opacity": {
+      "type": "decimal"
+    },
+    "LensCorrectionEnabled": {
+      "type": "boolean"
+    },
+    "Distortion": {
+      "type": "decimal"
+    },
+    "RetimeAndScalingEnabled": {
+      "type": "boolean"
+    },
+    "RetimeProcess": {
+      "type": "decimal"
+    },
+    "MotionEstimation": {
+      "type": "decimal"
+    },
+    "Scaling": {
+      "type": "decimal"
+    },
+    "ResizeFilter": {
+      "type": "decimal"
+    },
+    "AudioVolumeEnabled": {
+      "type": "boolean"
+    },
+    "AudioVolume": {
+      "type": "decimal"
+    },
+    "AudioPanEnabled": {
+      "type": "boolean"
+    },
+    "AudioPan": {
+      "type": "decimal"
+    },
+    "AudioPitchEnabled": {
+      "type": "boolean"
+    },
+    "AudioPitchSemiTones": {
+      "type": "decimal"
+    },
+    "AudioPitchCents": {
+      "type": "decimal"
+    },
+    "AudioVoiceIsolationEnabled": {
+      "type": "boolean",
+      "activeTimelineOnly": true
+    },
+    "AudioVoiceIsolationAmount": {
+      "type": "decimal",
+      "activeTimelineOnly": true
+    },
+    "AudioDialogueLevelerEnabled": {
+      "type": "boolean",
+      "activeTimelineOnly": true
+    },
+    "AudioDialogueLevelerMode": {
+      "type": "decimal",
+      "activeTimelineOnly": true
+    },
+    "AudioDialogueLevelerReduceLoudDialogue": {
+      "type": "boolean",
+      "activeTimelineOnly": true
+    },
+    "AudioDialogueLevelerLiftSoftDialogue": {
+      "type": "boolean",
+      "activeTimelineOnly": true
+    },
+    "AudioDialogueLevelerBackgroundReduction": {
+      "type": "boolean",
+      "activeTimelineOnly": true
+    },
+    "AudioDialogueLevelerOutputGain": {
+      "type": "decimal",
+      "activeTimelineOnly": true
+    },
+    "TransitionType": {
+      "type": "text"
+    },
+    "TransitionCategory": {
+      "type": "text",
+      "values": [
+        "simple",
+        "fusion",
+        "ofx",
+        "audio"
+      ]
+    },
+    "TransitionDuration": {
+      "type": "decimal"
+    },
+    "TransitionAlignment": {
+      "type": "text",
+      "values": [
+        "left",
+        "center",
+        "right"
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-17",
+  "nativeFileDialogsVerified": true,
+  "nativeAuditInspectorVerified": true,
+  "exportedRevisions": 6,
+  "exportedBranches": 1,
+  "importedRevisions": 6,
+  "importedBranch": "import-main",
+  "localRevisionIdsRemapped": true,
+  "transactionAuditsPreserved": true,
+  "currentBranchPreserved": "main",
+  "mainHeadPreserved": "7f1d4309-02ea-40e1-b5e4-7f03f9957804",
+  "backupSha256": "948bc27def9683513dd8cf60422f9f90d2daa58b0be4cfed4144a04468d527fd",
+  "backupBytes": 434654,
+  "backupMode": 384,
+  "nativeBackupsIncluded": false,
+  "readOnly": true,
+  "safeToApply": false
+}

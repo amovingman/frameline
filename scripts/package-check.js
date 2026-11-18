@@ -9,6 +9,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/companion/resolve-internal.py', 'src/companion/resolve_snapshot.py',
   'src/companion/resolve-internal.lua', 'src/resolve-menu-companion.js',
   'src/companion/resolve-effects.lua', 'src/resolve-effect-observation.js', 'src/resolve-effect-console.js',
+  'src/resolve-property-observation.js', 'src/resolve-property-contract.json',
   'src/resolve-trial-discovery.js', 'src/resolve-trial-session.js', 'src/resolve-rename-trial.js', 'src/resolve-trial-history.js',
   'src/resolve-portable-trial-audit.js', 'src/resolve-audit-history.js',
   'src/resolve-history-transfer.js',

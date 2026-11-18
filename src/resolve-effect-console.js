@@ -3,9 +3,11 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { parseEffectObservation } = require('./resolve-effect-observation');
+const { propertyCaptureConfig } = require('./resolve-property-observation');
 const ID = /^[a-f0-9]{32}$/;
 
-async function createEffectCaptureCommand(projectName) {
+async function createEffectCaptureCommand(projectName, { includeProperties = false } = {}) {
+  if (typeof includeProperties !== 'boolean') throw new Error('invalid-effect-capture-options');
   if (typeof projectName !== 'string' || !projectName.trim() || projectName.length > 160 || /[\\/\x00-\x1f\x7f]/.test(projectName)) throw new Error('invalid-effect-capture-project');
   const [base, effects] = await Promise.all(['resolve-internal.lua', 'resolve-effects.lua']
     .map(name => fs.readFile(path.join(__dirname, 'companion', name), 'utf8')));
@@ -13,7 +15,7 @@ async function createEffectCaptureCommand(projectName) {
   if (!base.includes(sentinel)) throw new Error('incompatible-effect-capture');
   const line = source => source.split('\n').filter(row => !/^\s*--/.test(row)).join(' ');
   const captureId = randomBytes(16).toString('hex');
-  const command = `local ok,err=pcall(function() local base=(function() ${line(base.replace(sentinel, 'return {capture=capture, encode=encode, array=array}'))} end)(); local effects=(function() ${line(effects)} end)(); assert(resolve:GetProjectManager():GetCurrentProject():GetName()==${JSON.stringify(projectName)},'Open the named project'); local s=effects.encode(effects.capture(resolve,base)); assert(#s<=20*1024*1024,'Effect capture too large'); local chunks={};local n=1;while n<=#s do local last=math.min(n+8191,#s);while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end;assert(last>=n,'Invalid UTF-8 boundary');chunks[#chunks+1]=s:sub(n,last);n=last+1 end;for index,chunk in ipairs(chunks) do print('FRAMELINE_EFFECT_PART_V1:${captureId}:'..index..':'..#chunks..':'..chunk) end end);if not ok then print('FRAMELINE_EFFECT_ERROR_V1:${captureId}:'..tostring(err)) end`;
+  const command = `local ok,err=pcall(function() local base=(function() ${line(base.replace(sentinel, 'return {capture=capture, encode=encode, array=array}'))} end)(); local effects=(function() ${line(effects)} end)(); assert(resolve:GetProjectManager():GetCurrentProject():GetName()==${JSON.stringify(projectName)},'Open the named project'); local s=effects.encode(effects.capture(resolve,base${includeProperties ? `,${propertyCaptureConfig()}` : ''})); assert(#s<=20*1024*1024,'Effect capture too large'); local chunks={};local n=1;while n<=#s do local last=math.min(n+8191,#s);while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end;assert(last>=n,'Invalid UTF-8 boundary');chunks[#chunks+1]=s:sub(n,last);n=last+1 end;for index,chunk in ipairs(chunks) do print('FRAMELINE_EFFECT_PART_V1:${captureId}:'..index..':'..#chunks..':'..chunk) end end);if not ok then print('FRAMELINE_EFFECT_ERROR_V1:${captureId}:'..tostring(err)) end`;
   return { captureId, command, readOnly: true, safeToApply: false };
 }
 

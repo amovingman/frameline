@@ -1,13 +1,55 @@
 -- Read-only supplement to the schema-3 capture. Effect type IDs identify
 -- catalogue entries; their category/index does not establish instance identity.
-local function capture_effects(resolve, base)
+local function capture_effects(resolve, base, property_config)
   local snapshot = base.capture(resolve)
   local project = resolve:GetProjectManager():GetCurrentProject()
   local items = base.array()
+  local tracks = base.array()
+  local function active_id()
+    local active = project:GetCurrentTimeline()
+    return active and active:GetUniqueId() or nil
+  end
+  local active = property_config and active_id() or nil
+  local function observed_bool(action)
+    local ok, value = pcall(action)
+    if ok and type(value) == 'boolean' then return value end
+    return {}
+  end
+  local function read_properties(item, timeline_id)
+    local properties = setmetatable({}, {__object = true})
+    local ok, raw = pcall(function() return item:GetProperties() end)
+    if not ok or raw == nil then return 'unavailable', properties end
+    if type(raw) ~= 'table' then error('Invalid item properties') end
+    for key, value in pairs(raw) do
+      if key ~= '__flags' then
+        local kind = property_config.types[key]
+        if not kind then error('Undocumented item property') end
+        if not property_config.activeOnly[key] or timeline_id == active then
+          if kind == 'decimal' then
+            if type(value) ~= 'number' or value ~= value or value == math.huge or value == -math.huge then
+              error('Invalid numeric item property')
+            end
+            -- Retain the runtime's 17 significant digits as text. Re-encoding
+            -- through JavaScript JSON must not round a guard's source value.
+            properties[key] = {decimal = string.format('%.16e', value)}
+          elseif (kind == 'boolean' and type(value) == 'boolean') or (kind == 'text' and type(value) == 'string') then
+            properties[key] = value
+          else error('Invalid item property type') end
+        end
+      end
+    end
+    return 'captured', properties
+  end
   for timeline_index = 1, project:GetTimelineCount() do
     local timeline = project:GetTimelineByIndex(timeline_index)
+    local timeline_id = timeline:GetUniqueId()
     for _, track_type in ipairs({'video', 'audio', 'subtitle'}) do
       for track_index = 1, timeline:GetTrackCount(track_type) do
+        if property_config then
+          tracks[#tracks + 1] = {timelineId = timeline_id, type = track_type, index = track_index,
+            enabled = observed_bool(function() return timeline:GetIsTrackEnabled(track_type, track_index) end),
+            locked = observed_bool(function() return timeline:GetIsTrackLocked(track_type, track_index) end)}
+        end
         for _, item in ipairs(timeline:GetItemListInTrack(track_type, track_index) or {}) do
           local effects = base.array()
           for _, category in ipairs({'fusion', 'ofx', 'audio'}) do
@@ -31,14 +73,21 @@ local function capture_effects(resolve, base)
             end
             if observed ~= count then error('Sparse effects list') end
           end
-          items[#items + 1] = {timelineId = timeline:GetUniqueId(), itemId = item:GetUniqueId(), effects = effects}
+          local record = {timelineId = timeline_id, itemId = item:GetUniqueId(), effects = effects}
+          if property_config then
+            record.propertyReadStatus, record.properties = read_properties(item, timeline_id)
+          end
+          items[#items + 1] = record
         end
       end
     end
   end
   if base.encode(base.capture(resolve)) ~= base.encode(snapshot) then error('Project changed during effect capture') end
-  return {schemaVersion = 1, operation = 'resolve-effect-observation', readOnly = true,
+  if property_config and active_id() ~= active then error('Active timeline changed during property capture') end
+  local observation = {schemaVersion = property_config and 2 or 1, operation = 'resolve-effect-observation', readOnly = true,
     safeToApply = false, snapshot = snapshot, items = items}
+  if property_config then observation.activeTimelineId = active or {}; observation.tracks = tracks end
+  return observation
 end
 
 -- Catalogue IDs contain slashes. The Node validator separately restricts these

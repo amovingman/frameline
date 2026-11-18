@@ -1019,11 +1019,12 @@ function renderResolveTransfer() {
   document.getElementById('resolve-history-transfer-cancel').disabled = resolveTransferBusy;
   if (!reviewing) return;
   const review = resolveTransferReview, exporting = review.operation === 'export';
+  const count = (value, singular, plural = `${singular}s`) => `${value} ${value === 1 ? singular : plural}`;
   document.getElementById('resolve-history-transfer-title').textContent = exporting
     ? `Export observations for ${review.projectName}` : `Import observations into ${review.projectName}`;
   document.getElementById('resolve-history-transfer-summary').textContent =
-    `${review.revisionCount} revisions · ${review.branchCount} branches · ${(review.byteCount / 1024).toFixed(1)} KB. `
-    + `${review.auditCount} trial audits · ${review.choiceCount} recorded ${review.choiceCount === 1 ? 'choice' : 'choices'} · ${review.effectAuditCount} with effect observations · ${review.recoveryAuditCount} with recovery evidence. `
+    `${count(review.revisionCount, 'revision')} · ${count(review.branchCount, 'branch', 'branches')} · ${(review.byteCount / 1024).toFixed(1)} KB. `
+    + `${count(review.auditCount, 'trial audit')} · ${count(review.choiceCount, 'recorded choice')} · ${review.effectAuditCount} with effect observations · ${review.recoveryAuditCount} with recovery evidence. `
     + (exporting ? 'The file will be saved locally.' : `${review.createsProject ? 'Creates a local observation history. ' : ''}Adds separate import branches. Your current branch stays selected.`);
   document.getElementById('resolve-history-transfer-confirm').textContent = exporting ? 'Save reviewed backup' : 'Import reviewed revisions';
 }

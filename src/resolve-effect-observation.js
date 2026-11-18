@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto');
 const { validateResolveSnapshot } = require('./resolve-snapshot-validator');
 const { normalizeResolveSnapshot } = require('./resolve-snapshot-normalizer');
 const { compareResolveManifests } = require('./resolve-id-diff');
+const { validatePropertySections, comparePropertySections } = require('./resolve-property-observation');
 const LIMIT = 20 * 1024 * 1024;
 const CATEGORIES = ['fusion', 'ofx', 'audio'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -32,8 +33,9 @@ function catalogueId(value) {
 }
 function validateEffectObservation(observation) {
   plain(observation);
-  keys(observation, ['schemaVersion', 'operation', 'readOnly', 'safeToApply', 'snapshot', 'items']);
-  if (observation.schemaVersion !== 1 || observation.operation !== 'resolve-effect-observation'
+  keys(observation, ['schemaVersion', 'operation', 'readOnly', 'safeToApply', 'snapshot', 'items',
+    ...(observation.schemaVersion === 2 ? ['activeTimelineId', 'tracks'] : [])]);
+  if (![1, 2].includes(observation.schemaVersion) || observation.operation !== 'resolve-effect-observation'
     || observation.readOnly !== true || observation.safeToApply !== false || !Array.isArray(observation.items)) fail();
   validateResolveSnapshot(observation.snapshot);
   const expected = new Map(observation.snapshot.timelines.flatMap(timeline => timeline.items
@@ -41,7 +43,7 @@ function validateEffectObservation(observation) {
   if (observation.items.length !== expected.size) fail();
   const seen = new Set();
   for (const item of observation.items) {
-    keys(item, ['timelineId', 'itemId', 'effects']);
+    keys(item, ['timelineId', 'itemId', 'effects', ...(observation.schemaVersion === 2 ? ['propertyReadStatus', 'properties'] : [])]);
     text(item.timelineId); text(item.itemId);
     const key = JSON.stringify([item.timelineId, item.itemId]);
     if (!expected.has(key) || seen.has(key) || !Array.isArray(item.effects)) fail();
@@ -62,6 +64,7 @@ function validateEffectObservation(observation) {
       for (let index = 1; index <= count; index++) if (!slots.has(`${category}:${index}`)) fail();
     }
   }
+  if (observation.schemaVersion === 2) validatePropertySections(observation);
   return observation;
 }
 function parseEffectObservation(bytes) {
@@ -85,7 +88,9 @@ function compareEffectObservations(beforeBytes, afterBytes) {
   }
   return { schemaVersion: 1, readOnly: true, safeToApply: false, effectIdentity: 'category-index-only',
     sourceHashes: { before: hash(beforeBytes), after: hash(afterBytes) }, snapshotChanges: snapshot.changes, effectChanges: changes,
-    limitations: ['Effect parameters and nested contents are unobserved.', 'Catalogue IDs identify effect types; category/index is not persistent instance identity.'] };
+    ...comparePropertySections(before, after),
+    limitations: ['Effect parameters and nested contents are unobserved.', 'Catalogue IDs identify effect types; category/index is not persistent instance identity.',
+      'Item properties cover returned documented keys only; missing keys are unobserved.', 'Track state uses type/index and does not establish stable track identity.'] };
 }
 
 module.exports = { validateEffectObservation, parseEffectObservation, compareEffectObservations };

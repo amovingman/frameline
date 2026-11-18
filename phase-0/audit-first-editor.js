@@ -208,6 +208,39 @@ function readInterruptionEvidence(effects, recovery) {
     fullProjectApplyVerified: false };
 }
 
+function readPropertyGuardEvidence() {
+  const expected = { enabled: '903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21',
+    'pan-changed': 'd181b2cc1c2cd4fd06b97bc388ec245dafcbc7b05ceee085e6c532613f42d7fd',
+    restored: '903af23882b20e93beb42532b7ac101917d045d7d06d749352b080f9e7d66e21' };
+  const values = Object.fromEntries(Object.entries(expected).map(([name, hash]) => {
+    const bytes = fs.readFileSync(path.join(root, `live-properties-${name}.json`));
+    if (createHash('sha256').update(bytes).digest('hex') !== hash) throw new Error('property-evidence-changed');
+    parseEffectObservation(bytes); return [name, bytes];
+  }));
+  const observation = parseEffectObservation(values.enabled), diff = compareEffectObservations(values.enabled, values['pan-changed']);
+  const bytes = fs.readFileSync(path.join(__dirname, 'property-guard-rename-live-observation.json'));
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (hash !== '5cfbbd9f1aba9665e4b546e0f8ac933263fa579359758efe4519e623f7b4d9f4') throw new Error('property-guard-report-changed');
+  const report = JSON.parse(bytes);
+  const keys = [...new Set(observation.items.flatMap(item => Object.keys(item.properties)))].sort();
+  if (!values.enabled.equals(values.restored) || report.sourceSha256 !== expected.enabled
+    || report.changedSha256 !== expected['pan-changed'] || report.resultSha256 !== expected.restored
+    || report.finalObservationSha256 !== expected.enabled || report.finalObservationMatchesAfterAdditionalReopen !== true
+    || diff.snapshotChanges.length || diff.effectChanges.length || diff.trackStateChanges.length
+    || diff.propertyChanges.length !== 1 || diff.propertyChanges[0].field !== 'Pan'
+    || JSON.stringify(report.propertyChanges) !== JSON.stringify(diff.propertyChanges)
+    || JSON.stringify(report.returnedPropertyKeys) !== JSON.stringify(keys) || keys.length !== 43
+    || observation.items.length !== 53 || observation.tracks.length !== 2
+    || report.staleSourceRejectedBeforeRename !== true || report.issuedCommandReusableAfterRestoration !== true
+    || report.status !== 'rolled-back' || report.forcedFailure !== true || report.safeToApply !== false
+    || report.fullNativePropertiesVerified !== false || report.backup.archiveVerified !== true || report.backup.mode !== 0o600) {
+    throw new Error('property-guard-evidence-mismatch');
+  }
+  return { hash, returnedPropertyKeys: keys.length, observedItems: observation.items.length, observedTracks: observation.tracks.length,
+    savedPropertyChanges: diff.propertyChanges.length, staleSourceRejected: true, restoredBytesMatch: true,
+    completePropertiesObserved: false };
+}
+
 function auditFirstEditor() {
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
@@ -235,10 +268,11 @@ function auditFirstEditor() {
   const effectGuard = readEffectGuardEvidence(effects, recovery);
   const desktopEffects = readDesktopEffectEvidence(effects, recovery);
   const interruptions = readInterruptionEvidence(effects, recovery);
+  const properties = readPropertyGuardEvidence();
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
     gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
-    gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair. A supplement observes ${effects.observedEffects} effect type ID, enabled state, and index; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved.`),
+    gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair. Supplements observe ${effects.observedEffects} effect type ID and ${properties.returnedPropertyKeys} returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved.`),
     gate('release-version-corpus', 'open', 'Only the named Free 21.1.2 build is editor-backed; no release support range is declared.'),
     gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures; XML association is candidate-only and track identity is index-only.`),
     gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open.'),
@@ -253,6 +287,7 @@ function auditFirstEditor() {
     sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes,
       effectGuardReport: effectGuard.hash, desktopEffectGuardReport: desktopEffects.hash, structureExport: structureCoverage.sourceHash,
       interruptionReports: interruptions.hashes,
+      propertyGuardReport: properties.hash,
       pairedCoverage: pairedCoverage.sources },
     observations: { externalFreeConnection: external.connected, apiAudioItems: structureCoverage.api.audioItems,
       xmlExplicitAudioEntries: structureCoverage.xml.explicitAudioEntries,
@@ -271,6 +306,9 @@ function auditFirstEditor() {
       interruptedRecovery: { desktopRestartCases: interruptions.desktopRestartCases, restoredObservedSource: interruptions.restoredObservedSource,
         verifiedUnrunSource: interruptions.verifiedUnrunSource, persistentRetirementProbe: interruptions.persistentRetirementProbe,
         fullProjectApplyVerified: false },
+      itemProperties: { returnedPropertyKeys: properties.returnedPropertyKeys, observedItems: properties.observedItems,
+        observedTracks: properties.observedTracks, savedPropertyChanges: properties.savedPropertyChanges,
+        staleSourceRejected: true, restoredBytesMatch: true, completePropertiesObserved: false },
       nativeContent: { changedDuringEdit: native.changedDuringEdit,
         changedDuringNoEditControl: native.changedDuringNoEditControl, commonOpaqueKinds: native.commonOpaqueKinds,
         editOnlyNameKinds: native.editOnlyNameKinds, semanticEquivalenceProven: false }, observedDifferenceKinds: diffKinds }, gates };

@@ -20,8 +20,8 @@ async function read(filename) {
 }
 (async () => {
   const [operation, ...args] = process.argv.slice(2);
-  if (operation === 'prepare' && args.length === 1) {
-    process.stdout.write(`${JSON.stringify(await createEffectCaptureCommand(args[0]))}\n`);
+  if (['prepare', 'prepare-properties'].includes(operation) && args.length === 1) {
+    process.stdout.write(`${JSON.stringify(await createEffectCaptureCommand(args[0], { includeProperties: operation === 'prepare-properties' }))}\n`);
   } else if (operation === 'read' && args.length === 2) {
     process.stdout.write(readEffectConsoleResult({ captureId: args[0], output: (await read(args[1])).toString('utf8') }));
   } else if (operation === 'compare' && args.length === 2) {
