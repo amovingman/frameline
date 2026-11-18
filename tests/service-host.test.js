@@ -81,3 +81,28 @@ test('host options reject implicit ephemeral binds, hostnames and unbounded shut
     { config, allowEphemeralPort: true, shutdownTimeoutMs: 0 }, { config, allowEphemeralPort: true, shutdownTimeoutMs: 30001 }])
     await assert.rejects(startServiceHost(options), { code: 'service-host-invalid' });
 });
+
+test('optional assets require explicit initialization and remain authenticated through the shared HTTPS listener', async t => {
+  const config = await fixture(t);
+  const metadata = await startServiceHost({ config, initialize: true, allowEphemeralPort: true }); await metadata.close();
+  const directory = `${config.directory}-assets`; t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const withAssets = { ...config, assets: { directory, signingKey: randomBytes(32) } };
+  const before = await fs.readFile(path.join(config.directory, 'collaboration.enc.json'));
+  await assert.rejects(startServiceHost({ config: withAssets, allowEphemeralPort: true }), { code: 'asset-storage-unavailable' });
+  assert.deepEqual(await fs.readFile(path.join(config.directory, 'collaboration.enc.json')), before);
+  const host = await startServiceHost({ config: withAssets, initialize: true, allowEphemeralPort: true }); t.after(() => host.close());
+  assert.equal((await fs.stat(path.join(directory, 'assets.enc.json'))).mode & 0o777, 0o600);
+  assert.equal((await call(host.address, `/projects/film/assets/${encodeURIComponent('sha256:' + 'a'.repeat(64))}`)).status, 401);
+  await host.close();
+  const restarted = await startServiceHost({ config: withAssets, allowEphemeralPort: true }); t.after(() => restarted.close());
+  assert.equal((await call(restarted.address)).status, 401);
+});
+
+test('direct host construction rejects overlapping media and identity stores before creating either', async t => {
+  const config = await fixture(t);
+  for (const directory of [config.directory, path.join(config.directory, 'nested'), path.dirname(config.directory)]) {
+    await assert.rejects(startServiceHost({ config: { ...config, assets: { directory, signingKey: randomBytes(32) } },
+      initialize: true, allowEphemeralPort: true }), { code: 'service-host-invalid' });
+  }
+  await assert.rejects(fs.stat(path.join(config.directory, 'collaboration.enc.json')), { code: 'ENOENT' });
+});

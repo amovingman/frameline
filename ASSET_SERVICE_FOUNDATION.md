@@ -1,5 +1,7 @@
 # Content-addressed asset service foundation
 
+The newer [self-hosted asset transfer](ASSET_NETWORK_SYNC.md) connects a separate durable encrypted store to the HTTPS launcher with authenticated, signed chunk routes and a bounded client. It supports project-isolated resume and full-content verification. The older local reference below remains a separate model for namespace sharing, retention, and policy experiments; those features are not implicitly enabled on the network store.
+
 `src/content-asset-service.js` is a local, single-process reference service. It stores encrypted chunks and a small transfer index under a caller-owned directory. It requires a caller-provided project authorization function. It is not a hosted media service and no desktop upload control or network route is wired to it.
 
 - `identifyMediaFile` and the existing `fingerprintFile` stream SHA-256 over regular files and reject symlinks or mid-read changes. The identity exposes a content hash, size, asset class, and optional media type without a local path.

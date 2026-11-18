@@ -7,8 +7,14 @@ const { randomUUID } = require('node:crypto');
 const { API_VERSION } = require('./project-api-contracts');
 const { createDurableCollaborationService } = require('./durable-collaboration-service');
 const { createRevisionHttpHandler } = require('./revision-http-transport');
+const { createDurableAssetService } = require('./durable-asset-service');
+const { createAssetHttpHandler, isAssetRequest } = require('./asset-http-transport');
 
 function fail(code) { return Object.assign(new Error(code), { code }); }
+function nested(parent, child) {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return relative === '' || relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
 
 async function startServiceHost({ config, initialize = false, allowEphemeralPort = false, shutdownTimeoutMs = 10_000 } = {}) {
   if (!config || !path.isAbsolute(config.directory || '') || typeof config.host !== 'string' || !isIP(config.host)
@@ -16,12 +22,23 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
     || typeof initialize !== 'boolean' || typeof allowEphemeralPort !== 'boolean'
     || !Number.isSafeInteger(shutdownTimeoutMs) || shutdownTimeoutMs < 100 || shutdownTimeoutMs > 30_000
     || !Buffer.isBuffer(config.tls?.cert) || !Buffer.isBuffer(config.tls?.key)
-    || config.tls.cert.length < 1 || config.tls.cert.length > 1024 * 1024 || config.tls.key.length < 1 || config.tls.key.length > 64 * 1024) throw fail('service-host-invalid');
+    || config.tls.cert.length < 1 || config.tls.cert.length > 1024 * 1024 || config.tls.key.length < 1 || config.tls.key.length > 64 * 1024
+    || config.assets !== undefined && (!path.isAbsolute(config.assets?.directory || '')
+      || !Buffer.isBuffer(config.assets.signingKey) || config.assets.signingKey.length !== 32
+      || nested(config.directory, config.assets.directory) || nested(config.assets.directory, config.directory))) throw fail('service-host-invalid');
   const tls = { cert: config.tls.cert, key: config.tls.key, minVersion: 'TLSv1.2', handshakeTimeout: 5000 };
   try { createSecureContext(tls); } catch { throw fail('service-host-tls-unavailable'); }
   const runtime = await createDurableCollaborationService({ directory: config.directory, keyring: config.keyring, initialize });
   const handler = createRevisionHttpHandler({ service: runtime.service, identity: runtime.identity,
     listProjects: context => runtime.projects.list(context) });
+  let assets = null, assetHandler = null;
+  try {
+    if (config.assets) {
+      const authorize = (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action);
+      assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, initialize });
+      assetHandler = createAssetHttpHandler({ assets, authorize, signingKey: config.assets.signingKey });
+    }
+  } catch (error) { await assets?.close(); await runtime.close(); throw error; }
   const sockets = new Set(), handlers = new Set(); let closing = false, closePromise = null;
   const server = https.createServer({ ...tls, maxHeaderSize: 16 * 1024, headersTimeout: 10_000,
     requestTimeout: 30_000, keepAliveTimeout: 5000, connectionsCheckingInterval: 1000 }, (req, res) => {
@@ -33,7 +50,8 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Connection: 'close' });
       req.resume(); res.end(bytes); return;
     }
-    const pending = Promise.resolve().then(() => handler(req, res)).catch(() => { res.destroy(); }).finally(() => handlers.delete(pending));
+    const pending = Promise.resolve().then(() => (assetHandler && isAssetRequest(req) ? assetHandler : handler)(req, res))
+      .catch(() => { res.destroy(); }).finally(() => handlers.delete(pending));
     handlers.add(pending);
   });
   server.maxConnections = 128; server.maxHeadersCount = 100; server.maxRequestsPerSocket = 100;
@@ -48,7 +66,7 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
       const ready = () => { server.off('error', failed); resolve(); };
       server.once('error', failed); server.once('listening', ready); server.listen(config.port, config.host);
     });
-  } catch (error) { for (const socket of sockets) socket.destroy(); await runtime.close(); throw error; }
+  } catch (error) { for (const socket of sockets) socket.destroy(); await assets?.close(); await runtime.close(); throw error; }
   server.on('error', () => {});
   const address = server.address();
   function close() {
@@ -56,6 +74,9 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
     closing = true;
     closePromise = (async () => {
       let forceTimer, deadlineTimer;
+      // Verification outlives its initiating HTTP request. Retire admission and
+      // stop those jobs before draining accepted requests and closing storage.
+      const assetShutdown = assetHandler ? assetHandler.close().then(() => null, () => fail('service-host-shutdown-failed')) : Promise.resolve(null);
       const networkClosed = new Promise((resolve, reject) => server.close(error => error ? reject(fail('service-host-shutdown-failed')) : resolve()));
       server.closeIdleConnections();
       const destroyConnections = () => { server.closeAllConnections(); for (const socket of sockets) socket.destroy(); };
@@ -63,6 +84,8 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
       const drained = (async () => {
         await networkClosed;
         while (handlers.size) await Promise.allSettled([...handlers]);
+        const assetError = await assetShutdown; if (assetError) throw assetError;
+        await assets?.close();
         await runtime.close();
       })();
       try {

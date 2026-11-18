@@ -53,7 +53,7 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
     markNotificationRead: (context, projectId, eventId) => checked(context, projectId, 'project', 'read',
       actorId => activity ? activity.markRead(actorId, projectId, eventId) : null),
     authorizeAsset: (context, projectId, action = 'read') => checked(context, projectId, 'asset', action,
-      () => ({ allowed: true }))
+      actorId => ({ allowed: true, actorId }))
   };
 }
 

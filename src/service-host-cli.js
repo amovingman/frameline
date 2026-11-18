@@ -3,11 +3,14 @@ const path = require('node:path');
 const { loadServiceHostConfig, loadServiceStorageConfig } = require('./service-host-config');
 const { startServiceHost } = require('./service-host');
 const { createDurableCollaborationService } = require('./durable-collaboration-service');
+const { createDurableAssetService } = require('./durable-asset-service');
 
 const ERRORS = new Set(['service-host-config-invalid', 'service-host-config-unavailable', 'service-host-tls-unavailable',
   'service-host-invalid', 'service-host-listen-unavailable', 'service-host-shutdown-timeout', 'service-host-shutdown-failed',
   'collaboration-state-invalid', 'collaboration-state-newer-version', 'collaboration-storage-unavailable',
-  'collaboration-storage-uncertain', 'collaboration-service-busy', 'collaboration-key-rotation-required']);
+  'collaboration-storage-uncertain', 'collaboration-service-busy', 'collaboration-key-rotation-required',
+  'asset-state-invalid', 'asset-state-newer-version', 'asset-storage-unavailable', 'asset-storage-uncertain',
+  'asset-service-busy', 'asset-key-rotation-required']);
 function log(stream, value) { stream.write(`${JSON.stringify(value)}\n`); }
 function report(error) { log(process.stderr, { event: 'service-error', code: ERRORS.has(error?.code) ? error.code : 'service-host-failed' }); }
 async function main(args = process.argv.slice(2)) {
@@ -17,7 +20,12 @@ async function main(args = process.argv.slice(2)) {
   if (args[0] === 'initialize') {
     const config = await loadServiceStorageConfig(args[2]);
     const runtime = await createDurableCollaborationService({ directory: config.directory, keyring: config.keyring, initialize: true });
-    await runtime.close(); log(process.stdout, { event: 'service-initialized' }); return;
+    let assets;
+    try {
+      if (config.assets) assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring,
+        authorize: (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action), initialize: true });
+    } finally { await assets?.close(); await runtime.close(); }
+    log(process.stdout, { event: 'service-initialized' }); return;
   }
   const host = await startServiceHost({ config: await loadServiceHostConfig(args[2]) });
   log(process.stdout, { event: 'service-ready', address: host.address });

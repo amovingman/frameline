@@ -78,12 +78,12 @@ test('authorized history wrapper checks writes, reads, assets, rate limits and a
   access.registerProject(owner.id, 'project-1', team.id);
   const audit = createAuditTrail(); const rateLimit = createRateLimiter({ limit: 20 });
   const service = createAuthorizedProjectService({ history, access, identity, audit, rateLimit });
-  const context = { accessToken: ownerSession.accessToken, requestId: 'request-1' };
+  const context = { accessToken: ownerSession.accessToken, requestId: 'request-1', actorId: outsider.id };
   const manifest = service.putManifest(context, 'project-1', { schemaVersion: 1 });
   const revision = service.createRevision(context, { projectId: 'project-1', manifestId: manifest.id, message: 'Save' });
   service.updateBranch(context, { projectId: 'project-1', branch: 'main', expectedRevisionId: null, revisionId: revision.id });
   assert.equal(service.getBranch(context, 'project-1', 'main').revisionId, revision.id);
-  assert.equal(service.authorizeAsset(context, 'project-1').allowed, true);
+  assert.deepEqual(service.authorizeAsset(context, 'project-1'), { allowed: true, actorId: owner.id });
   assert.throws(() => service.listRevisions({ accessToken: outsiderSession.accessToken, requestId: 'request-2' }, 'project-1'), { code: 'forbidden' });
   assert.throws(() => service.listRevisions({ accessToken: 'forged', requestId: 'request-3' }, 'project-1'), { code: 'access-token-invalid' });
   assert.equal(audit.verify(), true); assert.equal(audit.list().length, 6);

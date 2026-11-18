@@ -1,6 +1,6 @@
 # Running a single-host metadata service
 
-Frameline includes a standalone HTTPS launcher and trusted local account tools. They use the encrypted identity/access/history store and the same API as the desktop Service history panel. They do not choose a hosting provider, deploy infrastructure, or transfer media. The filesystem store remains a single-host foundation; production database, managed keys, monitoring, backups, and disaster recovery remain separate gates.
+Frameline includes a standalone HTTPS launcher and trusted local account tools. They use the encrypted identity/access/history store and the same API as the desktop Service history panel. The default configuration serves metadata; optional [asset storage](ASSET_NETWORK_SYNC.md) adds authenticated media chunks. These tools do not choose a hosting provider or deploy infrastructure. The filesystem stores remain a single-host foundation; production database, managed keys, monitoring, backups, and disaster recovery remain separate gates.
 
 Use Node.js 24 and a dedicated service account on a local filesystem. Keep configuration and TLS material outside the repository and outside the state directory. The account that can read the configuration holds the state-encryption keys and is a trusted operator.
 
@@ -82,6 +82,10 @@ The CLI requires initialized state and uses the normal durable APIs and role che
 
 Start the service with its intended trusted certificate. In desktop History, sign in with the HTTPS origin and a provisioned account, select an accessible project and branch, then link the selected local branch. Check, push, and fetch operate on revision metadata. A viewer can fetch but cannot publish. Fetched history remains read-only; this does not apply edits or transfer media. See [desktop sync](DESKTOP_SERVICE_SYNC.md).
 
+## Optional media service
+
+The private configuration can include separate encrypted asset storage and a signing key. See [asset network sync](ASSET_NETWORK_SYNC.md) for initialization, API calls, signed tickets, verification polling, cancellation, and backup requirements. Host shutdown cancels active asset verification before closing either store. Desktop media-transfer controls and canonical revision/media bindings remain open; the History panel continues to sync metadata only.
+
 ## Recovery and deployment gates
 
 Retain the private encryption configuration separately from the state file. Stop the service and all local admin writers before taking a consistent filesystem copy, protect the encrypted backup off-device, and test restoration in isolation before replacing live state. Restoring older state can restore old session or permission state; the runtime provides no rollback protection. The metadata-only backup helpers do not include accounts and access rules and must not be presented as a complete service backup. See [durability](DURABLE_COLLABORATION_SERVICE.md) and [incident response](INCIDENT_RESPONSE.md).
@@ -94,4 +98,4 @@ The [disposable process observation](phase-0/service-host-live-observation.json)
 
 Configuration/factory tests separately cover schema and byte bounds, invalid UTF-8, private permissions, symlinks and aliases, hard-linked TLS/config files, invalid TLS before state creation, occupied ports without state replacement, raw pre-handshake sockets during shutdown, and draining an admitted durable request after its client disconnects. Admin tests cover exact action validation before state access, unsuccessful authentication cleanup, partial setup, and safe output. These checks use disposable data and test-only certificates; they do not establish production hosting, a crash during a write, or machine power-loss behavior.
 
-The integrated suite passed all 558 tests with no failures or skips. Package-input validation passed with the host and operator modules included.
+The initial host milestone passed all 558 tests with no failures or skips. After optional asset integration, the full suite passed all 603 tests with no failures or skips, and package-input validation passed with the host, operator, and asset modules included. See the separate [asset transfer evidence](ASSET_NETWORK_SYNC.md#validation) for its scope.

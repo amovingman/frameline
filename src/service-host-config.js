@@ -55,7 +55,7 @@ async function load(configPath, includeTls) {
   let value;
   try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(configFile.bytes)); }
   catch { throw fail('service-host-config-invalid'); }
-  if (!exact(value, ['schemaVersion', 'directory', 'port', 'tls', 'keyring'], ['host']) || value.schemaVersion !== 1
+  if (!exact(value, ['schemaVersion', 'directory', 'port', 'tls', 'keyring'], ['host', 'assets']) || value.schemaVersion !== 1
     || !absolute(value.directory) || !Number.isSafeInteger(value.port) || value.port < 1 || value.port > 65535
     || value.host !== undefined && (typeof value.host !== 'string' || !isIP(value.host) || value.host.includes('%'))
     || !exact(value.tls, ['certFile', 'keyFile']) || !absolute(value.tls.certFile) || !absolute(value.tls.keyFile)
@@ -63,6 +63,10 @@ async function load(configPath, includeTls) {
     || !ID.test(value.keyring.activeKeyId) || !object(value.keyring.keys)
     || !Object.hasOwn(value.keyring.keys, value.keyring.activeKeyId)
     || Object.keys(value.keyring.keys).length < 1 || Object.keys(value.keyring.keys).length > 16) throw fail('service-host-config-invalid');
+  if (value.assets !== undefined && (!exact(value.assets, ['directory', 'signingKey']) || !absolute(value.assets.directory)
+    || typeof value.assets.signingKey !== 'string' || value.assets.signingKey.length !== 44
+    || Buffer.from(value.assets.signingKey, 'base64').length !== 32
+    || Buffer.from(value.assets.signingKey, 'base64').toString('base64') !== value.assets.signingKey)) throw fail('service-host-config-invalid');
   const keys = Object.create(null);
   for (const [id, encoded] of Object.entries(value.keyring.keys)) {
     if (!ID.test(id) || typeof encoded !== 'string' || encoded.length !== 44) throw fail('service-host-config-invalid');
@@ -75,8 +79,16 @@ async function load(configPath, includeTls) {
   if (new Set(files.map(filename => path.resolve(filename))).size !== files.length || new Set(canonical.slice(1)).size !== files.length
     || files.some(filename => inside(path.resolve(value.directory), path.resolve(filename)))
     || canonical.slice(1).some(filename => inside(canonical[0], filename))) throw fail('service-host-config-invalid');
+  if (value.assets) {
+    const assetDirectory = path.resolve(value.assets.directory), assetCanonical = await canonicalFuture(assetDirectory);
+    if (inside(assetDirectory, path.resolve(value.directory)) || inside(path.resolve(value.directory), assetDirectory)
+      || inside(assetCanonical, canonical[0]) || inside(canonical[0], assetCanonical)
+      || files.some(filename => inside(assetDirectory, path.resolve(filename)))
+      || canonical.slice(1).some(filename => inside(assetCanonical, filename))) throw fail('service-host-config-invalid');
+  }
   const config = { directory: path.resolve(value.directory), host: value.host || '127.0.0.1', port: value.port,
     keyring: createKeyring(keys, value.keyring.activeKeyId) };
+  if (value.assets) config.assets = { directory: path.resolve(value.assets.directory), signingKey: Buffer.from(value.assets.signingKey, 'base64') };
   if (includeTls) {
     const [cert, key] = await Promise.all([readFile(value.tls.certFile, MAX_CERT_BYTES, false, 'service-host-tls-unavailable'),
       readFile(value.tls.keyFile, MAX_KEY_BYTES, true, 'service-host-tls-unavailable')]);

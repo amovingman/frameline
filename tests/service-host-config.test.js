@@ -76,3 +76,23 @@ test('config, encryption data and TLS files cannot overlap through lexical paths
   await setup.write(setup.config); await fs.unlink(setup.config.tls.certFile); await fs.link(setup.config.tls.keyFile, setup.config.tls.certFile);
   await assert.rejects(loadServiceHostConfig(setup.configPath), { code: 'service-host-config-invalid' });
 });
+
+test('optional asset storage requires a separate directory and a private canonical signing key', async t => {
+  const setup = await fixture(t), signingKey = randomBytes(32);
+  const assets = { directory: path.join(setup.root, 'blobs'), signingKey: signingKey.toString('base64') };
+  await setup.write({ ...setup.config, assets });
+  const loaded = await loadServiceHostConfig(setup.configPath);
+  assert.deepEqual(loaded.assets, { directory: assets.directory, signingKey });
+  assert.deepEqual((await loadServiceStorageConfig(setup.configPath)).assets, loaded.assets);
+  for (const invalid of [null, {}, { ...assets, extra: true }, { ...assets, directory: 'relative' },
+    { ...assets, signingKey: randomBytes(31).toString('base64') }, { ...assets, signingKey: assets.signingKey + '\n' },
+    { ...assets, directory: setup.config.directory }, { ...assets, directory: path.join(setup.config.directory, 'nested') },
+    { ...assets, directory: setup.root }]) {
+    await setup.write({ ...setup.config, assets: invalid });
+    await assert.rejects(loadServiceStorageConfig(setup.configPath), { code: 'service-host-config-invalid' });
+  }
+  await fs.mkdir(setup.config.directory, { mode: 0o700 });
+  const alias = path.join(setup.root, 'asset-alias'); await fs.symlink(setup.config.directory, alias);
+  await setup.write({ ...setup.config, assets: { ...assets, directory: alias } });
+  await assert.rejects(loadServiceStorageConfig(setup.configPath), { code: 'service-host-config-invalid' });
+});

@@ -9,6 +9,7 @@ A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) p
 - The Electron renderer is untrusted. A user-entered sign-in password exists briefly in the form and dedicated IPC request; the form clears immediately on submission. The renderer receives display-safe state but never receives stored access/refresh tokens, media paths, or credential-vault methods. Passwords are absent from saved credentials and state/events. See `DESKTOP_SERVICE_SYNC.md` for verified browser/native behavior and unsigned-development-app limits.
 - The Electron main process may read user-selected project files and use the operating system protected secret facility through `safeStorage`.
 - Project API requests require an authenticated session and a project-scoped authorization decision. A resource ID alone grants no access.
+- Self-hosted configuration and local provisioning run in a trusted operator process. Private configuration contains the externally supplied encryption and ticket-signing keys and must remain separate from service state. It is not a managed secret vault. Stdin provisioning credentials, keys, and tokens never enter the desktop renderer or HTTP administration routes.
 - FCPXML, JSON snapshots, revision bundles, archives, filenames, and collaborator-controlled metadata are untrusted input.
 
 ## Threats and current controls
@@ -22,7 +23,9 @@ A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) p
 | Token theft | Tokens are hashed in session state; refresh tokens rotate; recovery revokes sessions; the renderer has no token bridge | Hosted session storage, secure cookies or native client binding |
 | Stored-secret theft | The main-process credential vault requires Electron `safeStorage`; service records use AES-256-GCM envelopes with key IDs | Managed key service, access policy, and rotation drills |
 | Network interception | Service endpoints must be HTTPS and may not contain URL credentials | TLS termination and certificate policy in the selected region |
-| Unauthorized project or asset access | Owner/editor/viewer permissions are checked by the authorized service; revision HTTP routes use that wrapper | Production database enforcement and hosted boundary review |
+| Unauthorized project or asset access | Owner/editor/viewer permissions are checked by the authorized service; revision and optional asset HTTP routes use current sessions and project roles | Production database enforcement and hosted boundary review |
+| Corrupt or substituted media chunks | Encrypted chunks bind project/upload/index/checksum; publication streams the full content hash, and downloads recheck each chunk | Canonical revision/media binding and reference-aware deletion |
+| Stolen or altered chunk ticket | Five-minute HMAC binds method and canonical project/resource/index/expiry; redemption also requires current project access | Production key custody, quotas, and operational abuse monitoring |
 | Brute force or abuse | Bounded per-principal/action rate limiter and hash-chained audit events | Distributed rate storage, alerting, retention, and incident response |
 | Concurrent history overwrite | Idempotent revision creation and expected-head compare-and-swap branch updates | Durable transactional database adapter |
 | Account deletion orphaning data | Deletion refuses while the user is a sole team or project owner and revokes sessions on success | Ownership-transfer UI and statutory deletion/export policy |
@@ -35,4 +38,4 @@ A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) p
 4. A local revision maps to at most one remote revision in a project.
 5. Sync never uploads media as a side effect of fetching history.
 6. Recovery, password change, sign-out, and account deletion revoke affected sessions.
-7. A credential or encryption key is never written in plaintext or exposed through preload.
+7. Credentials and encryption keys never enter renderer state, project payloads, transfer receipts, public logs, or preload accessors. Service keys are supplied separately in private operator configuration; production secret custody remains a deployment gate.
