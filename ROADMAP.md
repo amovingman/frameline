@@ -181,7 +181,7 @@ For this workspace, commit verified features locally and preserve the user’s l
 - [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. An injected authorized HTTP boundary and asynchronous metadata client passed a disposable two-account loopback exchange; hosted deployment and desktop configuration remain open. See `REVISION_NETWORK_SYNC.md` for validation scope.
 - [x] Add an executable domain store for content-addressed immutable manifests, revision metadata, projects, and branch heads.
 - [x] Use compare-and-swap branch-head updates with expected-head and revision-parent checks.
-- [x] Define and test service-state migration, verified backup/restore, restore drills, and non-destructive retention reporting.
+- [x] Define and test service-state migration, verified backup/restore, restore drills, and non-destructive retention reporting. A combined encrypted local identity/access/history runtime now commits through cooperative local locking and flushed replacement. Its disposable HTTP process-restart proof preserved acknowledged history, sessions, roles, idempotent retry, and revocations; injected-failure checks cover rollback and uncertain writes. Production persistence and disaster recovery remain open. See `DURABLE_COLLABORATION_SERVICE.md`.
 - [x] Add request IDs, exact-input idempotency keys, signed bounded pagination, and API version envelopes to the service foundation.
 
 ### 3.2 Accounts, authorization, and security

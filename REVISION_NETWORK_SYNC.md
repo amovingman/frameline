@@ -42,9 +42,11 @@ The recorded [disposable network exercise](phase-0/revision-network-sync-live-ob
 
 Targeted automated checks passed: 28 asynchronous/legacy sync and queue tests, 9 real-loopback handler tests, 4 client tests plus the network exercise, and 2 actual HTTPS tests. The core checks include reusing immutable revisions across two branches without an idempotency-key collision. The HTTPS checks use the default client and secure handler: an untrusted fixture certificate is refused, while an isolated child process trusting the disposable test CA completes metadata and authorization requests. They do not change system trust or disable certificate verification.
 
-The final full suite passed all 466 tests with no failures or skips, and packaging validation passed. The security test command includes the client, handler, and HTTPS checks.
+The transport milestone's full suite passed all 466 tests with no failures or skips, and packaging validation passed. The security test command includes the client, handler, and HTTPS checks.
 
 The HTTP loopback fixture is an explicit test exception to HTTPS. Identity and server history were held in memory; server restart and durable hosted state recovery were not exercised. The local HTTP/HTTPS checks cannot establish production TLS operations, internet availability, representative project performance, or hosted account delivery.
+
+A later [durable local collaboration runtime](DURABLE_COLLABORATION_SERVICE.md) now binds and persists identity, access, and history together. Its separate encrypted-store process-restart proof, injected-failure checks, and expanded 495-test suite passed. The earlier in-memory network checks above remain distinct evidence for the transport contract.
 
 ## Remaining deployment work
 

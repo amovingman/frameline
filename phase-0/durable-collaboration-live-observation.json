@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T04:43:57.353Z",
+  "transport": "numeric-loopback-http-opt-in",
+  "scope": "Disposable encrypted collaboration restart proof",
+  "authorizedAccounts": 2,
+  "serverProcesses": 3,
+  "distinctServerPorts": 3,
+  "networkRequests": 38,
+  "fetchedRevisionCount": 2,
+  "mediaFetched": false,
+  "acknowledgedBranchSurvivedSigkill": true,
+  "sessionsAndRolesSurvivedRestart": true,
+  "metadataHistoryPreserved": true,
+  "retryCreatedNoDuplicateRevisions": true,
+  "authorBoundToSession": true,
+  "forgedAuthenticationDenied": true,
+  "removedMemberDeniedAfterRestart": true,
+  "rotatedAndSignedOutSessionsDeniedAfterRestart": true,
+  "revokedRefreshTokensDeniedAfterRestart": true,
+  "encryptedFileMode": "0600",
+  "plaintextCredentialsAbsent": true,
+  "ownedSubprocessesTerminalBeforeRestart": true,
+  "allOwnedSubprocessesTerminated": true,
+  "limits": [
+    "Plain HTTP was explicitly allowed only for numeric loopback fixtures.",
+    "The kill followed an acknowledged durable branch update; no mid-write crash is claimed.",
+    "No external account, desktop connection, production key custody, hosting or cross-device deployment was configured."
+  ]
+}

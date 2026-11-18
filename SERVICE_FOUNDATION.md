@@ -16,9 +16,11 @@ Idempotency records bind a key to the exact operation and input. Retrying the sa
 
 `src/service-maintenance.js` provides versioned state migration, hash-verified backup and restore, a restore drill, and a non-destructive retention report. The report separates manifests retained by revisions from unreferenced manifests eligible for a future policy. It deliberately performs no deletion.
 
+A [combined encrypted local runtime](DURABLE_COLLABORATION_SERVICE.md) now persists private identity, access, and history state together, with serialized operations, cooperative local locking, and acknowledgment after flushed file/directory replacement. Its disposable process-restart proof and injected-failure checks passed. The earlier network proof used in-memory server state; the newer proof reopens the same encrypted store across owned server processes.
+
 ## Remaining deployment gates
 
-Before this becomes a network service, Frameline still needs deployment/data-processing region decisions, durable database and object-storage adapters, hosted identity and database enforcement for the proven authentication/authorization rules, managed transport and encryption keys, operational monitoring, and tested disaster recovery in the chosen environment.
+Before this becomes a hosted service, Frameline still needs deployment/data-processing region decisions, production database and object-storage adapters, hosted identity and database enforcement for the proven authentication/authorization rules, managed transport and encryption keys, operational monitoring, and tested disaster recovery in the chosen environment.
 
 ## Identity, authorization, and sync
 

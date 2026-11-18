@@ -2,6 +2,8 @@
 
 This model covers the local executable collaboration foundation. It does not claim that a hosted service has been deployed or audited.
 
+A [combined encrypted local service runtime](DURABLE_COLLABORATION_SERVICE.md) persists private identity, permissions, and history together, with cross-state validation and host-supplied keys. A separate encrypted-store process-restart proof verified session, permission, history, and revocation recovery; injected-failure checks cover rollback and uncertain writes. These local results do not establish production durability. An older valid encrypted snapshot can still be replayed; no external rollback protection is provided.
+
 ## Trust boundaries
 
 - The Electron renderer is untrusted. It receives display-safe project state through the narrow preload API and never receives access tokens, refresh tokens, service credentials, media paths, or credential-vault methods.
@@ -20,7 +22,7 @@ This model covers the local executable collaboration foundation. It does not cla
 | Token theft | Tokens are hashed in session state; refresh tokens rotate; recovery revokes sessions; the renderer has no token bridge | Hosted session storage, secure cookies or native client binding |
 | Stored-secret theft | The main-process credential vault requires Electron `safeStorage`; service records use AES-256-GCM envelopes with key IDs | Managed key service, access policy, and rotation drills |
 | Network interception | Service endpoints must be HTTPS and may not contain URL credentials | TLS termination and certificate policy in the selected region |
-| Unauthorized project or asset access | Owner/editor/viewer permissions are checked before project, revision, branch, and asset operations | Enforce the wrapper at the actual network boundary and database layer |
+| Unauthorized project or asset access | Owner/editor/viewer permissions are checked by the authorized service; revision HTTP routes use that wrapper | Production database enforcement and hosted boundary review |
 | Brute force or abuse | Bounded per-principal/action rate limiter and hash-chained audit events | Distributed rate storage, alerting, retention, and incident response |
 | Concurrent history overwrite | Idempotent revision creation and expected-head compare-and-swap branch updates | Durable transactional database adapter |
 | Account deletion orphaning data | Deletion refuses while the user is a sole team or project owner and revokes sessions on success | Ownership-transfer UI and statutory deletion/export policy |
