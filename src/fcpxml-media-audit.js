@@ -12,7 +12,7 @@ function fail(code) { const error = new Error(code); error.code = code; return e
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 function name(value) {
   // Export names are untrusted, and occasionally contain full paths or URLs.
-  const result = String(value || '').split(/[?#]/)[0].replaceAll('\\', '/').split('/').pop();
+  const result = String(value || '').split(/[?#]/)[0].replaceAll('\\', '/').split('/').pop().replace(/[\x00-\x1f\x7f]/g, ' ').trim();
   return result && !result.includes(':') ? result.slice(0, 240) : 'Untitled media';
 }
 async function readExport(filename) {
@@ -105,7 +105,10 @@ function localReference(value) {
 // No source location or media URL is returned or persisted.
 async function auditFcpxmlMedia(options = {}) {
   if (typeof options === 'string') options = { exportPath: options };
-  const { exportPath, bytes, expectedSourceHash, evidenceById = {} } = options;
+  const { exportPath, bytes, expectedSourceHash, evidenceById = {}, signal, onProgress = () => {} } = options;
+  if (typeof onProgress !== 'function') throw fail('invalid-progress-handler');
+  const checkCancelled = () => { if (signal?.aborted) throw fail('media-job-cancelled'); };
+  checkCancelled();
   if (!evidenceById || typeof evidenceById !== 'object' || Array.isArray(evidenceById)) throw fail('invalid-evidence');
   const observed = await readExport(exportPath);
   const sourceHash = hash(observed);
@@ -114,7 +117,9 @@ async function auditFcpxmlMedia(options = {}) {
     || (expectedSourceHash !== undefined && expectedSourceHash !== sourceHash)) throw fail('stale-export');
   const references = dependencies(observed);
   const assets = [];
+  await onProgress({ phase: 'checking', checked: 0, total: references.length, bytesRead: 0, totalBytes: null });
   for (const reference of references) {
+    checkCancelled();
     const id = `media-${assets.length + 1}`;
     const evidence = evidenceById[id] || {};
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) throw fail('invalid-evidence');
@@ -125,15 +130,23 @@ async function auditFcpxmlMedia(options = {}) {
         : await inspectAvailability({ path: local.filename, evidence });
     let fingerprint = null;
     if (availability.state === 'local') {
-      try { fingerprint = await fingerprintFile(local.filename); }
-      catch (error) { availability = { state: 'unknown', reason: error.code === 'file-changed' ? 'file-changed' : 'fingerprint-unavailable' }; }
+      try { fingerprint = await fingerprintFile(local.filename, { signal, onProgress: progress => onProgress({
+        phase: 'hashing', checked: assets.length, total: references.length, ...progress }) }); }
+      catch (error) {
+        if (error.code === 'fingerprint-cancelled') throw fail('media-job-cancelled');
+        if (error.code === 'fingerprint-progress-failed') throw fail('media-job-progress-failed');
+        availability = { state: 'unknown', reason: error.code === 'file-changed' ? 'file-changed' : 'fingerprint-unavailable' };
+      }
     }
     assets.push({ id, displayNames: reference.displayNames,
       status: availability.state, reason: availability.reason,
       fingerprintAvailable: !!fingerprint, fingerprint });
+    await onProgress({ phase: 'checking', checked: assets.length, total: references.length, bytesRead: 0, totalBytes: null });
   }
+  checkCancelled();
   // Bind the result to the bytes still at the selected location after media IO.
   if (hash(await readExport(exportPath)) !== sourceHash) throw fail('stale-export');
+  checkCancelled();
   const counts = { total: assets.length, local: 0, missing: 0, 'offline-volume': 0,
     'proxy-only': 0, excluded: 0, external: 0, unknown: 0, fingerprinted: 0 };
   for (const asset of assets) { counts[asset.status] += 1; if (asset.fingerprintAvailable) counts.fingerprinted++; }

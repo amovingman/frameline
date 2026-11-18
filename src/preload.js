@@ -66,6 +66,17 @@ contextBridge.exposeInMainWorld('desktop', {
   verifyReviewCopy: () => ipcRenderer.invoke('project:verify-review-copy'),
   revealReviewCopy: () => ipcRenderer.invoke('project:reveal-review-copy'),
   auditProjectMedia: target => ipcRenderer.invoke('project:audit-media', target),
+  getMediaAuditState: () => ipcRenderer.invoke('media-audit:state'),
+  cancelMediaAudit: id => ipcRenderer.invoke('media-audit:cancel', id),
+  resumeMediaAudit: id => ipcRenderer.invoke('media-audit:resume', id),
+  retryMediaAudit: id => ipcRenderer.invoke('media-audit:retry', id),
+  restartMediaAudit: id => ipcRenderer.invoke('media-audit:restart', id),
+  onMediaAuditState: listener => {
+    if (typeof listener !== 'function') throw new TypeError('A media audit listener is required.');
+    const handler = (_event, state) => listener(state);
+    ipcRenderer.on('media-audit:state', handler);
+    return () => ipcRenderer.removeListener('media-audit:state', handler);
+  },
   findProjectMedia: target => ipcRenderer.invoke('project:find-media', target),
   chooseResolveExport: timelineId => ipcRenderer.invoke('resolve:choose-export', timelineId),
   refreshResolveExport: () => ipcRenderer.invoke('resolve:refresh-export')

@@ -20,9 +20,9 @@ const { createLuaCaptureCommand } = require('./resolve-menu-companion');
 const { createCaptureRequest, readCaptureResponse } = require('./resolve-companion-protocol');
 const { acceptConsoleOutput } = require('./resolve-console-transfer');
 const { verifyReviewCopy } = require('./review-copy-verifier');
-const { auditFcpxmlMedia } = require('./fcpxml-media-audit');
-const { resolveFolderCandidates, sanitizeResolutionReport,
-  carryObservedIdentity, evaluateMediaRequirements } = require('./local-media-readiness');
+const { createMediaAuditJobs } = require('./media-audit-jobs');
+const { createMediaAuditView } = require('./media-audit-view');
+const { resolveFolderCandidates, sanitizeResolutionReport } = require('./local-media-readiness');
 const { createSyncQueue } = require('./sync-queue');
 const { createAccessControl } = require('./access-control');
 const { createFirstRun } = require('./first-run');
@@ -53,6 +53,8 @@ let verifiedCopySourcePath = null;
 let verifiedCopyHash = null;
 let mediaAuditBusy = false;
 let privateMediaAudits = {};
+let mediaAuditJobs;
+let mediaAuditView;
 let syncQueue;
 let collaborationAccess;
 let collaborationTeam;
@@ -94,6 +96,26 @@ function copyUnavailable() {
 
 function copyNotVerified() {
   return { status: 'error', error: { code: 'review-copy-unverified', message: 'No verified copy is available for this export. Verify the copy again.' } };
+}
+
+function mediaAuditSelection() {
+  const state = projectSession.getState();
+  if (!selectedProjectPath || path.extname(selectedProjectPath).toLowerCase() !== '.fcpxml'
+    || state.scanStatus !== 'ready' || state.selectedProject?.format !== 'FCPXML' || !state.scan?.sourceHash || state.error) return null;
+  return { projectId: state.selectedProject.id, sourceHash: state.scan.sourceHash, displayName: state.selectedProject.name, sourcePath: selectedProjectPath,
+    copyPath: currentCopyPath() };
+}
+function publicMediaAuditState(state) { return mediaAuditView(state); }
+async function mediaAuditAction(action) {
+  try { return publicMediaAuditState(await action()); }
+  catch (error) {
+    logger.warn('media.audit-job-failed', { code: error.code || 'media-audit-failed' });
+    const state = await mediaAuditJobs.getState().catch(() => ({ jobs: [], total: 0, busy: false, reports: {} }));
+    const code = ['media-audit-resume-unavailable', 'media-job-restart-unavailable', 'media-job-cancel-unavailable'].includes(error.code)
+      ? 'media-audit-job-unavailable' : error.code;
+    return { ...publicMediaAuditState(state), error: ['media-audit-source-required', 'media-job-retry-unavailable',
+      'media-audit-unavailable', 'media-audit-job-unavailable'].includes(code) ? code : 'media-audit-queue-failed' };
+  }
 }
 
 function getResolveState(state = resolveReviewSession.getState()) {
@@ -199,6 +221,31 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   collaborationAccess = createAccessControl();
   collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
   firstRun = createFirstRun({ directory: path.join(app.getPath('userData'), 'onboarding') });
+  mediaAuditView = createMediaAuditView({ getSelection: mediaAuditSelection,
+    getAudit: target => privateMediaAudits[target], setAudit: (target, report) => { privateMediaAudits[target] = report; } });
+  mediaAuditJobs = createMediaAuditJobs({ directory: path.join(app.getPath('userData'), 'media-audits'),
+    getSelection: mediaAuditSelection,
+    verifyCopy: async selection => {
+      const verified = await verifyReviewCopy({ sourcePath: selection.sourcePath, copyPath: selection.copyPath,
+        expectedSha256: selection.sourceHash });
+      const current = mediaAuditSelection();
+      const matches = current?.projectId === selection.projectId && current.sourceHash === selection.sourceHash
+        && current.sourcePath === selection.sourcePath && current.copyPath === selection.copyPath;
+      if (verified.status !== 'ready') {
+        if (matches) verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
+        return false;
+      }
+      return matches;
+    },
+    onChange: state => {
+      const value = publicMediaAuditState(state);
+      for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('media-audit:state', value);
+    } });
+  ipcMain.handle('media-audit:state', () => mediaAuditAction(() => mediaAuditJobs.getState()));
+  ipcMain.handle('media-audit:cancel', (_event, id) => mediaAuditAction(() => mediaAuditJobs.cancel(id)));
+  ipcMain.handle('media-audit:resume', (_event, id) => mediaAuditAction(() => mediaAuditJobs.resume(id)));
+  ipcMain.handle('media-audit:retry', (_event, id) => mediaAuditAction(() => mediaAuditJobs.retry(id)));
+  ipcMain.handle('media-audit:restart', (_event, id) => mediaAuditAction(() => mediaAuditJobs.restart(id)));
   const resolveArtifactDirectory = path.join(app.getPath('userData'), 'resolve-previews');
   resolveReviewSession = createResolveReviewSession({ artifactDirectory: resolveArtifactDirectory });
   const trialDirectory = path.join(app.getPath('userData'), 'resolve-rename-trials');
@@ -626,6 +673,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return projectSession.getState();
     }
     const selectedPath = result.filePaths[0];
+    mediaAuditJobs.selectionChanged();
     const state = await projectSession.select(selectedPath);
     selectedProjectPath = state.error === 'unsupported-format' ? null : selectedPath;
     verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
@@ -643,6 +691,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     return state;
   });
   ipcMain.handle('project:rescan', async () => {
+    mediaAuditJobs.selectionChanged();
     const previousHash = projectSession.getState().scan?.sourceHash;
     const state = await projectSession.rescan();
     if (state.scanStatus !== 'ready' || state.scan?.sourceHash !== verifiedCopyHash) {
@@ -655,7 +704,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle('project:cancel-scan', () => projectSession.cancelScan());
   ipcMain.handle('project:prepare-review-copy', async () => {
-    if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
+    if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
     const state = projectSession.getState();
     if (!selectedProjectPath || state.scanStatus !== 'ready' || state.selectedProject?.format !== 'FCPXML'
       || !state.scan?.sourceHash || state.error) {
@@ -695,7 +744,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } finally { reviewCopyBusy = false; }
   });
   ipcMain.handle('project:verify-review-copy', async () => {
-    if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };
+    if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };
     const state = projectSession.getState();
     if (!selectedProjectPath || state.scanStatus !== 'ready' || state.selectedProject?.format !== 'FCPXML'
       || !state.scan?.sourceHash || state.error) return copyUnavailable();
@@ -726,7 +775,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } finally { reviewCopyBusy = false; }
   });
   ipcMain.handle('project:reveal-review-copy', async () => {
-    if (reviewCopyBusy) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };
+    if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };
     const copyPath = currentCopyPath();
     if (!copyPath) return copyNotVerified();
     reviewCopyBusy = true;
@@ -745,49 +794,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       return { status: 'error', error: { code: 'review-copy-failed', message: 'Unable to reveal the verified FCPXML review copy.' } };
     } finally { reviewCopyBusy = false; }
   });
-  ipcMain.handle('project:audit-media', async (_event, target) => {
-    if (mediaAuditBusy) return { status: 'error', error: { code: 'media-audit-busy', message: 'A media audit is already running.' } };
-    const state = projectSession.getState();
-    if (!['source', 'copy'].includes(target) || !selectedProjectPath || state.scanStatus !== 'ready'
-      || state.selectedProject?.format !== 'FCPXML' || !state.scan?.sourceHash || state.error) {
-      return { status: 'error', error: { code: 'media-audit-unavailable', message: 'Choose and scan a regular FCPXML export before auditing its media.' } };
-    }
-    const copyPath = target === 'copy' ? currentCopyPath() : null;
-    if (target === 'copy' && !copyPath) return copyNotVerified();
-    mediaAuditBusy = true;
-    try {
-      const sourcePath = selectedProjectPath;
-      const expectedHash = state.scan.sourceHash;
-      if (target === 'copy') {
-        const verified = await verifyReviewCopy({ sourcePath, copyPath, expectedSha256: expectedHash });
-        if (verified.status !== 'ready') {
-          verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
-          return verified;
-        }
-      }
-      const report = await auditFcpxmlMedia({ exportPath: target === 'copy' ? copyPath : sourcePath,
-        expectedSourceHash: expectedHash });
-      if (selectedProjectPath !== sourcePath || projectSession.getState().scan?.sourceHash !== expectedHash) return copyUnavailable();
-      report.assets = carryObservedIdentity(report.assets,
-        privateMediaAudits[target]?.sourceHash === report.sourceHash ? privateMediaAudits[target].assets : []);
-      privateMediaAudits[target] = report;
-      const requirements = evaluateMediaRequirements({ schemaVersion: 1,
-        items: report.assets.map(asset => ({ id: asset.id, required: true, state: asset.status,
-          availabilityReason: asset.reason, verified: asset.identityVerified,
-          reason: asset.identityVerified ? 'prior-size-and-hash-match'
-            : asset.fingerprint ? 'expected-identity-unavailable' : 'original-unavailable' })) });
-      return { status: 'ready', sourceHash: report.sourceHash, counts: report.counts,
-        assets: report.assets.map(({ fingerprint, expectedFingerprint, ...asset }) => ({ ...asset,
-          fingerprintAvailable: !!fingerprint, expectedIdentityAvailable: !!expectedFingerprint,
-          size: fingerprint?.size ?? null })),
-        requirements, identityVerified: false, error: null };
-    } catch (error) {
-      logger.warn('media.audit-failed', { code: error.code || 'media-audit-failed' });
-      return { status: 'error', error: { code: 'media-audit-failed', message: 'Unable to audit media for this FCPXML export.' } };
-    } finally { mediaAuditBusy = false; }
-  });
+  ipcMain.handle('project:audit-media', (_event, target) => mediaAuditAction(async () => {
+    if (reviewCopyBusy || mediaAuditBusy) throw Object.assign(new Error('media-audit-unavailable'), { code: 'media-audit-unavailable' });
+    return mediaAuditJobs.start(target);
+  }));
   ipcMain.handle('project:find-media', async (_event, target) => {
-    if (mediaAuditBusy) return { status: 'error', error: { code: 'media-audit-busy', message: 'A media check is already running.' } };
+    if (mediaAuditBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'media-audit-busy', message: 'A media check is already running.' } };
     const state = projectSession.getState();
     const audit = privateMediaAudits[target];
     if (!['source', 'copy'].includes(target) || !audit || state.scanStatus !== 'ready'
@@ -822,7 +834,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('project:open-revision', async (_event, revisionId) => projectSession.openRevision(revisionId));
   ipcMain.handle('project:create-branch', async (_event, name) => projectSession.createBranch(name));
   ipcMain.handle('project:switch-branch', async (_event, name) => projectSession.switchBranch(name));
-  ipcMain.handle('project:relink', async (_event, projectId) => projectSession.relinkProject(projectId));
+  ipcMain.handle('project:relink', async (_event, projectId) => { mediaAuditJobs.selectionChanged(); return projectSession.relinkProject(projectId); });
   ipcMain.handle('project:export-revisions', async () => {
     try {
       const bundle = await projectSession.exportRevisions();
@@ -872,4 +884,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+let mediaShutdown = false, mediaShutdownReady = false;
+app.on('before-quit', event => {
+  if (!mediaAuditJobs?.isBusy() || mediaShutdownReady) return;
+  event.preventDefault();
+  if (mediaShutdown) return;
+  mediaShutdown = true;
+  const finish = () => { mediaShutdownReady = true; app.quit(); };
+  mediaAuditJobs.dispose().then(finish, finish);
 });

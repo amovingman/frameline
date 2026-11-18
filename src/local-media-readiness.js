@@ -25,26 +25,37 @@ async function noSymlinks(filename) {
 
 // Streams the file through SHA256; rejects symlinks, non-files and files observed
 // changing during the read. Errors contain generic codes, never source paths.
-async function fingerprintFile(filename) {
+async function fingerprintFile(filename, { signal, onProgress = () => {} } = {}) {
   let handle;
   try {
+    if (typeof onProgress !== 'function') throw fail('invalid-fingerprint-options');
+    if (signal?.aborted) throw fail('fingerprint-cancelled');
+    const progress = async value => {
+      try { await onProgress(value); }
+      catch { throw fail('fingerprint-progress-failed'); }
+    };
     const absolute = await noSymlinks(filename);
     handle = await fsp.open(absolute, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     const before = await handle.stat();
     if (!before.isFile() || !Number.isSafeInteger(before.size)) throw fail('not-regular-file');
     const hash = createHash('sha256');
     let size = 0;
+    await progress({ bytesRead: 0, totalBytes: before.size });
     for await (const chunk of handle.createReadStream({ autoClose: false })) {
+      if (signal?.aborted) throw fail('fingerprint-cancelled');
       size += chunk.length;
+      if (size > before.size) throw fail('file-changed');
       hash.update(chunk);
+      await progress({ bytesRead: size, totalBytes: before.size });
     }
+    if (signal?.aborted) throw fail('fingerprint-cancelled');
     const after = await handle.stat();
     if (size !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs
       || after.ctimeMs !== before.ctimeMs) throw fail('file-changed');
     return { size, sha256: hash.digest('hex') };
   } catch (error) {
     throw fail(['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM', 'symlink-unsupported',
-      'invalid-path', 'not-regular-file', 'file-changed'].includes(error.code) ? error.code : 'read-failed');
+      'invalid-path', 'not-regular-file', 'file-changed', 'fingerprint-cancelled', 'fingerprint-progress-failed', 'invalid-fingerprint-options'].includes(error.code) ? error.code : 'read-failed');
   } finally { if (handle) await handle.close(); }
 }
 

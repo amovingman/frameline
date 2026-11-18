@@ -9,6 +9,16 @@ let verifiedReviewCopy = null;
 let mediaAuditBusy = false;
 let mediaAuditReports = {};
 let mediaSearchReports = {};
+let mediaAuditJobState = null;
+let mediaAuditStateVersion = -1;
+let mediaAuditActionNotice = '';
+let mediaAuditVisibleJobs = 20;
+let mediaAuditReportRenderKey = '';
+let copyMediaAuditRenderKey = '';
+const mediaAuditActions = new Set();
+const mediaAuditJobRows = new Map();
+const mediaAuditDependencyPages = {};
+const mediaAuditDependencyOpen = new Set();
 let syncBusy = false;
 let collaborationBusy = false;
 let collaborationProjectId = null;
@@ -56,16 +66,17 @@ function renderAppState(state) {
     verifiedReviewCopy = null;
     mediaAuditReports = {};
     mediaSearchReports = {};
+    for (const key of Object.keys(mediaAuditDependencyPages)) delete mediaAuditDependencyPages[key];
+    mediaAuditDependencyOpen.clear();
+    mediaAuditReportRenderKey = ''; copyMediaAuditRenderKey = '';
     renderCopyMediaAudit();
   }
+  const mediaSelectionChanged = reviewCopySource !== copySource;
   reviewCopySource = copySource;
+  if (mediaSelectionChanged) refreshMediaAuditJobs();
   const canCopy = !state?.error && state?.scanStatus === 'ready' && !!scan && state?.selectedProject?.format === 'FCPXML' && /\.fcpxml$/i.test(projectName || '');
   document.getElementById('review-copy-panel').hidden = !canCopy;
-  document.getElementById('prepare-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
-  document.getElementById('verify-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
-  document.getElementById('reveal-review-copy').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy || !verifiedReviewCopy;
-  document.getElementById('audit-project-media').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy;
-  document.getElementById('find-project-media').disabled = reviewCopyBusy || mediaAuditBusy || !canCopy || !mediaAuditReports.source;
+  renderMediaAuditControls();
   document.getElementById('rescan-project').hidden = !projectName;
   document.querySelector('.branch-label').textContent = `${state?.currentBranch || 'main'} · ${projectName ? 'Local project' : 'Sample project'}`;
   document.getElementById('file-name').textContent = projectName
@@ -107,7 +118,7 @@ function renderAppState(state) {
     document.querySelector('#view-history .view-footnote').textContent = 'History follows the selected branch. Clip-level comparison and pull remain unavailable until stable IDs are proven.';
     document.querySelector('#view-media .secondary-hero p').textContent = scan
       ? window.mediaAvailabilitySummary(scan.media) : 'Media could not be scanned.';
-    document.querySelector('#view-media .section-head span').textContent = 'Read-only scan';
+    document.getElementById('media-inventory-kind').textContent = 'Read-only scan';
     document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
     if (scan) renderScan(scan);
     else {
@@ -132,6 +143,7 @@ function renderAppState(state) {
     collaborationProjectId = nextCollaborationProject;
     refreshCollaborationState();
   }
+  renderMediaAuditJobs();
 }
 
 function renderScan(scan) {
@@ -1547,7 +1559,7 @@ for (const [id, method] of [['issue', 'issueResolveTrial'], ['copy', 'copyResolv
 window.desktop?.getResolveTrialState?.().then(state => { resolveTrialState = state; renderResolveState(resolveState); }).catch(() => {});
 
 async function reviewCopyAction(method) {
-  if (reviewCopyBusy || mediaAuditBusy || document.getElementById('review-copy-panel').hidden) return;
+  if (reviewCopyBusy || mediaAuditBusy || mediaAuditJobState?.busy || document.getElementById('review-copy-panel').hidden) return;
   reviewCopyBusy = true;
   const result = document.getElementById('review-copy-result');
   const sourceKey = reviewCopySource;
@@ -1583,6 +1595,7 @@ async function reviewCopyAction(method) {
   } finally {
     reviewCopyBusy = false;
     renderAppState(currentAppState);
+    refreshMediaAuditJobs();
   }
 }
 
@@ -1590,7 +1603,9 @@ function renderCopyMediaAudit() {
   const result = document.getElementById('copy-media-result');
   const entries = document.getElementById('copy-media-entries');
   const details = document.getElementById('copy-media-details');
-  entries.replaceChildren();
+  const dependencyKey = JSON.stringify([Object.entries(mediaAuditReports).map(([target, r]) => [target,r.checkId,r.checkedAt,r.sourceHash]),mediaAuditDependencyPages['copy-source'] || 0,mediaAuditDependencyPages['copy-copy'] || 0]);
+  const rebuild = dependencyKey !== copyMediaAuditRenderKey;
+  if (rebuild) { entries.replaceChildren(); copyMediaAuditRenderKey = dependencyKey; }
   const summaries = [];
   for (const [target, label] of [['source', 'Selected export'], ['copy', 'Verified copy']]) {
     const report = mediaAuditReports[target];
@@ -1602,19 +1617,18 @@ function renderCopyMediaAudit() {
     const counts = report.counts || {};
     const gate = report.requirements?.decision === 'blocked' ? 'Required media is blocked.'
       : report.requirements?.decision === 'confirmation-required' ? 'Available media still lacks expected identity evidence.'
-        : 'Required media is verified.';
-    summaries.push(`${label}: ${counts.total || 0} dependencies · ${counts.local || 0} local · ${counts.missing || 0} missing · ${counts['offline-volume'] || 0} offline · ${counts['proxy-only'] || 0} proxy only · ${counts.excluded || 0} excluded · ${counts.external || 0} external · ${counts.unknown || 0} unknown · ${counts.fingerprinted || 0} fingerprinted. ${gate}`);
-    const group = make('section', 'copy-media-group');
-    group.append(make('h4', '', label));
-    for (const asset of report.assets || []) {
-      const row = make('div', 'copy-media-entry');
-      const names = Array.isArray(asset.displayNames) ? asset.displayNames.join(', ') : 'Unnamed dependency';
-      row.append(make('strong', '', names || 'Unnamed dependency'), make('span', '', `${asset.status || 'unknown'}${asset.reason ? ` · ${asset.reason}` : ''}`), make('span', '', asset.identityVerified ? 'Identity matched prior audit' : asset.expectedIdentityAvailable ? 'Prior identity available' : asset.fingerprintAvailable ? 'Fingerprint observed' : 'No fingerprint'));
-      group.append(row);
+        : 'Required media matches prior audit fingerprints.';
+    summaries.push(`${label}${report.checkedAt ? ` · last checked ${mediaAuditDate(report.checkedAt)}` : ''}: ${counts.total || 0} dependencies · ${counts.local || 0} local · ${counts.missing || 0} missing · ${counts['offline-volume'] || 0} offline · ${counts['proxy-only'] || 0} proxy only · ${counts.excluded || 0} excluded · ${counts.external || 0} external · ${counts.unknown || 0} unknown · ${counts.fingerprinted || 0} fingerprinted. ${gate}`);
+    if (rebuild) {
+      const group = make('section', 'copy-media-group');
+      group.append(make('h4', '', label));
+      appendMediaDependencies(group, target, report, 'copy');
+      entries.append(group);
     }
-    entries.append(group);
   }
-  result.textContent = summaries.length ? `${summaries.join('\n')}\nFingerprinted means the bytes were read; original media identity is not verified. Audit results describe the last check.` : 'Run an audit to check local availability and fingerprint coverage.';
+  const running = mediaAuditJobState?.busy ? 'A media check is running. View checks for progress or cancellation.\n' : '';
+  const summary = summaries.length ? `${summaries.join('\n')}\nFingerprinted means the bytes were read; original media identity is not verified. Audit results describe the last check.` : 'Run an audit to check local availability and fingerprint coverage.';
+  if (result.textContent !== running + summary) result.textContent = running + summary;
   const searchResult = document.getElementById('copy-media-search-result');
   const search = mediaSearchReports.source;
   searchResult.textContent = !search ? '' : search.status !== 'ready' ? search.error?.message || 'The folder search failed.'
@@ -1624,30 +1638,25 @@ function renderCopyMediaAudit() {
 }
 
 async function auditCopyMedia() {
-  if (mediaAuditBusy || reviewCopyBusy || document.getElementById('review-copy-panel').hidden) return;
+  if (mediaAuditBusy || reviewCopyBusy || mediaAuditJobState?.busy || !canAuditSelectedMedia()) return;
   const sourceKey = reviewCopySource;
   const targets = verifiedReviewCopy ? ['source', 'copy'] : ['source'];
-  mediaAuditBusy = true;
-  renderAppState(currentAppState);
-  document.getElementById('copy-media-result').textContent = 'Checking media availability and reading local fingerprints…';
+  mediaAuditBusy = true; mediaAuditActionNotice = '';
+  renderMediaAuditControls(); renderMediaAuditJobs();
   try {
     for (const target of targets) {
-      const report = await window.desktop.auditProjectMedia(target);
       if (sourceKey !== reviewCopySource) return;
-      mediaAuditReports[target] = report || { status: 'error' };
+      const state = await window.desktop.auditProjectMedia(target);
+      applyMediaAuditState(state);
+      if (state?.error) break;
       delete mediaSearchReports[target];
     }
-    renderCopyMediaAudit();
-  } catch {
-    if (sourceKey === reviewCopySource) document.getElementById('copy-media-result').textContent = 'Media audit could not finish. Use the desktop app and try again.';
-  } finally {
-    mediaAuditBusy = false;
-    renderAppState(currentAppState);
-  }
+  } catch { mediaAuditActionNotice = 'Could not queue the media check. Use the desktop app and try again.'; }
+  finally { mediaAuditBusy = false; renderMediaAuditControls(); renderMediaAuditJobs(); renderCopyMediaAudit(); }
 }
 
 async function findProjectMedia() {
-  if (mediaAuditBusy || reviewCopyBusy || !mediaAuditReports.source) return;
+  if (mediaAuditBusy || reviewCopyBusy || mediaAuditJobState?.busy || !mediaAuditReports.source) return;
   mediaAuditBusy = true;
   renderAppState(currentAppState);
   document.getElementById('copy-media-search-result').textContent = 'Searching the selected folder without following symlinks…';
@@ -1655,6 +1664,241 @@ async function findProjectMedia() {
   catch { mediaSearchReports.source = { status: 'error', error: { message: 'The folder search could not finish.' } }; }
   finally { mediaAuditBusy = false; renderCopyMediaAudit(); renderAppState(currentAppState); }
 }
+
+function canAuditSelectedMedia() {
+  const state = currentAppState;
+  return !state?.error && state?.scanStatus === 'ready' && !!state.scan?.sourceHash
+    && state.selectedProject?.format === 'FCPXML' && /\.fcpxml$/i.test(state.selectedProject?.name || '');
+}
+function renderMediaAuditControls() {
+  const canAudit = canAuditSelectedMedia();
+  const blocked = reviewCopyBusy || mediaAuditBusy || mediaAuditJobState?.busy;
+  document.getElementById('prepare-review-copy').disabled = blocked || !canAudit;
+  document.getElementById('verify-review-copy').disabled = blocked || !canAudit;
+  document.getElementById('reveal-review-copy').disabled = blocked || !canAudit || !verifiedReviewCopy;
+  document.getElementById('audit-project-media').disabled = blocked || !canAudit;
+  document.getElementById('find-project-media').disabled = blocked || !canAudit || !mediaAuditReports.source;
+  document.getElementById('media-audit-start').disabled = blocked || !canAudit || !window.desktop?.auditProjectMedia;
+  document.getElementById('copy-media-view-jobs').hidden = !mediaAuditJobState?.jobs?.length;
+}
+function mediaAuditDate(value) {
+  return Number.isFinite(value) ? new Date(value).toLocaleString() : 'time unavailable';
+}
+function mediaAuditBytes(value) {
+  if (!Number.isFinite(value) || value < 0) return 'size unavailable';
+  if (value < 1024) return `${value} B`;
+  for (const [size, suffix] of [[1024 ** 3, 'GiB'], [1024 ** 2, 'MiB'], [1024, 'KiB']]) {
+    if (value >= size) return `${(value / size).toFixed(1)} ${suffix}`;
+  }
+}
+function mediaAuditError(code) {
+  const messages = {
+    'media-audit-source-required': 'Reselect and scan the matching export before restarting this check. For a review-copy check, verify the copy again.',
+    'media-job-retry-unavailable': 'This check reached its retry limit. Start a new check for the selected export.',
+    'media-audit-unavailable': 'Choose and scan a regular FCPXML export before starting its media check.',
+    'media-audit-job-unavailable': 'This check is no longer available. Refresh the project and try again.',
+    'stale-export': 'The export changed during the check. Rescan it and start a new audit.',
+    'media-audit-copy-unverified': 'Verify the review copy against the selected export, then retry this check.',
+    'media-job-progress-failed': 'Progress could not be saved. Check local storage and retry the audit.'
+  };
+  return messages[code] || 'The local media check could not finish. Keep the local job records and retry in the desktop app.';
+}
+function applyMediaAuditState(state) {
+  if (!state || typeof state !== 'object') return;
+  if (Number.isSafeInteger(state.version)) {
+    if (state.version < mediaAuditStateVersion) return;
+    mediaAuditStateVersion = state.version;
+  }
+  if (state.error) mediaAuditActionNotice = mediaAuditError(state.error);
+  if (Array.isArray(state.jobs)) mediaAuditJobState = state;
+  const selection = currentAppState?.selectedProject;
+  if (selection?.id && state.selection?.projectId === selection.id && state.selection.sourceHash === currentAppState.scan?.sourceHash) {
+    for (const target of ['source', 'copy']) {
+      const report = state.reports?.[target];
+      if (report?.status === 'ready' && report.sourceHash === currentAppState.scan.sourceHash
+        && (target !== 'copy' || verifiedReviewCopy)) mediaAuditReports[target] = report;
+    }
+  }
+  renderMediaAuditControls(); renderCopyMediaAudit(); renderMediaAuditJobs();
+}
+async function refreshMediaAuditJobs() {
+  if (!window.desktop?.getMediaAuditState) { renderMediaAuditControls(); renderMediaAuditJobs(); return; }
+  try { applyMediaAuditState(await window.desktop.getMediaAuditState()); }
+  catch { mediaAuditActionNotice = 'Could not read local media checks. Retry in the desktop app.'; renderMediaAuditJobs(); }
+}
+function currentMediaJobBound(job) {
+  return job.bound && job.projectId === currentAppState?.selectedProject?.id
+    && job.sourceHash === currentAppState?.scan?.sourceHash && (job.target !== 'copy' || !!verifiedReviewCopy);
+}
+function mediaAuditJobDescription(job) {
+  if (job.status === 'running') {
+    const p = job.detail;
+    if (p?.phase === 'hashing') return `Reading file ${Math.min(p.checked + 1, p.total)} of ${p.total} · ${mediaAuditBytes(p.bytesRead)} of ${mediaAuditBytes(p.totalBytes)}`;
+    return p ? `Checking dependencies · ${p.checked} of ${p.total} checked` : 'Preparing the local media check…';
+  }
+  if (job.status === 'queued') return job.scheduled ? 'Queued for this session.'
+    : currentMediaJobBound(job) ? 'Ready to restart. Media files will be read again from the beginning.'
+      : `Reselect and scan this export to restart.${job.target === 'copy' ? ' Verify its review copy again.' : ''}`;
+  if (job.status === 'cancelled') return 'Cancelled. Start a new check when ready.';
+  if (job.status === 'failed') return mediaAuditError(job.error);
+  return job.reportUnavailable ? 'The saved result could not be verified. Start a new check.' : `Last checked ${mediaAuditDate(job.completedAt)}.`;
+}
+function setMediaAuditText(node, value) {
+  if (node.textContent !== value) node.textContent = value;
+}
+function mediaAuditJobRow(job) {
+  let view = mediaAuditJobRows.get(job.id);
+  if (view) return view;
+  const row = make('article', 'media-audit-job');
+  const description = make('div', 'media-audit-job-description');
+  const title = make('h3', ''), source = make('p', 'media-audit-job-source');
+  description.append(title, source);
+  const status = make('span', 'media-audit-job-status');
+  const detail = make('p', 'media-audit-job-detail');
+  row.append(description, status, detail);
+  view = { row, title, source, status, detail, actions: make('div', 'media-audit-actions'), buttons: new Map(), progressRow: null };
+  mediaAuditJobRows.set(job.id, view);
+  return view;
+}
+function updateMediaAuditJobRow(view, job) {
+  const label = job.label || 'Timeline export';
+  const role = job.target === 'copy' ? 'Review copy' : 'Selected export';
+  const rowLabel = `${label} · ${role} media check`;
+  if (view.row.getAttribute('aria-label') !== rowLabel) view.row.setAttribute('aria-label', rowLabel);
+  setMediaAuditText(view.title, label);
+  setMediaAuditText(view.source, `${role} · source ${job.sourceHash.slice(0, 12)}`);
+  const statusClass = `media-audit-job-status ${job.status}`;
+  if (view.status.className !== statusClass) view.status.className = statusClass;
+  setMediaAuditText(view.status, ({queued:'Queued',running:'Running',failed:'Failed',completed:'Completed',cancelled:'Cancelled'})[job.status] || 'Unknown');
+  setMediaAuditText(view.detail, mediaAuditJobDescription(job));
+  if (job.status === 'running') {
+    if (!view.progressRow) {
+      view.progress = make('progress', 'media-audit-progress'); view.progress.max = 100;
+      view.percent = make('span', '');
+      view.progressRow = make('div', 'media-audit-progress-row'); view.progressRow.append(view.progress, view.percent);
+      view.row.insertBefore(view.progressRow, view.actions.parentNode === view.row ? view.actions : null);
+    }
+    const value = Math.max(0, Math.min(100, job.progress));
+    if (view.progress.value !== value) view.progress.value = value;
+    const progressLabel = `Media check progress for ${label}`;
+    if (view.progress.getAttribute('aria-label') !== progressLabel) view.progress.setAttribute('aria-label', progressLabel);
+    const progressText = `${value}% · ${view.detail.textContent}`;
+    if (view.progress.getAttribute('aria-valuetext') !== progressText) view.progress.setAttribute('aria-valuetext', progressText);
+    setMediaAuditText(view.percent, `${value}%`);
+  } else if (view.progressRow) {
+    view.progressRow.remove(); view.progressRow = view.progress = view.percent = null;
+  }
+  const bound = currentMediaJobBound(job);
+  const actions = [[job.canCancel,'cancelMediaAudit','Cancel'],[job.canResume && bound,'resumeMediaAudit','Restart check'],[job.canRetry && bound,'retryMediaAudit','Retry'],[job.canRestart && bound,'restartMediaAudit','Start new check']].filter(([allowed]) => allowed);
+  const allowedMethods = new Set(actions.map(([, method]) => method));
+  for (const [method, button] of view.buttons) if (!allowedMethods.has(method)) { button.remove(); view.buttons.delete(method); }
+  actions.forEach(([, method, text], index) => {
+    let button = view.buttons.get(method);
+    if (!button) {
+      button = make('button', ''); button.type = 'button'; button.dataset.jobId = job.id; button.dataset.mediaJobAction = method;
+      button.addEventListener('click', () => mediaAuditJobAction(method, job.id)); view.buttons.set(method, button);
+    }
+    setMediaAuditText(button, mediaAuditActions.has(job.id) ? 'Working…' : text);
+    const disabled = mediaAuditActions.has(job.id);
+    if (button.disabled !== disabled) button.disabled = disabled;
+    if (view.actions.children[index] !== button) view.actions.insertBefore(button, view.actions.children[index] || null);
+  });
+  if (view.actions.childElementCount) {
+    if (view.actions.parentNode !== view.row) view.row.append(view.actions);
+  } else if (view.actions.parentNode === view.row) view.actions.remove();
+}
+function renderMediaAuditJobs() {
+  const section = document.getElementById('media-audit-jobs');
+  const jobs = mediaAuditJobState?.jobs || [];
+  section.hidden = !canAuditSelectedMedia() && !jobs.length && !mediaAuditActionNotice;
+  if (section.hidden) return;
+  const counts = jobs.reduce((value, job) => { value[job.status] = (value[job.status] || 0) + 1; return value; }, {});
+  setMediaAuditText(document.getElementById('media-audit-summary'), jobs.length
+    ? `${counts.running || 0} running · ${counts.queued || 0} queued · ${counts.failed || 0} failed · ${counts.completed || 0} completed · ${counts.cancelled || 0} cancelled`
+    : 'No local checks queued. Start an audit to read the selected export’s media.');
+  const notice = document.getElementById('media-audit-notice'); notice.hidden = !mediaAuditActionNotice; setMediaAuditText(notice, mediaAuditActionNotice);
+  const list = document.getElementById('media-audit-job-list');
+  const focused = document.activeElement?.closest?.('[data-media-job-action]');
+  const focusKey = focused && list.contains(focused) ? { id: focused.dataset.jobId, action: focused.dataset.mediaJobAction } : null;
+  const visible = jobs.slice(0, mediaAuditVisibleJobs), visibleIds = new Set(visible.map(job => job.id));
+  // Progress updates preserve native accessibility elements and focused controls.
+  // Only membership/order changes move rows; existing action nodes stay keyed.
+  for (const [id, view] of mediaAuditJobRows) if (!visibleIds.has(id)) { view.row.remove(); mediaAuditJobRows.delete(id); }
+  visible.forEach((job, index) => {
+    const view = mediaAuditJobRow(job); updateMediaAuditJobRow(view, job);
+    if (list.children[index] !== view.row) list.insertBefore(view.row, list.children[index] || null);
+  });
+  const shown = Math.min(jobs.length, mediaAuditVisibleJobs);
+  setMediaAuditText(document.getElementById('media-audit-job-range'), jobs.length ? `Showing ${shown} of ${mediaAuditJobState?.total ?? jobs.length} checks` : '');
+  document.getElementById('media-audit-more').hidden = shown >= jobs.length;
+  if (focusKey) {
+    const buttons = [...list.querySelectorAll('[data-media-job-action]')];
+    const replacement = buttons.find(b => b.dataset.jobId === focusKey.id && b.dataset.mediaJobAction === focusKey.action && !b.disabled)
+      || buttons.find(b => b.dataset.jobId === focusKey.id && !b.disabled);
+    const next = replacement || document.getElementById('media-audit-jobs-title');
+    if (document.activeElement !== next) next.focus({ preventScroll: true });
+  }
+  renderMediaAuditReports();
+}
+async function mediaAuditJobAction(method, id) {
+  if (mediaAuditActions.has(id)) return;
+  mediaAuditActions.add(id); mediaAuditActionNotice = ''; renderMediaAuditJobs();
+  try {
+    if (!window.desktop?.[method]) throw Error('desktop-unavailable');
+    applyMediaAuditState(await window.desktop[method](id));
+  } catch { mediaAuditActionNotice = 'Could not update this check. Retry in the desktop app.'; }
+  finally { mediaAuditActions.delete(id); renderMediaAuditControls(); renderMediaAuditJobs(); }
+}
+function appendMediaDependencies(container, target, report, surface) {
+  const key = `${surface}-${target}`, assets = report.assets || [], pageSize = 50;
+  const page = Math.min(mediaAuditDependencyPages[key] || 0, Math.max(0, Math.ceil(assets.length / pageSize) - 1));
+  mediaAuditDependencyPages[key] = page;
+  const details = make('details', 'media-audit-dependencies');
+  details.open = mediaAuditDependencyOpen.has(key);
+  details.append(make('summary', '', `${assets.length} ${assets.length === 1 ? 'dependency' : 'dependencies'}`));
+  details.addEventListener('toggle', () => { if (details.open) mediaAuditDependencyOpen.add(key); else mediaAuditDependencyOpen.delete(key); });
+  const start = page * pageSize;
+  const range = make('p', 'media-audit-dependency-range', assets.length ? `Dependencies ${start + 1}–${Math.min(start + pageSize, assets.length)} of ${assets.length}` : 'No referenced media dependencies.');
+  range.id = `media-dependency-${key}-range`; range.tabIndex = -1; details.append(range);
+  for (const asset of assets.slice(start, start + pageSize)) {
+    const row = make('div', 'copy-media-entry');
+    const names = Array.isArray(asset.displayNames) ? asset.displayNames.join(', ') : 'Unnamed dependency';
+    row.append(make('strong', '', names || 'Unnamed dependency'), make('span', '', `${asset.status || 'unknown'}${asset.reason ? ` · ${asset.reason}` : ''}`), make('span', '', asset.identityVerified ? 'Identity matched prior audit' : asset.expectedIdentityAvailable ? 'Prior identity available' : asset.fingerprintAvailable ? 'Fingerprint observed' : 'No fingerprint'));
+    details.append(row);
+  }
+  if (assets.length > pageSize) {
+    const controls = make('div', 'media-audit-dependency-paging');
+    for (const [label, change, disabled] of [['Previous dependencies',-1,page === 0],['Next dependencies',1,start + pageSize >= assets.length]]) {
+      const button = make('button', '', label); button.type = 'button'; button.disabled = disabled;
+      button.addEventListener('click', () => {
+        mediaAuditDependencyPages[key] = page + change; mediaAuditDependencyOpen.add(key); mediaAuditReportRenderKey = '';
+        if (surface === 'copy') renderCopyMediaAudit(); else renderMediaAuditReports();
+        document.getElementById(`media-dependency-${key}-range`)?.focus();
+      }); controls.append(button);
+    }
+    details.append(controls);
+  }
+  container.append(details);
+}
+function renderMediaAuditReports() {
+  const key = JSON.stringify(Object.entries(mediaAuditReports).map(([target, r]) => [target,r.checkId,r.checkedAt,r.sourceHash]));
+  if (key === mediaAuditReportRenderKey) return;
+  mediaAuditReportRenderKey = key;
+  const section = document.getElementById('media-audit-reports'); section.replaceChildren();
+  for (const [target, label] of [['source','Selected export'],['copy','Verified copy']]) {
+    const report = mediaAuditReports[target]; if (!report || report.status !== 'ready') continue;
+    const group = make('section', 'media-audit-report'); group.append(make('h3', '', `${label} · last completed check`));
+    const counts = report.counts || {};
+    group.append(make('p', '', `${counts.total || 0} dependencies · ${counts.local || 0} local · ${counts.missing || 0} missing · ${counts.fingerprinted || 0} fingerprinted${report.checkedAt ? ` · ${mediaAuditDate(report.checkedAt)}` : ''}`));
+    group.append(make('p', '', 'Results describe the last check. A fingerprint records the bytes read; it does not establish original media identity.'));
+    appendMediaDependencies(group, target, report, 'media'); section.append(group);
+  }
+}
+document.getElementById('copy-media-view-jobs').addEventListener('click', () => { showView('media'); document.getElementById('media-audit-jobs-title').focus(); });
+document.getElementById('media-audit-start').addEventListener('click', auditCopyMedia);
+document.getElementById('media-audit-more').addEventListener('click', () => { mediaAuditVisibleJobs += 20; renderMediaAuditJobs(); });
+window.desktop?.onMediaAuditState?.(applyMediaAuditState);
+refreshMediaAuditJobs();
 
 document.getElementById('prepare-review-copy').addEventListener('click', () => reviewCopyAction('prepareReviewCopy'));
 document.getElementById('verify-review-copy').addEventListener('click', () => reviewCopyAction('verifyReviewCopy'));

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T04:15:23.792Z",
+  "scope": "Disposable local FCPXML media auditing; no editor import or apply claim",
+  "native": {
+    "fixture": {
+      "assetCount": 3,
+      "largeSparseFileBytes": 8589934592,
+      "largeSparseFileAllocatedBytes": 0,
+      "limitation": "Synthetic hashing fixture, not playable media or representative editor performance"
+    },
+    "sourceHash": "221964f284225374ef41f849a7cabe07b1f67ee58490f18b856740aa61d14e61",
+    "jobId": "job:cdf0282385e66f9c812ec726c15df7292d1fb5657d0db12b2b86bcd9abc85dde",
+    "cancelVerified": true,
+    "interrupted": {
+      "status": "queued",
+      "progress": 17,
+      "orderlyQuit": true
+    },
+    "restart": {
+      "unboundRestartUnavailable": true,
+      "matchingSourceRequired": true,
+      "filesReadAgainFromBeginning": true
+    },
+    "completed": {
+      "status": "completed",
+      "progress": 100,
+      "counts": {
+        "total": 3,
+        "local": 2,
+        "missing": 1,
+        "offline-volume": 0,
+        "proxy-only": 0,
+        "excluded": 0,
+        "external": 0,
+        "unknown": 0,
+        "fingerprinted": 2
+      },
+      "reportHash": "a49b8324ac63cea6bf576ce6f6d64941fa3881a310d8476af60813b1e203e06b",
+      "runId": "98f7f7c1-2b60-4425-a762-d834c3247771",
+      "reportMode": "0600"
+    },
+    "completedReportRecoveredAfterAnotherRestart": true,
+    "journalUnchangedAfterRecovery": true,
+    "journalAndReportPathFree": true
+  },
+  "browser": {
+    "fixtureDelayPerDependencyMs": 45,
+    "dependencies": 65,
+    "fingerprinted": 64,
+    "missing": 1,
+    "cancelVerified": true,
+    "pagingFocusRetained": true,
+    "cancelFocusRetainedDuringProgress": true,
+    "staleCompletedSourceWithheld": true,
+    "dependencyPageSize": 50,
+    "responsive": [
+      {
+        "phase": "running",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "overflowCount": 0
+      },
+      {
+        "phase": "running",
+        "width": 768,
+        "scrollWidth": 768,
+        "overflowCount": 0
+      },
+      {
+        "phase": "running",
+        "width": 390,
+        "scrollWidth": 390,
+        "overflowCount": 0
+      },
+      {
+        "phase": "completed",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "overflowCount": 0
+      },
+      {
+        "phase": "completed",
+        "width": 768,
+        "scrollWidth": 768,
+        "overflowCount": 0
+      },
+      {
+        "phase": "completed",
+        "width": 390,
+        "scrollWidth": 390,
+        "overflowCount": 0
+      }
+    ]
+  },
+  "limits": [
+    "No native crash or power-loss drill; native interruption used orderly quit.",
+    "Browser delay is test-only; no throughput claim.",
+    "No hosted workers, media transfer, proxy generation or general editor apply."
+  ]
+}
