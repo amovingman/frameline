@@ -83,10 +83,11 @@ function migrateState(value, chunkSize, maxAssetBytes) {
   return validateState({ ...previous, schemaVersion: 2, policies: [], assets: previous.assets.map(asset => ({ ...asset, archived: false })) }, chunkSize, maxAssetBytes);
 }
 
-async function createDurableAssetService({ directory, keyring, authorize, authorizePolicy = null, initialize = false, chunkSize = 1024 * 1024,
+async function createDurableAssetService({ directory, keyring, authorize, authorizePolicy = null, getInitialPolicy = null, initialize = false, chunkSize = 1024 * 1024,
   maxAssetBytes = MAX_ASSET_BYTES, storage = fs, lockTimeoutMs = 5000 } = {}) {
   if (!path.isAbsolute(directory || '') || !keyring || typeof keyring.encrypt !== 'function' || typeof keyring.decrypt !== 'function'
     || typeof authorize !== 'function' || authorizePolicy !== null && typeof authorizePolicy !== 'function'
+    || getInitialPolicy !== null && typeof getInitialPolicy !== 'function'
     || typeof initialize !== 'boolean' || !Number.isSafeInteger(chunkSize) || chunkSize < 1 || chunkSize > 1024 * 1024
     || !Number.isSafeInteger(maxAssetBytes) || maxAssetBytes < 0 || maxAssetBytes > MAX_ASSET_BYTES
     || !Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 0 || lockTimeoutMs > 30000) throw fail('asset-service-invalid');
@@ -99,6 +100,9 @@ async function createDurableAssetService({ directory, keyring, authorize, author
   const indexPath = path.join(directory, 'assets.enc.json'), uploadsPath = path.join(directory, 'uploads');
   const maxChunkFile = Math.ceil((chunkSize * 4 / 3 + 1024) * 4 / 3) + 4096;
   let pending = Promise.resolve(), closing = false, uncertain = false, initialized = false, observedKeyId = null, needsMigration = false;
+  // Defaults belong to the immutable collaboration project, never the asset
+  // journal. Keep them scoped to this fresh transaction's in-memory state.
+  const initialPolicies = new WeakMap();
   const count = size => Math.max(1, Math.ceil(size / chunkSize));
   const length = (size, index) => Math.min(chunkSize, Math.max(0, size - index * chunkSize));
   async function permission(context, projectId, action) {
@@ -110,6 +114,24 @@ async function createDurableAssetService({ directory, keyring, authorize, author
     if (typeof authorizePolicy !== 'function') throw fail('asset-policy-forbidden');
     const result = await authorizePolicy(context, projectId, 'write');
     if (!exact(result, ['allowed', 'actorId']) || result.allowed !== true || !id(result.actorId)) throw fail('asset-policy-forbidden');
+  }
+  async function initialPolicy(context, projectId) {
+    if (getInitialPolicy === null) return { projectId, version: 0, syncClasses: [] };
+    const value = await getInitialPolicy(context, projectId);
+    const fields = ['projectId', 'version', 'syncClasses'];
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(value)) || Reflect.ownKeys(value).length !== fields.length
+      || !fields.every(key => { const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        return descriptor && Object.hasOwn(descriptor, 'value') && descriptor.enumerable; })
+      || value.projectId !== projectId || ![0, 1].includes(value.version) || !Array.isArray(value.syncClasses)
+      || value.syncClasses.length > CLASSES.size || value.version === 0 && value.syncClasses.length !== 0
+      || value.syncClasses.some(item => !CLASSES.has(item)) || new Set(value.syncClasses).size !== value.syncClasses.length
+      || JSON.stringify(value.syncClasses) !== JSON.stringify([...value.syncClasses].sort())) throw fail('asset-state-invalid');
+    return structuredClone(value);
+  }
+  function validateInitialPolicy(value, baseline) {
+    const local = value.policies.find(item => item.projectId === baseline.projectId);
+    if (baseline.version === 1 && local && local.version < 2) throw fail('asset-state-invalid');
   }
   async function syncDir(filename) {
     const handle = await storage.open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
@@ -170,7 +192,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       throw fail(error.code === 'asset-state-newer-version' ? error.code : 'asset-state-invalid');
     }
   }
-  function transact(context, projectId, action, operation, signal, startup = false) {
+  function transact(context, projectId, action, operation, signal, startup = false, commitPermission = null) {
     if (closing) return Promise.reject(fail('asset-service-closed'));
     const next = pending.then(async () => {
       if (uncertain) throw fail('asset-storage-uncertain'); abort(signal);
@@ -185,9 +207,22 @@ async function createDurableAssetService({ directory, keyring, authorize, author
           try { await privateDirectory(uploadsPath, true); await syncDir(directory); }
           catch (error) { if (error.code !== 'EEXIST') throw error; await privateDirectory(uploadsPath); }
         } else await privateDirectory(uploadsPath);
+        let baseline = null;
+        if (!startup) {
+          baseline = await initialPolicy(context, projectId);
+          validateInitialPolicy(value, baseline); initialPolicies.set(value, baseline);
+        }
         const result = await operation(value);
         validateState(value, chunkSize, maxAssetBytes); abort(signal);
-        if (!startup) await permission(context, projectId, action); abort(signal);
+        if (!startup) {
+          await permission(context, projectId, action);
+          const rechecked = await initialPolicy(context, projectId);
+          if (fingerprint(rechecked) !== fingerprint(baseline)) throw fail('asset-state-invalid');
+          validateInitialPolicy(value, rechecked);
+          await permission(context, projectId, action);
+        }
+        if (commitPermission) await commitPermission();
+        abort(signal);
         if (needsMigration || previous !== fingerprint(value)) {
           if (value.generation === Number.MAX_SAFE_INTEGER) throw fail('asset-state-invalid'); value.generation++;
           await atomic(indexPath, { schemaVersion: 1, generation: value.generation, record: encrypt(value) }, MAX_FILE_BYTES);
@@ -220,7 +255,9 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       chunks: upload.hashes.length, received: upload.hashes.map(Boolean), complete: value.assets.some(item => item.uploadId === upload.id) };
   }
   function policy(value, projectId) {
-    return structuredClone(value.policies.find(item => item.projectId === projectId) || { projectId, version: 0, syncClasses: [] });
+    const baseline = initialPolicies.get(value);
+    return structuredClone(value.policies.find(item => item.projectId === projectId)
+      || (baseline?.projectId === projectId ? baseline : { projectId, version: 0, syncClasses: [] }));
   }
   function available(value, projectId, assetId) {
     const asset = value.assets.find(item => item.projectId === projectId && item.assetId === assetId);
@@ -235,7 +272,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
   function ownerWrite(context, projectId, operation) {
     return transact(context, projectId, 'write', async value => {
       await policyPermission(context, projectId); const result = await operation(value); await policyPermission(context, projectId); return result;
-    });
+    }, undefined, false, () => policyPermission(context, projectId));
   }
   const receipt = upload => ({ assetId: upload.identity.contentId, size: upload.identity.size, chunkSize, chunks: upload.hashes.length, verified: true });
   async function read(upload, index) {
@@ -318,7 +355,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       const previous = policy(value, projectId);
       if (previous.version !== input.expectedVersion) throw fail('asset-policy-version-conflict');
       if (previous.version === Number.MAX_SAFE_INTEGER) throw fail('asset-capacity-exceeded');
-      if (previous.version === 0 && value.policies.length >= 10000) throw fail('asset-capacity-exceeded');
+      if (!value.policies.some(item => item.projectId === projectId) && value.policies.length >= 10000) throw fail('asset-capacity-exceeded');
       const next = { projectId, version: previous.version + 1, syncClasses: [...input.syncClasses].sort() };
       const index = value.policies.findIndex(item => item.projectId === projectId); if (index < 0) value.policies.push(next); else value.policies[index] = next;
       return structuredClone(next);

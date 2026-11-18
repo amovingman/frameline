@@ -23,6 +23,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/share-viewer.js', 'src/share-viewer.html', 'src/share-viewer-client.js', 'src/share-viewer.css',
   'src/service-notifications.js', 'src/notification-protocol.js', 'src/desktop-account-updates.js',
   'src/notification-worker.js', 'src/smtp-notification-sender.js',
+  'src/service-project-presets.js', 'src/project-presets-protocol.js', 'src/desktop-project-presets.js', 'src/project-preset-intents.js',
   'src/unsubscribe-viewer.js', 'src/unsubscribe-viewer.html', 'src/unsubscribe-viewer-client.js',
   'src/service-host.js', 'src/service-host-config.js', 'src/service-host-cli.js',
   'src/service-admin.js', 'src/service-admin-cli.js',

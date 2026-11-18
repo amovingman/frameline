@@ -12,6 +12,10 @@ const { SHARE_ERROR_CODES, validateSharePageInput, validateShareReview, validate
 const { NOTIFICATION_ERROR_CODES, validNotificationToken, validateNotificationPageInput,
   validateAccountNotifications, validateNotificationPreferences } = require('./notification-protocol');
 
+const { PRESET_ERROR_CODES, validatePresetTeamCatalog, validateProjectPresetCatalog,
+  validateProjectPresetPlan, validateProjectPresetCreation, validateProjectPresetSaveInput,
+  validateProjectPresetPreviewInput, validateProjectPresetCreateInput, validateProjectPresetSaveResponse } = require('./project-presets-protocol');
+
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceeded', 'project-not-found',
@@ -23,7 +27,7 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceede
   'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found',
   'comments-invalid', 'comment-anchor-invalid', 'comment-anchor-unverified', 'comment-revision-unsupported',
   'comment-not-found', 'comment-idempotency-conflict', 'comment-cursor-invalid', 'comment-capacity', ...BRANCH_REVIEW_ERROR_CODES,
-  ...SHARE_ERROR_CODES, ...NOTIFICATION_ERROR_CODES]);
+  ...SHARE_ERROR_CODES, ...NOTIFICATION_ERROR_CODES, ...PRESET_ERROR_CODES]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function segment(value) {
   if (typeof value !== 'string' || !ID.test(value)) throw fail('sync-request-invalid');
@@ -119,7 +123,7 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
       if (!fields(envelope, ['apiVersion', 'requestId', 'error']) || !fields(envelope.error, ['code'])) throw fail('sync-response-invalid');
       if (anonymous && response.status === 429 && envelope.error.code === 'rate-limit-exceeded') throw fail('rate-limit-exceeded');
       if (['activity-state-invalid', 'comment-capacity', 'branch-review-capacity', 'share-links-capacity', 'share-links-unavailable',
-        'notification-unavailable', 'notification-capacity'].includes(envelope.error.code)) throw fail(envelope.error.code);
+        'notification-unavailable', 'notification-capacity', 'preset-unavailable'].includes(envelope.error.code)) throw fail(envelope.error.code);
       if ([408, 429].includes(response.status) || response.status >= 500) throw fail('sync-network-unavailable');
       throw fail(ERRORS.has(envelope.error.code) ? envelope.error.code : 'sync-service-failed');
     }
@@ -136,6 +140,25 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     return validateProjectFeedPage(result, projectId, { limit, notifications: resource === 'notifications' });
   }
   return {
+    listPresetTeams: async (options = {}) => validatePresetTeamCatalog(await request('GET', '/account/preset-teams', undefined, options)),
+    listProjectPresets: async (teamId, options = {}) => validateProjectPresetCatalog(
+      await request('GET', `/teams/${segment(teamId)}/project-presets`, undefined, options), teamId),
+    saveProjectPreset: async (input, options = {}) => {
+      const checked = validateProjectPresetSaveInput(input);
+      const { teamId, idempotencyKey, ...body } = checked;
+      return validateProjectPresetSaveResponse(await request('PUT', `/teams/${segment(teamId)}/project-presets`, body,
+        { ...options, idempotencyKey }), checked);
+    },
+    previewProjectFromPreset: async (input, options = {}) => {
+      const checked = validateProjectPresetPreviewInput(input), { teamId, presetId, ...body } = checked;
+      return validateProjectPresetPlan(await request('POST', `/teams/${segment(teamId)}/project-presets/${segment(presetId)}/preview`,
+        body, options), checked);
+    },
+    createProjectFromPreset: async (input, options = {}) => {
+      const checked = validateProjectPresetCreateInput(input), { teamId, presetId, idempotencyKey, ...body } = checked;
+      return validateProjectPresetCreation(await request('POST', `/teams/${segment(teamId)}/project-presets/${segment(presetId)}/projects`,
+        body, { ...options, idempotencyKey }), checked);
+    },
     getAccountNotifications: async (page = {}, options = {}) => {
       const checked = validateNotificationPageInput(page);
       return validateAccountNotifications(await request('GET', `/account/notifications?limit=${checked.limit}&filter=${checked.filter}${checked.cursor === null ? '' : `&cursor=${checked.cursor}`}`, undefined, options), checked);

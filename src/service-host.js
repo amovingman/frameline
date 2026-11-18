@@ -36,7 +36,7 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
   const tls = { cert: config.tls.cert, key: config.tls.key, minVersion: 'TLSv1.2', handshakeTimeout: 5000 };
   try { createSecureContext(tls); } catch { throw fail('service-host-tls-unavailable'); }
   const runtime = await createDurableCollaborationService({ directory: config.directory, keyring: config.keyring, initialize,
-    notificationDeliveryAvailable: notificationConfig !== null });
+    notificationDeliveryAvailable: notificationConfig !== null, assetPolicyDefaultsEnabled: !!config.assets });
   const handler = createRevisionHttpHandler({ service: runtime.service, identity: runtime.identity,
     listProjects: context => runtime.projects.list(context) });
   const shareViewer = createShareViewerHandler();
@@ -46,7 +46,8 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
     if (config.assets) {
       const authorize = (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action);
       const authorizePolicy = (context, projectId, action) => runtime.service.authorizeAssetPolicy(context, projectId, action);
-      assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, authorizePolicy, initialize });
+      assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, authorizePolicy,
+        getInitialPolicy: (context, projectId) => runtime.projects.getInitialAssetPolicy(context, projectId), initialize });
       assetHandler = createAssetHttpHandler({ assets, authorize, authorizePolicy, signingKey: config.assets.signingKey });
     }
     if (notificationConfig) notificationWorker = createNotificationWorker({ notifications: runtime.notifications,

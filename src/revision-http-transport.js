@@ -12,6 +12,11 @@ const { validShareToken, validShareCursor, validateShareReview, validateShareCre
 const { validNotificationToken, validNotificationCursor, validateAccountNotifications,
   validateNotificationPreferences } = require('./notification-protocol');
 
+const { validatePresetTeamCatalog, validateProjectPresetCatalog, validateProjectPresetPlan,
+  validateProjectPresetCreation, validateProjectPresetSaveInput, validateProjectPresetPreviewInput,
+  validateProjectPresetCreateInput, validateProjectPresetSaveResponse, parseProjectPresetBody } = require('./project-presets-protocol');
+const PRESET_METHODS = ['listPresetTeams', 'listProjectPresets', 'saveProjectPreset', 'previewProjectFromPreset', 'createProjectFromPreset'];
+
 const MAX_HTTP_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 const SERVICE_METHODS = ['putManifest', 'getManifest', 'createRevision', 'getRevision',
@@ -42,7 +47,10 @@ const ERRORS = new Map([
   ['share-link-not-found', 404], ['share-link-unavailable', 404], ['share-links-unavailable', 503], ['share-links-capacity', 503],
   ...['notification-invalid', 'notification-cursor-invalid'].map(code => [code, 400]),
   ...['notification-preference-version-conflict', 'notification-idempotency-conflict', 'notification-delivery-unavailable'].map(code => [code, 409]),
-  ['notification-unavailable', 503], ['notification-capacity', 503]
+  ['notification-unavailable', 503], ['notification-capacity', 503],
+  ['preset-invalid', 400], ['preset-forbidden', 403], ['preset-not-found', 404],
+  ...['preset-version-conflict', 'preset-idempotency-conflict', 'preset-capacity', 'preset-plan-stale', 'preset-media-unavailable'].map(code => [code, 409]),
+  ['preset-unavailable', 503]
 ]);
 function fail(code) { const error = new Error(code); error.code = code; return error; }
 function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -185,6 +193,16 @@ function route(req) {
       methods: ['GET', 'POST'], page };
   }
   if (query !== undefined || req.url.length > 2048) throw fail('request-invalid');
+  if (parts[0] === 'account' && parts.length === 2 && parts[1] === 'preset-teams') {
+    return { kind: 'listPresetTeams', methods: ['GET'] };
+  }
+  if (parts[0] === 'teams' && parts[2] === 'project-presets') {
+    if (parts.length === 3) return { kind: req.method === 'GET' ? 'listProjectPresets' : 'saveProjectPreset',
+      teamId: parts[1], methods: ['GET', 'PUT'] };
+    if (parts.length === 5 && ['preview', 'projects'].includes(parts[4])) return {
+      kind: parts[4] === 'preview' ? 'previewProjectFromPreset' : 'createProjectFromPreset',
+      teamId: parts[1], presetId: parts[3], methods: ['POST'] };
+  }
   if (parts[0] === 'account' && parts[1] === 'notifications') {
     if (parts.length === 4 && parts[3] === 'read') return { kind: 'markAccountNotificationRead', item: parts[2], methods: ['PUT'] };
     if (parts.length === 3 && parts[2] === 'disable-delivery') return { kind: 'disableNotificationDelivery', methods: ['POST'] };
@@ -274,7 +292,7 @@ function authBody(kind, body) {
   if (typeof body.refreshToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.refreshToken)) throw fail('body-invalid');
   return [body.refreshToken];
 }
-async function readBody(req, writing, maxBytes = MAX_HTTP_BYTES) {
+async function readBody(req, writing, maxBytes = MAX_HTTP_BYTES, presetBody = false) {
   const length = header(req, 'content-length');
   if (length !== undefined && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)))) throw fail('request-invalid');
   if (Number(length) > maxBytes) throw fail('request-too-large');
@@ -298,7 +316,7 @@ async function readBody(req, writing, maxBytes = MAX_HTTP_BYTES) {
     req.on('data', data); req.once('end', end); req.once('error', error); req.once('aborted', error);
   });
   if (!writing) return null;
-  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))); }
+  try { const text = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)); return presetBody ? parseProjectPresetBody(text) : JSON.parse(text); }
   catch { throw fail('body-invalid'); }
 }
 function revisionInput(body, projectId, idempotencyKey) {
@@ -358,13 +376,13 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
       }
       if (['listActivity', 'listNotifications', 'markNotificationRead', 'listReviewComments', 'addReviewComment', 'resolveReviewComment',
         'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'getShareReview', 'createShareLink', 'revokeShareLink',
-        'getAccountNotifications', 'markAccountNotificationRead', 'getNotificationPreferences', 'setNotificationPreferences', 'disableNotificationDelivery']
+        'getAccountNotifications', 'markAccountNotificationRead', 'getNotificationPreferences', 'setNotificationPreferences', 'disableNotificationDelivery', ...PRESET_METHODS]
         .includes(target.kind) && typeof service[target.kind] !== 'function') throw fail('route-not-found');
       let body;
       try { body = await readBody(req, req.method !== 'GET', shareRequest || unsubscribeRequest ? 512 : target.anonymous ? 8192
         : ['markNotificationRead', 'resolveReviewComment', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest', 'createShareLink', 'revokeShareLink',
           'markAccountNotificationRead', 'setNotificationPreferences', 'disableNotificationDelivery'].includes(target.kind) ? 1024
-          : target.kind === 'addReviewComment' ? 24 * 1024 : MAX_HTTP_BYTES); }
+          : target.kind === 'addReviewComment' ? 24 * 1024 : PRESET_METHODS.includes(target.kind) ? 8192 : MAX_HTTP_BYTES, PRESET_METHODS.includes(target.kind)); }
       catch (error) {
         if (unsubscribeRequest && ['body-invalid', 'content-type-invalid'].includes(error.code)) {
           body = null;
@@ -377,6 +395,24 @@ function createRevisionHttpHandler({ service, allowLoopbackHttp = false, identit
           ? await service.unsubscribeNotifications({ token: body.token }) : { unsubscribed: true };
         if (!record(data) || Object.keys(data).join('|') !== 'unsubscribed' || data.unsubscribed !== true) throw fail('service-unavailable');
         data = { unsubscribed: true };
+      } else if (target.kind === 'listPresetTeams') {
+        data = validatePresetTeamCatalog(await service.listPresetTeams(context));
+      } else if (target.kind === 'listProjectPresets') {
+        data = validateProjectPresetCatalog(await service.listProjectPresets(context, target.teamId), target.teamId);
+      } else if (target.kind === 'saveProjectPreset') {
+        fields(body, ['presetId', 'expectedVersion', 'name', 'branches', 'syncClasses'], ['presetId', 'expectedVersion', 'name', 'branches', 'syncClasses']);
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        const input = validateProjectPresetSaveInput({ ...body, teamId: target.teamId, idempotencyKey: context.idempotencyKey });
+        data = validateProjectPresetSaveResponse(await service.saveProjectPreset(context, input), input);
+      } else if (target.kind === 'previewProjectFromPreset') {
+        fields(body, ['expectedVersion', 'projectName'], ['expectedVersion', 'projectName']);
+        const input = validateProjectPresetPreviewInput({ ...body, teamId: target.teamId, presetId: target.presetId });
+        data = validateProjectPresetPlan(await service.previewProjectFromPreset(context, input), input);
+      } else if (target.kind === 'createProjectFromPreset') {
+        fields(body, ['expectedVersion', 'projectName', 'planId'], ['expectedVersion', 'projectName', 'planId']);
+        if (context.idempotencyKey === null) throw fail('invalid-idempotency-key');
+        const input = validateProjectPresetCreateInput({ ...body, teamId: target.teamId, presetId: target.presetId, idempotencyKey: context.idempotencyKey });
+        data = validateProjectPresetCreation(await service.createProjectFromPreset(context, input), input);
       } else if (target.kind === 'getAccountNotifications') {
         data = validateAccountNotifications(await service.getAccountNotifications(context, target.page), target.page);
       } else if (target.kind === 'markAccountNotificationRead') {

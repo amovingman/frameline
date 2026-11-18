@@ -15,6 +15,7 @@ const { createServiceReviewComments, validateServiceReviewCommentsState, createS
 const { createServiceBranchProtection, validateServiceBranchProtectionState } = require('./service-branch-protection');
 const { createServiceShareLinks, validateServiceShareLinksState } = require('./service-share-links');
 const { createServiceNotifications, validateServiceNotificationsState } = require('./service-notifications');
+const { createServiceProjectPresets, validateServiceProjectPresetsState } = require('./service-project-presets');
 
 const MAX_STATE_BYTES = 64 * 1024 * 1024, MAX_FILE_BYTES = 96 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, SHA = /^[a-f0-9]{64}$/;
@@ -87,9 +88,9 @@ function validateHistory(input) {
 
 function validateCollaborationState(input) {
   try {
-    if (input?.schemaVersion > 6) throw fail('collaboration-state-newer-version');
+    if (input?.schemaVersion > 7) throw fail('collaboration-state-newer-version');
     const legacy = input?.schemaVersion === 1;
-    if (!exact(input, ['schemaVersion', 'generation', 'paginationKey', 'identity', 'access', 'history', ...(legacy ? [] : ['activity']), ...(input?.schemaVersion >= 3 ? ['comments'] : []), ...(input?.schemaVersion >= 4 ? ['branchProtection'] : []), ...(input?.schemaVersion >= 5 ? ['shareLinks'] : []), ...(input?.schemaVersion === 6 ? ['notifications'] : [])]) || ![1, 2, 3, 4, 5, 6].includes(input.schemaVersion)
+    if (!exact(input, ['schemaVersion', 'generation', 'paginationKey', 'identity', 'access', 'history', ...(legacy ? [] : ['activity']), ...(input?.schemaVersion >= 3 ? ['comments'] : []), ...(input?.schemaVersion >= 4 ? ['branchProtection'] : []), ...(input?.schemaVersion >= 5 ? ['shareLinks'] : []), ...(input?.schemaVersion >= 6 ? ['notifications'] : []), ...(input?.schemaVersion === 7 ? ['projectPresets'] : [])]) || ![1, 2, 3, 4, 5, 6, 7].includes(input.schemaVersion)
       || !Number.isSafeInteger(input.generation) || input.generation < 0
       || typeof input.paginationKey !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(input.paginationKey)) throw fail('collaboration-state-invalid');
     const identity = validateIdentityState(input.identity), access = validateAccessState(input.access), history = validateHistory(input.history);
@@ -188,7 +189,7 @@ function validateCollaborationState(input) {
       countEvent(actualShareEvents, event.type, event.projectId, event.actorId, event.subjectId);
     }
     if (fingerprint([...expectedShareEvents.entries()].sort()) !== fingerprint([...actualShareEvents.entries()].sort())) throw fail('collaboration-state-invalid');
-    const notifications = validateServiceNotificationsState(input.schemaVersion === 6 ? input.notifications
+    const notifications = validateServiceNotificationsState(input.schemaVersion >= 6 ? input.notifications
       : { version: 1, preferences: [], consents: [], idempotency: [], jobs: [] }, input.paginationKey);
     const eventPositions = new Map(activity.events.map((event, index) => [event.id, { event, index }]));
     const consents = new Map(notifications.consents.map(item => [item.id, item]));
@@ -206,7 +207,21 @@ function validateCollaborationState(input) {
         previous = item.index;
       }
     }
-    const output = { schemaVersion: 6, generation: input.generation, paginationKey: input.paginationKey, identity, access, history, activity, comments, branchProtection, shareLinks, notifications };
+    const projectPresets = validateServiceProjectPresetsState(input.schemaVersion === 7 ? input.projectPresets
+      : { version: 1, presets: [], saveReceipts: [], creations: [] });
+    const teams = new Set(access.teams.map(team => team.id));
+    for (const preset of projectPresets.presets) if (!teams.has(preset.teamId)
+      || !users.has(preset.createdBy) || !users.has(preset.updatedBy)) throw fail('collaboration-state-invalid');
+    for (const receipt of [...projectPresets.saveReceipts, ...projectPresets.creations]) {
+      if (!teams.has(receipt.teamId) || !users.has(receipt.actorId)) throw fail('collaboration-state-invalid');
+    }
+    const projectAccess = new Map(access.projects.map(project => [project.id, project]));
+    for (const creation of projectPresets.creations) {
+      const project = history.projects[creation.projectId];
+      if (!project || project.name !== creation.projectName || projectAccess.get(creation.projectId)?.teamId !== creation.teamId
+        || creation.branches.some(branch => !Object.hasOwn(project.branches, branch))) throw fail('collaboration-state-invalid');
+    }
+    const output = { schemaVersion: 7, generation: input.generation, paginationKey: input.paginationKey, identity, access, history, activity, comments, branchProtection, shareLinks, notifications, projectPresets };
     if (Buffer.byteLength(JSON.stringify(output)) > MAX_STATE_BYTES) throw fail('collaboration-state-invalid');
     return output;
   } catch (error) {
@@ -215,10 +230,11 @@ function validateCollaborationState(input) {
 }
 
 async function createDurableCollaborationService({ directory, keyring, now = () => Date.now(),
-  deliverRecovery = null, storage = fs, lockTimeoutMs = 5000, initialize = false, notificationDeliveryAvailable = false } = {}) {
+  deliverRecovery = null, storage = fs, lockTimeoutMs = 5000, initialize = false, notificationDeliveryAvailable = false,
+  assetPolicyDefaultsEnabled = false } = {}) {
   const validRing = ring => ring && typeof ring.encrypt === 'function' && typeof ring.decrypt === 'function';
   if (!path.isAbsolute(directory || '') || !validRing(keyring) || typeof now !== 'function'
-    || typeof initialize !== 'boolean' || typeof notificationDeliveryAvailable !== 'boolean'
+    || typeof initialize !== 'boolean' || typeof notificationDeliveryAvailable !== 'boolean' || typeof assetPolicyDefaultsEnabled !== 'boolean'
     || deliverRecovery !== null && typeof deliverRecovery !== 'function'
     || !Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 0 || lockTimeoutMs > 30000) throw fail('collaboration-service-invalid');
   try {
@@ -305,10 +321,12 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
       isActiveUser: userId => identity.getUser(userId).status === 'active' });
     const notifications = createServiceNotifications({ identity, access, history, activity, initialState: state?.notifications,
       paginationKey, now, deliveryAvailable: notificationDeliveryAvailable });
-    const snapshot = () => validateCollaborationState({ schemaVersion: 6, generation: state?.generation || 0, paginationKey,
-      identity: identity.snapshot(), access: access.snapshot(), history: history.snapshot(), activity: activity.snapshot(), comments: comments.snapshot(), branchProtection: branchProtection.snapshot(), shareLinks: shareLinks.snapshot(), notifications: notifications.snapshot() });
+    const projectPresets = createServiceProjectPresets({ identity, access, history, initialState: state?.projectPresets || null,
+      mediaAvailable: assetPolicyDefaultsEnabled, now });
+    const snapshot = () => validateCollaborationState({ schemaVersion: 7, generation: state?.generation || 0, paginationKey,
+      identity: identity.snapshot(), access: access.snapshot(), history: history.snapshot(), activity: activity.snapshot(), comments: comments.snapshot(), branchProtection: branchProtection.snapshot(), shareLinks: shareLinks.snapshot(), notifications: notifications.snapshot(), projectPresets: projectPresets.snapshot() });
     const actor = context => identity.authenticate(context?.accessToken).userId;
-    return { identity, access, history, activity, comments, branchProtection, shareLinks, notifications, snapshot, actor };
+    return { identity, access, history, activity, comments, branchProtection, shareLinks, notifications, projectPresets, snapshot, actor };
   }
   function transact(action, { rotate = null } = {}) {
     if (closing) return Promise.reject(fail('collaboration-service-closed'));
@@ -389,14 +407,16 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
       if (!before) world.access.registerProject(actor, value.id, input.teamId);
       else if (before.teamId !== input.teamId) throw fail('project-access-invalid');
       return value;
-    }), delete: (context, projectId) => transact(world => world.access.deleteProject(world.actor(context), projectId)) },
+    }), delete: (context, projectId) => transact(world => world.access.deleteProject(world.actor(context), projectId)),
+    getInitialAssetPolicy: (context, projectId) => transact(world => world.projectPresets.initialPolicy(world.actor(context), projectId)) },
     service: Object.fromEntries(['putManifest', 'createRevision', 'updateBranch', 'getManifest', 'getRevision',
       'findRevisionBySource', 'listRevisions', 'getBranch', 'listActivity', 'listNotifications', 'markNotificationRead', 'authorizeAsset', 'authorizeAssetPolicy',
       'listReviewComments', 'addReviewComment', 'resolveReviewComment', 'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest',
       'getShareReview', 'createShareLink', 'revokeShareLink', 'redeemShareLink', 'getAccountNotifications', 'markAccountNotificationRead',
-      'getNotificationPreferences', 'setNotificationPreferences', 'disableNotificationDelivery', 'unsubscribeNotifications']
+      'getNotificationPreferences', 'setNotificationPreferences', 'disableNotificationDelivery', 'unsubscribeNotifications',
+      'listPresetTeams', 'listProjectPresets', 'saveProjectPreset', 'previewProjectFromPreset', 'createProjectFromPreset']
       .map(method => [method, (...args) => transact(world => createAuthorizedProjectService(world)[method](...args))])),
-    getStatus: () => transact(world => ({ schemaVersion: 6, generation: world.snapshot().generation })),
+    getStatus: () => transact(world => ({ schemaVersion: 7, generation: world.snapshot().generation })),
     rotateEncryption: next => validRing(next) ? transact(() => ({ rotated: true }), { rotate: next })
       : Promise.reject(fail('collaboration-service-invalid')),
     close: async () => { closing = true; await pending; }

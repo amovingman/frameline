@@ -164,7 +164,7 @@ test('strict combined validation rejects dangling references, cyclic history and
     change(s => { s.history.projects.extra = { ...s.history.projects.film, id: 'extra' }; })]) {
     assert.throws(() => validateCollaborationState(altered), { code: 'collaboration-state-invalid' });
   }
-  assert.throws(() => validateCollaborationState({ ...state, schemaVersion: 7 }), { code: 'collaboration-state-newer-version' });
+  assert.throws(() => validateCollaborationState({ ...state, schemaVersion: 8 }), { code: 'collaboration-state-newer-version' });
   assert.equal(fingerprint(await value.state()), fingerprint(state));
 });
 

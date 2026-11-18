@@ -354,3 +354,48 @@ test('notification wrapper preserves finite errors without publishing credential
   await assert.rejects(client.getAccountNotifications({}), { code: 'service-connection-failed', message: 'service-connection-failed' });
   assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /token-secret|smtp-password|\/private\//);
 });
+
+test('preset wrappers retain 0/1/1/1/1 arities, combine caller aborts and retire requests with the captured binding', async t => {
+  const calls = []; let waiting = null;
+  const f = fixture({ clientMethods: ({ getAccessToken }) => Object.fromEntries([
+    ['listPresetTeams', 0], ['listProjectPresets', 1], ['saveProjectPreset', 1], ['previewProjectFromPreset', 1], ['createProjectFromPreset', 1]
+  ].map(([name, arity]) => [name, async (...args) => {
+    const options = args[arity]; calls.push({ name, args: args.slice(0, arity), signal: options.signal });
+    if (waiting) {
+      waiting.started.resolve(options.signal);
+      if (waiting.external) await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(error('sync-cancelled')), { once: true }));
+      else await waiting.release.promise;
+    }
+    await getAccessToken(); return { valid: true };
+  }])) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  const save = { teamId: 'team', presetId: null, expectedVersion: 0, name: 'Documentary', branches: [], syncClasses: [], idempotencyKey: 'private-intent-key' },
+    preview = { teamId: 'team', presetId: 'template', expectedVersion: 1, projectName: 'Disposable film' },
+    create = { ...preview, planId: 'a'.repeat(64), idempotencyKey: 'private-create-key' };
+  await client.listPresetTeams(); await client.listProjectPresets('team'); await client.saveProjectPreset(save);
+  await client.previewProjectFromPreset(preview); await client.createProjectFromPreset(create);
+  assert.deepEqual(calls.map(value => value.args), [[], ['team'], [save], [preview], [create]]);
+  assert(calls.every(value => value.signal instanceof AbortSignal));
+  waiting = { started: defer(), external: true }; const abort = new AbortController(), listing = client.listPresetTeams({ signal: abort.signal });
+  const signal = await waiting.started.promise; abort.abort(); assert.equal(signal.aborted, true); await assert.rejects(listing, { code: 'sync-cancelled' });
+  assert.equal(value.getState().status, 'connected');
+  waiting = { started: defer(), release: defer() }; const creating = client.createProjectFromPreset(create);
+  const disconnectSignal = await waiting.started.promise, disconnect = value.disconnect(); assert.equal(disconnectSignal.aborted, true); waiting.release.resolve();
+  await assert.rejects(creating, { code: 'service-sign-in-required' }); await disconnect;
+  await assert.rejects(client.saveProjectPreset(save), { code: 'service-sign-in-required' });
+  await connect(value, 'https://second.example.test');
+  await assert.rejects(client.listProjectPresets('team'), { code: 'service-sign-in-required' });
+  waiting = null; await value.getClient().listPresetTeams();
+  assert.equal(value.getAccount().id, 'second');
+  assert.doesNotMatch(JSON.stringify(f.events), /private-intent-key|private-create-key|idempotencyKey|access-token-secret|\/private\//);
+});
+
+test('preset wrapper publishes only finite preset errors and never trusts an arbitrary error prefix', async t => {
+  const { PRESET_ERROR_CODES } = require('../src/project-presets-protocol'); let code;
+  const f = fixture({ clientMethods: () => ({ async listPresetTeams() { throw error(code); } }) });
+  t.mock.method(Date, 'now', () => f.clock); const value = f.make(); t.after(() => value.dispose()); await connect(value); const client = value.getClient();
+  for (code of PRESET_ERROR_CODES) await assert.rejects(client.listPresetTeams(), { code, message: code });
+  code = 'preset-private-idempotency-secret';
+  await assert.rejects(client.listPresetTeams(), { code: 'service-connection-failed', message: 'service-connection-failed' });
+  assert.equal(value.getState().status, 'connected'); assert.doesNotMatch(JSON.stringify(f.events), /idempotency-secret|token-secret|\/private\//);
+});

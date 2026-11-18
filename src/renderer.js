@@ -77,6 +77,19 @@ let notificationProjectOptionsKey = '';
 let notificationPreferenceEvidenceKey = '';
 let notificationPreferenceDraft = { mode: 'off', digestHourUtc: '9' };
 const accountUpdateRows = new Map();
+let projectPresetsState = null;
+let projectPresetsVersion = -1;
+let projectPresetsAccountKey = '';
+let projectPresetsAccessKey = '';
+let projectPresetsEvidenceKey = '';
+let projectPresetsTeamOptionsKey = '';
+let projectPresetsItemOptionsKey = '';
+let projectPresetsAction = null;
+let projectPresetsNotice = '';
+let projectPresetDraft = { name: '', branches: '', syncClasses: [] };
+let projectPresetNameDraft = '';
+let projectPresetPendingKey = '';
+let projectPresetPendingReviewed = false;
 let projectActivityState = null;
 let projectActivityVersion = -1;
 let projectActivityContext = '';
@@ -492,6 +505,234 @@ function serviceErrorLabel(code) {
     'credential-storage-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.',
     'credential-vault-unavailable': 'Secure credential storage is unavailable on this Mac. Unlock the keychain and try signing in again.'
   })[code] || 'The service action could not finish. Check the connection or sign in again, then retry.';
+}
+function currentProjectPresetsAccount() {
+  return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
+    ? JSON.stringify([serviceState.origin, serviceState.account.id]) : '';
+}
+function syncProjectPresetsAccount() {
+  const account = currentProjectPresetsAccount(), access = JSON.stringify([account, serviceState?.status]);
+  if (account !== projectPresetsAccountKey) {
+    projectPresetsAccountKey = account; projectPresetsState = null; projectPresetsAction = null; projectPresetsNotice = '';
+    projectPresetsEvidenceKey = ''; projectPresetDraft = { name: '', branches: '', syncClasses: [] }; projectPresetNameDraft = '';
+    projectPresetPendingKey = ''; projectPresetPendingReviewed = false;
+  }
+  renderProjectPresets();
+  if (access !== projectPresetsAccessKey) { projectPresetsAccessKey = access; readProjectPresetsState(); }
+}
+async function readProjectPresetsState() {
+  if (!window.desktop?.getProjectPresetsState) return;
+  const account = currentProjectPresetsAccount();
+  try { renderProjectPresetsState(await window.desktop.getProjectPresetsState(), account); }
+  catch { if (account === currentProjectPresetsAccount()) { projectPresetsNotice = 'Template state could not be read. Refresh available teams to retry.'; renderProjectPresets(); } }
+}
+function parsedProjectPresetDraft() {
+  const name = projectPresetDraft.name.trim(), branches = projectPresetDraft.branches.split(/[\r\n,]+/).map(value => value.trim()).filter(Boolean);
+  if (!name || name.length > 80 || /[\\/\x00-\x1f\x7f]/.test(name) || branches.length > 20
+    || branches.some(value => value === 'main' || !/^[a-z0-9][a-z0-9._-]{0,39}$/.test(value)) || new Set(branches).size !== branches.length) return null;
+  return { name, branches: branches.sort(), syncClasses: [...projectPresetDraft.syncClasses].sort() };
+}
+function selectedProjectPreset(state = projectPresetsState) { return state?.items?.find(item => item.teamId === state.teamId && item.id === state.selectedPresetId) || null; }
+function projectPresetDraftMatches(preset = selectedProjectPreset()) {
+  const draft = parsedProjectPresetDraft();
+  return !!preset && !!draft && draft.name === preset.name && JSON.stringify(draft.branches) === JSON.stringify(preset.branches)
+    && JSON.stringify(draft.syncClasses) === JSON.stringify(preset.syncClasses);
+}
+function currentProjectPresetPlan(state = projectPresetsState) {
+  const preset = selectedProjectPreset(state), plan = state?.preview;
+  return plan && projectPresetDraftMatches(preset) && plan.teamId === state.teamId && plan.presetId === preset.id && plan.presetVersion === preset.version
+    && plan.projectName === projectPresetNameDraft.trim() && plan.mediaAvailable === state.mediaAvailable
+    && JSON.stringify(plan.branches) === JSON.stringify(['main', ...preset.branches]) && JSON.stringify(plan.syncClasses) === JSON.stringify(preset.syncClasses) ? plan : null;
+}
+function projectPresetsReceiptMatches(action, state) {
+  if (action?.method === 'retryProjectPresetIntent' || action?.method === 'dismissProjectPresetIntent') {
+    const pending = action.pending, outcome = state?.outcome;
+    if (!pending || !state?.scopeId || !state.available || action.account !== currentProjectPresetsAccount()) return false;
+    if (action.method === 'dismissProjectPresetIntent') return outcome?.kind === 'intent-dismissed' && outcome.pendingId === pending.id;
+    if (pending.kind === 'save') return outcome?.kind === 'preset-saved' && outcome.teamId === pending.teamId
+      && (!pending.presetId || outcome.presetId === pending.presetId) && (!action.receiptId || outcome.presetId === action.receiptId)
+      && (pending.presetId ? [pending.expectedVersion, pending.expectedVersion + 1].includes(outcome.version) : outcome.version === 1)
+      && outcome.name === pending.name && JSON.stringify(outcome.branches) === JSON.stringify(pending.branches)
+      && JSON.stringify(outcome.syncClasses) === JSON.stringify(pending.syncClasses);
+    return pending.kind === 'create' && outcome?.kind === 'project-created' && outcome.teamId === pending.teamId
+      && outcome.presetId === pending.presetId && outcome.presetVersion === pending.expectedVersion && outcome.projectName === pending.projectName
+      && typeof outcome.projectId === 'string' && !!outcome.projectId && (!action.receiptId || outcome.projectId === action.receiptId)
+      && JSON.stringify(outcome.branches) === JSON.stringify(pending.branches) && JSON.stringify(outcome.syncClasses) === JSON.stringify(pending.syncClasses);
+  }
+  if (!action || !state?.scopeId || !state.available || action.account !== currentProjectPresetsAccount() || state.teamId !== action.teamId
+    || state.role !== 'owner' || state.teams?.find(team => team.id === action.teamId)?.role !== 'owner') return false;
+  const outcome = state.outcome;
+  if (action.method === 'saveProjectPreset' && outcome?.kind === 'preset-saved') {
+    const preset = state.items?.find(item => item.id === outcome.presetId && item.teamId === action.teamId);
+    return !!preset && state.selectedPresetId === preset.id && (!action.presetId || preset.id === action.presetId)
+      && (!action.receiptId || preset.id === action.receiptId) && preset.version === outcome.version
+      && (action.presetId ? [action.presetVersion, action.presetVersion + 1].includes(preset.version) : preset.version === 1)
+      && preset.name === action.draft?.name && JSON.stringify(preset.branches) === JSON.stringify(action.draft?.branches)
+      && JSON.stringify(preset.syncClasses) === JSON.stringify(action.draft?.syncClasses);
+  }
+  const plan = action.plan;
+  return action.method === 'createProjectFromPreset' && outcome?.kind === 'project-created' && !!plan && typeof outcome.projectId === 'string' && !!outcome.projectId
+    && state.selectedPresetId === plan.presetId && selectedProjectPreset(state)?.version === plan.presetVersion
+    && (!action.receiptId || outcome.projectId === action.receiptId) && outcome.teamId === plan.teamId && outcome.presetId === plan.presetId
+    && outcome.presetVersion === plan.presetVersion && outcome.projectName === plan.projectName
+    && JSON.stringify(outcome.branches) === JSON.stringify(plan.branches) && JSON.stringify(outcome.syncClasses) === JSON.stringify(plan.syncClasses);
+}
+function renderProjectPresetsState(state, expectedAccount = currentProjectPresetsAccount()) {
+  if (!state || !Number.isSafeInteger(state.version) || state.version < projectPresetsVersion
+    || expectedAccount !== currentProjectPresetsAccount()) return false;
+  const selected = selectedProjectPreset(state);
+  const pendingKey = state.pending ? JSON.stringify(state.pending) : '';
+  if (pendingKey !== projectPresetPendingKey) {
+    projectPresetPendingKey = pendingKey; projectPresetPendingReviewed = false;
+    if (['retryProjectPresetIntent', 'dismissProjectPresetIntent'].includes(projectPresetsAction?.method)
+      && !projectPresetsReceiptMatches(projectPresetsAction, state)) projectPresetsAction = null;
+  }
+  const evidence = JSON.stringify([state.scopeId, state.teamId, state.role, state.selectedPresetId, selected?.version]);
+  if (evidence !== projectPresetsEvidenceKey) {
+    projectPresetsEvidenceKey = evidence; projectPresetsNotice = ''; projectPresetNameDraft = '';
+    projectPresetDraft = { name: selected?.name || '', branches: (selected?.branches || []).join('\n'), syncClasses: [...(selected?.syncClasses || [])] };
+    if (projectPresetsAction && !['selectPresetTeam', 'selectProjectPreset'].includes(projectPresetsAction.method)) {
+      if (projectPresetsReceiptMatches(projectPresetsAction, state)) projectPresetsAction.receiptId = state.outcome.kind === 'preset-saved' ? state.outcome.presetId : state.outcome.projectId;
+      else projectPresetsAction = null;
+    }
+  }
+  projectPresetsState = state; projectPresetsVersion = state.version; renderProjectPresets(); return true;
+}
+function projectPresetsErrorLabel(code) {
+  return ({
+    'preset-invalid': 'Check the template name, unique additional branches, media classes and project name.',
+    'preset-forbidden': 'Team members can read templates. Only a current team owner can save a template or create a project.',
+    'preset-not-found': 'This template is unavailable. Load the team templates again.',
+    'preset-version-conflict': 'The template changed elsewhere. Load it again before saving.',
+    'preset-idempotency-conflict': 'The pending request no longer matches its saved intent. Load templates and review the settings before retrying.',
+    'preset-capacity': 'The service template or project limit was reached. Contact the team owner.',
+    'preset-plan-stale': 'The creation preview is stale. Load the saved template and preview the project again.',
+    'preset-media-unavailable': 'The asset service is unavailable. Project creation with enabled media classes requires that service.',
+    'preset-unavailable': 'Team templates are unavailable. Refresh available teams or sign in again.',
+    'project-presets-selection-changed': 'The account, team, role or template changed. Load the current templates before continuing.',
+    'project-presets-refresh-required': 'Load the team templates and select a saved template before continuing.',
+    'project-presets-busy': 'Another template action is running. Wait for it to finish, then retry.',
+    'project-presets-local-error': 'Template state could not be read locally. Refresh available teams to retry.',
+    'project-presets-intent-invalid': 'The retained local request could not be verified. Keep the app data and check the service before sending a new request.',
+    'project-presets-intent-storage-unavailable': 'The local retry record could not be saved. Check disk space and permissions before retrying.',
+    'project-presets-intent-storage-uncertain': 'The local retry record save is not confirmed. Restart the app and refresh available teams before retrying.',
+    'project-presets-intent-retry-required': 'Review and retry the retained request before sending a new save or project creation.',
+    'project-presets-storage-unavailable': 'The local retry record could not be saved. Check disk space and permissions before retrying.',
+    'project-presets-storage-uncertain': 'The local retry record save is not confirmed. Restart the app and refresh available teams before retrying.',
+    'project-presets-retry-required': 'Review and retry the retained request before sending a new save or project creation.'
+  })[code] || serviceErrorLabel(code);
+}
+function renderProjectPresets() {
+  const account = currentProjectPresetsAccount(), state = account && account === projectPresetsAccountKey ? projectPresetsState : null;
+  const available = !!state?.available, busy = !!projectPresetsAction || !!state?.busy, connected = serviceState?.status === 'connected';
+  const teams = state?.teamsReady ? state.teams || [] : [], team = teams.find(item => item.id === state?.teamId);
+  const member = !!team && team.role === state.role, owner = member && team.role === 'owner', ready = available && member && !!state.ready;
+  const hasAPI = typeof window.desktop?.getProjectPresetsState === 'function';
+  const pending = state?.pending;
+  const intentBlocked = !!pending || ['project-presets-intent-invalid', 'project-presets-intent-storage-unavailable', 'project-presets-intent-storage-uncertain',
+    'project-presets-intent-retry-required', 'project-presets-storage-unavailable', 'project-presets-storage-uncertain', 'project-presets-retry-required'].includes(state?.error);
+  document.getElementById('project-presets-refresh').disabled = !available || busy || !window.desktop?.refreshProjectPresets;
+  const teamSelect = document.getElementById('project-presets-team'), teamKey = JSON.stringify([state?.teamsReady, teams]);
+  if (teamKey !== projectPresetsTeamOptionsKey) {
+    projectPresetsTeamOptionsKey = teamKey; teamSelect.replaceChildren(new Option(state?.teamsReady ? teams.length ? 'Choose a team' : 'No accessible teams' : 'Refresh available teams first', ''));
+    for (const item of teams) teamSelect.add(new Option(`${item.name} · team ${item.role}`, item.id));
+  }
+  teamSelect.value = team ? team.id : ''; teamSelect.disabled = !available || !state?.teamsReady || busy || !window.desktop?.selectPresetTeam;
+  document.getElementById('project-presets-load').disabled = !available || !member || busy || !window.desktop?.loadProjectPresets;
+  setServiceText(document.getElementById('project-presets-role'), team ? `${team.name} · Team ${team.role}. ${owner ? 'You can save templates and create projects.' : 'You can read saved templates. A team owner must create projects.'}` : '');
+  const items = member ? (state.items || []).filter(item => item.teamId === state.teamId) : [];
+  const select = document.getElementById('project-presets-select'), itemKey = JSON.stringify([state?.teamId, items.map(item => [item.id, item.name, item.version])]);
+  if (itemKey !== projectPresetsItemOptionsKey) {
+    projectPresetsItemOptionsKey = itemKey; select.replaceChildren(new Option(items.length ? 'Choose a saved template' : 'No saved templates loaded', ''));
+    for (const item of items) select.add(new Option(`${item.name} · version ${item.version}`, item.id));
+  }
+  const selected = member ? selectedProjectPreset(state) : null;
+  select.value = selected?.id || ''; select.disabled = !ready || busy || !window.desktop?.selectProjectPreset;
+  document.getElementById('project-presets-new').disabled = !ready || !owner || busy || !window.desktop?.selectProjectPreset;
+  setServiceText(document.getElementById('project-presets-editor-title'), selected ? `Template settings · version ${selected.version}` : 'New template');
+  setServiceText(document.getElementById('project-presets-stamp'), selected ? `Saved ${serviceDate(selected.updatedAt)}${state.checkedAt !== null ? ` · Team templates checked ${serviceDate(state.checkedAt)}` : ''}` : '');
+  const displayDraft = member ? projectPresetDraft : { name: '', branches: '', syncClasses: [] };
+  for (const [id, value] of [['name', displayDraft.name], ['branches', displayDraft.branches]]) {
+    const input = document.getElementById(`project-presets-${id}`); if (input.value !== value) input.value = value;
+  }
+  for (const value of ['original', 'proxy', 'audio', 'graphics', 'other']) document.getElementById(`project-presets-class-${value}`).checked = displayDraft.syncClasses.includes(value);
+  document.getElementById('project-presets-fields').disabled = !ready || !owner || busy || !connected || !window.desktop?.saveProjectPreset;
+  const draft = parsedProjectPresetDraft();
+  document.getElementById('project-presets-save').disabled = document.getElementById('project-presets-fields').disabled || !draft || intentBlocked;
+  setServiceText(document.getElementById('project-presets-media-status'), available
+    ? state.mediaAvailable ? 'The service supports the initial media policy shown in the preview.' : 'The asset service is unavailable. Templates can retain media-class settings, but projects with enabled classes cannot be created until it is available.' : '');
+  const projectName = document.getElementById('project-presets-project-name'); if (projectName.value !== projectPresetNameDraft) projectName.value = projectPresetNameDraft;
+  projectName.disabled = !ready || !owner || busy || !connected || !selected;
+  const name = projectPresetNameDraft.trim(), validName = !!name && name.length <= 120 && !/[\\/\x00-\x1f\x7f]/.test(name);
+  document.getElementById('project-presets-preview').disabled = projectName.disabled || intentBlocked || !validName || !projectPresetDraftMatches(selected) || !window.desktop?.previewProjectFromPreset;
+  const plan = owner && ready ? currentProjectPresetPlan(state) : null;
+  document.getElementById('project-presets-plan').hidden = !plan;
+  for (const [id, value] of [['name', plan?.projectName], ['template', plan ? `${selected.name} · version ${plan.presetVersion}` : ''], ['branches', plan?.branches.join(', ')],
+    ['classes', plan ? plan.syncClasses.join(', ') || 'None enabled' : ''], ['media', plan ? plan.mediaAvailable ? 'Available' : 'Unavailable' : '']]) setServiceText(document.getElementById(`project-presets-plan-${id}`), value || '');
+  const blockedMedia = plan && !plan.mediaAvailable && plan.syncClasses.length > 0;
+  setServiceText(document.getElementById('project-presets-plan-status'), blockedMedia ? 'Creation is unavailable while the asset service is unavailable and media classes are enabled.'
+    : plan ? 'Create this new service project with exactly these branches and initial media classes.' : '');
+  document.getElementById('project-presets-create').disabled = !plan || !!blockedMedia || busy || !connected || intentBlocked || !window.desktop?.createProjectFromPreset;
+  const receipt = available && state.outcome?.kind === 'project-created' ? state.outcome : null;
+  document.getElementById('project-presets-receipt').hidden = !receipt;
+  for (const [id, value] of [['name', receipt?.projectName], ['project', receipt?.projectId], ['team', receipt?.teamId], ['template', receipt ? `${receipt.presetId} · version ${receipt.presetVersion}` : ''],
+    ['branches', receipt?.branches.join(', ')], ['classes', receipt ? receipt.syncClasses.join(', ') || 'None enabled' : ''], ['time', receipt ? serviceDate(receipt.createdAt) : '']]) setServiceText(document.getElementById(`project-presets-receipt-${id}`), value || '');
+  document.getElementById('project-presets-pending').hidden = !available || !pending;
+  for (const [id, value] of [['kind', pending ? pending.kind === 'save' ? 'Save team template' : 'Create service project' : ''], ['name', pending?.name || pending?.projectName],
+    ['team', pending?.teamId], ['version', pending ? pending.expectedVersion ? `${pending.presetId} · version ${pending.expectedVersion}` : 'New template' : ''],
+    ['branches', pending ? (pending.kind === 'save' ? ['main', ...pending.branches] : pending.branches).join(', ') : ''],
+    ['classes', pending ? pending.syncClasses.join(', ') || 'None enabled' : ''], ['time', pending ? serviceDate(pending.createdAt) : '']]) setServiceText(document.getElementById(`project-presets-pending-${id}`), value || '');
+  const pendingAcknowledged = pending && projectPresetsReceiptMatches({ method: 'retryProjectPresetIntent', account, pending }, state);
+  setServiceText(document.getElementById('project-presets-pending-status'), pendingAcknowledged
+    ? 'The service acknowledged this change. The local retry record still needs cleanup; use Retry to finish.'
+    : pending ? 'This request needs an explicit retry. The service may already have saved it. Retry checks the same request.' : '');
+  document.getElementById('project-presets-pending-retry').disabled = !available || !pending || busy || !connected || !state?.scopeId || !window.desktop?.retryProjectPresetIntent;
+  const reviewed = document.getElementById('project-presets-pending-reviewed'); reviewed.checked = projectPresetPendingReviewed;
+  reviewed.disabled = !available || !pending || busy || !window.desktop?.dismissProjectPresetIntent;
+  document.getElementById('project-presets-pending-dismiss').disabled = reviewed.disabled || !connected || !projectPresetPendingReviewed || !state?.scopeId;
+  const status = !hasAPI ? 'Team templates are unavailable in this build.' : !available ? 'Sign in and refresh teams to read project templates.'
+    : projectPresetsAction ? 'Updating team templates…' : projectPresetsNotice || (state.error ? projectPresetsErrorLabel(state.error)
+      : !state.teamsReady ? 'Refresh available teams to check team membership.' : !member ? 'Choose a team and load its templates.' : !ready ? 'Load this team’s templates before continuing.'
+        : !owner ? 'Team members can read templates. Saving templates and creating projects require team owner access.'
+          : projectPresetDraft.name.trim() && !draft ? 'Check the template name and additional branches. Branches must be unique and cannot include main.'
+          : pending ? 'Review the retained request before sending another template save or project creation.'
+          : selected && !projectPresetDraftMatches(selected) ? 'Save template changes before previewing a project.'
+            : !selected ? 'Save a new template or choose an existing template to preview a project.' : 'Preview a new project from this saved template before creating it.');
+  setServiceText(document.getElementById('project-presets-status'), status); document.getElementById('project-presets-panel').setAttribute('aria-busy', String(busy));
+}
+async function runProjectPresetsAction(method, input) {
+  const account = currentProjectPresetsAccount(), state = projectPresetsState, scopeId = state?.scopeId, selected = selectedProjectPreset(state);
+  if (!account || projectPresetsAction || state?.busy || !window.desktop?.[method]) return;
+  if (['saveProjectPreset', 'previewProjectFromPreset', 'createProjectFromPreset'].includes(method) && (!scopeId || input?.scopeId !== scopeId)) return;
+  if (['saveProjectPreset', 'createProjectFromPreset'].includes(method) && state?.pending) return;
+  if (['retryProjectPresetIntent', 'dismissProjectPresetIntent'].includes(method)
+    && (!scopeId || input?.scopeId !== scopeId || !state?.pending || input?.pendingId !== state.pending.id)) return;
+  if (method === 'dismissProjectPresetIntent' && (input.reviewed !== true || !projectPresetPendingReviewed)) return;
+  const action = { method, account, scopeId, teamId: state?.teamId, presetId: selected?.id || null, presetVersion: selected?.version || 0,
+    draft: method === 'saveProjectPreset' ? parsedProjectPresetDraft() : null, plan: method === 'createProjectFromPreset' && state.preview ? structuredClone(state.preview) : null,
+    pending: ['retryProjectPresetIntent', 'dismissProjectPresetIntent'].includes(method) && state.pending ? structuredClone(state.pending) : null }, focused = document.activeElement;
+  projectPresetsAction = action; projectPresetsNotice = ''; renderProjectPresets();
+  try {
+    const result = await window.desktop[method](input);
+    if (projectPresetsAction !== action || account !== currentProjectPresetsAccount()) return;
+    if (['saveProjectPreset', 'createProjectFromPreset', 'retryProjectPresetIntent', 'dismissProjectPresetIntent'].includes(method)
+      && projectPresetsState?.scopeId !== scopeId && !projectPresetsReceiptMatches(action, result)) return;
+    const accepted = renderProjectPresetsState(result, account);
+    if (accepted && projectPresetsReceiptMatches(action, result)) {
+      projectPresetsNotice = result.outcome.kind === 'intent-dismissed' ? 'Local retry dismissed. A saved service change has not been undone.'
+        : result.outcome.kind === 'preset-saved' ? `Template saved · version ${result.outcome.version}.`
+        : `Service project “${result.outcome.projectName}” created. Link a local branch explicitly when you are ready.`;
+      if (result.outcome.kind === 'project-created') projectPresetNameDraft = '';
+      if (!result.ready || result.error) projectPresetsNotice += ' Refresh available teams or load templates to check the current catalog.';
+    } else if (accepted && method === 'createProjectFromPreset' && !result.outcome && ['sync-network-unavailable', 'service-connection-failed'].includes(result.error))
+      projectPresetsNotice = 'Project creation was not confirmed. It may have completed on the service. Refresh available teams before retrying.';
+  } catch { if (projectPresetsAction === action && account === currentProjectPresetsAccount()) projectPresetsNotice = 'The template action could not finish. Refresh available teams or load templates, then retry.'; }
+  finally {
+    const finishing = projectPresetsAction === action; if (finishing) projectPresetsAction = null; renderProjectPresets();
+    if (finishing && focused && account === currentProjectPresetsAccount() && (document.activeElement === document.body || document.activeElement === focused)) {
+      const target = focused.isConnected && !focused.disabled && !focused.closest('[hidden]') ? focused : document.getElementById('project-presets-status'); target.focus({ preventScroll: true });
+    }
+  }
 }
 function currentAccountUpdatesAccount() {
   return serviceState?.account?.id && ['connected', 'offline'].includes(serviceState?.status)
@@ -1206,6 +1447,7 @@ function renderServicePanel() {
   syncBranchReviewAccount();
   syncShareLinksAccount();
   syncAccountUpdatesAccount();
+  syncProjectPresetsAccount();
 }
 function renderServiceState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
@@ -1708,7 +1950,7 @@ function renderAssetStorage(available) {
   }
   setServiceText(document.getElementById('asset-policy-saved'), policy
     ? `Saved classes: ${policy.syncClasses.length ? policy.syncClasses.map(assetClassLabel).join(', ') : 'none'}. Policy version ${policy.version}.`
-    : 'New projects begin with no media classes enabled. Refresh storage to load the current policy.');
+    : 'Projects created without a template start with no media classes enabled. Refresh storage to load the current policy.');
   setServiceText(document.getElementById('asset-policy-status'), draft?.requiresRefresh
     ? 'The saved policy changed. Refresh storage and review its classes before saving again.'
     : !policy ? 'Load the current policy before editing classes.'
@@ -2410,6 +2652,43 @@ document.getElementById('relink-action').addEventListener('click', async () => {
     notice.textContent = 'Could not relink history. Rescan the export and retry.';
   } finally { button.disabled = false; }
 });
+document.getElementById('project-presets-refresh').addEventListener('click', () => runProjectPresetsAction('refreshProjectPresets'));
+document.getElementById('project-presets-team').addEventListener('change', event => runProjectPresetsAction('selectPresetTeam', event.target.value || null));
+document.getElementById('project-presets-load').addEventListener('click', () => runProjectPresetsAction('loadProjectPresets'));
+document.getElementById('project-presets-select').addEventListener('change', event => runProjectPresetsAction('selectProjectPreset', event.target.value || null));
+document.getElementById('project-presets-new').addEventListener('click', () => runProjectPresetsAction('selectProjectPreset', null));
+for (const field of ['name', 'branches']) document.getElementById(`project-presets-${field}`).addEventListener('input', event => {
+  projectPresetDraft[field] = event.target.value; renderProjectPresets();
+});
+for (const value of ['original', 'proxy', 'audio', 'graphics', 'other']) document.getElementById(`project-presets-class-${value}`).addEventListener('change', event => {
+  projectPresetDraft.syncClasses = event.target.checked ? [...new Set([...projectPresetDraft.syncClasses, value])] : projectPresetDraft.syncClasses.filter(item => item !== value);
+  renderProjectPresets();
+});
+document.getElementById('project-presets-form').addEventListener('submit', event => {
+  event.preventDefault(); const draft = parsedProjectPresetDraft(); if (!draft || document.getElementById('project-presets-save').disabled) return;
+  runProjectPresetsAction('saveProjectPreset', { scopeId: projectPresetsState.scopeId, ...draft });
+});
+document.getElementById('project-presets-project-name').addEventListener('input', event => { projectPresetNameDraft = event.target.value; renderProjectPresets(); });
+document.getElementById('project-presets-project-form').addEventListener('submit', event => {
+  event.preventDefault(); if (document.getElementById('project-presets-preview').disabled) return;
+  runProjectPresetsAction('previewProjectFromPreset', { scopeId: projectPresetsState.scopeId, projectName: projectPresetNameDraft.trim() });
+});
+document.getElementById('project-presets-create').addEventListener('click', () => {
+  const plan = currentProjectPresetPlan(); if (!plan || document.getElementById('project-presets-create').disabled) return;
+  runProjectPresetsAction('createProjectFromPreset', { scopeId: projectPresetsState.scopeId, planId: plan.planId });
+});
+document.getElementById('project-presets-pending-retry').addEventListener('click', () => {
+  if (document.getElementById('project-presets-pending-retry').disabled) return;
+  runProjectPresetsAction('retryProjectPresetIntent', { scopeId: projectPresetsState.scopeId, pendingId: projectPresetsState.pending.id });
+});
+document.getElementById('project-presets-pending-reviewed').addEventListener('change', event => {
+  projectPresetPendingReviewed = event.target.checked; renderProjectPresets();
+});
+document.getElementById('project-presets-pending-dismiss').addEventListener('click', () => {
+  if (document.getElementById('project-presets-pending-dismiss').disabled) return;
+  runProjectPresetsAction('dismissProjectPresetIntent', { scopeId: projectPresetsState.scopeId, pendingId: projectPresetsState.pending.id, reviewed: true });
+});
+window.desktop?.onProjectPresetsState?.(state => renderProjectPresetsState(state));
 document.getElementById('account-updates-refresh').addEventListener('click', () => runAccountUpdatesAction('refreshAccountUpdates', { append: false, filter: accountUpdatesFilter }));
 document.getElementById('account-updates-more').addEventListener('click', () => runAccountUpdatesAction('refreshAccountUpdates', { append: true, filter: accountUpdatesFilter }));
 document.getElementById('account-updates-filter').addEventListener('change', event => {

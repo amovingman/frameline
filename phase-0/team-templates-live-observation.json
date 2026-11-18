@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18",
+  "scope": "One Mac; disposable real HTTPS metadata/asset host and verified TLS proxy, native Electron main/preload/OS vault, browser fixture using actual controller and private intent journal. No real user project or editor was changed.",
+  "native": {
+    "signedInAsDisposableTeamOwner": true,
+    "localEditorSelectionRequired": false,
+    "savedTemplate": {
+      "version": 1,
+      "additionalBranches": [
+        "finish",
+        "review"
+      ],
+      "syncClasses": [
+        "proxy"
+      ]
+    },
+    "reviewedCreation": {
+      "projectName": "Template recovery fixture",
+      "branches": [
+        "main",
+        "finish",
+        "review"
+      ],
+      "syncClasses": [
+        "proxy"
+      ]
+    },
+    "discardedOneSuccessfulCreateAcknowledgmentAfterActualCommit": true,
+    "pendingCreationDisplayedWithoutSuccessClaim": true,
+    "quitBeforeRecoveryExitCode": 0,
+    "pendingJournalEntriesAfterQuit": 1,
+    "templateChangedWhileDesktopClosed": {
+      "version": 2,
+      "additionalBranches": [
+        "finish"
+      ],
+      "syncClasses": [
+        "audio"
+      ]
+    },
+    "sessionAndPendingOriginalRequestRestored": true,
+    "retryBeforeCatalogReloadRecoveredSameProjectId": true,
+    "creationReceiptRetainedOriginalVersionBranchesAndClasses": true,
+    "pendingJournalEntriesAfterRetry": 0,
+    "noAutomaticBranchBindingOrMediaTransfer": true
+  },
+  "serviceAfterRetry": {
+    "combinedSchema": 7,
+    "projectCountIncludingSetup": 2,
+    "createdProjectCount": 1,
+    "creationReceiptCount": 1,
+    "saveReceiptCount": 2,
+    "droppedCreateAcknowledgments": 1,
+    "createdBranchHeads": {
+      "main": null,
+      "finish": null,
+      "review": null
+    },
+    "initialPolicy": {
+      "version": 1,
+      "syncClasses": [
+        "proxy"
+      ]
+    },
+    "effectivePolicy": {
+      "version": 1,
+      "syncClasses": [
+        "proxy"
+      ]
+    },
+    "currentTemplateVersion": 2,
+    "currentTemplateClasses": [
+      "audio"
+    ]
+  },
+  "browser": {
+    "teamViewerReadCurrentVersion2": true,
+    "saveDisabled": true,
+    "previewAndCreationDisabled": true,
+    "newTemplateDisabled": true,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflow": false,
+    "bundledPlexFontLoaded": true,
+    "panelScreenshotsReviewed": true,
+    "captureNote": "Screenshot clips use document coordinates (scrollY plus panel bounding rectangle); initial y=0 captures showed the page header and were replaced with actual panel captures."
+  },
+  "automatedEvidence": {
+    "fullSuite": {
+      "passed": 1270,
+      "failed": 0,
+      "skipped": 0
+    },
+    "securitySuite": {
+      "passed": 883,
+      "failed": 0,
+      "skipped": 0
+    },
+    "finalCopyFocused": {
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0
+    },
+    "fullAndSecurityPrecededFinalCopyOnlyFix": true,
+    "packageInputAndArchiveCheckPassed": true,
+    "coreAndDurableFocused": 13,
+    "desktopControllerAndRendererFocused": 54,
+    "httpsProof": {
+      "requests": 69,
+      "hostProcesses": 3,
+      "clientProcesses": 3,
+      "test": "tests/project-presets-https.test.js"
+    },
+    "actualTlsAssetProof": {
+      "test": "tests/preset-asset-defaults-https.test.js",
+      "selectedProxyBytesUploadedVerifiedAndDownloaded": true,
+      "excludedOriginalDenied": true,
+      "ownerVersion2OverrideSurvivedHostRestart": true
+    }
+  },
+  "design": {
+    "direction": "Incumbent graphite and Plex retained.",
+    "fixed": "Default media-policy help now distinguishes projects created without a template.",
+    "newSuppressions": 0,
+    "standing": "31 pre-existing palette advisories retained; no new design exception.",
+    "review": "Native save/preview/recovery controls and browser viewer panel remained readable and operable; three-width panel checks showed no horizontal overflow."
+  },
+  "cleanup": {
+    "nativeAndBrowserSignedOut": true,
+    "nativeCredentialEntries": 0,
+    "nativePendingIntentEntries": 0,
+    "browserCredentialEntries": 0,
+    "browserPendingIntentEntries": 0,
+    "ownedFixtureExitCode": 0,
+    "fixtureFilesRemovedOnlyAfterTerminalVerification": true,
+    "temporaryBrowserTabClosed": true,
+    "viewportReset": true,
+    "ordinarySignedOutAppRestoredWithoutTestCaOrExperimentFlag": true
+  },
+  "limits": "No public hosting, physical cross-device execution, editor-file template generation, media auto-upload, production retention cleanup, or machine-power-loss guarantee was established."
+}

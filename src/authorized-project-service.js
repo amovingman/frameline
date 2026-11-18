@@ -3,7 +3,7 @@ function fail(code) { const error = new Error(code); error.code = code; return e
 // Every operation resolves authorization before touching the history store.
 // Asset access is represented even though the current history store does not
 // persist media bytes.
-function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null, shareLinks = null, notifications = null,
+function createAuthorizedProjectService({ history, access, identity, rateLimit = () => ({}), audit = null, activity = null, comments = null, shareLinks = null, notifications = null, projectPresets = null,
   branchProtection = null }) {
   if (!history || !access || !identity || typeof identity.authenticate !== 'function') throw fail('authorized-service-invalid');
   function checked(context, projectId, resource, action, operation) {
@@ -19,7 +19,18 @@ function createAuthorizedProjectService({ history, access, identity, rateLimit =
       throw error;
     }
   }
+  function preset(context, operation, ...args) {
+    const actorId = identity.authenticate(context?.accessToken).userId;
+    rateLimit(`${actorId}:project-presets:${operation}`);
+    if (!projectPresets) throw fail('preset-unavailable');
+    return projectPresets[operation](actorId, ...args);
+  }
   return {
+    listPresetTeams: context => preset(context, 'listTeams'),
+    listProjectPresets: (context, teamId) => preset(context, 'list', teamId),
+    saveProjectPreset: (context, input) => preset(context, 'save', input),
+    previewProjectFromPreset: (context, input) => preset(context, 'preview', input),
+    createProjectFromPreset: (context, input) => preset(context, 'create', input),
     putManifest: (context, projectId, manifest) => checked(context, projectId, 'revision', 'write',
       () => history.putManifest(projectId, manifest)),
     createRevision: (context, input) => checked(context, input.projectId, 'revision', 'write', actorId => {

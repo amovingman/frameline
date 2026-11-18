@@ -78,6 +78,22 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.on('account-updates:state', handle);
     return () => ipcRenderer.removeListener('account-updates:state', handle);
   },
+  getProjectPresetsState: () => ipcRenderer.invoke('project-presets:state'),
+  refreshProjectPresets: () => ipcRenderer.invoke('project-presets:refresh'),
+  selectPresetTeam: teamId => ipcRenderer.invoke('project-presets:team', teamId),
+  loadProjectPresets: () => ipcRenderer.invoke('project-presets:load'),
+  selectProjectPreset: presetId => ipcRenderer.invoke('project-presets:select', presetId),
+  saveProjectPreset: input => ipcRenderer.invoke('project-presets:save', input),
+  previewProjectFromPreset: input => ipcRenderer.invoke('project-presets:preview', input),
+  createProjectFromPreset: input => ipcRenderer.invoke('project-presets:create', input),
+  retryProjectPresetIntent: input => ipcRenderer.invoke('project-presets:retry', input),
+  dismissProjectPresetIntent: input => ipcRenderer.invoke('project-presets:dismiss', input),
+  onProjectPresetsState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('project-presets:state', handle);
+    return () => ipcRenderer.removeListener('project-presets:state', handle);
+  },
   onResolveServiceState: listener => {
     if (typeof listener !== 'function') return () => {};
     const handle = (_event, state) => listener(state);
