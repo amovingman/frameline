@@ -8,6 +8,7 @@ const { acquireMetadataLock } = require('./metadata-lock');
 const { createSyncQueue } = require('./sync-queue');
 const { createRevisionCache } = require('./revision-cache');
 const { createAsyncRevisionSyncService } = require('./revision-sync-async');
+const { verifyServiceSyncBase, validateServiceSyncBaseEntry } = require('./service-sync-base');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, HASH = /^[a-f0-9]{64}$/;
 const validId = value => typeof value === 'string' && ID.test(value);
@@ -15,21 +16,27 @@ const safeName = value => typeof value === 'string' && value.trim() && value.len
 const ERRORS = new Set(['service-sign-in-required', 'service-project-required', 'service-project-unavailable', 'service-viewer-read-only',
   'service-selection-changed', 'service-sync-busy', 'service-binding-invalid', 'service-storage-unavailable', 'sync-network-unavailable',
   'sync-branch-conflict', 'sync-reconciliation-required', 'sync-history-invalid', 'sync-cancelled', 'forbidden', 'access-token-invalid',
-  'branch-not-found', 'project-not-found', 'revision-corrupt', 'revision-transfer-invalid', 'metadata-project-missing', 'sync-operation-unavailable']);
+  'branch-not-found', 'project-not-found', 'revision-corrupt', 'revision-transfer-invalid', 'metadata-project-missing', 'sync-operation-unavailable',
+  'sync-base-invalid', 'sync-base-version-changed', 'sync-base-regression', 'revision-head-changed', 'metadata-invalid',
+  'metadata-newer-version', 'metadata-storage-uncertain', 'metadata-unavailable', 'revision-cache-invalid',
+  'revision-cache-corrupt', 'revision-cache-miss', 'revision-cache-storage-unavailable', 'revision-cache-uncertain']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const safeError = error => ERRORS.has(error?.code) ? error.code : 'service-sync-failed';
 function exact(value, keys) { return value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join('|') === keys.slice().sort().join('|'); }
 
 // Each queue/cache is scoped to both identities and both branch destinations.
-// Nothing here imports fetched revisions, changes a sync base, or applies edits.
+// Shared-base observations have the same scope. They reference verified immutable
+// metadata; this controller never imports revisions or applies editor changes.
 function createDesktopRevisionSync({ directory, connection, store, getSelection, onChange = () => {} } = {}) {
   if (!path.isAbsolute(directory || '') || !connection || !store || typeof store.exportRevisions !== 'function'
+    || typeof store.getServiceSyncBase !== 'function' || typeof store.recordServiceSyncBase !== 'function'
     || typeof getSelection !== 'function' || typeof onChange !== 'function') throw fail('service-binding-invalid');
   const bindingDirectory = path.join(directory, 'bindings'), filename = path.join(bindingDirectory, 'bindings.json');
   let active = null, generation = 0, version = 0, closed = false, error = null, outcome = null;
   const scopes = new Map(), notifications = new Set(), controls = new Set();
-  let connectionKey = null;
+  const baseValidations = new Map(), unconfirmedBases = new Map();
+  let connectionKey = null, baseRevision = 0;
   function selection() {
     const value = getSelection();
     return value && validId(value.localProjectId) && validId(value.branch)
@@ -84,6 +91,7 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     if (!account) throw fail('service-sign-in-required');
     const binding = (await bindings()).bindings.find(item => matches(item, account, selected));
     if (!binding) throw fail('service-project-unavailable');
+    if (!account.projects?.some(item => item.id === binding.remoteProjectId && item.branches.includes(binding.remoteBranch))) throw fail('service-project-unavailable');
     const id = fingerprint({ originHash: binding.originHash, accountId: binding.accountId, localProjectId: binding.localProjectId,
       localBranch: binding.localBranch, remoteProjectId: binding.remoteProjectId, remoteBranch: binding.remoteBranch });
     if (!scopes.has(id)) scopes.set(id, { queue: createSyncQueue({ directory: path.join(directory, 'scopes', id, 'queue') }),
@@ -92,7 +100,51 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
   }
   function stillCurrent(ctx, epoch) {
     const selected = selection(), account = identity();
-    return !closed && epoch === generation && selected && account && matches(ctx.binding, account, selected);
+    return !closed && epoch === generation && selected && account && matches(ctx.binding, account, selected)
+      && account.projects?.some(item => item.id === ctx.binding.remoteProjectId && item.branches.includes(ctx.binding.remoteBranch));
+  }
+  function baseScope(ctx) {
+    return { originHash: ctx.binding.originHash, accountId: ctx.binding.accountId, localProjectId: ctx.selected.localProjectId,
+      localBranch: ctx.selected.branch, remoteProjectId: ctx.binding.remoteProjectId, remoteBranch: ctx.binding.remoteBranch };
+  }
+  const emptyBase = (status = 'none', code = null) => ({ status, localRevisionId: null, remoteRevisionId: null,
+    manifestId: null, verifiedAt: null, error: code });
+  const publicBase = entry => entry ? { status: 'recorded', localRevisionId: entry.localRevisionId,
+    remoteRevisionId: entry.remoteRevisionId, manifestId: entry.manifestId, verifiedAt: entry.verifiedAt, error: null } : emptyBase();
+  function matchesRecordedCandidate(checked, entry) {
+    return !!checked && fingerprint(checked) === fingerprint(Object.fromEntries(Object.keys(checked).map(key => [key, entry[key]])));
+  }
+  function proofPrefix(remote, remoteRevisionId) {
+    const end = remote.revisions.findIndex(item => item.id === remoteRevisionId);
+    if (end < 0) throw fail('sync-base-invalid');
+    return remote.revisions.slice(0, end + 1).map(item => ({ id: item.id, hash: fingerprint(item) }));
+  }
+  async function recordedBase(ctx, { force = false } = {}) {
+    const scope = baseScope(ctx), entry = await store.getServiceSyncBase(scope);
+    if (!entry) { baseValidations.delete(ctx.id); return { entry: null, dto: emptyBase() }; }
+    validateServiceSyncBaseEntry(entry);
+    if (fingerprint(entry.scope) !== fingerprint(scope)) throw fail('sync-base-invalid');
+    const key = fingerprint(entry), cached = baseValidations.get(ctx.id);
+    if (!force && cached?.key === key && cached.generation === generation) return cached.value;
+    const bundle = await store.exportRevisions(ctx.selected.localProjectId);
+    const remote = ctx.cache.readSnapshot(entry.proofSnapshotHash,
+      { projectId: scope.remoteProjectId, branch: scope.remoteBranch });
+    // Rebuild the original observation against immutable local record bytes.
+    // Later local revisions may exist without changing that historical proof.
+    const observedBundle = { ...bundle, branches: { ...bundle.branches, [scope.localBranch]: entry.observedLocalHead } };
+    const checked = verifyServiceSyncBase({ scope, bundle: observedBundle, remote, verifiedAt: entry.verifiedAt });
+    if (!matchesRecordedCandidate(checked, entry)) throw fail('sync-base-invalid');
+    const value = { entry, dto: publicBase(entry), prefix: proofPrefix(remote, entry.remoteRevisionId) };
+    baseValidations.set(ctx.id, { key, generation, value }); return value;
+  }
+  async function shownBase(ctx) {
+    const pending = unconfirmedBases.get(ctx.id);
+    if (pending) return { ...pending.prior, status: 'unconfirmed', error: pending.error };
+    let dto;
+    try { dto = (await recordedBase(ctx)).dto; }
+    catch (failure) { baseValidations.delete(ctx.id); dto = emptyBase('invalid', safeError(failure)); }
+    const latest = unconfirmedBases.get(ctx.id);
+    return latest ? { ...latest.prior, status: 'unconfirmed', error: latest.error } : dto;
   }
   function publicFetched(ctx) {
     try {
@@ -103,10 +155,17 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     } catch { return null; }
   }
   async function getState() {
-    const account = connection.getState(), selected = selection(); let ctx = null, readError = null;
+    const epoch = generation, baseEpoch = baseRevision;
+    let account = connection.getState(), selected = selection(), ctx = null, readError = null;
     try { if (selected && identity()) ctx = await context(); } catch (failure) { if (failure.code === 'service-binding-invalid') readError = failure.code; }
-    const currentOutcome = ctx && outcome?.scope === ctx.id ? outcome : null; let operations = [];
+    let operations = [], base = ctx ? await shownBase(ctx) : emptyBase();
     try { if (ctx) operations = ctx.queue.inspect(); } catch { readError = 'service-storage-unavailable'; }
+    // State reads may overlap account replacement or a project/branch change.
+    // Never return an old scope's receipt with the new account's display state.
+    if (!closed && (baseEpoch !== baseRevision || epoch !== generation)) return getState();
+    if (ctx && !stillCurrent(ctx, epoch)) { ctx = null; operations = []; base = emptyBase(); }
+    account = connection.getState(); selected = selection();
+    const currentOutcome = ctx && outcome?.scope === ctx.id ? outcome : null;
     return { ...account, version: ++version, busy: account.busy || !!active, error: error || readError || account.error,
       selection: selected, binding: ctx ? { remoteProjectId: ctx.binding.remoteProjectId, remoteProjectName: ctx.binding.remoteProjectName,
         remoteBranch: ctx.binding.remoteBranch, role: account.projects.find(item => item.id === ctx.binding.remoteProjectId)?.role || ctx.binding.role } : null,
@@ -114,13 +173,13 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
       sync: currentOutcome ? { status: currentOutcome.status, localHead: currentOutcome.localHead, remoteHead: currentOutcome.remoteHead,
         actions: currentOutcome.actions || [], error: currentOutcome.error || null }
         : { status: ctx ? account.status === 'offline' ? 'offline' : 'checking' : 'unbound', localHead: null, remoteHead: null, actions: [], error: null },
-      fetched: ctx ? publicFetched(ctx) : null };
+      fetched: ctx ? publicFetched(ctx) : null, base };
   }
   function notify() {
     if (closed) return;
     const task = getState().then(onChange).catch(() => {}).finally(() => notifications.delete(task)); notifications.add(task);
   }
-  function selectionChanged() { if (closed) return; generation++; active?.controller.abort(); error = null; outcome = null; notify(); }
+  function selectionChanged() { if (closed) return; generation++; active?.controller.abort(); error = null; outcome = null; baseValidations.clear(); notify(); }
   function connectionChanged() {
     const account = identity(), key = account ? fingerprint([account.origin, account.account.id]) : null;
     if (key !== connectionKey) { connectionKey = key; selectionChanged(); } else notify();
@@ -147,19 +206,75 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
       try {
         error = null; const ctx = await context();
         if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
-        const client = connection.getClient(), sync = createAsyncRevisionSyncService(remoteFor(ctx, client), { cache: ctx.cache });
-        await action(ctx, sync, current.controller.signal, epoch);
+        const client = connection.getClient(), sync = createAsyncRevisionSyncService(remoteFor(ctx, client));
+        await action(ctx, sync, current.controller.signal, epoch, client);
       } catch (failure) {
         if (epoch === generation && !closed) { error = safeError(failure); outcome = null; }
       } finally { if (active === current) active = null; notify(); }
     })();
     notify(); await current.promise; return getState();
   }
-  async function checkContext(ctx, sync, signal, epoch) {
+  async function checkContext(ctx, sync, signal, epoch, client, { publishFetched = false } = {}) {
+    let previous;
+    try { previous = await recordedBase(ctx, { force: true }); }
+    catch (failure) {
+      // A lost proof snapshot can be repaired from a fresh authenticated read.
+      // The saved identity/version still constrains CAS and history continuity.
+      const entry = await store.getServiceSyncBase(baseScope(ctx));
+      if (entry) validateServiceSyncBaseEntry(entry);
+      previous = { entry, dto: emptyBase('invalid', safeError(failure)) };
+    }
     const bundle = await store.exportRevisions(ctx.selected.localProjectId);
-    const result = await sync.divergence({ remoteProjectId: ctx.binding.remoteProjectId, branch: ctx.selected.branch, bundle }, { signal });
+    const result = await sync.fetch({ remoteProjectId: ctx.binding.remoteProjectId, branch: ctx.selected.branch }, { signal });
     if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
-    outcome = { scope: ctx.id, ...result }; return result;
+    const verifiedAt = Date.now(), scope = baseScope(ctx), proof = { ...result, branch: scope.remoteBranch, checkedAt: verifiedAt };
+    const candidate = verifyServiceSyncBase({ scope, bundle, remote: proof, verifiedAt });
+    const head = await client.getBranch(scope.remoteProjectId, scope.remoteBranch, { signal });
+    if (!head || head.projectId !== scope.remoteProjectId || head.branch !== scope.remoteBranch || head.revisionId !== result.head) throw fail('sync-branch-conflict');
+    if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
+    const localHead = bundle.branches[scope.localBranch], remoteHead = result.head;
+    const status = !localHead && !remoteHead || candidate?.localRevisionId === localHead && candidate?.remoteRevisionId === remoteHead ? 'in-sync'
+      : !remoteHead || candidate?.remoteRevisionId === remoteHead ? 'local-ahead'
+        : !localHead || candidate?.localRevisionId === localHead ? 'remote-ahead' : 'diverged';
+    const actions = { 'in-sync': [], 'local-ahead': ['push'], 'remote-ahead': ['fetch'], diverged: ['fetch', 'create-reconciliation-branch'] }[status];
+    // Fetched-history display remains an explicit action. Proof-only snapshots
+    // are immutable but do not move that display's mutable cache pointer.
+    if (publishFetched) ctx.cache.store({ ...result, checkedAt: verifiedAt });
+    if (previous.entry) {
+      if (!previous.prefix) {
+        // Reconstruct a missing witness only when fresh authenticated ancestry
+        // reproduces its recorded proof hash, including both observed heads.
+        const end = proof.revisions.findIndex(item => item.id === previous.entry.observedRemoteHead);
+        if (end < 0) throw fail('sync-base-invalid');
+        const revisions = proof.revisions.slice(0, end + 1), used = new Set(revisions.map(item => item.manifestId));
+        const reconstructed = { ...proof, head: previous.entry.observedRemoteHead, revisions,
+          manifests: proof.manifests.filter(item => used.has(item.id)), checkedAt: previous.entry.verifiedAt };
+        const observedBundle = { ...bundle, branches: { ...bundle.branches, [scope.localBranch]: previous.entry.observedLocalHead } };
+        const recovered = verifyServiceSyncBase({ scope, bundle: observedBundle, remote: reconstructed, verifiedAt: previous.entry.verifiedAt });
+        if (!matchesRecordedCandidate(recovered, previous.entry)) throw fail('sync-base-invalid');
+        previous.prefix = proofPrefix(reconstructed, previous.entry.remoteRevisionId);
+      }
+      const currentRecords = new Map(proof.revisions.map(item => [item.id, fingerprint(item)]));
+      if (previous.prefix.some(item => currentRecords.get(item.id) !== item.hash)) throw fail('sync-base-regression');
+    }
+    if (candidate) {
+      try {
+        const saved = ctx.cache.storeSnapshot(proof);
+        if (!stillCurrent(ctx, epoch) || signal.aborted) throw fail('service-selection-changed');
+        const entry = await store.recordServiceSyncBase({ scope, candidate, proofSnapshotHash: saved.snapshotHash,
+          expectedHeadId: localHead, expectedBaseVersion: previous.entry?.version || 0 });
+        if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
+        baseValidations.set(ctx.id, { key: fingerprint(entry), generation,
+          value: { entry, dto: publicBase(entry), prefix: proofPrefix(proof, entry.remoteRevisionId) } });
+        unconfirmedBases.delete(ctx.id); baseRevision++;
+      } catch (failure) {
+        if (stillCurrent(ctx, epoch)) { unconfirmedBases.set(ctx.id, { prior: previous.dto, error: safeError(failure) }); baseRevision++; }
+        throw failure;
+      }
+    } else unconfirmedBases.delete(ctx.id);
+    if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
+    outcome = { scope: ctx.id, status, localHead, remoteHead, actions };
+    return outcome;
   }
   async function bindAction({ remoteProjectId, remoteBranch } = {}) {
     if (active) { error = 'service-sync-busy'; return getState(); }
@@ -191,7 +306,7 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     return getState();
   }
   const check = () => run(checkContext);
-  const push = () => run(async (ctx, sync, signal, epoch) => {
+  const push = () => run(async (ctx, sync, signal, epoch, client) => {
     const project = ctx.account.projects.find(project => project.id === ctx.binding.remoteProjectId);
     if (ctx.account.connected && !project) throw fail('service-project-unavailable');
     const role = project?.role || ctx.binding.role;
@@ -200,24 +315,24 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     if (!bundle.branches[ctx.selected.branch]) throw fail('service-project-required');
     if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
     ctx.queue.enqueuePush({ remoteProjectId: ctx.binding.remoteProjectId, branch: ctx.selected.branch, bundle, authorId: ctx.account.account.id });
-    await processQueue(ctx, sync, signal, epoch);
+    await processQueue(ctx, sync, signal, epoch, client);
   });
-  async function processQueue(ctx, sync, signal, epoch) {
-    await ctx.queue.processAsync({ online: true, sync, signal, onProgress: notify });
+  async function processQueue(ctx, sync, signal, epoch, client) {
+    const guarded = { ...sync, push: async (input, options) => {
+      const operationSignal = options?.signal ? AbortSignal.any([signal, options.signal]) : signal;
+      await checkContext(ctx, sync, operationSignal, epoch, client);
+      return sync.push(input, { ...options, signal: operationSignal });
+    } };
+    await ctx.queue.processAsync({ online: true, sync: guarded, signal, onProgress: notify });
     if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
     const pending = ctx.queue.inspect();
     if (pending.length) throw fail(pending.find(item => item.lastError)?.lastError || 'sync-network-unavailable');
-    await checkContext(ctx, sync, signal, epoch);
+    await checkContext(ctx, sync, signal, epoch, client);
   }
-  const fetch = () => run(async (ctx, sync, signal, epoch) => {
-    const result = await sync.fetch({ remoteProjectId: ctx.binding.remoteProjectId, branch: ctx.selected.branch }, { signal });
-    if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
-    ctx.cache.store({ ...result, checkedAt: Date.now() });
-    await checkContext(ctx, sync, signal, epoch);
-  });
-  const retry = id => run(async (ctx, sync, signal, epoch) => {
+  const fetch = () => run((ctx, sync, signal, epoch, client) => checkContext(ctx, sync, signal, epoch, client, { publishFetched: true }));
+  const retry = id => run(async (ctx, sync, signal, epoch, client) => {
     const job = ctx.queue.inspect().find(item => item.id === id); if (!job) throw fail('sync-operation-unavailable');
-    if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch);
+    if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch, client);
   });
   async function cancelAction(id) {
     try {

@@ -21,7 +21,7 @@ test('project IDs survive restart and metadata stores no project paths', async (
   assert.equal(first.recovered, false);
   const saved = await fs.readFile(path.join(directory, 'metadata.json'), 'utf8');
   assert.doesNotMatch(saved, /private|editing|client-cut|fcpxml/);
-  assert.deepEqual(JSON.parse(saved).schemaVersion, 4);
+  assert.deepEqual(JSON.parse(saved).schemaVersion, 5);
   assert.equal(await fs.readFile(path.join(directory, 'metadata.json.bak'), 'utf8'), saved);
 }));
 
@@ -39,7 +39,7 @@ test('restores a damaged primary from backup and preserves the damaged file', as
 
 test('rejects a future schema version without overwriting it', async () => withStore(async directory => {
   const filePath = path.join(directory, 'metadata.json');
-  const newer = '{"schemaVersion":5,"projects":{}}';
+  const newer = '{"schemaVersion":6,"projects":{}}';
   await fs.writeFile(filePath, newer);
   await assert.rejects(createLocalMetadataStore(directory).getProjectId('/private/cut.fcpxml'), { code: 'metadata-newer-version' });
   assert.equal(await fs.readFile(filePath, 'utf8'), newer);
@@ -75,7 +75,7 @@ test('migrates v1 project IDs before storing immutable linked revisions', async 
   await fs.writeFile(path.join(directory, 'metadata.json'), JSON.stringify({ schemaVersion: 1, projects: { [fingerprint]: projectId } }));
   const store = createLocalMetadataStore(directory);
   assert.equal((await store.getProjectId(filePath)).id, projectId);
-  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 4);
+  assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'metadata.json'), 'utf8')).schemaVersion, 5);
 
   const manifest = await scanFcpXml(path.join(__dirname, '..', 'phase-0', 'resolve-xml-proof', 'sample.fcpxml'));
   const first = await store.saveRevision(projectId, manifest, 'First cut', null);

@@ -24,6 +24,7 @@ let serviceState = null;
 let serviceStateVersion = -1;
 let serviceActionBusy = false;
 let serviceActionNotice = '';
+let serviceBaseTransition = false;
 let serviceLocalSelectionKey = null;
 let serviceProjectChoice = '';
 let serviceBranchChoice = '';
@@ -389,6 +390,16 @@ function serviceErrorLabel(code) {
     'service-sync-busy': 'Another service action is still running. Wait for it to finish before trying again.',
     'service-binding-invalid': 'The saved service mapping could not be read. Keep the app data for recovery before trying again.',
     'service-storage-unavailable': 'Local service data could not be saved. Check disk space and file permissions, then retry.',
+    'sync-base-version-changed': 'The shared-base record changed during this check. Check history again for the current branch.',
+    'revision-head-changed': 'The local branch changed during this check. Check history again for the current branch.',
+    'sync-base-regression': 'The service history no longer retains the recorded lineage. Fetch history to inspect it before reconciling.',
+    'sync-base-invalid': 'Saved sharing evidence could not be verified. Check history to verify it with the service.',
+    'revision-cache-miss': 'Saved sharing evidence is unavailable. Check history to verify it with the service.',
+    'revision-cache-corrupt': 'Saved sharing evidence could not be verified. Check history to verify it with the service.',
+    'metadata-storage-uncertain': 'The local save is not confirmed. Restart the app, then check history again.',
+    'revision-cache-uncertain': 'The local save is not confirmed. Restart the app, then check history again.',
+    'metadata-unavailable': 'Local storage could not save sharing evidence. Check disk space and file permissions, then check history again.',
+    'revision-cache-storage-unavailable': 'Local storage could not save sharing evidence. Check disk space and file permissions, then check history again.',
     'sync-history-invalid': 'The fetched history could not be verified. Local revisions are unchanged. Contact the service administrator.',
     'credentials-invalid': 'The email or password was not accepted. Check your account details and sign in again.',
     'access-token-invalid': 'Your session has expired. Sign in again to continue.',
@@ -532,7 +543,7 @@ function renderServicePanel() {
   document.getElementById('service-unlink').title = 'Remove this local mapping. Service revisions stay on the service.';
   const sync = matching ? state?.sync : null;
   const syncLabels = { unbound: binding ? 'Check the linked branch heads before pushing.' : 'Link this local branch to a service project to check history.',
-    checking: busy ? 'Checking local and service branch heads…' : 'Check history to compare the local and service branch heads.', 'in-sync': 'Saved revision history matches the linked service branch.',
+    checking: busy ? 'Checking local and service branch heads…' : 'Check history to compare the local and service branch heads.', 'in-sync': 'Branch heads matched at last check.',
     'local-ahead': 'The local branch has revisions ready to push.', 'remote-ahead': 'The service branch has newer revisions. Fetch history to inspect them.',
     diverged: 'Both branches changed. Fetch history to inspect the revisions; reconciliation is not available.',
     offline: 'The service is unavailable. Check history when the connection returns.', error: serviceErrorLabel(sync?.error) };
@@ -551,6 +562,7 @@ function renderServicePanel() {
           : 'Check history after saving a revision. Push becomes available when the local branch is ahead.');
   renderFetchedServiceHistory(matching ? state?.fetched : null);
   renderSyncState(state);
+  renderServiceSharedBase(); refreshHistorySharingDisplay();
   syncProjectActivityContext(); renderProjectActivity();
 }
 function renderServiceState(state) {
@@ -567,15 +579,77 @@ async function refreshServiceState() {
 }
 async function runServiceAction(method, input) {
   if (serviceActionBusy || serviceState?.busy || typeof window.desktop?.[method] !== 'function') return;
-  serviceActionBusy = true; serviceActionNotice = ''; renderServicePanel();
+  serviceActionBusy = true; serviceActionNotice = '';
+  serviceBaseTransition = ['connectService', 'disconnectService', 'bindServiceProject', 'unlinkServiceProject'].includes(method);
+  renderServicePanel();
   try {
     renderServiceState(await window.desktop[method](input));
     if (method === 'fetchServiceRevisions' && serviceState?.fetched && serviceSelectionMatches()) document.getElementById('service-fetched-history').open = true;
   } catch { serviceActionNotice = 'The service action could not finish. Check your connection and try again.'; }
   finally {
     document.getElementById('service-password').value = '';
-    serviceActionBusy = false; renderServicePanel();
+    serviceActionBusy = false; serviceBaseTransition = false; renderServicePanel();
   }
+}
+
+function currentServiceBase() {
+  return !serviceBaseTransition && serviceSelectionMatches() && serviceState?.account && serviceState?.binding
+    && ['connected', 'offline'].includes(serviceState.status) ? serviceState.base : null;
+}
+function recordedServiceBase() {
+  const base = currentServiceBase();
+  return base && ['recorded', 'unconfirmed'].includes(base.status)
+    && typeof base.localRevisionId === 'string' && base.localRevisionId
+    && typeof base.remoteRevisionId === 'string' && base.remoteRevisionId
+    && typeof base.manifestId === 'string' && base.manifestId
+    && Number.isSafeInteger(base.verifiedAt) && base.verifiedAt >= 0 ? base : null;
+}
+function serviceBaseEvidenceKey() {
+  return JSON.stringify([currentProjectActivityContext(), serviceState?.status, serviceBaseTransition, currentServiceBase() || null]);
+}
+function revisionSharingLabel(revision) {
+  const base = recordedServiceBase();
+  if (!base) return { label: 'Local revision', kind: 'local-only' };
+  if (revision.id === base.localRevisionId) return { label: 'Last shared base', kind: 'shared-base' };
+  const records = new Map((currentAppState?.revisions || []).map(item => [item.id, item]));
+  const visited = new Set(); let parent = revision.parentRevisionId;
+  while (parent && !visited.has(parent)) {
+    if (parent === base.localRevisionId) return { label: 'After shared base', kind: 'after-shared-base' };
+    visited.add(parent); parent = records.get(parent)?.parentRevisionId;
+  }
+  return { label: 'Local revision', kind: 'local-only' };
+}
+function renderServiceSharedBase() {
+  const base = currentServiceBase(), recorded = recordedServiceBase();
+  const panel = document.getElementById('service-shared-base');
+  panel.hidden = serviceBaseTransition || !serviceSelectionMatches() || !serviceState?.account || !serviceState?.binding
+    || !['connected', 'offline'].includes(serviceState?.status);
+  const labels = { none: 'No shared base has been recorded for this linked account and branch. Check history to verify a match.',
+    recorded: 'Recorded after a verified service exchange.',
+    invalid: 'The saved shared-base record could not be verified. Check history to verify the linked history again.',
+    unconfirmed: recorded ? 'The latest shared-base record is not confirmed saved. Showing the prior recorded base. Check history to retry.'
+      : 'The shared-base record is not confirmed saved. Check history to retry.' };
+  setServiceText(document.getElementById('service-base-status'), `${labels[base?.status] || labels.none}${serviceState?.status === 'offline' ? ' Current service state is unchecked while offline.' : ''}`);
+  document.getElementById('service-base-facts').hidden = !recorded;
+  for (const [id, value] of [['local', recorded?.localRevisionId], ['remote', recorded?.remoteRevisionId],
+    ['manifest', recorded?.manifestId], ['time', recorded ? serviceDate(recorded.verifiedAt) : null]]) {
+    setServiceText(document.getElementById(`service-base-${id}`), value || '');
+  }
+}
+function refreshHistorySharingDisplay() {
+  if (!currentAppState?.selectedProject) return;
+  const evidenceKey = serviceBaseEvidenceKey();
+  if (historyWindow && historyWindow.evidenceKey !== evidenceKey) {
+    for (const row of document.querySelectorAll('#history-list [data-revision-index]')) {
+      const revision = displayedRevisions[Number(row.dataset.revisionIndex)], label = row.querySelector('.revision-sync-state');
+      if (!revision || !label) continue;
+      const sharing = revisionSharingLabel(revision); setServiceText(label, sharing.label);
+      label.className = `revision-sync-state ${sharing.kind}`;
+    }
+    historyWindow.evidenceKey = evidenceKey;
+  }
+  const detail = document.getElementById('revision-detail-sharing');
+  if (detail && currentAppState.selectedRevision) setServiceText(detail, revisionSharingLabel(currentAppState.selectedRevision).label);
 }
 
 function currentProjectActivityContext() {
@@ -1144,8 +1218,9 @@ function drawHistoryWindow() {
     return;
   }
   const { start, end, beforePx, afterPx } = window.visibleRange(revisions.length, list.scrollTop, list.clientHeight || 600, 96);
-  if (historyWindow?.start === start && historyWindow.end === end) return;
-  historyWindow = { start, end };
+  const evidenceKey = serviceBaseEvidenceKey();
+  if (historyWindow?.start === start && historyWindow.end === end && historyWindow.evidenceKey === evidenceKey) return;
+  historyWindow = { start, end, evidenceKey };
   list.replaceChildren();
   const before = make('div', 'history-spacer'); before.style.height = `${beforePx}px`; before.setAttribute('aria-hidden', 'true'); list.append(before);
   revisions.slice(start, end).forEach((revision, offset) => {
@@ -1161,10 +1236,10 @@ function drawHistoryWindow() {
       make('small', '', `${revision.author} · ${revision.branch}`),
       make('small', 'history-reference', `${revision.manifestVersion === 2 ? 'Read-only scan' : 'Scan'} · ${revision.contentHash.slice(0, 10)} · ${revision.id.slice(0, 8)}`));
     const state = make('div', 'history-state');
-    const syncLabels = { synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local revision' };
+    const sharing = revisionSharingLabel(revision);
     const saved = make('time', '', new Date(revision.createdAt).toLocaleString());
     saved.dateTime = revision.createdAt;
-    state.append(make('strong', `revision-sync-state ${revision.syncState}`, syncLabels[revision.syncState] || 'Local revision'), saved);
+    state.append(make('strong', `revision-sync-state ${sharing.kind}`, sharing.label), saved);
     row.append(make('span', 'history-id', String(revisions.length - index).padStart(2, '0')), main, state);
     list.append(row);
   });
@@ -1228,14 +1303,17 @@ function renderRevisionDetail(revision, error, comparison = null, comparisonErro
     ['Saved', new Date(revision.createdAt).toLocaleString()],
     ['Author', revision.author],
     ['Branch', revision.branch || 'Unknown'],
-    ['Sync state', ({ synced: 'Synced', 'local-ahead': 'Local ahead', 'local-only': 'Local revision' })[revision.syncState] || 'Local revision'],
+    ['Sharing record', revisionSharingLabel(revision).label],
     ['Sequence', manifest.sequence.name],
     ['Timing', `${manifest.sequence.durationFrames} frames · ${manifest.sequence.frameDuration} per frame`],
     ['Parent', revision.parentRevisionId || 'First revision'],
     ['Source hash', revision.contentHash],
     ['Editor version', revision.editorVersion || 'Unknown']
   ];
-  facts.forEach(([key, value]) => details.append(make('dt', '', key), make('dd', '', value)));
+  facts.forEach(([key, value]) => {
+    const fact = make('dd', '', value); if (key === 'Sharing record') fact.id = 'revision-detail-sharing';
+    details.append(make('dt', '', key), fact);
+  });
   body.append(details, make('h4', '', `Picture clips (${manifest.clips.length})`));
   const clips = make('ul', 'revision-detail-list');
   manifest.clips.forEach(clip => clips.append(make('li', '', `${clip.name} · ${clip.offsetFrames}f → ${clip.offsetFrames + clip.durationFrames}f · source in ${clip.sourceInFrames}f`)));

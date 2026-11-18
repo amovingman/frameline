@@ -1,6 +1,9 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
+const { constants } = require('node:fs');
+const { fingerprint: stableFingerprint } = require('./project-api-contracts');
+const { validateServiceSyncBaseScope, validateServiceSyncBaseCandidate, validateServiceSyncBaseEntry } = require('./service-sync-base');
 const { validateRevisionManifest } = require('./revision-manifest');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { validateTransferBundle, verifyRecord } = require('./revision-transfer');
@@ -19,9 +22,9 @@ class MetadataError extends Error {
 }
 
 function validateMetadata(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || ![1, 2, 3, 4].includes(value.schemaVersion)
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![1, 2, 3, 4, 5].includes(value.schemaVersion)
     || !value.projects || typeof value.projects !== 'object' || Array.isArray(value.projects)) throw new MetadataError('metadata-invalid');
-  const projectIds = new Set();
+  const projectIds = new Set(); let serviceBaseCount = 0;
   for (const [fingerprint, project] of Object.entries(value.projects)) {
     if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new MetadataError('metadata-invalid');
     if (value.schemaVersion === 1) {
@@ -33,6 +36,7 @@ function validateMetadata(value) {
         || (revision.recordHash !== undefined && !/^[a-f0-9]{64}$/.test(revision.recordHash)))) {
       throw new MetadataError('metadata-invalid');
     }
+    if (value.schemaVersion < 5 && project?.serviceSyncBases !== undefined) throw new MetadataError('metadata-invalid');
     if (value.schemaVersion >= 3) {
       if (project.sourceKind !== undefined && !['export', 'resolve-api'].includes(project.sourceKind)) throw new MetadataError('metadata-invalid');
       if (projectKind(project) === 'resolve-api') {
@@ -66,7 +70,7 @@ function validateMetadata(value) {
         || !Object.hasOwn(project.branches, 'main') || !Object.hasOwn(project.branches, project.currentBranch)
         || Object.entries(project.branches).some(([name, headId]) => !branchNamePattern.test(name)
           || (headId !== null && !project.revisions.some(revision => revision.id === headId)))) throw new MetadataError('metadata-invalid');
-      if (value.schemaVersion === 4) {
+      if (value.schemaVersion >= 4) {
         if (!project.syncBases || typeof project.syncBases !== 'object' || Array.isArray(project.syncBases)
           || Object.keys(project.syncBases).length !== Object.keys(project.branches).length) throw new MetadataError('metadata-invalid');
         for (const [name, headId] of Object.entries(project.branches)) {
@@ -79,6 +83,20 @@ function validateMetadata(value) {
           }
         }
       }
+      if (value.schemaVersion === 5) {
+        if (!Array.isArray(project.serviceSyncBases) || (serviceBaseCount += project.serviceSyncBases.length) > 10000) throw new MetadataError('metadata-invalid');
+        const scopes = new Set();
+        const ancestor = (base, head) => { let current = head; while (current && current !== base) current = byId.get(current).parentRevisionId; return current === base; };
+        for (const item of project.serviceSyncBases) {
+          try { validateServiceSyncBaseEntry(item); } catch { throw new MetadataError('metadata-invalid'); }
+          const key = stableFingerprint(item.scope);
+          if (scopes.has(key) || item.scope.localProjectId !== project.id || !Object.hasOwn(project.branches, item.scope.localBranch)
+            || !byId.has(item.localRevisionId) || !byId.has(item.observedLocalHead)
+            || !ancestor(item.observedLocalHead, project.branches[item.scope.localBranch]) || !ancestor(item.localRevisionId, item.observedLocalHead)
+            || byId.get(item.localRevisionId).recordHash !== undefined && byId.get(item.localRevisionId).recordHash !== item.recordHash) throw new MetadataError('metadata-invalid');
+          scopes.add(key);
+        }
+      }
     }
   }
   return value;
@@ -88,12 +106,14 @@ function migrateMetadata(value) {
   const projects = Object.fromEntries(Object.entries(value.projects).map(([fingerprint, project]) => {
     const entry = value.schemaVersion === 1 ? { id: project, revisions: [] } : project;
     const branched = value.schemaVersion >= 3 ? entry : { ...entry, branches: { main: entry.revisions.at(-1)?.id || null }, currentBranch: 'main' };
-    return [fingerprint, { ...branched, syncBases: Object.fromEntries(Object.keys(branched.branches).map(name => [name, null])) }];
+    return [fingerprint, { ...branched, syncBases: value.schemaVersion >= 4 ? branched.syncBases
+      : Object.fromEntries(Object.keys(branched.branches).map(name => [name, null])), serviceSyncBases: [] }];
   }));
-  return { schemaVersion: 4, projects };
+  return { schemaVersion: 5, projects };
 }
 
-async function readMetadata(filePath) {
+async function readMetadataFile(filePath, storage = fs) {
+  const fs = storage;
   let content;
   try { content = await fs.readFile(filePath, 'utf8'); }
   catch (error) {
@@ -103,11 +123,15 @@ async function readMetadata(filePath) {
   let value;
   try { value = JSON.parse(content); }
   catch { throw new MetadataError('metadata-invalid'); }
-  if (value?.schemaVersion > 4) throw new MetadataError('metadata-newer-version');
+  if (value?.schemaVersion > 5) throw new MetadataError('metadata-newer-version');
   return validateMetadata(value);
 }
 
-async function writeMetadata(directory, value, backupExisting = true) {
+async function writeMetadataFile(directory, value, backupExisting = true, storage = fs, onUncertain = () => {}) {
+  const fs = storage;
+  let replacing = false;
+  async function syncDirectory() { const handle = await fs.open(directory, 'r'); try { await handle.sync(); } finally { await handle.close(); } }
+  async function copySynced(from, to) { await fs.copyFile(from, to); const handle = await fs.open(to, 'r'); try { await handle.sync(); } finally { await handle.close(); } }
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const filePath = path.join(directory, FILE_NAME);
   const tempPath = path.join(directory, `${FILE_NAME}.${randomUUID()}.tmp`);
@@ -121,29 +145,36 @@ async function writeMetadata(directory, value, backupExisting = true) {
     } finally { await handle.close(); }
     if (backupExisting) {
       try {
-        await fs.copyFile(filePath, backupTempPath);
+        await copySynced(filePath, backupTempPath);
         await fs.rename(backupTempPath, backupPath);
+        await syncDirectory();
       }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    await fs.rename(tempPath, filePath);
+    replacing = true; await fs.rename(tempPath, filePath); await syncDirectory();
     if (backupExisting && !(await fs.stat(backupPath).catch(() => null))) {
-      await fs.copyFile(filePath, backupTempPath);
+      await copySynced(filePath, backupTempPath);
       await fs.rename(backupTempPath, backupPath);
+      await syncDirectory();
     }
   } catch (error) {
     await fs.rm(tempPath, { force: true }).catch(() => {});
     await fs.rm(backupTempPath, { force: true }).catch(() => {});
+    if (replacing) { onUncertain(); throw new MetadataError('metadata-storage-uncertain'); }
     if (error instanceof MetadataError) throw error;
     throw new MetadataError('metadata-unavailable');
   }
 }
 
-function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
-  let pending = Promise.resolve();
+function createLocalMetadataStore(directory, { lockTimeoutMs = 5000, storage = fs } = {}) {
+  const fs = storage;
+  let pending = Promise.resolve(), uncertain = false;
+  const readMetadata = filename => readMetadataFile(filename, fs);
+  const writeMetadata = (directory, value, backupExisting = true) => writeMetadataFile(directory, value, backupExisting, fs, () => { uncertain = true; });
 
   function transact(action) {
     const operation = pending.then(async () => {
+      if (uncertain) throw new MetadataError('metadata-storage-uncertain');
       const release = await acquireMetadataLock(directory, lockTimeoutMs);
       try {
         let recovered = false;
@@ -167,8 +198,8 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
             metadata = backup;
           }
         }
-        metadata ||= { schemaVersion: 4, projects: {} };
-        if (metadata.schemaVersion !== 4) {
+        metadata ||= { schemaVersion: 5, projects: {} };
+        if (metadata.schemaVersion !== 5) {
           metadata = migrateMetadata(metadata);
           await writeMetadata(directory, metadata);
         }
@@ -185,7 +216,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     const fingerprint = createHash('sha256').update(path.resolve(filePath)).digest('hex');
     return transact(async (metadata, recovered) => {
       if (!metadata.projects[fingerprint]) {
-        metadata.projects[fingerprint] = { id: randomUUID(), sourceKind: 'export', revisions: [], branches: { main: null }, currentBranch: 'main', syncBases: { main: null } };
+        metadata.projects[fingerprint] = { id: randomUUID(), sourceKind: 'export', revisions: [], branches: { main: null }, currentBranch: 'main', syncBases: { main: null }, serviceSyncBases: [] };
         await writeMetadata(directory, metadata);
       }
       if (projectKind(metadata.projects[fingerprint]) !== 'export') throw new MetadataError('metadata-invalid');
@@ -207,7 +238,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
         metadata.projects[fingerprint] = { id: randomUUID(), sourceKind: 'resolve-api', editorProjectId: resolveProjectId,
           ...(displayName ? { displayName } : {}),
           revisions: [], branches: { main: null },
-          currentBranch: 'main', syncBases: { main: null } };
+          currentBranch: 'main', syncBases: { main: null }, serviceSyncBases: [] };
         await writeMetadata(directory, metadata);
       }
       if (projectKind(metadata.projects[fingerprint]) !== 'resolve-api'
@@ -372,6 +403,57 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
+  async function getServiceSyncBase(input) {
+    const scope = validateServiceSyncBaseScope(input);
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === scope.localProjectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      if (!Object.hasOwn(project.branches, scope.localBranch)) throw new MetadataError('branch-not-found');
+      const entry = project.serviceSyncBases.find(item => stableFingerprint(item.scope) === stableFingerprint(scope));
+      return entry ? structuredClone(entry) : null;
+    });
+  }
+
+  async function recordServiceSyncBase({ scope: inputScope, candidate: inputCandidate, proofSnapshotHash, expectedHeadId, expectedBaseVersion } = {}) {
+    const scope = validateServiceSyncBaseScope(inputScope), candidate = validateServiceSyncBaseCandidate(inputCandidate);
+    if (typeof proofSnapshotHash !== 'string' || !/^[a-f0-9]{64}$/.test(proofSnapshotHash)
+      || !Number.isSafeInteger(expectedBaseVersion) || expectedBaseVersion < 0 || expectedHeadId !== candidate.observedLocalHead) throw new MetadataError('sync-base-invalid');
+    return transact(async metadata => {
+      const project = Object.values(metadata.projects).find(item => item.id === scope.localProjectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      if (!Object.hasOwn(project.branches, scope.localBranch)) throw new MetadataError('branch-not-found');
+      const head = project.branches[scope.localBranch]; if (head !== expectedHeadId) throw new MetadataError('revision-head-changed');
+      const byId = new Map(project.revisions.map(item => [item.id, item]));
+      const ancestor = (base, from) => { let current = from; while (current && current !== base) current = byId.get(current)?.parentRevisionId; return current === base; };
+      if (!ancestor(candidate.localRevisionId, head)) throw new MetadataError('sync-base-invalid');
+      const index = project.serviceSyncBases.findIndex(item => stableFingerprint(item.scope) === stableFingerprint(scope));
+      const previous = index < 0 ? null : project.serviceSyncBases[index];
+      if ((previous?.version || 0) !== expectedBaseVersion) throw new MetadataError('sync-base-version-changed');
+      if (previous && !ancestor(previous.localRevisionId, candidate.localRevisionId)) throw new MetadataError('sync-base-regression');
+      if (previous?.localRevisionId === candidate.localRevisionId && (previous.remoteRevisionId !== candidate.remoteRevisionId
+        || previous.manifestId !== candidate.manifestId || previous.recordHash !== candidate.recordHash)) throw new MetadataError('sync-base-invalid');
+      const summary = byId.get(candidate.localRevisionId); let handle;
+      try {
+        handle = await fs.open(path.join(directory, 'revisions', scope.localProjectId, `${candidate.localRevisionId}.json`),
+          constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
+        const stat = await handle.stat();
+        if (!stat.isFile() || stat.size < 2 || stat.size > 64 * 1024 * 1024) throw new MetadataError('revision-corrupt');
+        const bytes = Buffer.alloc(stat.size); let offset = 0;
+        while (offset < bytes.length) { const result = await handle.read(bytes, offset, bytes.length - offset, offset); if (!result.bytesRead) throw new MetadataError('revision-corrupt'); offset += result.bytesRead; }
+        const after = await handle.stat();
+        if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs) throw new MetadataError('revision-corrupt');
+        const record = verifyRecord(summary, bytes.toString('utf8'));
+        if (createHash('sha256').update(bytes).digest('hex') !== candidate.recordHash
+          || `sha256:${stableFingerprint(record.manifest)}` !== candidate.manifestId) throw new MetadataError('sync-base-invalid');
+      } catch (error) { throw new MetadataError(['sync-base-invalid', 'revision-corrupt'].includes(error.code) ? error.code : 'revision-corrupt'); }
+      finally { await handle?.close(); }
+      if (previous?.version === Number.MAX_SAFE_INTEGER || index < 0 && Object.values(metadata.projects).reduce((sum, item) => sum + item.serviceSyncBases.length, 0) >= 10000) throw new MetadataError('sync-base-invalid');
+      const entry = validateServiceSyncBaseEntry({ version: (previous?.version || 0) + 1, scope, ...candidate, proofSnapshotHash });
+      if (index < 0) project.serviceSyncBases.push(entry); else project.serviceSyncBases[index] = entry;
+      validateMetadata(metadata); await writeMetadata(directory, metadata); return structuredClone(entry);
+    });
+  }
+
   function saveRevision(projectId, manifest, message, expectedHeadId = null, branchName = 'main') {
     return transact(async metadata => {
       if (typeof message !== 'string' || !message.trim() || message.length > 120
@@ -501,7 +583,8 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000 } = {}) {
     });
   }
 
-  return { getProjectId, getResolveProjectId, listResolveProjects, getResolveRevisionGraph, listRevisions, getBranchState, getSyncBase, recordSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
+  return { getProjectId, getResolveProjectId, listResolveProjects, getResolveRevisionGraph, listRevisions, getBranchState, getSyncBase, recordSyncBase,
+    getServiceSyncBase, recordServiceSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

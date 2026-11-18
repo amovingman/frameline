@@ -9,7 +9,7 @@ The History view now connects to an existing HTTPS Frameline service account, di
 1. In History → Service history, enter the root HTTPS service URL supplied by the service administrator, account email, and password. URLs cannot include a path, query, fragment, or embedded credentials. The desktop has no HTTP bypass.
 2. Select a local FCPXML export and local branch. Save a scan revision before pushing. Choose an accessible service project and one of its existing branches, then choose **Link selected branch**.
 3. Use **Check history** to compare the saved local history with the linked service branch. **Push revisions** is available for a ready saved branch that is locally ahead and has editor or owner access. Viewers can fetch history; the server still rechecks authorization on every request.
-4. Use **Fetch history** to verify and cache remote revisions and manifests. The fetched-history section shows the fetch time and read-only revision rows. It receives at most the latest 100 revision summaries and displays them in batches of 20. Fetching does not import revisions, change a local branch or synced base, pull edits, or apply anything to an editor.
+4. Use **Fetch history** to verify and cache remote revisions and manifests. The fetched-history section shows the fetch time and read-only revision rows. It receives at most the latest 100 revision summaries and displays them in batches of 20. Fetch can record a verified service-scoped shared ancestor; it does not import revisions, move a local branch, pull edits, or apply anything to an editor.
 
 The nearby Local invitations panel remains a local foundation; it does not provision service membership or send invitations. Account creation, project provisioning, password recovery delivery, and production hosting must be supplied separately.
 
@@ -29,9 +29,15 @@ Linking is an explicit local mapping. Its identity includes the service origin, 
 
 Push stores a durable exact-input intent and sends only the selected branch's saved revision chain and manifests. Retry uses stable idempotency keys and expected-head compare-and-swap. A concurrent remote update is preserved and requires fetch/reconciliation; this desktop does not implement reconciliation. Queued pushes expose progress, retry, and cancel controls. Cancellation cannot retract a remote write that has already committed. Account or selection changes abort active work and suppress stale results.
 
-Fetched metadata is integrity checked, scoped, and stored locally with a fetch receipt timestamp. Cached rows describe the last successful fetch, not a live view of the service. Neither that cache nor the push queue contains media bytes or credentials. Local revision rows use **Local revision** for their local-only state; service branch comparison is reported separately. This integration does not write a remote synced base into local history.
+Fetched metadata is integrity checked, scoped, and stored locally with a fetch receipt timestamp. Cached rows describe the last successful fetch, not a live view of the service. Neither that cache nor the push queue contains media bytes or credentials. Service branch comparison is reported separately from historical shared-base evidence.
 
 The service stores manifest records within each project while preserving canonical content IDs. Identical saved manifest bytes can be pushed independently to two projects; sharing an ID does not grant access to another project's record. Valid legacy history is migrated to this scoped representation without changing revision IDs or branch heads.
+
+## Shared-base observations
+
+Check, successful Push/Retry, and Fetch can now record a [service-scoped shared base](SERVICE_SHARED_BASES.md) after full saved-local/remote ancestry verification. The service row shows historical local/remote IDs and verification time; History rows and open details label the matching revision **Last shared base** and descendants **After shared base**. Sign-out and binding changes remove the old scope's display. The receipt is separate from legacy unscoped bases, which migration preserves without promotion.
+
+Check/Push proof reads save immutable evidence without advancing the explicit fetched-history display. A lost acknowledgment or failed base save retains prior confirmed evidence and requires explicit Check/Retry repair. Restart checks saved witnesses and original local bytes; ordinary in-session display may reuse a historical validation until the scope/generation/receipt changes. Public state omits proof hashes, origin hashes, private paths, and publisher-only receipt fields. These observations do not verify current source/editor edits, media, or apply readiness.
 
 ## Project activity
 
@@ -49,4 +55,6 @@ The final suite passed all 539 tests with no failures or skips, and packaging va
 
 Injected-vault tests establish connection control flow; the native save/restart check is separate OS-backed evidence from this Mac. It used an unsigned development app and does not establish the credential-access policy of a signed/notarized release. Local test certificates do not configure production trust or hosting.
 
-Production deployment/regions, service operations, self-service account provisioning and recovery delivery, signed release behavior, remote synced-base integration, revision import/reconciliation, revision-selected media integration, and safe project apply remain open. The earlier [transport proof](REVISION_NETWORK_SYNC.md) and [encrypted service restart proof](DURABLE_COLLABORATION_SERVICE.md) remain useful evidence for their own boundaries.
+The later shared-base milestone passed all 717 tests, packaging, a 114-request proof across three hosts and three controller processes, and browser row/detail/sign-out/rebinding/viewer checks. The separate [native restart and schema-4-to-5 migration checks](phase-0/service-shared-base-desktop-observation.json) passed, preserving existing project rows and restoring the exact historical base IDs/time with current heads unchecked; the expanded security suite passed 273 tests. See its [recorded scope and limits](SERVICE_SHARED_BASES.md).
+
+Production deployment/regions, service operations, self-service account provisioning and recovery delivery, signed release behavior, revision import/reconciliation, revision-selected media integration, and safe project apply remain open. The earlier [transport proof](REVISION_NETWORK_SYNC.md) and [encrypted service restart proof](DURABLE_COLLABORATION_SERVICE.md) remain useful evidence for their own boundaries.

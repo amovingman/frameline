@@ -8,6 +8,7 @@ const { createHash } = require('node:crypto');
 const { createDesktopRevisionSync } = require('../src/desktop-revision-sync');
 const { createLocalMetadataStore } = require('../src/local-metadata');
 const { createCloudHistoryStore } = require('../src/cloud-history-store');
+const { fingerprint } = require('../src/project-api-contracts');
 
 const error = code => Object.assign(new Error('Bearer fixture-secret /private/fixture-location'), { code });
 const manifest = index => ({ schemaVersion: 2, adapter: 'fcpxml', readOnly: true, identityStatus: 'unresolved',
@@ -29,13 +30,13 @@ async function fixture(t) {
   await store.switchBranch(localId, 'main');
   const otherLocalId = (await store.getProjectId('/private/fixture-location/other.fcpxml')).id;
   await store.saveRevision(otherLocalId, manifest(3), 'Other fixture cut');
-  const history = createCloudHistoryStore(); history.createProject({ projectId: 'remote-film', name: 'Remote fixture film' });
+  let history = createCloudHistoryStore(); history.createProject({ projectId: 'remote-film', name: 'Remote fixture film' });
   history.createBranch('remote-film', 'review');
   let selected = { localProjectId: localId, branch: 'main' };
   let state = { version: 1, status: 'connected', connected: true, busy: false,
     origin: 'https://fixture-service.example.test', account: { id: 'account-owner', email: 'owner@example.test' },
     projects: [{ id: 'remote-film', name: 'Remote fixture film', role: 'owner', branches: ['main', 'review'] }], error: null };
-  let networkFailure = false, hook = null;
+  let networkFailure = false, hook = null, replyHook = null;
   const calls = [], events = [], controllers = [];
   const connection = {
     getState: () => structuredClone(state),
@@ -52,7 +53,8 @@ async function fixture(t) {
         const role = state.projects.find(project => project.id === 'remote-film')?.role;
         if (!role || ['putManifest', 'createRevision', 'compareAndSwapBranch'].includes(method) && role === 'viewer') throw error('forbidden');
         if (method === 'createRevision') args[0] = { ...args[0], authorId: actor };
-        return history[method](...args);
+        const result = history[method](...args);
+        return replyHook ? replyHook(method, result, args) : result;
       }]));
     }
   };
@@ -71,6 +73,7 @@ async function fixture(t) {
     changeState(patch) { state = { ...state, ...structuredClone(patch) }; },
     select(value) { selected = structuredClone(value); },
     offline(value) { networkFailure = value; },
+    reply(value) { replyHook = value; }, replaceHistory(value) { history = value; },
     holdNext({ ignoreAbort = false } = {}) {
       let release, entered;
       const ready = new Promise(resolve => { entered = resolve; });
@@ -94,7 +97,7 @@ test('desktop binding pushes verified local metadata and persists a bounded safe
   const f = await fixture(t); let controller = f.create();
   const linked = await bind(controller);
   assert.equal(linked.binding.remoteBranch, 'main'); assert.equal(linked.sync.status, 'local-ahead');
-  const pushed = await controller.push(); assert.equal(pushed.sync.status, 'in-sync'); assert.deepEqual(pushed.operations, []);
+  const pushed = await controller.push(); assert.equal(pushed.error, null); assert.equal(pushed.sync.status, 'in-sync'); assert.deepEqual(pushed.operations, []);
   const before = await f.store.exportRevisions(f.localId), base = await f.store.getSyncBase(f.localId, 'main');
   const fetched = await controller.fetch();
   assert.equal(fetched.fetched.total, 2); assert.equal(fetched.fetched.shown, 2);
@@ -277,4 +280,97 @@ test('cancel, unlink and dispose abort active work while preserving terminal sta
   assert.equal(f.events.length, count);
   for (const event of f.events) safeState(event, f.directory);
   controller = f.create(); assert.equal((await controller.getState()).operations.length, 0);
+});
+
+function sharedScope(f, remoteBranch = 'main', localBranch = 'main') {
+  return { originHash: fingerprint(f.state().origin), accountId: f.state().account.id, localProjectId: f.localId,
+    localBranch, remoteProjectId: 'remote-film', remoteBranch };
+}
+test('verified sharing records a scoped base and immutable proof without populating explicit fetched history', async t => {
+  const f = await fixture(t); let controller = f.create(); await bind(controller);
+  assert.equal((await controller.getState()).base.status, 'none');
+  const state = await controller.push(); assert.equal(state.error, null); assert.equal(state.base.status, 'recorded');
+  assert.equal(state.base.localRevisionId, f.second.id); assert.equal(state.base.remoteRevisionId, state.sync.remoteHead);
+  assert.equal(state.fetched, null); assert.equal(await f.store.getSyncBase(f.localId, 'main'), f.first.id);
+  const saved = await f.store.getServiceSyncBase(sharedScope(f)); assert.equal(saved.recordHash, (await f.store.listRevisions(f.localId, 'main'))[0].recordHash);
+  const proof = path.join(f.controllerDirectory, 'scopes', fingerprint(sharedScope(f)), 'cache', 'snapshots', `${saved.proofSnapshotHash}.json`);
+  assert.equal((await fs.stat(proof)).mode & 0o777, 0o600);
+  const stamp = state.base.verifiedAt; await controller.dispose(); f.calls.length = 0; controller = f.create();
+  const restored = await controller.getState(); assert.equal(restored.base.localRevisionId, f.second.id); assert.equal(restored.base.verifiedAt, stamp);
+  assert.equal(f.calls.length, 0); assert.equal(restored.fetched, null); safeState(restored, f.directory);
+});
+test('full ancestry preserves the shared point across local-ahead, remote-ahead and divergent histories', async t => {
+  const f = await fixture(t), controller = f.create(); await bind(controller); await controller.push();
+  const remoteBase = f.history.getBranch('remote-film', 'main').revisionId;
+  const third = await f.store.saveRevision(f.localId, manifest(3), 'Local third cut', f.second.id); controller.selectionChanged();
+  const ahead = await controller.check(); assert.equal(ahead.sync.status, 'local-ahead'); assert.equal(ahead.base.localRevisionId, f.second.id);
+  const incomingManifest = f.history.putManifest('remote-film', manifest(9));
+  const incoming = f.history.createRevision({ projectId: 'remote-film', manifestId: incomingManifest.id, parentRevisionId: remoteBase,
+    authorId: 'other-editor', sourceRevisionId: 'other-source', message: 'Independent incoming edit' });
+  f.history.compareAndSwapBranch({ projectId: 'remote-film', branch: 'main', expectedRevisionId: remoteBase, revisionId: incoming.id });
+  const divergent = await controller.fetch(); assert.equal(divergent.sync.status, 'diverged'); assert.equal(divergent.base.localRevisionId, f.second.id);
+  assert.equal(divergent.base.remoteRevisionId, remoteBase); assert.equal((await f.store.listRevisions(f.localId, 'main'))[0].id, third.id);
+  assert.equal(divergent.fetched.total, 3); assert.equal(await f.store.getSyncBase(f.localId, 'main'), f.first.id);
+});
+test('a completed remote push with failed base persistence keeps the prior receipt until explicit repair', async t => {
+  const f = await fixture(t); let controller = f.create(); await bind(controller); await controller.push();
+  const third = await f.store.saveRevision(f.localId, manifest(3), 'Third cut for receipt', f.second.id); controller.selectionChanged();
+  const record = f.store.recordServiceSyncBase; let refuse = true;
+  f.store.recordServiceSyncBase = input => refuse && input.candidate.localRevisionId === third.id
+    ? Promise.reject(error('metadata-unavailable')) : record(input);
+  const failed = await controller.push(); assert.equal(failed.error, 'metadata-unavailable'); assert.equal(failed.operations.length, 0);
+  assert.equal(failed.base.status, 'unconfirmed'); assert.equal(failed.base.localRevisionId, f.second.id);
+  assert.equal(f.history.listRevisions('remote-film').items.length, 3);
+  await controller.dispose(); controller = f.create();
+  assert.equal((await controller.getState()).base.localRevisionId, f.second.id);
+  refuse = false; const repaired = await controller.check(); assert.equal(repaired.error, null); assert.equal(repaired.base.status, 'recorded');
+  assert.equal(repaired.base.localRevisionId, third.id); assert.equal(f.history.listRevisions('remote-film').items.length, 3);
+});
+test('lost branch acknowledgments recover one shared base without duplicate remote revisions', async t => {
+  const f = await fixture(t); let controller = f.create(); await bind(controller); let lose = true;
+  f.reply((method, result) => { if (method === 'compareAndSwapBranch' && lose) { lose = false; throw error('sync-network-unavailable'); } return result; });
+  const interrupted = await controller.push(); assert.equal(interrupted.operations.length, 1); assert.equal(interrupted.base.status, 'none');
+  assert.equal(f.history.listRevisions('remote-film').items.length, 1); const id = interrupted.operations[0].id;
+  await controller.dispose(); controller = f.create(); const resumed = await controller.retry(id);
+  assert.equal(resumed.error, null); assert.equal(resumed.base.localRevisionId, f.second.id); assert.equal(resumed.operations.length, 0);
+  assert.equal(f.history.listRevisions('remote-film').items.length, 2);
+});
+test('a missing immutable proof is not displayed as confirmed and live verification must reproduce its recorded hash to repair it', async t => {
+  const f = await fixture(t); let controller = f.create(); await bind(controller); await controller.push();
+  const scope = sharedScope(f), saved = await f.store.getServiceSyncBase(scope); await controller.dispose();
+  await fs.rm(path.join(f.controllerDirectory, 'scopes', fingerprint(scope), 'cache', 'snapshots', `${saved.proofSnapshotHash}.json`));
+  controller = f.create(); f.calls.length = 0; const invalid = await controller.getState();
+  assert.equal(invalid.base.status, 'invalid'); assert.equal(invalid.base.localRevisionId, null); assert.equal(f.calls.length, 0);
+  const repaired = await controller.check(); assert.equal(repaired.error, null); assert.equal(repaired.base.status, 'recorded');
+  assert.equal(repaired.base.localRevisionId, f.second.id); assert((await f.store.getServiceSyncBase(scope)).version > saved.version);
+});
+test('rewritten remote IDs cannot advance a confirmed shared lineage even when local source IDs and manifests match', async t => {
+  const f = await fixture(t), controller = f.create(); await bind(controller); const original = await controller.push();
+  const before = await f.store.getServiceSyncBase(sharedScope(f));
+  const replacement = createCloudHistoryStore(); replacement.createProject({ projectId: 'remote-film', name: 'Restored remote film' });
+  let parent = null;
+  for (const local of [f.first, f.second]) {
+    const document = await f.store.getRevision(f.localId, local.id), stored = replacement.putManifest('remote-film', document.manifest);
+    const revision = replacement.createRevision({ projectId: 'remote-film', manifestId: stored.id, parentRevisionId: parent,
+      sourceRevisionId: local.id, authorId: 'account-owner', message: local.message });
+    replacement.compareAndSwapBranch({ projectId: 'remote-film', branch: 'main', expectedRevisionId: parent, revisionId: revision.id }); parent = revision.id;
+  }
+  f.replaceHistory(replacement); const changed = await controller.fetch(); assert.equal(changed.error, 'sync-base-regression');
+  assert.equal(changed.base.remoteRevisionId, original.base.remoteRevisionId); assert.equal(changed.fetched.head, parent);
+  assert.deepEqual(await f.store.getServiceSyncBase(sharedScope(f)), before);
+});
+test('another account gets separate evidence and preserves the original authenticated publisher on reused revisions', async t => {
+  const f = await fixture(t), controller = f.create(); await bind(controller); const first = await controller.push();
+  f.changeState({ account: { id: 'another-account', email: 'other@example.test' } }); controller.connectionChanged();
+  assert.equal((await controller.getState()).base.status, 'none'); await bind(controller);
+  const verified = await controller.check(); assert.equal(verified.base.localRevisionId, first.base.localRevisionId);
+  const saved = await f.store.getServiceSyncBase(sharedScope(f)); assert.equal(saved.scope.accountId, 'another-account');
+  assert.equal(saved.remoteAuthorId, 'account-owner'); assert.equal(f.history.listRevisions('remote-film').items.length, 2);
+});
+test('freshly known access removal hides saved base, fetched history and queued work', async t => {
+  const f = await fixture(t), controller = f.create(); await bind(controller); await controller.push(); await controller.fetch();
+  assert.equal((await controller.getState()).base.status, 'recorded');
+  f.changeState({ projects: [] }); controller.connectionChanged(); const lost = await controller.getState();
+  assert.equal(lost.binding, null); assert.equal(lost.base.status, 'none'); assert.equal(lost.base.localRevisionId, null);
+  assert.equal(lost.fetched, null); assert.deepEqual(lost.operations, []);
 });

@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T09:24:56.055997+00:00",
+  "scope": "Disposable browser and native Electron scoped shared-base verification",
+  "fixture": {
+    "accounts": 3,
+    "projects": 2,
+    "mediaTransferred": false,
+    "editorProjectWrites": false
+  },
+  "browser": {
+    "beforePushNoSharedBase": true,
+    "firstVerifiedPushRecordedBase": true,
+    "historyRowAndOpenDetailMarkedSameBase": true,
+    "newLocalRevisionMarkedAfterSharedBase": true,
+    "checkPreservedEarlierPointWhileLocalAhead": true,
+    "secondVerifiedPushAdvancedBase": true,
+    "openDetailAndExistingRowsUpdatedWithoutReopening": true,
+    "olderRowBecameNeutralLocalRevision": true,
+    "signOutClearedRowAndDetailSharingClaims": true,
+    "newAccountDidNotBorrowOwnerReceiptBeforeLinkVerification": true,
+    "viewerVerifiedOwnScopedReceipt": true,
+    "viewerPushDisabled": true,
+    "rebindingEmptyProjectClearedSharingClaims": true,
+    "returningOwnerRestoredHistoricalReceiptWithCurrentHeadUnchecked": true,
+    "explicitCheckRefreshedRecordedTimeAndHeadComparison": true
+  },
+  "native": {
+    "actualPreloadAndIpc": true,
+    "savedImmutableLocalRevision": true,
+    "verifiedPushRecordedScopedBase": true,
+    "revisionDetailMarkedLastSharedBase": true,
+    "firstQaProcessExitedBeforeRestart": true,
+    "accountRestoredThroughOsVaultWithoutRetyping": true,
+    "matchingSourceRestoredBinding": true,
+    "recordedLocalAndRemoteIdsPreserved": true,
+    "recordedTimePreserved": true,
+    "restoredHistoricalEvidenceDidNotClaimFreshHeadComparison": true,
+    "signOutRemovedSharingClaims": true,
+    "legacyUnscopedBaseUnchanged": true,
+    "metadataFileMode": "0600",
+    "proofSnapshotMode": "0600",
+    "vaultMode": "0600",
+    "rawFixtureCredentialsAbsentFromVault": true,
+    "secondQaProcessExitedBeforeNormalRelaunch": true,
+    "migration": {
+      "fromSchema": 4,
+      "toSchema": 5,
+      "existingProjects": 10,
+      "existingRevisions": 20,
+      "everyExistingProjectRowPreserved": true
+    }
+  },
+  "visual": {
+    "rounds": 2,
+    "widths": [
+      1440,
+      768,
+      390
+    ],
+    "horizontalOverflowPixels": [
+      0,
+      0,
+      0
+    ],
+    "minimumPhoneButtonHeightPixels": 44,
+    "incumbentGraphitePlexStyleRetained": true,
+    "repair": "Trimmed a repeated historical-status sentence; persistent scope and current-head caveat retained.",
+    "primaryMechanicalFindings": 0,
+    "existingPaletteAdvisories": 31,
+    "newSuppressions": 0
+  },
+  "validation": {
+    "fullSuiteTests": 717,
+    "passed": 717,
+    "failed": 0,
+    "skipped": 0,
+    "securitySuiteTests": 273,
+    "securityPassed": 273,
+    "packagingPassed": true,
+    "controllerTests": 19,
+    "networkProof": "service-shared-base-network-observation.json",
+    "networkRequests": 114,
+    "hostProcesses": 3,
+    "clientControllerProcesses": 3
+  },
+  "cleanup": {
+    "browserSignedOutAndClosed": true,
+    "viewportReset": true,
+    "fixtureServerExitedSuccessfully": true,
+    "disposableSourceAndServiceDirectoryRemoved": true,
+    "privateLocatorRemoved": true,
+    "nativeSavedServiceEntries": 0,
+    "nativeTransferDirectoryAbsentBeforeAndAfter": true,
+    "normalAppReopenedWithoutTestCa": true,
+    "normalStartupSignedOutAndNoSourceSelected": true,
+    "systemTrustUnchanged": true,
+    "nativeReadOnlyFixtureHistoryAndScopedProofRetainedPrivately": true
+  },
+  "limits": [
+    "The browser used the actual renderer/controllers with fixture picker and encrypted test-vault adapters; native checks separately used Electron IPC and the OS-backed vault.",
+    "The recorded point concerns saved revision metadata in one exact service/account/local-branch/remote-branch scope. It does not prove current source bytes, media transfer, complete editor identity, executable merge, or safe apply.",
+    "Native restart was orderly; no crash during a write, machine power loss, signed release, production hosting, or physical cross-device integration is claimed.",
+    "Historical in-session validation is memoized until scope/generation/receipt change; explicit actions and reopened controllers revalidate private witnesses and local record bytes.",
+    "Temporary source and service data were removed; the native disposable read-only history and metadata-only proof remain in the app\u2019s private storage. No fixture service account remains saved."
+  ]
+}
