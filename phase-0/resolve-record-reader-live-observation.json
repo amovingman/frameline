@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-18T10:53:40.422Z",
+  "resolveVersion": "21.1.2.10",
+  "scope": "Read-only file capability probe on disposable record files",
+  "standardLuaIoAvailable": false,
+  "fusionOpenFileAvailable": true,
+  "observedReadMode": 1,
+  "probeBytes": 18,
+  "exactBytesIncludingNewlineVerified": true,
+  "eof": "nil",
+  "close": "no-return-values",
+  "closeCallSucceeded": true,
+  "probeFileUnchanged": true,
+  "probeSha256": "cff52ecf6391b29166ae853545a945a4bff2360b1dd1590106f6ef7982309468",
+  "projectMutationCalls": 0,
+  "documentedMethods": [
+    "Fusion.OpenFile",
+    "IOClass.GetFileSize",
+    "IOClass.ReadLine",
+    "IOClass.Close"
+  ],
+  "reference": "https://documents.blackmagicdesign.com/UserManuals/Fusion8_Scripting_Guide.pdf",
+  "limits": [
+    "The numeric read-mode value and newline/EOF behavior are observed only on the installed pinned Resolve build.",
+    "This probe reads disposable text records; it does not validate editor mutations or complete native content."
+  ],
+  "exactGeneratedIssuanceGuard": {
+    "scope": "Exact emitted prefix ending before project-manager access, against synthetic probe-only retained records",
+    "originalRecord": "accepted",
+    "appendedSpace": "refused",
+    "restoredOriginalRecord": "accepted",
+    "projectMutationCalls": 0
+  }
+}

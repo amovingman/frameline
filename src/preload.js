@@ -95,7 +95,7 @@ contextBridge.exposeInMainWorld('desktop', {
   recoverDiscoveredResolveTrial: id => ipcRenderer.invoke('resolve-trial:recover-discovered', id),
   cancelDiscoveredResolveTrial: id => ipcRenderer.invoke('resolve-trial:cancel-discovered', id),
   revealResolveTrialRecords: id => ipcRenderer.invoke('resolve-trial:reveal-records', id),
-  prepareResolveTrial: (projectName, acknowledged) => ipcRenderer.invoke('resolve-trial:prepare', projectName, acknowledged),
+  prepareResolveTrial: (projectName, acknowledged, mode = 'forced-rollback') => ipcRenderer.invoke('resolve-trial:prepare', projectName, acknowledged, mode),
   issueResolveTrial: () => ipcRenderer.invoke('resolve-trial:issue'),
   copyResolveTrialCommand: () => ipcRenderer.invoke('resolve-trial:copy'),
   cancelResolveTrialPreparation: () => ipcRenderer.invoke('resolve-trial:cancel'),

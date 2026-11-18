@@ -9,7 +9,7 @@ const { prepareRenameTrial, issueRenameTrial, recordRenameTrialResult, readRenam
   prepareRenameTrialRecovery, readRenameTrialRecoveryCapture, issueRenameTrialRecovery,
   recordRenameTrialRecoveryResult } = require('../src/resolve-rename-trial');
 
-async function fixture(t, guarded = true) {
+async function fixture(t, guarded = true, forceFailure = true) {
   const destinationDir = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'trial-recovery-'));
   t.after(() => fs.rm(destinationDir, { recursive: true, force: true }));
   const root = path.join(__dirname, '../phase-0/resolve-xml-proof');
@@ -23,7 +23,7 @@ async function fixture(t, guarded = true) {
     await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, '<Fixture/>');
   }
   assert.equal(spawnSync('zip', ['-q', trial.backupPath, 'project.xml', 'MediaPool/Master/MpFolder.xml', 'SeqContainer/timeline.xml'], { cwd: trial.directory }).status, 0);
-  const issued = await issueRenameTrial({ directory: trial.directory, forceFailure: true });
+  const issued = await issueRenameTrial({ directory: trial.directory, forceFailure });
   const renamed = JSON.parse(effects); renamed.snapshot = JSON.parse(afterBytes);
   return { trial, issued, effects, renamed: JSON.stringify(renamed), beforeBytes };
 }
@@ -173,4 +173,49 @@ test('changed receipts, symlinked observations, or backup damage prevent recover
   await fs.appendFile(context.trial.backupPath, 'changed');
   await assert.rejects(issueRenameTrialRecovery(args), /export-hash-mismatch/);
   await assert.rejects(fs.stat(path.join(folder, 'issued.json')), { code: 'ENOENT' });
+});
+
+test('new non-forced guarded trials recover only by verifying or restoring the exact original state', async t => {
+  for (const [classification, operation, status] of [['source', 'verify-source', 'source-verified'], ['renamed', 'restore-name', 'restored']]) {
+    const context = await fixture(t, true, false), filename = path.join(context.trial.directory, 'issued.json');
+    const issued = JSON.parse(await fs.readFile(filename)); assert.equal(issued.forceFailure, false); assert.equal(issued.recoveryVersion, 2);
+    const recovery = await inspected(context, classification === 'source' ? context.effects : context.renamed);
+    assert.equal(recovery.classification, classification);
+    assert.equal(recovery.mode, 'rename-verify');
+    const args = { directory: context.trial.directory, attemptId: recovery.attemptId };
+    assert.equal((await issueRenameTrialRecovery(args)).operation, operation);
+    await assert.rejects(recordRenameTrialRecoveryResult({ ...args, consoleOutput: output(recovery.attemptId, context.renamed, 'applied') }), /result-mismatch/);
+    const result = await recordRenameTrialRecoveryResult({ ...args, consoleOutput: output(recovery.attemptId, context.effects, status) });
+    assert.equal(result.result.status, status); assert.equal(result.result.recovery.operation, operation);
+    const read = await readRenameTrialResult(context.trial.directory); assert.equal(read.mode, 'rename-verify');
+    assert.deepEqual(read.snapshot, JSON.parse(context.beforeBytes));
+  }
+});
+
+test('legacy forced guarded recovery remains supported while legacy non-forced and future records fail closed', async t => {
+  for (const forced of [true, false]) {
+    const context = await fixture(t, true, forced), filename = path.join(context.trial.directory, 'issued.json');
+    const issued = JSON.parse(await fs.readFile(filename)); issued.recoveryVersion = 1; await fs.writeFile(filename, JSON.stringify(issued));
+    if (forced) assert.equal((await prepareRenameTrialRecovery({ directory: context.trial.directory })).transactionId, context.trial.transactionId);
+    else await assert.rejects(prepareRenameTrialRecovery({ directory: context.trial.directory }), /does-not-support/);
+  }
+  for (const edit of [value => { value.recoveryVersion = 3; }, value => { value.privatePath = '/private/secret'; },
+    value => { value.forceFailure = 'false'; }, value => { value.backup.mode = 0o644; }, value => { value.issuedAt = 'invalid'; }]) {
+    const context = await fixture(t), filename = path.join(context.trial.directory, 'issued.json'), issued = JSON.parse(await fs.readFile(filename));
+    edit(issued); await fs.writeFile(filename, JSON.stringify(issued));
+    await assert.rejects(prepareRenameTrialRecovery({ directory: context.trial.directory }), /invalid-issued-trial/);
+    await assert.rejects(fs.stat(path.join(context.trial.directory, 'recovery-started.json')), { code: 'ENOENT' });
+  }
+});
+
+test('forced trials cannot record or read an applied outcome even with the expected renamed observation', async t => {
+  const context = await fixture(t);
+  await assert.rejects(recordRenameTrialResult({ directory: context.trial.directory, status: 'applied',
+    snapshotBytes: JSON.stringify(JSON.parse(context.renamed).snapshot), effectObservationBytes: context.renamed }), /issued-mode-mismatch/);
+  await assert.rejects(fs.stat(path.join(context.trial.directory, 'result.json')), { code: 'ENOENT' });
+  const successful = await fixture(t, true, false), filename = path.join(successful.trial.directory, 'issued.json');
+  await recordRenameTrialResult({ directory: successful.trial.directory, status: 'applied',
+    snapshotBytes: JSON.stringify(JSON.parse(successful.renamed).snapshot), effectObservationBytes: successful.renamed });
+  const issued = JSON.parse(await fs.readFile(filename)); issued.forceFailure = true; await fs.writeFile(filename, JSON.stringify(issued));
+  await assert.rejects(readRenameTrialResult(successful.trial.directory), /issued-mode-mismatch/);
 });

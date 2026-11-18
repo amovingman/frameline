@@ -38,8 +38,8 @@ function captureOutput(id, bytes, kind = 'effect') {
     : `FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${id}:${index + 1}:${part}`).join('\n');
 }
 
-async function startBackup(context) {
-  const state = await context.session.prepare('Frameline Restore Probe', true);
+async function startBackup(context, mode = 'forced-rollback') {
+  const state = await context.session.prepare('Frameline Restore Probe', true, mode);
   assert.equal(state.phase, 'effect-command');
   assert.equal(state.transactionId, null);
   context.options.clipboard.writeText(captureOutput(state.captureId, context.effects));
@@ -48,6 +48,53 @@ async function startBackup(context) {
   assert.equal(backup.error, null);
   return backup;
 }
+
+test('rename-and-verify mode is pinned before issue, records successful observed state and survives a fresh session', async t => {
+  const context = await setup(t), { session, options, effects, sources } = context;
+  assert.ok((await session.prepare('Frameline Restore Probe', true, 'apply-everything')).error);
+  const prepared = await startBackup(context, 'rename-verify');
+  assert.equal(prepared.mode, 'rename-verify');
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  assert.equal(JSON.parse(await fs.readFile(path.join(folder, 'prepared.json'))).experimentMode, 'rename-verify');
+  await fakeExport(folder);
+  const issued = await session.issue();
+  assert.equal(issued.phase, 'edit-command'); assert.equal(issued.mode, 'rename-verify');
+  assert.equal(JSON.parse(await fs.readFile(path.join(folder, 'issued.json'))).forceFailure, false);
+  assert.equal(JSON.parse(await fs.readFile(path.join(folder, 'issued.json'))).recoveryVersion, 2);
+  assert.doesNotMatch(options.clipboard.readText(), /Intentional trial failure/);
+  assert.equal((await session.prepare('Frameline Restore Probe', true, 'forced-rollback')).mode, 'rename-verify');
+  assert.equal((await session.cancelPreparation()).phase, 'edit-command');
+  assert.ok(session.getState().error);
+  assert.equal((await session.copyCommand()).phase, 'edit-command');
+  const after = JSON.parse(effects); after.snapshot = JSON.parse(sources.incoming);
+  options.clipboard.writeText(`${captureOutput(issued.transactionId, JSON.stringify(after), 'trial')}\nFRAMELINE_RENAME_TRIAL_RESULT_V1:${issued.transactionId}:applied`);
+  assert.equal((await session.read()).outcome.status, 'applied');
+  const saved = await session.saveRevision(); assert.equal(saved.phase, 'saved');
+  const fresh = createResolveTrialSession(options), recovered = await fresh.recover(folder);
+  assert.equal(recovered.mode, 'rename-verify'); assert.equal(recovered.outcome.status, 'applied');
+  assert.equal((await fresh.saveRevision()).revisionId, saved.revisionId);
+  assert.doesNotMatch(JSON.stringify(recovered), /backupPath|before\.drp|forceFailure|issuedSha256/);
+});
+
+test('unacknowledged rename-and-verify mode is discovered and restored conservatively after session restart', async t => {
+  const context = await setup(t), { session, options, effects, sources } = context;
+  await startBackup(context, 'rename-verify');
+  const folder = path.join(options.directory, (await fs.readdir(options.directory))[0]);
+  await fakeExport(folder); await session.issue();
+  const fresh = createResolveTrialSession({ ...options, getReview: async () => { throw new Error('No review loaded'); } });
+  const discovered = await fresh.initialize();
+  assert.equal(discovered.discovery.items[0].mode, 'rename-verify');
+  const recovering = await fresh.recoverDiscovered(discovered.discovery.items[0].recordId);
+  assert.equal(recovering.mode, 'rename-verify'); assert.equal(recovering.phase, 'recovery-capture');
+  const after = JSON.parse(effects); after.snapshot = JSON.parse(sources.incoming);
+  options.clipboard.writeText(captureOutput(recovering.captureId, JSON.stringify(after)));
+  assert.equal((await fresh.read()).recovery.classification, 'renamed');
+  const action = await fresh.issue(); assert.equal(action.recovery.operation, 'restore-name');
+  options.clipboard.writeText(recoveryOutput(recovering.recovery.attemptId, effects, 'restored'));
+  assert.equal((await fresh.read()).outcome.status, 'restored');
+  const saved = await fresh.saveRevision(); assert.equal(saved.mode, 'rename-verify'); assert.equal(saved.phase, 'saved');
+  assert.equal((await fresh.refreshDiscovery()).discovery.items.length, 0);
+});
 
 async function fakeExport(directory) {
   for (const name of ['project.xml', 'MediaPool/Master/MpFolder.xml', 'SeqContainer/timeline.xml']) {

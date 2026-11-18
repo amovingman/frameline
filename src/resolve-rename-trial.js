@@ -19,6 +19,53 @@ const canonical = value => Array.isArray(value) ? value.map(canonical)
   : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const json = value => JSON.stringify(canonical(value));
 const quote = value => JSON.stringify(value);
+const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).sort().join('|') === keys.slice().sort().join('|');
+const EXPERIMENT_MODES = ['forced-rollback', 'rename-verify'];
+const issuedMode = issued => issued.forceFailure ? 'forced-rollback' : 'rename-verify';
+
+async function syncDirectory(directory) {
+  const handle = await fs.open(directory, constants.O_RDONLY);
+  try { await handle.sync(); } finally { await handle.close(); }
+}
+
+function validateIssued(issued, plan) {
+  const versioned = Object.hasOwn(issued || {}, 'recoveryVersion');
+  if (!exact(issued, ['transactionId', 'backup', 'forceFailure', 'issuedAt', ...(versioned ? ['recoveryVersion'] : [])])
+    || issued.transactionId !== plan.id || typeof issued.forceFailure !== 'boolean'
+    || versioned && ![1, 2].includes(issued.recoveryVersion)
+    || typeof issued.issuedAt !== 'string' || !Number.isFinite(Date.parse(issued.issuedAt))
+    || new Date(issued.issuedAt).toISOString() !== issued.issuedAt
+    || !exact(issued.backup, ['schemaVersion', 'sha256', 'size', 'mode', 'timelineCount', 'archiveVerified'])
+    || issued.backup.schemaVersion !== 1 || !/^[a-f0-9]{64}$/.test(issued.backup.sha256 || '')
+    || !Number.isSafeInteger(issued.backup.size) || issued.backup.size < 1 || issued.backup.size > 100 * 1024 * 1024
+    || issued.backup.mode !== 0o600 || !Number.isSafeInteger(issued.backup.timelineCount)
+    || issued.backup.timelineCount < 1 || issued.backup.timelineCount > 10000 || issued.backup.archiveVerified !== true
+    || plan.experimentMode !== undefined && issuedMode(issued) !== plan.experimentMode) throw new Error('invalid-issued-trial');
+  return issued;
+}
+
+async function readIssued(directory, plan) {
+  const issuedBytes = await privateBytes(directory, 'issued.json', 16384);
+  let issued;
+  try { issued = validateIssued(JSON.parse(issuedBytes), plan); } catch { throw new Error('invalid-issued-trial'); }
+  const backup = await inspectResolveProjectExport(plan.backupPath, issued.backup.sha256);
+  if (json(backup) !== json(issued.backup)) throw new Error('invalid-issued-trial');
+  return { issued, issuedBytes, backup };
+}
+
+function supportsRecovery(plan, issued) {
+  return Boolean(plan.effectGuard && (issued.recoveryVersion === 2 || issued.recoveryVersion === 1 && issued.forceFailure === true));
+}
+
+// The pinned Free Console exposes Fusion's IOClass, but not Lua's io library.
+// ReadLine preserves newline bytes and returns nil at EOF in the probed build.
+// Close has no return value: only its successful invocation is required.
+function exactFileGuard(filename, bytes, limit, label) {
+  const expected = Buffer.from(bytes).toString('utf8');
+  if (Buffer.byteLength(expected) > limit) throw new Error('trial-guard-too-large');
+  return `do assert(resolve and type(resolve.Fusion)=='function','Trial record reader unavailable');local fusion=assert(resolve:Fusion(),'Trial record reader unavailable');assert(type(fusion.OpenFile)=='function','Trial record reader unavailable');local f=assert(fusion:OpenFile(${quote(filename)},1),'Trial record unavailable');local ok,value=pcall(function() assert(f:GetFileSize()==${Buffer.byteLength(expected)},${quote(label)});local parts,n={},0;while n<${Buffer.byteLength(expected)} do local part=f:ReadLine();assert(type(part)=='string' and #part>0 and #part<=${Buffer.byteLength(expected)}-n,${quote(label)});n=n+#part;parts[#parts+1]=part end;assert(f:ReadLine()==nil and f:GetFileSize()==${Buffer.byteLength(expected)},${quote(label)});return table.concat(parts) end);local closed=pcall(function() f:Close() end);assert(ok and closed and type(value)=='string' and #value==${Buffer.byteLength(expected)} and value==${quote(expected)},${quote(label)}) end;`;
+}
 
 function parse(bytes) {
   if ((!Buffer.isBuffer(bytes) && typeof bytes !== 'string') || Buffer.byteLength(bytes) > 20 * 1024 * 1024) throw new Error('invalid-trial-source');
@@ -59,8 +106,7 @@ async function writeRecord(directory, name, value) {
   const handle = await fs.open(path.join(directory, name), 'wx', 0o600);
   try { await handle.writeFile(`${json(value)}\n`); await handle.sync(); }
   finally { await handle.close(); }
-  const root = await fs.open(directory, constants.O_RDONLY);
-  try { await root.sync(); } finally { await root.close(); }
+  await syncDirectory(directory);
 }
 
 async function privateBytes(directory, name, limit = 20 * 1024 * 1024) {
@@ -100,6 +146,7 @@ async function readPlan(directory) {
     if (!stat.isFile() || stat.mode & 0o077 || stat.size > 45 * 1024 * 1024) throw new Error('invalid-trial-record');
     const plan = JSON.parse(await handle.readFile('utf8'));
     if (!/^[a-f0-9]{32}$/.test(plan.id || '') || plan.backupPath !== path.join(directory, 'before.drp')) throw new Error('invalid-trial-record');
+    if (plan.experimentMode !== undefined && !EXPERIMENT_MODES.includes(plan.experimentMode)) throw new Error('invalid-trial-option');
     const verified = renameChange(plan.before, plan.after);
     if (json(verified) !== json(plan.change)) throw new Error('invalid-trial-record');
     if (plan.reviewContext) {
@@ -135,7 +182,8 @@ async function capturePrelude(withEffects = false, propertyGuard = false) {
   return base + `local effects=(function() ${line(effects)} end)();local function capture_state() return effects.capture(resolve,c${propertyGuard ? `,${propertyCaptureConfig()}` : ''}) end;local function encode_state(value) return effects.encode(value) end;`;
 }
 
-async function prepareTrial({ beforeBytes, afterBytes, destinationDir, disposableProjectName, effectObservationBytes } = {}, reviewContext = null) {
+async function prepareTrial({ beforeBytes, afterBytes, destinationDir, disposableProjectName, effectObservationBytes, experimentMode } = {}, reviewContext = null) {
+  if (experimentMode !== undefined && !EXPERIMENT_MODES.includes(experimentMode)) throw new Error('invalid-trial-option');
   const before = parse(beforeBytes), incoming = parse(afterBytes);
   const change = renameChange(before, incoming);
   const after = structuredClone(before);
@@ -153,29 +201,33 @@ async function prepareTrial({ beforeBytes, afterBytes, destinationDir, disposabl
   const id = randomBytes(16).toString('hex');
   const directory = path.join(root, `rename-${Date.now()}-${id}`);
   await fs.mkdir(directory, { mode: 0o700 });
+  await syncDirectory(root);
   const plan = { schemaVersion: 1, experimental: true, id, createdAt: new Date().toISOString(),
     sourceSha256: sha(beforeBytes), incomingSha256: sha(afterBytes), before, after, change,
+    ...(experimentMode === undefined ? {} : { experimentMode }),
     backupPath: path.join(directory, 'before.drp'), ...(reviewContext ? { reviewContext } : {}), ...(effectGuard ? { effectGuard } : {}) };
   if (Buffer.byteLength(json(plan)) > 45 * 1024 * 1024) throw new Error('trial-record-too-large');
   await writeRecord(directory, 'prepared.json', plan);
   const states = effectStates(plan);
   const command = await capturePrelude(Boolean(plan.effectGuard), effectStates(plan).before.schemaVersion === 2) + `assert(bmd and bmd.fileexists and not bmd.fileexists(${quote(path.join(directory, 'cancelled.json'))}),'Preparation cancelled');assert(encode_state(capture_state())==${quote(json(states.before))},'Stale source'); local pm=resolve:GetProjectManager(); assert(bmd and bmd.fileexists and not bmd.fileexists(${quote(plan.backupPath)}),'Backup destination unavailable'); assert(pm:SaveProject(),'Save failed'); assert(pm:ExportProject(${quote(before.project_name)},${quote(plan.backupPath)},false),'Backup export failed'); assert(encode_state(capture_state())==${quote(json(states.before))},'Source changed during backup'); print('FRAMELINE_RENAME_BACKUP_V1:${id}')`;
-  return { directory, command, transactionId: id, backupPath: plan.backupPath, experimental: true };
+  return { directory, command, transactionId: id, backupPath: plan.backupPath, experimental: true,
+    ...(experimentMode === undefined ? {} : { mode: experimentMode }) };
 }
 
 async function prepareRenameTrial(options) { return prepareTrial(options); }
 
-async function prepareReviewedRenameTrial({ sources, plan, audit, destinationDir, disposableProjectName, effectObservationBytes } = {}) {
+async function prepareReviewedRenameTrial({ sources, plan, audit, destinationDir, disposableProjectName, effectObservationBytes, experimentMode } = {}) {
   const derived = resolveReviewedRename({ sources, plan, audit });
   const reviewContext = { sources: Object.fromEntries(['base', 'local', 'incoming']
     .map(role => [role, Buffer.from(sources[role]).toString('base64')])), preview: plan, audit };
   return prepareTrial({ beforeBytes: derived.beforeBytes, afterBytes: derived.afterBytes,
-    destinationDir, disposableProjectName, effectObservationBytes }, reviewContext);
+    destinationDir, disposableProjectName, effectObservationBytes, experimentMode }, reviewContext);
 }
 
 async function issueRenameTrial({ directory, forceFailure = false } = {}) {
   if (typeof forceFailure !== 'boolean') throw new Error('invalid-trial-option');
   const plan = await readPlan(directory);
+  if (plan.experimentMode !== undefined && (forceFailure ? 'forced-rollback' : 'rename-verify') !== plan.experimentMode) throw new Error('trial-issued-mode-mismatch');
   const states = effectStates(plan);
   await rejectRecovery(directory);
   if (await exists(directory, 'cancelled.json')) throw new Error('trial-preparation-cancelled');
@@ -185,8 +237,10 @@ async function issueRenameTrial({ directory, forceFailure = false } = {}) {
   try { if (!(await handle.stat()).isFile()) throw new Error('invalid-backup'); await handle.chmod(0o600); }
   finally { await handle.close(); }
   const backup = await inspectResolveProjectExport(plan.backupPath);
-  await writeRecord(directory, 'issued.json', { transactionId: plan.id, backup, forceFailure, recoveryVersion: 1, issuedAt: new Date().toISOString() });
-  const command = await capturePrelude(Boolean(plan.effectGuard), effectStates(plan).before.schemaVersion === 2) + outcomeGuard(directory) + `assert(not (bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))})),'Trial revoked for recovery'); local pm=resolve:GetProjectManager(); local before=${quote(json(states.before))}; local after=${quote(json(states.after))}; assert(encode_state(capture_state())==before,'Stale source'); assert(bmd and bmd.fileexists and bmd.fileexists(${quote(plan.backupPath)}),'Backup missing'); FRAMELINE_RENAME_TRIAL_USED=FRAMELINE_RENAME_TRIAL_USED or {}; assert(not FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}],'Trial already consumed'); local function target() local p=pm:GetCurrentProject(); assert(p:GetUniqueId()==${quote(plan.before.project_id)},'Project changed'); for n=1,p:GetTimelineCount() do local t=p:GetTimelineByIndex(n); if t:GetUniqueId()==${quote(plan.change.timelineId)} then for _,kind in ipairs({'video','audio','subtitle'}) do for track=1,t:GetTrackCount(kind) do for _,item in ipairs(t:GetItemListInTrack(kind,track) or {}) do if item:GetUniqueId()==${quote(plan.change.itemId)} then return item end end end end end end; error('Target missing') end; local function reopen() assert(pm:SaveProject(),'Save failed'); assert(pm:CloseProject(pm:GetCurrentProject()),'Close failed'); assert(pm:LoadProject(${quote(plan.before.project_name)}),'Reopen failed') end; FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}]=true; local ok,err=pcall(function() assert(target():SetName(${quote(plan.change.after)}),'Rename failed'); reopen(); assert(encode_state(capture_state())==after,'Applied state differs'); ${forceFailure ? "error('Intentional trial failure');" : ''} end); local status='applied'; if not ok then local recovered=pcall(function() assert(target():GetName()==${quote(plan.change.after)} or target():GetName()==${quote(plan.change.before)},'Unexpected recovery state'); assert(target():SetName(${quote(plan.change.before)}),'Rollback failed'); reopen(); assert(encode_state(capture_state())==before,'Rollback state differs') end); status=recovered and 'rolled-back' or 'recovery-required' end; local s=encode_state(capture_state()); assert(#s<=20*1024*1024,'Trial capture too large'); local n,index=1,1; while n<=#s do local last=math.min(n+8191,#s); while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end; assert(last>=n,'Invalid UTF-8 boundary'); print('FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${plan.id}:'..index..':'..s:sub(n,last)); n=last+1; index=index+1 end; print('FRAMELINE_RENAME_TRIAL_RESULT_V1:${plan.id}:'..status)`;
+  const issued = validateIssued({ transactionId: plan.id, backup, forceFailure, recoveryVersion: 2, issuedAt: new Date().toISOString() }, plan);
+  await writeRecord(directory, 'issued.json', issued);
+  const issuedGuard = exactFileGuard(path.join(directory, 'issued.json'), `${json(issued)}\n`, 16384, 'Trial issued record changed');
+  const command = await capturePrelude(Boolean(plan.effectGuard), effectStates(plan).before.schemaVersion === 2) + outcomeGuard(directory) + issuedGuard + `assert(not (bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))})),'Trial revoked for recovery'); local pm=resolve:GetProjectManager(); local before=${quote(json(states.before))}; local after=${quote(json(states.after))}; assert(encode_state(capture_state())==before,'Stale source'); assert(bmd and bmd.fileexists and bmd.fileexists(${quote(plan.backupPath)}),'Backup missing'); FRAMELINE_RENAME_TRIAL_USED=FRAMELINE_RENAME_TRIAL_USED or {}; assert(not FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}],'Trial already consumed'); local function target() local p=pm:GetCurrentProject(); assert(p:GetUniqueId()==${quote(plan.before.project_id)},'Project changed'); for n=1,p:GetTimelineCount() do local t=p:GetTimelineByIndex(n); if t:GetUniqueId()==${quote(plan.change.timelineId)} then for _,kind in ipairs({'video','audio','subtitle'}) do for track=1,t:GetTrackCount(kind) do for _,item in ipairs(t:GetItemListInTrack(kind,track) or {}) do if item:GetUniqueId()==${quote(plan.change.itemId)} then return item end end end end end end; error('Target missing') end; local function reopen() assert(pm:SaveProject(),'Save failed'); assert(pm:CloseProject(pm:GetCurrentProject()),'Close failed'); assert(pm:LoadProject(${quote(plan.before.project_name)}),'Reopen failed') end; FRAMELINE_RENAME_TRIAL_USED[${quote(plan.id)}]=true; local ok,err=pcall(function() assert(target():SetName(${quote(plan.change.after)}),'Rename failed'); reopen(); assert(encode_state(capture_state())==after,'Applied state differs'); ${forceFailure ? "error('Intentional trial failure');" : ''} end); local status='applied'; if not ok then local recovered=pcall(function() assert(target():GetName()==${quote(plan.change.after)} or target():GetName()==${quote(plan.change.before)},'Unexpected recovery state'); assert(target():SetName(${quote(plan.change.before)}),'Rollback failed'); reopen(); assert(encode_state(capture_state())==before,'Rollback state differs') end); status=recovered and 'rolled-back' or 'recovery-required' end; local s=encode_state(capture_state()); assert(#s<=20*1024*1024,'Trial capture too large'); local n,index=1,1; while n<=#s do local last=math.min(n+8191,#s); while last<#s and s:byte(last+1)>=128 and s:byte(last+1)<=191 do last=last-1 end; assert(last>=n,'Invalid UTF-8 boundary'); print('FRAMELINE_RENAME_TRIAL_CAPTURE_V1:${plan.id}:'..index..':'..s:sub(n,last)); n=last+1; index=index+1 end; print('FRAMELINE_RENAME_TRIAL_RESULT_V1:${plan.id}:'..status)`;
   return { transactionId: plan.id, command, backup, backupPath: plan.backupPath, experimental: true };
 }
 
@@ -217,8 +271,10 @@ async function writeResultBytes(directory, name, bytes) {
       const stat = await handle.stat();
       if (!stat.isFile() || stat.mode & 0o077 || stat.size !== Buffer.byteLength(bytes)
         || !(await handle.readFile()).equals(Buffer.from(bytes))) throw error;
+      await handle.sync();
     } finally { await handle.close(); }
   }
+  await syncDirectory(directory);
 }
 
 async function recordRenameTrialResult({ directory, status, snapshotBytes, effectObservationBytes } = {}) {
@@ -232,9 +288,8 @@ async function recordOutcome({ directory, status, snapshotBytes, effectObservati
   const snapshot = parse(snapshotBytes);
   if (status !== 'recovery-required' && json(snapshot) !== json(status === 'applied' ? plan.after : plan.before)) throw new Error('trial-result-mismatch');
   checkResultEffects(plan, status, snapshot, effectObservationBytes);
-  const issued = JSON.parse(await privateBytes(directory, 'issued.json', 16384));
-  if (issued.transactionId !== plan.id || typeof issued.backup?.sha256 !== 'string') throw new Error('invalid-issued-trial');
-  const backup = await inspectResolveProjectExport(plan.backupPath, issued.backup.sha256);
+  const { issued, backup } = await readIssued(directory, plan);
+  if (status === 'applied' && issued.forceFailure) throw new Error('trial-issued-mode-mismatch');
   const result = { schemaVersion: 1, experimental: true, transactionId: plan.id, status,
     sourceSha256: plan.sourceSha256, incomingSha256: plan.incomingSha256,
     resultingSnapshotSha256: sha(snapshotBytes), backup, backupPath: plan.backupPath,
@@ -255,6 +310,7 @@ async function recordOutcome({ directory, status, snapshotBytes, effectObservati
 
 async function readRenameTrialResult(directory) {
   const plan = await readPlan(directory);
+  const { issued, backup } = await readIssued(directory, plan);
   const normal = await exists(directory, 'result.json'), recovered = await exists(directory, 'recovery-result.json');
   if (normal && recovered) throw new Error('conflicting-trial-results');
   const prefix = recovered ? 'recovery-' : '';
@@ -264,6 +320,7 @@ async function readRenameTrialResult(directory) {
   if (result.transactionId !== plan.id || result.sourceSha256 !== plan.sourceSha256
     || result.incomingSha256 !== plan.incomingSha256 || result.resultingSnapshotSha256 !== sha(snapshotBytes)
     || !(recovered ? ['source-verified', 'restored'] : ['applied', 'rolled-back', 'recovery-required']).includes(result.status)) throw new Error('trial-result-mismatch');
+  if (result.status === 'applied' && issued.forceFailure) throw new Error('trial-issued-mode-mismatch');
   if (recovered) {
     const attempt = await readRecoveryAttempt(directory, plan, result.recovery?.attemptId, 'issued');
     if (json(result.recovery) !== json(attempt.binding)
@@ -283,8 +340,8 @@ async function readRenameTrialResult(directory) {
     choices: plan.reviewContext.audit.choices } : null;
   if (json(result.review || null) !== json(expectedReview)) throw new Error('trial-review-binding-mismatch');
   if (result.backupPath !== plan.backupPath) throw new Error('invalid-trial-backup-path');
-  await inspectResolveProjectExport(plan.backupPath, result.backup.sha256);
-  return { result, snapshot, observationCoverage: plan.effectGuard ? describeEffectCoverage(effectStates(plan).before) : null };
+  if (json(result.backup) !== json(backup)) throw new Error('invalid-issued-trial');
+  return { result, snapshot, mode: issuedMode(issued), observationCoverage: plan.effectGuard ? describeEffectCoverage(effectStates(plan).before) : null };
 }
 
 async function recordRenameTrialConsoleResult({ directory, consoleOutput } = {}) {
@@ -316,15 +373,12 @@ function consoleCapture(consoleOutput, id, marker) {
 }
 
 async function recoveryContext(directory, plan) {
-  const issuedBytes = await privateBytes(directory, 'issued.json', 16384);
-  const issued = JSON.parse(issuedBytes);
-  if (!plan.effectGuard || issued.transactionId !== plan.id || issued.recoveryVersion !== 1 || issued.forceFailure !== true) {
+  const { issued, issuedBytes, backup } = await readIssued(directory, plan);
+  if (!supportsRecovery(plan, issued)) {
     throw new Error('trial-does-not-support-interrupted-recovery');
   }
-  const backup = await inspectResolveProjectExport(plan.backupPath, issued.backup?.sha256);
-  if (typeof issued.backup?.sha256 !== 'string') throw new Error('invalid-issued-trial');
   const marker = { schemaVersion: 1, transactionId: plan.id, issuedSha256: sha(issuedBytes), backupSha256: backup.sha256 };
-  return { backup, marker };
+  return { issued, issuedBytes, backup, marker };
 }
 
 async function readRecoveryAttempt(directory, plan, attemptId, stage = 'request') {
@@ -337,7 +391,7 @@ async function readRecoveryAttempt(directory, plan, attemptId, stage = 'request'
   await privateDirectory(folder);
   const request = JSON.parse(await privateBytes(folder, 'request.json', 1024));
   if (json(request) !== json({ schemaVersion: 1, transactionId: plan.id, attemptId, revocationSha256 })) throw new Error('trial-recovery-binding-mismatch');
-  if (stage === 'request') return { folder, ...context };
+  if (stage === 'request') return { folder, ...context, markerBytes };
   const bytes = await privateBytes(folder, 'inspection.json');
   const observation = parseEffectObservation(bytes), states = effectStates(plan);
   const classification = json(observation) === json(states.before) ? 'source'
@@ -346,10 +400,12 @@ async function readRecoveryAttempt(directory, plan, attemptId, stage = 'request'
   if (json(JSON.parse(await privateBytes(folder, 'inspection-record.json', 1024))) !== json(receipt)) throw new Error('trial-recovery-binding-mismatch');
   const binding = { attemptId, revocationSha256, inspectionSha256: sha(bytes),
     operation: classification === 'source' ? 'verify-source' : classification === 'renamed' ? 'restore-name' : null };
-  if (stage === 'issued' && (!binding.operation || json(JSON.parse(await privateBytes(folder, 'issued.json', 1024))) !== json(binding))) {
-    throw new Error('trial-recovery-binding-mismatch');
+  let recoveryIssuedBytes;
+  if (stage === 'issued') {
+    recoveryIssuedBytes = await privateBytes(folder, 'issued.json', 1024);
+    if (!binding.operation || json(JSON.parse(recoveryIssuedBytes)) !== json(binding)) throw new Error('trial-recovery-binding-mismatch');
   }
-  return { folder, ...context, bytes, observation, classification, binding };
+  return { folder, ...context, markerBytes, bytes, observation, classification, binding, recoveryIssuedBytes };
 }
 
 async function assertRecoveryActive(directory, folder) {
@@ -361,13 +417,15 @@ async function assertRecoveryActive(directory, folder) {
 async function prepareRenameTrialRecovery({ directory } = {}) {
   const plan = await readPlan(directory);
   if (await exists(directory, 'result.json') || await exists(directory, 'recovery-result.json')) throw new Error('trial-already-completed');
-  const { backup, marker } = await recoveryContext(directory, plan);
+  const { issued, backup, marker } = await recoveryContext(directory, plan);
   // This barrier permanently retires original commands from recovery-capable
   // trials, including commands copied before the desktop or Resolve restarted.
   await writeResultBytes(directory, 'recovery-started.json', `${json(marker)}\n`);
   const root = path.join(directory, 'recovery');
   await fs.mkdir(root, { recursive: true, mode: 0o700 });
   await privateDirectory(root);
+  await syncDirectory(directory);
+  await syncDirectory(root);
   const entries = await fs.readdir(root, { withFileTypes: true });
   if (entries.length >= 128) throw new Error('too-many-recovery-attempts');
   for (const entry of entries) {
@@ -379,9 +437,11 @@ async function prepareRenameTrialRecovery({ directory } = {}) {
   const capture = await createEffectCaptureCommand(plan.before.project_name, { includeProperties: effectStates(plan).before.schemaVersion === 2 });
   const attemptId = capture.captureId, folder = path.join(root, attemptId);
   await fs.mkdir(folder, { mode: 0o700 });
+  await syncDirectory(root);
   await writeRecord(folder, 'request.json', { schemaVersion: 1, transactionId: plan.id, attemptId,
     revocationSha256: sha(await privateBytes(directory, 'recovery-started.json', 1024)) });
   return { directory, projectName: plan.before.project_name, transactionId: plan.id, attemptId, captureId: attemptId, command: capture.command,
+    mode: issuedMode(issued),
     backup, backupPath: plan.backupPath, effectGuard: { sourceSha256: plan.effectGuard.sourceSha256,
       coverage: describeEffectCoverage(effectStates(plan).before) } };
 }
@@ -406,7 +466,11 @@ async function issueRenameTrialRecovery({ directory, attemptId } = {}) {
   await assertRecoveryActive(directory, attempt.folder);
   if (!attempt.binding.operation) throw new Error('manual-recovery-required');
   await writeResultBytes(attempt.folder, 'issued.json', `${json(attempt.binding)}\n`);
-  const guard = `assert(bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))}) and bmd.fileexists(${quote(plan.backupPath)}),'Recovery records missing');assert(not bmd.fileexists(${quote(path.join(attempt.folder, 'retired.json'))}) and not bmd.fileexists(${quote(path.join(directory, 'recovery-result.json'))}) and not bmd.fileexists(${quote(path.join(directory, 'result.json'))}),'Recovery command retired');`;
+  const guard = `assert(bmd and bmd.fileexists and bmd.fileexists(${quote(path.join(directory, 'recovery-started.json'))}) and bmd.fileexists(${quote(plan.backupPath)}),'Recovery records missing');assert(not bmd.fileexists(${quote(path.join(attempt.folder, 'retired.json'))}) and not bmd.fileexists(${quote(path.join(directory, 'recovery-result.json'))}) and not bmd.fileexists(${quote(path.join(directory, 'result.json'))}),'Recovery command retired');`
+    + exactFileGuard(path.join(directory, 'issued.json'), attempt.issuedBytes, 16384, 'Trial issued record changed')
+    + exactFileGuard(path.join(directory, 'recovery-started.json'), attempt.markerBytes, 1024, 'Recovery revocation changed')
+    + exactFileGuard(path.join(attempt.folder, 'inspection.json'), attempt.bytes, 20 * 1024 * 1024, 'Recovery inspection changed')
+    + exactFileGuard(path.join(attempt.folder, 'issued.json'), `${json(attempt.binding)}\n`, 1024, 'Recovery issued record changed');
   const target = `local function target() local p=resolve:GetProjectManager():GetCurrentProject();assert(p:GetUniqueId()==${quote(plan.before.project_id)},'Project changed');for n=1,p:GetTimelineCount() do local t=p:GetTimelineByIndex(n);if t:GetUniqueId()==${quote(plan.change.timelineId)} then for _,kind in ipairs({'video','audio','subtitle'}) do for track=1,t:GetTrackCount(kind) do for _,item in ipairs(t:GetItemListInTrack(kind,track) or {}) do if item:GetUniqueId()==${quote(plan.change.itemId)} then return item end end end end end end;error('Target missing') end;`;
   const operation = attempt.binding.operation === 'restore-name' ? `assert(target():SetName(${quote(plan.change.before)}),'Restore name failed');` : '';
   const status = attempt.binding.operation === 'restore-name' ? 'restored' : 'source-verified';
@@ -456,7 +520,8 @@ async function describeRenameTrial(directory) {
   const plan = await readPlan(directory);
   if (typeof plan.createdAt !== 'string' || !Number.isFinite(Date.parse(plan.createdAt))
     || new Date(plan.createdAt).toISOString() !== plan.createdAt) throw new Error('invalid-trial-date');
-  const description = { transactionId: plan.id, projectName: plan.before.project_name, createdAt: plan.createdAt };
+  const description = { transactionId: plan.id, projectName: plan.before.project_name, createdAt: plan.createdAt,
+    mode: plan.experimentMode || 'forced-rollback' };
   const issuedExists = await exists(directory, 'issued.json');
   const completed = await exists(directory, 'result.json') || await exists(directory, 'recovery-result.json');
   const recovering = await exists(directory, 'recovery-started.json');
@@ -473,21 +538,17 @@ async function describeRenameTrial(directory) {
     || typeof target.branch !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,39}$/.test(target.branch)
     || !/^[a-f0-9-]{36}$/.test(target.expectedHeadId || '')) throw new Error('invalid-history-target');
   if (completed) {
-    const { result, snapshot } = await readRenameTrialResult(directory);
-    return { ...description, target, result, snapshot, state: result.status === 'recovery-required' ? 'manual' : 'outcome' };
+    const { result, snapshot, mode } = await readRenameTrialResult(directory);
+    return { ...description, mode, target, result, snapshot, state: result.status === 'recovery-required' ? 'manual' : 'outcome' };
   }
-  const issued = JSON.parse(await privateBytes(directory, 'issued.json', 16384));
-  if (issued.transactionId !== plan.id || typeof issued.forceFailure !== 'boolean' || !/^[a-f0-9]{64}$/.test(issued.backup?.sha256 || '')) {
-    throw new Error('invalid-issued-trial');
-  }
-  await inspectResolveProjectExport(plan.backupPath, issued.backup.sha256);
-  const supported = Boolean(plan.effectGuard && issued.recoveryVersion === 1 && issued.forceFailure);
+  const { issued } = await readIssued(directory, plan);
+  const supported = supportsRecovery(plan, issued);
   if (await exists(directory, 'recovery-started.json')) {
     if (!supported) throw new Error('invalid-trial-recovery');
     const context = await recoveryContext(directory, plan);
     if (json(JSON.parse(await privateBytes(directory, 'recovery-started.json', 1024))) !== json(context.marker)) throw new Error('trial-recovery-binding-mismatch');
   }
-  return { ...description, target, state: supported ? 'unfinished' : 'manual' };
+  return { ...description, mode: issuedMode(issued), target, state: supported ? 'unfinished' : 'manual' };
 }
 
 async function exportRenameTrialAudit(directory) {

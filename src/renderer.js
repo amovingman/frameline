@@ -2755,8 +2755,9 @@ window.desktop?.onResolveReviewState?.(state => {
 
 var resolveTrialState = null;
 var resolveTrialBusy = false;
+var resolveTrialModeDraft = 'forced-rollback';
 function activeResolveTrial() {
-  return resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command',
+  return resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
     'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialState?.phase);
 }
 function renderRetainedResolveTrials() {
@@ -2783,7 +2784,7 @@ function renderRetainedResolveTrials() {
     const row = make('div', 'resolve-retained-row'), summary = make('div');
     summary.append(make('strong', '', item.projectName || 'Unverified drill record'));
     const date = item.createdAt ? new Date(item.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Date unavailable';
-    summary.append(make('span', '', `${date} · Trial ${item.transactionId.slice(0, 8)}`), make('span', '', labels[item.state] || labels.unreadable));
+    summary.append(make('span', '', `${date} · ${item.mode === null ? 'Mode unavailable' : item.mode === 'rename-verify' ? 'Rename and verify' : 'Force rollback test'} · Trial ${item.transactionId.slice(0, 8)}`), make('span', '', labels[item.state] || labels.unreadable));
     row.append(summary);
     if (item.action !== 'none') {
       const label = item.action === 'recover' ? item.state === 'outcome' ? 'Open outcome' : 'Inspect live state'
@@ -2804,21 +2805,36 @@ function renderResolveTrial() {
   renderRetainedResolveTrials();
   const blocked = resolveTrialBusy || state?.busy;
   const phase = state?.phase;
-  document.getElementById('resolve-trial-name').disabled = Boolean(activeResolveTrial());
-  document.getElementById('resolve-trial-ack').disabled = Boolean(activeResolveTrial());
-  if (state?.recovery && !['idle', 'saved'].includes(phase) && state.projectName) document.getElementById('resolve-trial-name').value = state.projectName;
+  const modeLocked = Boolean(blocked || phase && !['idle', 'saved'].includes(phase));
+  const recordedMode = state?.mode === 'rename-verify' ? 'rename-verify' : 'forced-rollback';
+  const mode = phase && !['idle', 'saved'].includes(phase) ? recordedMode
+    : resolveTrialModeDraft === 'rename-verify' ? 'rename-verify' : 'forced-rollback';
+  const modeSelect = document.getElementById('resolve-trial-mode'); modeSelect.value = mode; modeSelect.disabled = modeLocked;
+  const modeLabel = recordedMode === 'rename-verify' ? 'Rename and verify' : 'Force rollback test';
+  setServiceText(document.getElementById('resolve-trial-mode-help'), mode === 'rename-verify'
+    ? 'On successful captured-field verification, the reviewed rename remains in the disposable project. This does not establish full native project safety.'
+    : 'The reviewed rename is followed by a forced rollback and verification of the original observed state. This does not establish full native project safety.');
+  const acknowledgement = mode === 'rename-verify'
+    ? 'I am using the named disposable project for this rename verification experiment.'
+    : 'I am using the named disposable project for this forced rollback test.';
+  setServiceText(document.getElementById('resolve-trial-ack-label'), acknowledgement);
+  document.getElementById('resolve-trial-ack').setAttribute('aria-label', acknowledgement);
+  document.getElementById('resolve-trial-name').disabled = modeLocked;
+  document.getElementById('resolve-trial-ack').disabled = modeLocked;
+  if (phase && !['idle', 'saved'].includes(phase) && state.projectName) document.getElementById('resolve-trial-name').value = state.projectName;
   document.getElementById('resolve-trial-prepare').disabled = blocked || !resolveState?.audit || resolveState?.plan?.schemaVersion !== 1
     || resolveState?.sourceMode === 'service-history'
     || !['idle', 'saved'].includes(phase) || !document.getElementById('resolve-trial-ack').checked;
   document.getElementById('resolve-trial-issue').disabled = blocked || !['backup-command', 'recovery-ready'].includes(phase);
   document.getElementById('resolve-trial-issue').textContent = phase === 'recovery-ready'
-    ? state.recovery?.classification === 'source' ? 'Verify saved source' : 'Restore original name' : 'Verify backup and copy drill';
-  document.getElementById('resolve-trial-copy').disabled = blocked || !['effect-command', 'backup-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase);
+    ? state.recovery?.classification === 'source' ? 'Verify saved source' : 'Restore original name'
+    : mode === 'rename-verify' ? 'Verify backup and copy rename experiment' : 'Verify backup and copy rollback test';
+  document.getElementById('resolve-trial-copy').disabled = blocked || !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-command'].includes(phase);
   document.getElementById('resolve-trial-cancel').disabled = blocked || !['effect-command', 'backup-command'].includes(phase);
-  document.getElementById('resolve-trial-read').disabled = blocked || !['effect-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase);
+  document.getElementById('resolve-trial-read').disabled = blocked || !['effect-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-command'].includes(phase);
   document.getElementById('resolve-trial-read').textContent = phase?.startsWith('recovery-')
     ? phase === 'recovery-capture' ? 'Read recovery capture' : 'Read recovery result'
-    : ['idle', 'effect-command'].includes(phase) ? 'Read state capture' : 'Read drill result';
+    : ['idle', 'effect-command'].includes(phase) ? 'Read state capture' : mode === 'rename-verify' ? 'Read rename result' : 'Read rollback result';
   document.getElementById('resolve-trial-save').disabled = blocked || phase !== 'verified' || state?.outcome?.status === 'recovery-required';
   document.getElementById('resolve-trial-reveal').disabled = blocked || !state?.backup;
   document.getElementById('resolve-trial-recover').disabled = blocked || !['idle', 'saved'].includes(phase);
@@ -2829,14 +2845,16 @@ function renderResolveTrial() {
     'effect-command': 'Read-only state capture copied. Run it in Resolve’s Lua Console, copy all Console output, then read the state capture here.',
     'backup-command': 'State capture matches the reviewed snapshot. Backup command copied: run it in Resolve’s Lua Console, then verify the backup here.',
     'rollback-command': 'Backup verified. Drill command copied: run it in Resolve, then copy all Console output and read the result.',
+    'edit-command': 'Backup verified. Rename experiment copied: run it in Resolve, then copy all Console output and read the result. A verified result leaves the reviewed name in the disposable project. If interrupted, return here for inspection and recovery.',
     'recovery-capture': 'Original drill command retired. Read-only inspection copied: run it in Resolve’s Lua Console, copy all output, then read the recovery capture here.',
     'recovery-ready': state?.recovery?.classification === 'source'
       ? 'The captured state matches the original. Verify it by saving and reopening Resolve; no rename is needed.'
       : 'The captured state matches the interrupted rename. Restore the original clip name, then save, reopen, and verify the captured fields.',
     'recovery-command': 'Recovery command copied. Run it in Resolve, copy all Console output, then read the recovery result here.',
     'recovery-required': 'The original state could not be verified. Keep the retained backup and inspect the disposable project manually. Choose Inspect again for a fresh capture after inspection.',
-    verified: `Verified outcome: ${state?.outcome?.status || 'unknown'}. Save an observation revision to retain the history link.`,
-    saved: `Outcome revision saved on ${state?.branch || 'the selected branch'}: ${state?.revisionId || ''}.` };
+    verified: `${modeLabel}: ${{ applied: 'reviewed rename observed after save/reopen', 'rolled-back': 'original observed state verified after rollback',
+      restored: 'original observed state restored and verified', 'source-verified': 'original observed state verified', 'recovery-required': 'manual recovery required' }[state?.outcome?.status] || 'recorded outcome available'}. Save an observation revision to retain the history link.`,
+    saved: `${modeLabel} outcome revision saved on ${state?.branch || 'the selected branch'}: ${state?.revisionId || ''}.` };
   const coverage = state?.effectGuard?.coverage;
   const observedCount = (value, singular) => `${value} ${value === 1 ? singular : `${singular}s`}`;
   const coverageText = coverage?.schemaVersion === 2
@@ -2863,15 +2881,22 @@ async function resolveTrialAction(method, ...args) {
     resolveTrialBusy = false; renderResolveState(resolveState);
     if (method === 'cancelDiscoveredResolveTrial' && !resolveTrialState?.error) document.getElementById('resolve-retained-refresh').focus();
     if (!resolveTrialState?.error && resolveTrialState?.phase !== previousPhase) {
-      const next = { 'effect-command': 'read', 'backup-command': 'issue', 'rollback-command': 'read',
+      const next = { 'effect-command': 'read', 'backup-command': 'issue', 'rollback-command': 'read', 'edit-command': 'read',
         'recovery-capture': 'read', 'recovery-ready': 'issue', 'recovery-command': 'read', 'recovery-required': 'inspect', verified: 'save' }[resolveTrialState?.phase];
       if (next && !document.getElementById(`resolve-trial-${next}`).disabled) document.getElementById(`resolve-trial-${next}`).focus();
     }
   }
 }
 document.getElementById('resolve-trial-form').addEventListener('submit', event => {
-  event.preventDefault(); resolveTrialAction('prepareResolveTrial', document.getElementById('resolve-trial-name').value.trim(), document.getElementById('resolve-trial-ack').checked);
+  event.preventDefault(); resolveTrialAction('prepareResolveTrial', document.getElementById('resolve-trial-name').value.trim(), document.getElementById('resolve-trial-ack').checked, document.getElementById('resolve-trial-mode').value);
 });
+function changeResolveTrialMode() {
+  if (resolveTrialBusy || resolveTrialState?.busy || resolveTrialState?.phase && !['idle', 'saved'].includes(resolveTrialState.phase)) { renderResolveTrial(); return; }
+  const value = document.getElementById('resolve-trial-mode').value === 'rename-verify' ? 'rename-verify' : 'forced-rollback';
+  if (value !== resolveTrialModeDraft) { resolveTrialModeDraft = value; document.getElementById('resolve-trial-ack').checked = false; }
+  renderResolveTrial();
+}
+document.getElementById('resolve-trial-mode').addEventListener('change', changeResolveTrialMode);
 document.getElementById('resolve-trial-ack').addEventListener('change', renderResolveTrial);
 document.getElementById('resolve-retained-refresh').addEventListener('click', () => resolveTrialAction('discoverResolveTrials', false));
 document.getElementById('resolve-retained-more').addEventListener('click', () => resolveTrialAction('discoverResolveTrials', true));

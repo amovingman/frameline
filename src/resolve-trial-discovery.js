@@ -29,7 +29,7 @@ async function discoverRenameTrials({ directory, store, cursor = null } = {}) {
     const selected = path.join(directory, entry.name);
     const recordId = createHash('sha256').update(entry.name).digest('hex');
     const fallback = { recordId, transactionId: NAME.exec(entry.name)[1], projectName: null,
-      createdAt: null, state: 'unreadable', action: 'none' };
+      createdAt: null, mode: null, state: 'unreadable', action: 'none' };
     let canReveal = false;
     try {
       if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error('invalid-trial-directory');
@@ -39,7 +39,7 @@ async function discoverRenameTrials({ directory, store, cursor = null } = {}) {
       if (descriptor.state === 'cancelled') continue;
       if (descriptor.state === 'outcome' && await inspectRenameTrialHistoryLink({ directory: selected, store,
         result: descriptor.result, snapshot: descriptor.snapshot, target: descriptor.target })) continue;
-      const item = { ...fallback, projectName: descriptor.projectName, createdAt: descriptor.createdAt,
+      const item = { ...fallback, projectName: descriptor.projectName, createdAt: descriptor.createdAt, mode: descriptor.mode,
         state: descriptor.state, action: ['unfinished', 'outcome'].includes(descriptor.state) ? 'recover'
           : descriptor.state === 'prepared' ? 'cancel' : 'reveal' };
       items.push(item); selections.set(recordId, { directory: selected, action: item.action });

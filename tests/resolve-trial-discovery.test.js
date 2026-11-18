@@ -50,6 +50,11 @@ async function makeTrial(context, state) {
   await fs.writeFile(path.join(trial.directory, 'history-target.json'), JSON.stringify(target), { mode: 0o600 });
   await exportFixture(trial);
   await issueRenameTrial({ directory: trial.directory, forceFailure: state !== 'manual' });
+  if (state === 'manual') {
+    // Older non-forced commands were not mode-bound and remain manual work.
+    const filename = path.join(trial.directory, 'issued.json'), issued = JSON.parse(await fs.readFile(filename));
+    issued.recoveryVersion = 1; await fs.writeFile(filename, JSON.stringify(issued));
+  }
   if (['outcome', 'saved'].includes(state)) {
     await recordRenameTrialResult({ directory: trial.directory, status: 'rolled-back',
       snapshotBytes: context.sources.local, effectObservationBytes: context.effects });

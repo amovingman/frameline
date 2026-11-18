@@ -197,7 +197,7 @@ async function currentResolveSources() {
 
 async function runResolveAction(action) {
   const trial = resolveTrialSession?.getState();
-  if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
+  if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
       message: 'Finish the active drill or cancel its preparation before changing the review.' } });
   }
@@ -479,7 +479,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     try { shell.showItemInFolder(await resolveTrialSession.discoveredRecordPath(id)); return resolveTrialSession.getState(); }
     catch { return { ...resolveTrialSession.getState(), error: 'The retained drill folder could not be verified. Keep the records for manual inspection.' }; }
   });
-  ipcMain.handle('resolve-trial:prepare', (_event, projectName, acknowledged) => resolveTrialSession.prepare(projectName, acknowledged));
+  ipcMain.handle('resolve-trial:prepare', (_event, projectName, acknowledged, mode) => resolveTrialSession.prepare(projectName, acknowledged, mode));
   ipcMain.handle('resolve-trial:issue', () => resolveTrialSession.issue());
   ipcMain.handle('resolve-trial:copy', () => resolveTrialSession.copyCommand());
   ipcMain.handle('resolve-trial:cancel', () => resolveTrialSession.cancelPreparation());

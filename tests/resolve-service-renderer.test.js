@@ -20,6 +20,7 @@ class Element {
     this.children.splice(index < 0 ? this.children.length : index, 0, value); }
   querySelector(selector) { const value = /option\[value="([^"]+)"\]/.exec(selector)?.[1]; return this.children.find(item => item.value === value) || null; }
   addEventListener() {}
+  setAttribute(name, value) { this[name] = value; }
   closest() { return this.hidden ? this : null; }
   focus() { this.owner.activeElement = this; }
 }
@@ -168,7 +169,7 @@ test('service history always explains and blocks the rename drill even for a com
   const view = fixture(), trialStart = source.indexOf('function renderResolveTrial(');
   const trialEnd = source.indexOf('async function resolveTrialAction(', trialStart);
   assert(trialStart >= 0 && trialEnd > trialStart);
-  Object.assign(view.context, { resolveTrialState: { enabled: true, phase: 'idle', busy: false }, resolveTrialBusy: false,
+  Object.assign(view.context, { resolveTrialState: { enabled: true, phase: 'idle', busy: false }, resolveTrialBusy: false, resolveTrialModeDraft: 'forced-rollback',
     activeResolveTrial: () => false, renderRetainedResolveTrials() {} });
   view.element('resolve-trial-ack').checked = true;
   vm.runInContext(source.slice(trialStart, trialEnd), view.context);

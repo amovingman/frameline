@@ -74,7 +74,7 @@ function validatePortableTrialAudit(value, expectedSnapshot = null) {
     const issued = encodedJson(value.issuedRecord, 16384);
     keys(issued, ['transactionId', 'backup', 'forceFailure', 'issuedAt', ...(Object.hasOwn(issued, 'recoveryVersion') ? ['recoveryVersion'] : [])]);
     if (issued.transactionId !== value.transactionId || typeof issued.forceFailure !== 'boolean'
-      || (issued.recoveryVersion !== undefined && issued.recoveryVersion !== 1)
+      || (issued.recoveryVersion !== undefined && ![1, 2].includes(issued.recoveryVersion))
       || (issued.forceFailure && outcome.status === 'applied')) invalid();
     timestamp(issued.issuedAt);
     keys(issued.backup, ['schemaVersion', 'sha256', 'size', 'mode', 'timelineCount', 'archiveVerified']);
@@ -97,7 +97,7 @@ function validatePortableTrialAudit(value, expectedSnapshot = null) {
     } else if (outcome.effectObservation !== null) invalid();
     const recovered = ['restored', 'source-verified'].includes(outcome.status);
     if (recovered) {
-      if (!effectsBefore || issued.recoveryVersion !== 1 || issued.forceFailure !== true) invalid();
+      if (!effectsBefore || !(issued.recoveryVersion === 2 || issued.recoveryVersion === 1 && issued.forceFailure === true)) invalid();
       keys(value.recovery, ['binding', 'inspection', 'revocation']);
       const binding = value.recovery.binding;
       keys(binding, ['attemptId', 'revocationSha256', 'inspectionSha256', 'operation']);

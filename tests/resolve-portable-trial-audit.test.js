@@ -20,7 +20,7 @@ const { createCloudHistoryStore } = require('../src/cloud-history-store');
 const { createRevisionSyncService } = require('../src/revision-sync');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
-async function fixture(t, { effects = true, recovered = false } = {}) {
+async function fixture(t, { effects = true, recovered = false, forceFailure = true } = {}) {
   const root = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'portable-trial-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const f = path.join(__dirname, '../phase-0/resolve-xml-proof');
@@ -37,7 +37,7 @@ async function fixture(t, { effects = true, recovered = false } = {}) {
     const file = path.join(trial.directory, name); await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, '<Fixture/>');
   }
   assert.equal(spawnSync('zip', ['-q', trial.backupPath, 'project.xml', 'MediaPool/Master/MpFolder.xml', 'SeqContainer/timeline.xml'], { cwd: trial.directory }).status, 0);
-  await issueRenameTrial({ directory: trial.directory, forceFailure: true });
+  await issueRenameTrial({ directory: trial.directory, forceFailure });
   if (recovered) {
     const recovery = await prepareRenameTrialRecovery({ directory: trial.directory });
     const renamed = JSON.parse(effectBytes); renamed.snapshot = JSON.parse(incoming);
@@ -205,4 +205,16 @@ test('CLI exports complete private files without replacement, verifies them, and
   const first = run(['import', destination, filename]); assert.equal(first.status, 0);
   assert.equal(JSON.parse(first.stdout).imported, true);
   assert.equal(JSON.parse(run(['import', destination, filename]).stdout).imported, false);
+});
+
+test('non-forced v2 recovery audit preserves restore-original evidence and rejects changed issuance mode or future versions', async t => {
+  const { portable, snapshot } = await fixture(t, { recovered: true, forceFailure: false });
+  const issued = JSON.parse(portable.issuedRecord); assert.equal(issued.recoveryVersion, 2); assert.equal(issued.forceFailure, false);
+  assert.equal(portable.outcome.status, 'restored'); assert.equal(portable.recovery.binding.operation, 'restore-name');
+  assert.deepEqual(validatePortableTrialAudit(portable, snapshot), portable);
+  for (const edit of [value => { value.forceFailure = true; }, value => { value.recoveryVersion = 3; },
+    value => { value.recoveryVersion = 1; }, value => { value.extra = 'unknown'; }]) {
+    const changed = structuredClone(portable), record = JSON.parse(changed.issuedRecord); edit(record); changed.issuedRecord = JSON.stringify(record);
+    assert.throws(() => validatePortableTrialAudit(changed), { code: 'invalid-portable-trial-audit' });
+  }
 });

@@ -21,7 +21,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   let discovery = { ready: false, items: [], scanned: 0, total: 0, hasMore: false, error: null };
   let discoveryCursor = null, discovered = new Map();
   function getState() {
-    return { enabled, phase, busy, transactionId: pending?.transactionId || null, projectName: pending?.projectName || null,
+    return { enabled, phase, busy, mode: pending?.mode || 'forced-rollback', transactionId: pending?.transactionId || null, projectName: pending?.projectName || null,
       captureId: pending?.captureId || null, effectGuard: pending?.effectGuard || null,
       recovery: pending?.attemptId ? { attemptId: pending.attemptId,
         classification: pending.classification || null, operation: pending.operation || null } : null,
@@ -85,14 +85,16 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         : failure.message === 'richer-capture-required' ? 'New drills require clip properties and track state. Run the newly copied capture and read its output again.'
         : failure.message === 'incomplete-property-capture' ? 'Some clip properties or track states could not be read. Keep the project unchanged and retry the capture before preparing a drill.'
         : failure.message === 'rich-preview-review-only' ? 'Richer previews record review intent only. The rename recovery drill requires a snapshot-only review and cannot apply property choices.'
+        : failure.message === 'trial-issued-mode-mismatch' ? 'The saved experiment mode changed. Keep the records and start a new preparation.'
         : phase === 'effect-command' ? 'The effect capture could not be verified. Run the copied capture in Resolve’s Lua Console, copy all output, and read it again.'
         : failure.message === 'trial-does-not-support-interrupted-recovery' ? 'This older or unsupported drill cannot retire its copied command. Keep the backup and inspect the disposable project manually.'
         : 'The trial action could not be verified. Keep the backup and trial records; check the Console output and retry.';
     } finally { busy = false; }
     return getState();
   }
-  async function prepare(projectName, acknowledged) {
+  async function prepare(projectName, acknowledged, mode = 'forced-rollback') {
     return run(async () => {
+      if (!['forced-rollback', 'rename-verify'].includes(mode)) throw new Error('invalid-experiment-mode');
       if (acknowledged !== true || (pending && phase !== 'saved')) throw new Error('trial-not-ready');
       const review = await getReview();
       const derived = resolveReviewedRename(review);
@@ -101,7 +103,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         throw new Error('named-disposable-project-required');
       }
       const capture = await createEffectCaptureCommand(projectName, { includeProperties: true });
-      pending = { ...capture, projectName, auditHash: review.audit.auditHash };
+      pending = { ...capture, projectName, mode, auditHash: review.audit.auditHash };
       outcome = revision = null; phase = 'effect-command';
       clipboard.writeText(capture.command);
     });
@@ -117,7 +119,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       || observed.items.some(item => Object.keys(item.properties).length === 0)) throw new Error('incomplete-property-capture');
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
     const trial = await prepareReviewedRenameTrial({ ...review, effectObservationBytes,
-      destinationDir: directory, disposableProjectName: pending.projectName });
+      destinationDir: directory, disposableProjectName: pending.projectName, experimentMode: pending.mode });
     const before = createResolveRevisionManifest(JSON.parse(review.sources.local.toString('utf8')));
     const project = await store.getResolveProjectId(before.snapshot.project_id, before.snapshot.project_name);
     const branch = (await store.getBranchState(project.id)).currentBranch;
@@ -128,7 +130,10 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       head = (await store.saveRevision(project.id, before, `Before rename trial ${trial.transactionId}`, head, branch)).id;
     }
     const target = { branch, expectedHeadId: head };
-    await fs.writeFile(path.join(trial.directory, 'history-target.json'), JSON.stringify(target), { flag: 'wx', mode: 0o600 });
+    const targetFile = await fs.open(path.join(trial.directory, 'history-target.json'), 'wx', 0o600);
+    try { await targetFile.writeFile(JSON.stringify(target)); await targetFile.sync(); } finally { await targetFile.close(); }
+    const targetDirectory = await fs.open(trial.directory, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try { await targetDirectory.sync(); } finally { await targetDirectory.close(); }
     pending = { ...trial, target, projectName: before.snapshot.project_name, auditHash: review.audit.auditHash,
       effectGuard: { sourceSha256: createHash('sha256').update(effectObservationBytes).digest('hex'), coverage } };
     outcome = revision = null; phase = 'backup-command';
@@ -144,12 +149,12 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
       if (phase !== 'backup-command') throw new Error('trial-not-ready');
       const review = await getReview();
       if (review.audit.auditHash !== pending.auditHash) throw new Error('complete-current-review-required');
-      // Desktop exposes the forced-failure drill only while full apply validation
-      // is unproven. Both rename and rollback execute on the named disposable project.
-      const issued = await issueRenameTrial({ directory: pending.directory, forceFailure: true });
+      // Both modes remain named-disposable experiments with observed-field
+      // validation. Interrupted successful edits recover toward the original.
+      const issued = await issueRenameTrial({ directory: pending.directory, forceFailure: pending.mode !== 'rename-verify' });
       pending.backup = issued.backup;
       pending.command = issued.command;
-      phase = 'rollback-command'; clipboard.writeText(issued.command);
+      phase = pending.mode === 'rename-verify' ? 'edit-command' : 'rollback-command'; clipboard.writeText(issued.command);
     });
   }
   async function read() {
@@ -168,7 +173,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         else phase = 'recovery-required';
         return;
       }
-      if (phase !== 'rollback-command') throw new Error('trial-not-ready');
+      if (!['rollback-command', 'edit-command'].includes(phase)) throw new Error('trial-not-ready');
       outcome = await recordRenameTrialConsoleResult({ directory: pending.directory, consoleOutput: clipboard.readText() });
       phase = 'verified';
     });
@@ -185,8 +190,8 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
     return run(async () => {
       if (pending && phase !== 'saved') throw new Error('trial-already-active');
       if (typeof selected !== 'string' || path.dirname(selected) !== path.resolve(directory)) throw new Error('invalid-trial-directory');
-      let result, snapshot, observationCoverage;
-      try { ({ result, snapshot, observationCoverage } = await readRenameTrialResult(selected)); }
+      let result, snapshot, observationCoverage, mode;
+      try { ({ result, snapshot, observationCoverage, mode } = await readRenameTrialResult(selected)); }
       catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
       const handle = await fs.open(path.join(selected, 'history-target.json'), constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
       let target;
@@ -201,7 +206,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
         pending = { ...recovery, target }; outcome = revision = null;
         phase = 'recovery-capture'; clipboard.writeText(recovery.command); return;
       }
-      pending = { directory: selected, transactionId: result.transactionId, backup: result.backup,
+      pending = { directory: selected, mode, transactionId: result.transactionId, backup: result.backup,
         backupPath: result.backupPath, target, projectName: snapshot.project_name, auditHash: result.review?.auditHash,
         ...(result.recovery ? { attemptId: result.recovery.attemptId, operation: result.recovery.operation } : {}),
         effectGuard: result.effectObservation ? { sourceSha256: result.effectObservation.sourceSha256, coverage: observationCoverage } : null };
@@ -223,7 +228,7 @@ function createResolveTrialSession({ enabled = false, directory, store, getRevie
   }
   async function copyCommand() {
     return run(async () => {
-      if (!['effect-command', 'backup-command', 'rollback-command', 'recovery-capture', 'recovery-command'].includes(phase)
+      if (!['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-command'].includes(phase)
         || !pending?.command) throw new Error('trial-command-unavailable');
       clipboard.writeText(pending.command);
     });

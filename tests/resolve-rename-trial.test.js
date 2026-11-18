@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
-const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult } = require('../src/resolve-rename-trial');
+const { prepareRenameTrial, prepareReviewedRenameTrial, issueRenameTrial, recordRenameTrialResult, recordRenameTrialConsoleResult, describeRenameTrial } = require('../src/resolve-rename-trial');
 const { createResolvePreviewPlan } = require('../src/resolve-preview-plan');
 const { createResolveConflictReview, createResolveDecisionAudit } = require('../src/resolve-review-decisions');
 const { resolveReviewedRename } = require('../src/resolve-rename-review');
@@ -47,7 +47,11 @@ test('issued commands reject completed or partially recorded outcomes in a fresh
     await exportFixture(trial);
     const issued = await issueRenameTrial({ directory: trial.directory, forceFailure: true });
     function runGuard(expected, calls, filesystem = true) {
-      const script = `local calls=0;resolve={GetProjectManager=function() calls=calls+1;error('Unexpected editor access') end};
+      const script = `local calls=0;resolve={Fusion=function() return {OpenFile=function(_,filename,mode)
+        assert(mode==1);local h=io.open(filename,'rb');if not h then return nil end;
+        return {GetFileSize=function() local p=h:seek();local n=h:seek('end');h:seek('set',p);return n end,
+          ReadLine=function() local parts={};while true do local ch=h:read(1);if not ch then break end;parts[#parts+1]=ch;if ch=='\\n' then break end end;if #parts==0 then return nil end;return table.concat(parts) end,
+          Close=function() h:close() end} end} end,GetProjectManager=function() calls=calls+1;error('Unexpected editor access') end};
         ${filesystem ? "bmd={fileexists=function(filename) local f=io.open(filename,'rb');if not f then return false end;f:close();return true end};" : 'bmd=nil;'}
         local ok,err=pcall(function() ${issued.command} end);
         assert(not ok and tostring(err):find(${JSON.stringify(expected)},1,true),tostring(err));assert(calls==${calls});`;
@@ -79,6 +83,31 @@ test('requires a private directory, exact named project, and exactly one observe
   await assert.rejects(prepareRenameTrial({ ...options, afterBytes: JSON.stringify(changed) }), /trial-requires-one-rename/);
   await fs.chmod(options.destinationDir, 0o755);
   await assert.rejects(prepareRenameTrial(options), /trial-directory-not-private/);
+});
+
+test('explicit experiment intent persists before issuance and cannot switch modes when a command is issued or reloaded', async t => {
+  for (const mode of ['forced-rollback', 'rename-verify']) {
+    const options = await reviewedFixture(t);
+    options.effectObservationBytes = await fs.readFile(path.join(__dirname, '../phase-0/resolve-xml-proof/live-effects-enabled.json'));
+    const trial = await prepareReviewedRenameTrial({ ...options, experimentMode: mode }); assert.equal(trial.mode, mode);
+    assert.equal(JSON.parse(await fs.readFile(path.join(trial.directory, 'prepared.json'))).experimentMode, mode);
+    assert.equal((await describeRenameTrial(trial.directory)).mode, mode);
+    await exportFixture(trial);
+    await fs.writeFile(path.join(trial.directory, 'history-target.json'), JSON.stringify({ branch: 'main', expectedHeadId: require('node:crypto').randomUUID() }), { mode: 0o600 });
+    await assert.rejects(issueRenameTrial({ directory: trial.directory, forceFailure: mode !== 'forced-rollback' }), /issued-mode-mismatch/);
+    await assert.rejects(fs.stat(path.join(trial.directory, 'issued.json')), { code: 'ENOENT' });
+    await issueRenameTrial({ directory: trial.directory, forceFailure: mode === 'forced-rollback' });
+    assert.equal((await describeRenameTrial(trial.directory)).mode, mode);
+    const observation = JSON.parse(options.effectObservationBytes); observation.snapshot = JSON.parse(mode === 'rename-verify' ? options.afterBytes : options.beforeBytes);
+    await recordRenameTrialResult({ directory: trial.directory, status: mode === 'rename-verify' ? 'applied' : 'rolled-back',
+      snapshotBytes: mode === 'rename-verify' ? options.afterBytes : options.beforeBytes, effectObservationBytes: JSON.stringify(observation) });
+    assert.equal((await readRenameTrialResult(trial.directory)).mode, mode); assert.equal((await describeRenameTrial(trial.directory)).mode, mode);
+    const filename = path.join(trial.directory, 'prepared.json'), prepared = JSON.parse(await fs.readFile(filename));
+    prepared.experimentMode = mode === 'rename-verify' ? 'forced-rollback' : 'rename-verify'; await fs.writeFile(filename, JSON.stringify(prepared));
+    await assert.rejects(readRenameTrialResult(trial.directory), /invalid-issued-trial/);
+  }
+  const invalid = await fixture(t); await assert.rejects(prepareRenameTrial({ ...invalid, experimentMode: 'unsupported' }), /invalid-trial-option/);
+  assert.deepEqual(await fs.readdir(invalid.destinationDir), []);
 });
 
 test('cannot issue without an archive; keeps private backup and immutable result after verified rollback', async t => {
