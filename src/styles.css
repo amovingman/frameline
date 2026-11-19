@@ -191,3 +191,17 @@
 .resolve-deletion-choice button { width: 100%; }
 .resolve-detail .resolve-choice-consequence { margin-top: 8px; color: var(--secondary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .resolve-placement-heading { flex-direction: column; } .resolve-placement-heading label { width: 100%; } .resolve-placement-policy button, .resolve-placement-policy select { min-height: 44px; } .resolve-placement-values { grid-template-columns: 1fr; gap: 4px; } .resolve-placement-values dd { margin-bottom: 8px; } }
+
+.resolve-change-pages { margin-top: 16px; }
+.resolve-change-group { margin: 20px 0 8px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.resolve-change-context, .resolve-complex-risk { margin: 20px 0; }
+.resolve-change-context h3, .resolve-complex-risk h3 { font-size: 14px; font-weight: 600; }
+.resolve-context-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.resolve-context-role { min-width: 0; }
+.resolve-context-role h4 { font-size: 13px; font-weight: 500; }
+.resolve-context-role p, .resolve-complex-risk p { margin-top: 8px; color: var(--secondary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.resolve-complex-risk .resolve-risk-summary { color: var(--warning); }
+.resolve-history-frame-context { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 12px 0; }
+.resolve-detail .resolve-values pre { max-height: 300px; overflow: auto; }
+@media (max-width: 1000px) { .resolve-context-roles { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .resolve-change-pages button { min-height: 44px; } .resolve-history-frame-context { grid-template-columns: 1fr; } }

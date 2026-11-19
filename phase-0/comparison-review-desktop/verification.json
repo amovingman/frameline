@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "scope": "Shipped main/preload/renderer in two real Electron processes, disposable rich observation/history fixtures, fixture-supplied OS pickers; no editor write or external service",
+  "checks": [
+    "equivalent decimal spelling does not create a change",
+    "source-bound sequence, track, clip, frame and field context",
+    "timecode defaults to unknown rate and optional user-selected non-drop display",
+    "full-diff timeline/track/kind/status filtering before bounded paging",
+    "grouping and trusted keyboard paging",
+    "property, timing, timeline and name choice consequences",
+    "linked/transition/nested/ripple risks remain blocked after complete review",
+    "history exposes verified before/after frame context",
+    "same sources and immutable audit recover after native process restart",
+    "source refresh clears stale choices/guidance",
+    "all source bytes preserved",
+    "apply remains disabled",
+    "360\u20131440px layouts without overflow",
+    "no renderer console errors"
+  ],
+  "stages": [
+    {
+      "stage": "first",
+      "pickerCalls": 3,
+      "classifiedChanges": 122,
+      "conflicts": 5,
+      "contextRecords": 122,
+      "riskGate": "blocked",
+      "sourceHashes": {
+        "base": "36360e13692ec5a47a2b0ebbf8c40e494f11eedb53d059516a119dcce77df888",
+        "local": "7a11764bf63f739a05b56a30988aa08a6c43a6d9b0813783f63cdad72bf1d157",
+        "incoming": "fc5e43110ecc63b5f52b989a79138f2cc4e95030887e435cc80ad0629604f1c4"
+      },
+      "sourceBytesUnchanged": true,
+      "applyDisabled": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "queueRows": 40
+        },
+        {
+          "width": 768,
+          "scrollWidth": 768,
+          "queueRows": 40
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390,
+          "queueRows": 40
+        },
+        {
+          "width": 360,
+          "scrollWidth": 360,
+          "queueRows": 40
+        }
+      ],
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    },
+    {
+      "stage": "restore",
+      "pickerCalls": 3,
+      "classifiedChanges": 122,
+      "conflicts": 5,
+      "contextRecords": 122,
+      "riskGate": "blocked",
+      "sourceHashes": {
+        "base": "36360e13692ec5a47a2b0ebbf8c40e494f11eedb53d059516a119dcce77df888",
+        "local": "7a11764bf63f739a05b56a30988aa08a6c43a6d9b0813783f63cdad72bf1d157",
+        "incoming": "fc5e43110ecc63b5f52b989a79138f2cc4e95030887e435cc80ad0629604f1c4"
+      },
+      "sourceBytesUnchanged": true,
+      "applyDisabled": true,
+      "layouts": [],
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    }
+  ],
+  "automatedValidation": {
+    "fullSuite": {
+      "tests": 1463,
+      "passed": 1463,
+      "failed": 0,
+      "skipped": 0
+    },
+    "focusedComparisonReview": {
+      "tests": 37,
+      "passed": 37
+    },
+    "newTests": {
+      "semanticNormalization": 3,
+      "riskPolicy": 10,
+      "changeContext": 7,
+      "frameTimecode": 5,
+      "historyRegressions": 2
+    },
+    "packageCheck": "passed",
+    "tasteLint": {
+      "failures": 0,
+      "warnings": 0
+    },
+    "impeccableDetector": {
+      "advisories": 31,
+      "nonAdvisory": 0,
+      "newSurfaceFindings": 0
+    }
+  }
+}

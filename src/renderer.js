@@ -2775,6 +2775,8 @@ let resolveReviewEventGeneration = 0;
 let resolveReviewEventState = null;
 let resolveCoveragePage = 0;
 let resolveCoverageKey = '';
+let resolveLookupState = null;
+let resolveConflictLookup = new Map(), resolveChoiceLookup = new Map();
 const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
 function resolveValue(value) {
   if (value === undefined || value === null) return 'Not present';
@@ -2800,10 +2802,16 @@ function resolveChanges() {
   return resolveState?.plan?.classification?.decisions || [];
 }
 function resolveConflict(change) {
-  return resolveState?.review?.conflicts?.find(item => item.timelineId === change.timelineId && item.itemId === change.itemId && item.field === change.field);
+  if (resolveLookupState !== resolveState) {
+    resolveLookupState = resolveState;
+    resolveConflictLookup = new Map((resolveState?.review?.conflicts || []).map(item => [JSON.stringify([item.timelineId, item.itemId, item.field]), item]));
+    resolveChoiceLookup = new Map((resolveState?.decisions || []).map(item => [item.conflictId, item.choice]));
+  }
+  return resolveConflictLookup.get(JSON.stringify([change.timelineId, change.itemId, change.field]));
 }
 function resolveChoice(conflict) {
-  return resolveState?.decisions?.find(item => item.conflictId === conflict?.id)?.choice;
+  if (resolveLookupState !== resolveState) resolveConflict({ timelineId: null, itemId: null, field: null });
+  return resolveChoiceLookup.get(conflict?.id);
 }
 function renderResolveState(state) {
   resolveState = state;
@@ -2812,6 +2820,7 @@ function renderResolveState(state) {
   if (coverageKey !== resolveCoverageKey) { resolveCoveragePage = 0; resolveCoverageKey = coverageKey; }
   renderResolveTrial();
   const items = resolveChanges();
+  const timelineNames = new Map((state?.guidance?.changeContext?.records || []).map(item => [item.timelineId, item.timelineName]));
   const ready = state?.status === 'ready' && !!state.plan;
   const locked = resolveBusy || activeResolveTrial();
   document.getElementById('resolve-refresh').disabled = locked || !ready;
@@ -2835,7 +2844,7 @@ function renderResolveState(state) {
     const previous = select.value;
     select.replaceChildren();
     for (const value of ['all', ...new Set(items.map(item => item[key]).filter(Boolean).sort())]) {
-      const option = make('option', '', value === 'all' ? label : key === 'timelineId' ? items.find(item => item.timelineId === value)?.context?.timelineName || value : value);
+      const option = make('option', '', value === 'all' ? label : key === 'timelineId' ? timelineNames.get(value) || items.find(item => item.timelineId === value)?.context?.timelineName || value : value);
       option.value = value; select.append(option);
     }
     select.value = [...select.options].some(option => option.value === previous) ? previous : 'all';
@@ -2856,7 +2865,7 @@ function renderResolveState(state) {
   renderResolveInspection();
   window.renderResolvePlacementPolicy?.(state);
   const filter = document.getElementById('resolve-filter').value;
-  const visible = items.filter(item => {
+  const fallbackVisible = items.filter(item => {
     if (document.getElementById('resolve-timeline').value !== 'all' && item.timelineId !== document.getElementById('resolve-timeline').value) return false;
     if (document.getElementById('resolve-field').value !== 'all' && item.field !== document.getElementById('resolve-field').value) return false;
     if (filter === 'unresolved') return item.status === 'conflict' && !resolveChoice(resolveConflict(item));
@@ -2865,17 +2874,23 @@ function renderResolveState(state) {
     if (filter === 'conflict') return item.status === 'conflict';
     return item.status === filter;
   });
-  document.getElementById('resolve-count').textContent = `${visible.length} of ${items.length}`;
+  const comparisonPage = window.FramelineComparison?.selectChanges(state, items);
+  const visible = comparisonPage?.rows || fallbackVisible;
+  document.getElementById('resolve-count').textContent = comparisonPage ? `${visible.length} of ${comparisonPage.filteredCount} matching · ${items.length} total` : `${visible.length} of ${items.length}`;
   if (!visible.includes(resolveSelected)) resolveSelected = visible.find(item => item.timelineId === resolveSelected?.timelineId && item.itemId === resolveSelected?.itemId && item.field === resolveSelected?.field) || visible[0] || null;
   const queue = document.getElementById('resolve-queue');
   queue.replaceChildren();
   if (!visible.length) queue.append(make('p', 'history-empty', ready ? 'No changes match this filter.' : 'No sources selected.'));
+  let previousGroup = null;
   visible.forEach(item => {
+    const group = window.FramelineComparison?.groupLabel(item);
+    if (group && group !== previousGroup) { queue.append(make('h3', 'resolve-change-group', group)); previousGroup = group; }
     const choice = resolveChoice(resolveConflict(item));
     const button = make('button', `queue-item${item === resolveSelected ? ' selected' : ''}`);
     button.type = 'button';
     button.setAttribute('aria-pressed', String(item === resolveSelected));
-    button.append(make('strong', '', item.context?.itemName || item.context?.timelineName || item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', [item.context?.timelineName || item.timelineId, item.context?.track].filter(Boolean).join(' · ')), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
+    const sourceContext = window.FramelineComparison?.contextFor(item);
+    button.append(make('strong', '', sourceContext?.itemName || sourceContext?.timelineName || item.context?.itemName || item.context?.timelineName || item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', [sourceContext?.timelineName || item.context?.timelineName || item.timelineId, sourceContext?.tracks?.join(' / ') || item.context?.track].filter(Boolean).join(' · ')), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
     button.addEventListener('click', () => { resolveSelected = item; renderResolveState(resolveState); });
     queue.append(button);
   });
@@ -2895,7 +2910,8 @@ function renderResolveDetail() {
   const item = resolveSelected;
   detail.append(make('h2', '', item ? `${item.field} comparison` : 'Source comparison'));
   if (!item) { detail.append(make('p', '', 'Select a change to inspect base, local, and incoming source values.')); return; }
-  detail.append(make('p', 'resolve-context', [item.context?.timelineName || `Timeline ${item.timelineId || 'unspecified'}`, item.context?.itemName || item.itemId, item.context?.track, resolveLabels[item.status] || item.status].filter(Boolean).join(' · ')));
+  const choiceContext = window.FramelineComparison?.contextFor(item);
+  detail.append(make('p', 'resolve-context', [choiceContext?.timelineName || item.context?.timelineName || `Timeline ${item.timelineId || 'unspecified'}`, choiceContext?.itemName || item.context?.itemName || item.itemId, choiceContext?.tracks?.join(' / ') || item.context?.track, resolveLabels[item.status] || item.status].filter(Boolean).join(' · ')));
   const deletion = resolveState?.guidance?.deletionPolicy?.conflicts?.find(value => value.timelineId === item.timelineId && value.itemId === item.itemId && value.field === item.field);
   if (deletion) {
     const warning = make('p', 'resolve-deletion-warning', deletion.deletedBy === 'incoming'
@@ -2905,6 +2921,7 @@ function renderResolveDetail() {
     const fields = make('p', 'resolve-context', `Changed observations: ${deletion.changedFields.join(', ') || (deletion.changedFieldCount ? 'field details omitted by display limits' : 'entity state')}${deletion.changedFieldsTruncated ? ` (showing ${deletion.changedFields.length} of ${deletion.changedFieldCount})` : ''}. This comparison covers captured values; unobserved editor state remains unknown.`);
     fields.id = 'resolve-deletion-fields'; detail.append(fields);
   }
+  window.FramelineComparison?.renderContext(detail, item);
   const values = make('div', 'resolve-values');
   for (const [key, label] of [['base', 'Common base'], ['local', 'Your local cut'], ['incoming', 'Incoming cut']]) {
     const column = make('div', key === 'incoming' ? 'incoming-value' : '');
@@ -2922,9 +2939,10 @@ function renderResolveDetail() {
       button.type = 'button'; button.disabled = resolveBusy || activeResolveTrial();
       button.setAttribute('aria-pressed', String(selected === choice));
       button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
-      if (deletion) {
+      const consequencePolicy = choiceContext?.consequences?.[choice] || deletion?.consequences?.[choice];
+      if (consequencePolicy) {
         const group = make('div', 'resolve-deletion-choice');
-        const consequence = make('p', 'resolve-choice-consequence', deletion.consequences[choice].description);
+        const consequence = make('p', 'resolve-choice-consequence', consequencePolicy.description);
         consequence.id = `resolve-consequence-${choice}`; button.setAttribute('aria-describedby', consequence.id);
         group.append(button, consequence); controls.append(group);
       } else controls.append(button);
@@ -3002,6 +3020,7 @@ function nextResolveConflict() {
   const ordered = [...items.slice(index + 1), ...items.slice(0, index + 1)];
   const next = ordered.find(item => item.status === 'conflict' && !resolveChoice(resolveConflict(item)));
   if (!next) return;
+  window.FramelineComparison?.revealChange(next);
   for (const id of ['resolve-timeline', 'resolve-field']) document.getElementById(id).value = 'all';
   document.getElementById('resolve-filter').value = 'unresolved';
   resolveSelected = next;
@@ -3806,6 +3825,7 @@ async function openResolveHistoryRevision(projectId, revisionId, generation, but
       const value = input => input === null && ['item-property-changed', 'track-state-changed'].includes(change.kind) ? 'Not observed' : resolveValue(input);
       row.append(make('strong', '', `${change.tracks.join(' / ') || 'Timeline'} · ${change.itemName || change.itemId || (change.kind === 'track-state-changed' ? 'Track' : change.kind)} · ${slot}${change.field || change.kind}`),
         make('span', '', `${value(change.before)} → ${value(change.after)}`));
+      window.FramelineComparison?.renderHistoryContext(row, change);
       detail.append(row);
     }
   } catch (error) { if (generation === resolveHistoryGeneration && openToken === resolveHistoryOpenToken) detail.replaceChildren(make('p', '', error.message || 'Could not verify this revision.')); }

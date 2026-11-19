@@ -2,6 +2,8 @@
 
 ## Unreleased — experimental local build
 
+- Completed five [Resolve comparison-review roadmap items](RESOLVE_COMPARISON_REVIEW.md): equivalent-value normalization across comparison layers; source-specific timeline/track/clip/frame context and optional user-selected non-drop timecode; full-diff filtering, grouping, and 40-row paging; persistent conservative complex-edit gates; and explicit consequences for all supported conflict choices. Saved history includes before/after context. Raw sources and canonical saved plan/review/audit identities remain compatible.
+
 - Completed two Phase 2.2 roadmap items: [deletion conflict review and timeline ordering rules](RESOLVE_CONFLICT_POLICY.md). The Resolve review explains edited-entity deletion and each choice’s consequence. A source-bound placement report includes concurrent additions/moves, overlaps with unchanged neighbors, observed intervals, track-layout risks, bounded analysis, and keyboard paging. Existing preview/review/audit hashes remain compatible; policies are regenerated on verified recovery and refreshed sources.
 
 - Completed two Phase 5.1 roadmap items: [first-run workspace setup and privacy-reviewed diagnostics](WORKSPACE_SETUP_AND_DIAGNOSTICS.md). Setup now selects actual revision storage and completes after a successful project scan, with existing-storage preservation and restart recovery. Diagnostics now provide optional details, strict value allowlists, exact JSON/hash review, explicit approval, stale-state checks, and private atomic export. Native verification uses a disposable profile and fixture picker results.

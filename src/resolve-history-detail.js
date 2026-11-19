@@ -3,6 +3,7 @@ const { compareResolveRevisionManifests } = require('./resolve-revision-comparis
 const { validateResolveRevisionManifest } = require('./resolve-revision-manifest');
 const { createResolvePreviewPlan } = require('./resolve-preview-plan');
 const { createResolveConflictReview } = require('./resolve-review-decisions');
+const { indexResolveSnapshotContext } = require('./resolve-change-context');
 
 const FILTERS = ['timelineId', 'track', 'status', 'kind'];
 function invalid() { const error = new Error('resolve-history-filter-invalid'); error.code = 'resolve-history-filter-invalid'; throw error; }
@@ -26,6 +27,7 @@ function describeResolveHistoryChanges(before, after, selected = {}) {
       (typeof selected[key] !== 'string' || selected[key].length > 160))) invalid();
   const comparison = compareResolveRevisionManifests(before, after);
   const oldContext = context(before), newContext = context(after);
+  const oldFrames = indexResolveSnapshotContext(before.snapshot), newFrames = indexResolveSnapshotContext(after.snapshot);
   const changes = comparison.changes.map(change => {
     const oldItem = change.itemId && oldContext.items.get(`${change.timelineId}\0${change.itemId}`);
     const newItem = change.itemId && newContext.items.get(`${change.timelineId}\0${change.itemId}`);
@@ -39,7 +41,13 @@ function describeResolveHistoryChanges(before, after, selected = {}) {
       const label = trackLabel(change.trackType || track?.type, change.trackIndex || track?.index);
       if (label) tracks.add(label);
     }
-    return { ...change, timelineName: newContext.timelines.get(change.timelineId)
+    const observedTrack = change.after || change.before;
+    const type = change.trackType || observedTrack?.type, index = change.trackIndex || observedTrack?.index;
+    const contextField = change.kind.startsWith('track-') && type && Number.isSafeInteger(index)
+      ? `trackState.${type}.${index}.${change.field || 'existence'}` : change.field || '';
+    return { ...change, beforeContext: oldFrames.context(change.timelineId, change.itemId ?? null, contextField),
+      afterContext: newFrames.context(change.timelineId, change.itemId ?? null, contextField),
+      timelineName: newContext.timelines.get(change.timelineId)
       || oldContext.timelines.get(change.timelineId) || change.timelineId,
     itemName: newItem?.name || oldItem?.name || null,
     tracks: [...tracks], status: change.kind.endsWith('-added') ? 'added'

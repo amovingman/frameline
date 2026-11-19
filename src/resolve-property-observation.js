@@ -1,6 +1,7 @@
 'use strict';
 const contract = require('./resolve-property-contract.json');
 const specs = contract.properties;
+const { equivalentObservationValue } = require('./resolve-observation-values');
 const decimal = /^-?\d\.\d{16}e[+-]\d{2,3}$/;
 function invalid() { throw new Error('invalid-property-observation'); }
 function exact(value, names) {
@@ -57,7 +58,9 @@ function comparePropertySections(before, after) {
     if (a && b && a.propertyReadStatus !== b.propertyReadStatus) propertyChanges.push({ ...anchor, field: 'propertyReadStatus', before: a.propertyReadStatus, after: b.propertyReadStatus });
     for (const field of [...new Set([...Object.keys(a?.properties || {}), ...Object.keys(b?.properties || {})])].sort()) {
       const av = a?.properties[field] ?? null, bv = b?.properties[field] ?? null;
-      if (JSON.stringify(av) !== JSON.stringify(bv)) propertyChanges.push({ ...anchor, field, before: av, after: bv });
+      // Match the preview/history semantics without changing either raw value.
+      // Decimal exponent/signed-zero spellings can differ while every represented digit agrees.
+      if (!equivalentObservationValue(av, bv)) propertyChanges.push({ ...anchor, field, before: av, after: bv });
     }
   }
   const tracks = observation => new Map(observation.tracks.map(track => [JSON.stringify([track.timelineId, track.type, track.index]), track]));

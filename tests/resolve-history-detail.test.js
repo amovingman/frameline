@@ -39,6 +39,45 @@ test('observation details filter the entire verified diff before the display lim
     { code: 'resolve-history-filter-invalid' });
 });
 
+test('history exposes exact before/after frame contexts while absent entities and rates stay unknown', async () => {
+  const original = JSON.parse(await fs.readFile(fixture, 'utf8'));
+  const changed = structuredClone(original), target = changed.timelines[0].items[0];
+  target.name = 'Changed name'; target.start_frame += 10; target.end_frame += 10;
+  const report = describeResolveHistoryChanges(createResolveRevisionManifest(original), createResolveRevisionManifest(changed));
+  const row = report.changes.find(value => value.itemId === target.id && value.field === 'startFrame');
+  assert.equal(row.beforeContext.startFrame, original.timelines[0].items[0].start_frame);
+  assert.equal(row.afterContext.startFrame, target.start_frame);
+  assert.equal(row.beforeContext.timelineOriginFrame, original.timelines[0].start_frame);
+  assert.equal(row.afterContext.itemName, 'Changed name');
+  assert.equal(row.afterContext.track.type, target.track_type);
+  assert.equal(row.afterContext.track.index, target.track_index);
+  assert(!Object.hasOwn(row.afterContext, 'frameRate'));
+  const deleted = structuredClone(changed);
+  const removedId = deleted.timelines[0].items.shift().id;
+  for (const item of deleted.timelines[0].items) item.linked_item_ids = item.linked_item_ids.filter(id => id !== removedId);
+  const deletion = describeResolveHistoryChanges(createResolveRevisionManifest(changed), createResolveRevisionManifest(deleted))
+    .changes.find(value => value.itemId === removedId);
+  assert.equal(deletion.beforeContext.present, true); assert.equal(deletion.afterContext.present, false);
+  assert.equal(deletion.afterContext.startFrame, null); assert.equal(deletion.afterContext.track, null);
+});
+
+test('track addition and deletion contexts distinguish absent tracks from a present timeline', async () => {
+  const original = JSON.parse(await fs.readFile(fixture, 'utf8'));
+  const withTrack = structuredClone(original);
+  withTrack.timelines[0].tracks.push({ type: 'video', index: 2, name: 'New empty track' });
+  const before = createResolveRevisionManifest(original), after = createResolveRevisionManifest(withTrack);
+  const added = describeResolveHistoryChanges(before, after).changes.find(value => value.kind === 'track-added');
+  assert.equal(added.beforeContext.present, false); assert.equal(added.beforeContext.track, null);
+  assert.equal(added.beforeContext.timelineName, original.timelines[0].name);
+  assert.equal(added.afterContext.present, true);
+  assert.deepEqual(added.afterContext.track, { type: 'video', index: 2, name: 'New empty track' });
+  assert.equal(added.afterContext.itemName, null); assert.equal(added.afterContext.startFrame, null);
+  const deleted = describeResolveHistoryChanges(after, before).changes.find(value => value.kind === 'track-deleted');
+  assert.equal(deleted.beforeContext.present, true); assert.equal(deleted.beforeContext.track.index, 2);
+  assert.equal(deleted.afterContext.present, false); assert.equal(deleted.afterContext.track, null);
+  assert.equal(deleted.afterContext.timelineOriginFrame, original.timelines[0].start_frame);
+});
+
 async function audited({ count = 25, effects = false, recovered = false } = {}) {
   const directory = path.join(__dirname, '../phase-0/resolve-xml-proof');
   const snapshot = JSON.parse(await fs.readFile(path.join(directory, 'live-rename-before-schema3.json')));
