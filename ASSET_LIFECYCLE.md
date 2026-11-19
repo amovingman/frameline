@@ -8,7 +8,7 @@ This batch adds five features to the encrypted asset service and its owner-facin
 4. **Owner lifecycle reports.** Bounded, ordered pages show published media IDs/classes/sizes, archive age, holds, shared-content status, and cleanup blockers. Other project IDs and storage locations are omitted.
 5. **Reviewed cleanup plans.** A plan binds selected asset IDs to the reviewed report's state hash and freshly recomputes blockers and candidate bytes. It detects changed holds, settings, archive state, asset membership, and shared-content status. Plans always report `ready: false` and `deletionPerformed: false` while canonical revision references remain unverified.
 
-These features run on a self-hosted service with its existing account/owner authorization. They do not add desktop lifecycle controls, automatic deletion, media transfers, or project/editor changes. The older `asset-lifecycle-policy.js` is a standalone reference planner; production API operations use `service-asset-lifecycle.js` inside the durable asset transaction.
+These features run on a self-hosted service with its existing account/owner authorization. A later [ten-feature desktop workflow](DESKTOP_ASSET_LIFECYCLE.md) connects owner reports, reviewed changes, exports, and durable retry recovery in History. Automatic deletion and project/editor changes remain unavailable. The older `asset-lifecycle-policy.js` is a standalone reference planner; production API operations use `service-asset-lifecycle.js` inside the durable asset transaction.
 
 ## API
 
@@ -67,4 +67,4 @@ The [disposable HTTPS process proof](phase-0/asset-lifecycle-https-observation.j
 
 The completed batch passed all 1,320 full-suite tests without skips, including 21 new lifecycle tests, and packaging validation. Its disposable three-host HTTPS run made 96 authenticated requests.
 
-Canonical revision-to-media bindings, authoritative retained-reference checks, transactional garbage collection, partial-upload/orphan cleanup, retention of lifecycle receipts, owner review in the desktop UI, physical cross-device testing, and production operations remain open. The broader advanced-lifecycle roadmap item remains unchecked.
+Canonical revision-to-media bindings, authoritative retained-reference checks, transactional garbage collection, partial-upload/orphan cleanup, retention of lifecycle receipts, physical cross-device testing, and production operations remain open. Owner desktop review is described separately in [desktop lifecycle](DESKTOP_ASSET_LIFECYCLE.md). The broader advanced-lifecycle roadmap item remains unchecked.

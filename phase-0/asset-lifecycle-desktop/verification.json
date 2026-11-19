@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-19T17:04:29.523Z",
+  "scope": "Disposable fixture-authorized HTTPS asset API, real Electron preload/controller; controller restart and page reload; fixture save destination",
+  "networkRequests": 12,
+  "checks": [
+    "explicit hold review",
+    "lost acknowledgment survived private-journal/controller restart",
+    "same-key retry without duplicate hold version",
+    "reviewed hold release",
+    "reviewed retention change",
+    "asset details and loaded-row filters",
+    "blocked cleanup plan",
+    "exact reviewed plan export",
+    "sign-out clears private rows and export",
+    "viewer has no owner project access",
+    "media bytes retained",
+    "no browser errors"
+  ],
+  "layouts": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 768,
+      "scrollWidth": 768
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 360,
+      "scrollWidth": 360
+    }
+  ]
+}

@@ -3,6 +3,26 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose a deliberately small, safe API to the renderer as integrations are added.
 contextBridge.exposeInMainWorld('desktop', {
   appName: 'Git for Video Editing',
+  getAssetLifecycleState: () => ipcRenderer.invoke('asset-lifecycle:state'),
+  refreshLifecycleProjects: () => ipcRenderer.invoke('asset-lifecycle:refreshProjects'),
+  selectLifecycleProject: id => ipcRenderer.invoke('asset-lifecycle:selectProject', id),
+  refreshLifecycleReport: () => ipcRenderer.invoke('asset-lifecycle:refreshReport'),
+  loadMoreLifecycleAssets: () => ipcRenderer.invoke('asset-lifecycle:loadMore'),
+  selectLifecycleAsset: input => ipcRenderer.invoke('asset-lifecycle:selectAsset', input),
+  selectLifecyclePlanAssets: input => ipcRenderer.invoke('asset-lifecycle:selectForPlan', input),
+  saveLifecycleHold: input => ipcRenderer.invoke('asset-lifecycle:setHold', input),
+  saveLifecycleRetention: input => ipcRenderer.invoke('asset-lifecycle:setRetention', input),
+  prepareLifecyclePlan: input => ipcRenderer.invoke('asset-lifecycle:preparePlan', input),
+  retryLifecycleRequest: input => ipcRenderer.invoke('asset-lifecycle:retry', input),
+  dismissLifecycleRequest: input => ipcRenderer.invoke('asset-lifecycle:dismiss', input),
+  prepareLifecycleExport: input => ipcRenderer.invoke('asset-lifecycle:prepareExport', input),
+  saveLifecycleExport: input => ipcRenderer.invoke('asset-lifecycle:saveExport', input),
+  onAssetLifecycleState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('asset-lifecycle:state', handle);
+    return () => ipcRenderer.removeListener('asset-lifecycle:state', handle);
+  },
   getSharedStorageState: () => ipcRenderer.invoke('shared-storage:state'),
   registerSharedStorage: label => ipcRenderer.invoke('shared-storage:register', label),
   selectSharedStorage: id => ipcRenderer.invoke('shared-storage:select', id),

@@ -8,6 +8,7 @@ if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) t
 const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
   'src/shared-storage-protocol.js', 'src/shared-storage-volume.js', 'src/shared-storage-store.js',
   'src/asset-lifecycle-protocol.js', 'src/service-asset-lifecycle.js', 'src/asset-lifecycle-cli.js',
+  'src/desktop-asset-lifecycle.js', 'src/asset-lifecycle-intents.js', 'src/asset-lifecycle-renderer.js',
   'src/desktop-shared-storage.js', 'src/shared-storage-renderer.js',
   'src/companion/resolve-internal.py', 'src/companion/resolve_snapshot.py',
   'src/companion/resolve-internal.lua', 'src/resolve-menu-companion.js',

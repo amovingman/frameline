@@ -135,3 +135,22 @@
 .shared-storage-panel .service-help{line-height:1.6;max-width:75ch}.shared-storage-panel .service-base-facts dd{overflow-wrap:anywhere}
 .shared-storage-panel :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 @media(max-width:600px){.storage-form{grid-template-columns:minmax(0,1fr)}.storage-form>button{width:100%}.storage-actions>button{flex:1 1 140px}.storage-progress-area{align-items:flex-start;flex-direction:column}.storage-table-scroll th,.storage-table-scroll td{padding-right:8px}.shared-storage-panel .service-base-facts{grid-template-columns:minmax(0,1fr)}}
+/* Owner lifecycle review shares History's graphite/Plex controls. */
+.lifecycle-select{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px;margin-top:16px}
+.lifecycle-select>div,.lifecycle-filters>div,.lifecycle-work>section{min-width:0}.lifecycle-panel label{display:block;font-size:13px;color:var(--secondary);margin:10px 0 6px}
+.lifecycle-panel input:not([type=checkbox]),.lifecycle-panel select{width:100%;min-width:0}.lifecycle-panel .service-help{max-width:75ch;line-height:1.6}
+.lifecycle-filters{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.lifecycle-work{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:24px;margin-top:16px}
+.lifecycle-table-scroll{overflow:auto;max-height:460px}.lifecycle-table-scroll table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}
+.lifecycle-table-scroll th,.lifecycle-table-scroll td{text-align:left;vertical-align:top;padding:10px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.lifecycle-table-scroll th{color:var(--secondary);font-weight:500}.lifecycle-table-scroll th:first-child{width:56px}.lifecycle-table-scroll th:nth-child(2){width:42%}
+.lifecycle-panel .lifecycle-table-scroll button{padding:0;border:0;background:none;text-align:left;min-height:32px;overflow-wrap:anywhere;white-space:normal}
+.lifecycle-panel .lifecycle-table-scroll button[aria-pressed=true]{color:var(--accent)}.lifecycle-panel input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.lifecycle-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.lifecycle-section{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.lifecycle-section h3,.lifecycle-detail h3{font-size:14px;font-weight:500}.lifecycle-section>button,.lifecycle-detail button{margin-top:12px;margin-right:8px}
+.lifecycle-panel .service-base-facts{grid-template-columns:140px minmax(0,1fr)}.lifecycle-panel .service-base-facts dd,.lifecycle-panel li{overflow-wrap:anywhere}
+.lifecycle-panel fieldset{border:0;padding:0;margin-top:16px;min-width:0}.lifecycle-panel legend{font-size:13px}.lifecycle-panel .lifecycle-checkbox{display:flex;gap:10px;align-items:center}
+.lifecycle-checkbox input{flex:none}.lifecycle-panel ul{padding-left:20px;max-height:240px;overflow:auto;margin-top:12px;font-size:13px}.lifecycle-panel li+li{margin-top:8px}
+.lifecycle-panel :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:1100px){.lifecycle-work{grid-template-columns:minmax(0,1fr)}.lifecycle-detail{padding-top:20px;border-top:1px solid var(--line)}}
+@media(max-width:600px){.lifecycle-select,.lifecycle-filters{grid-template-columns:minmax(0,1fr)}.lifecycle-select>button{width:100%}.lifecycle-panel .service-base-facts{grid-template-columns:minmax(0,1fr)}.lifecycle-actions>button{flex:1 1 140px}.lifecycle-panel .service-project-heading{flex-wrap:wrap}.lifecycle-table-scroll th:nth-child(2){width:38%}}

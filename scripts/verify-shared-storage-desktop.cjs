@@ -35,7 +35,7 @@ app.whenReady().then(async () => {
   for (const channel of ['onboarding:get', 'app:get-state', 'service:state', 'asset-transfer:state', 'project-activity:state',
     'collaboration:get-state', 'resolve-service:state', 'resolve-history:list-projects', 'resolve-comments:state',
     'resolve:get-review-state', 'resolve-trial:state', 'media-audit:state', 'branch-review:state', 'share-links:state',
-    'account-updates:state', 'project-presets:state']) ipcMain.handle(channel, () => null);
+    'account-updates:state', 'project-presets:state', 'asset-lifecycle:state']) ipcMain.handle(channel, () => null);
   win = new BrowserWindow({ width: 1440, height: 1100, show: true, webPreferences: { preload: path.join(root, 'src/preload.js'),
     sandbox: true, contextIsolation: true, backgroundThrottling: false } });
   const errors = []; win.webContents.on('console-message', details => { if (details.level === 'error') errors.push(details.message); });
