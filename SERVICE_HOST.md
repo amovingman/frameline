@@ -1,5 +1,7 @@
 # Running a single-host metadata service
 
+Owners of projects with asset storage can use the [asset lifecycle API and stdin-only CLI](ASSET_LIFECYCLE.md) for durable holds, hold release, retention settings, paged reports, and reviewed cleanup plans. These operations require an existing owner session. They do not perform garbage collection or alter editor projects.
+
 Frameline includes a standalone HTTPS launcher and trusted local account tools. They use the encrypted identity/access/history store and the same API as the desktop Service history panel. The default configuration serves metadata; optional [asset storage](ASSET_NETWORK_SYNC.md) adds authenticated media chunks. These tools do not choose a hosting provider or deploy infrastructure. The filesystem stores remain a single-host foundation; production database, managed keys, monitoring, backups, and disaster recovery remain separate gates.
 
 Use Node.js 24 and a dedicated service account on a local filesystem. Keep configuration and TLS material outside the repository and outside the state directory. The account that can read the configuration holds the state-encryption keys and is a trusted operator.

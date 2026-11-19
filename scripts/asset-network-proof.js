@@ -69,6 +69,7 @@ const workerScript = String.raw`
         error => ['forbidden', 'asset-forbidden', 'asset-not-found', 'asset-ticket-invalid', 'asset-url-invalid'].includes(error.code));
       let upload = config.upload, pendingTicket = config.pendingTicket, retainedTicket = config.retainedTicket;
       let completed = config.completed;
+      let lifecycleHold = config.lifecycleHold;
       if (config.phase === 'partial') {
         assert.deepEqual(await clients.owner.getPolicy(config.projectId), { projectId: config.projectId, version: 0, syncClasses: [] });
         await assert.rejects(clients.owner.beginUpload(config.projectId, config.identity), { code: 'asset-policy-excluded' });
@@ -158,6 +159,12 @@ const workerScript = String.raw`
         await clients.owner.setPolicy(config.projectId, { expectedVersion: 2, syncClasses: ['original'] });
         assert.equal((await clients.viewer.getAvailability(config.projectId, completed.assetId)).excluded, false);
         assert.equal((await clients.owner.getUsage(config.projectId)).availableBytes, bytes.length);
+        lifecycleHold = await clients.owner.setHold(config.projectId, completed.assetId, {
+          expectedVersion: 0, held: true, reason: 'contractual', until: null, idempotencyKey: 'proof-hold' });
+        assert.equal(lifecycleHold.version, 1);
+        await clients.owner.setRetentionPolicy(config.projectId, {
+          expectedVersion: 0, minimumArchiveAgeMs: 1000, idempotencyKey: 'proof-retention' });
+        await denied(clients.viewer.getLifecycleReport(config.projectId));
         await denied(clients.viewer.beginUpload(config.projectId, config.identity));
         await denied(clients.outsider.getAsset(config.projectId, completed.assetId));
         await assert.rejects(clients.outsider.getAsset(config.otherProjectId, completed.assetId), { code: 'asset-not-found' });
@@ -180,8 +187,30 @@ const workerScript = String.raw`
         for (let index = 0; index < upload.chunks; index++) downloaded.push((await clients.owner.readChunk(config.projectId, completed.assetId, index)).bytes);
         assert.deepEqual(Buffer.concat(downloaded), bytes);
         assert.equal((await clients.owner.beginUpload(config.projectId, config.identity)).uploadId, upload.uploadId);
+        assert.deepEqual(await clients.owner.getHold(config.projectId, completed.assetId), lifecycleHold);
+        const heldInput = { expectedVersion: 0, held: true, reason: 'contractual', until: null, idempotencyKey: 'proof-hold' };
+        assert.deepEqual(await clients.owner.setHold(config.projectId, completed.assetId, heldInput), lifecycleHold);
+        const released = await clients.owner.setHold(config.projectId, completed.assetId, {
+          expectedVersion: 1, held: false, reason: null, until: null, idempotencyKey: 'proof-release' });
+        assert.equal(released.version, 2); assert.equal(released.held, false);
+        assert.deepEqual(await clients.owner.setHold(config.projectId, completed.assetId, heldInput), lifecycleHold);
+        assert.deepEqual(await clients.owner.getHold(config.projectId, completed.assetId), released);
+        assert.equal((await clients.owner.getRetentionPolicy(config.projectId)).minimumArchiveAgeMs, 1000);
+        const oldReport = await clients.owner.getLifecycleReport(config.projectId);
+        await clients.owner.setRetentionPolicy(config.projectId, {
+          expectedVersion: 1, minimumArchiveAgeMs: 0, idempotencyKey: 'proof-retention-next' });
+        await assert.rejects(clients.owner.planCleanup(config.projectId, {
+          assetIds: [completed.assetId], expectedStateHash: oldReport.stateHash }), { code: 'asset-lifecycle-plan-stale' });
+        await clients.owner.setArchived(config.projectId, completed.assetId, { expectedArchived: false, archived: true });
+        const lifecycleReport = await clients.owner.getLifecycleReport(config.projectId);
+        const plan = await clients.owner.planCleanup(config.projectId, { assetIds: [completed.assetId], expectedStateHash: lifecycleReport.stateHash });
+        assert.equal(plan.ready, false); assert.equal(plan.deletionPerformed, false); assert.equal(plan.candidateBytes, bytes.length);
+        assert.deepEqual(plan.items[0].blockers, ['revision-references-unverified']);
+        await denied(clients.viewer.getHold(config.projectId, completed.assetId));
+        await clients.owner.setArchived(config.projectId, completed.assetId, { expectedArchived: true, archived: false });
+        assert.deepEqual((await clients.owner.readChunk(config.projectId, completed.assetId, 0)).bytes, bytes.subarray(0, upload.chunkSize));
       }
-      process.send({ type: 'result', data: { sessions, upload, pendingTicket, retainedTicket, completed, requests } }, () => process.disconnect());
+      process.send({ type: 'result', data: { sessions, upload, pendingTicket, retainedTicket, completed, lifecycleHold, requests } }, () => process.disconnect());
     } catch (error) {
       const line = /\[eval\]:(\d+):\d+/.exec(error.stack || '')?.[1];
       if (process.connected) process.send({ type: 'failure', data: {
@@ -347,6 +376,9 @@ async function runAssetNetworkProof() {
       policyDefaultsDisabled: true, ownerPolicyPersistsAcrossRestart: true, viewerPolicyAndArchiveWritesDenied: true,
       partialAndPublishedUsageVerified: true, archivedBytesRetainedAndBlocked: true, excludedBytesRetainedAndBlocked: true,
       outstandingTicketsRecheckArchiveAndPolicy: true, stalePolicyUpdateRejected: true, restoredPolicyAllowsRead: true,
+      lifecycleHoldPersistedAcrossHostRestart: true, lifecycleExactRetryDoesNotReinstateReleasedHold: true,
+      lifecycleRetentionPersistedAcrossHostRestart: true, lifecycleOwnerReportsAndStalePlansVerified: true,
+      lifecyclePlanRemainsBlockedAndMediaRetained: true,
       encryptedChunksOmitPlaintext: true, privateFileMode: '0600', gracefulSigtermExit: true,
       priorOwnedProcessesTerminalBeforeRestart: true, allOwnedProcessesTerminated: true,
       publicLogsAndReceiptOmitCredentialsCapabilitiesAndPrivatePaths: true,

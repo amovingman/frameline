@@ -2,6 +2,8 @@
 const { createHash, createHmac, timingSafeEqual } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const { API_VERSION, createRequestContext } = require('./project-api-contracts');
+const { validateHoldInput, validateRetentionInput, validateReportInput, validatePlanInput,
+  validateHold, validateRetention, validateReport, validatePlan } = require('./asset-lifecycle-protocol');
 
 const MAX_CHUNK_BYTES = 1024 * 1024, MAX_JSON_REQUEST_BYTES = 64 * 1024, MAX_JSON_RESPONSE_BYTES = 1024 * 1024;
 const MAX_ASSET_BYTES = 64 * 1024 ** 3, TICKET_TTL_MS = 5 * 60_000;
@@ -17,7 +19,8 @@ const ERROR_STATUS = new Map([
   ['asset-chunk-corrupt', 500], ['asset-state-invalid', 500], ['service-unavailable', 500],
   ['asset-key-rotation-required', 409], ['asset-capacity-exceeded', 413], ['asset-request-invalid', 400],
   ['asset-state-newer-version', 500], ['asset-service-closed', 503], ['asset-policy-excluded', 403], ['asset-policy-forbidden', 403],
-  ['asset-policy-invalid', 400], ['asset-policy-version-conflict', 409], ['asset-archived', 403], ['asset-archive-invalid', 400], ['asset-archive-conflict', 409]
+  ['asset-policy-invalid', 400], ['asset-policy-version-conflict', 409], ['asset-archived', 403], ['asset-archive-invalid', 400], ['asset-archive-conflict', 409],
+  ['asset-lifecycle-invalid', 400], ['asset-lifecycle-version-conflict', 409], ['asset-lifecycle-idempotency-conflict', 409], ['asset-lifecycle-plan-stale', 409]
 ]);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -104,6 +107,10 @@ function parseRoute(raw) {
   else if (parts.length === 4 && parts[3] === 'tickets') result = { kind: 'ticket', methods: ['POST'] };
   else if (parts.length === 4 && parts[3] === 'policy') result = { kind: 'policy', methods: ['GET', 'PUT'] };
   else if (parts.length === 4 && parts[3] === 'usage') result = { kind: 'usage', methods: ['GET'] };
+  else if (parts.length === 4 && parts[3] === 'retention') result = { kind: 'retention', methods: ['GET', 'PUT'] };
+  else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'report') result = { kind: 'lifecycle-report', methods: ['POST'] };
+  else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'plan') result = { kind: 'cleanup-plan', methods: ['POST'] };
+  else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'hold') result = { kind: 'hold', id: parts[3], methods: ['GET', 'PUT'] };
   else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'availability') result = { kind: 'availability', id: parts[3], methods: ['GET'] };
   else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'archive') result = { kind: 'archive', id: parts[3], methods: ['PUT'] };
   else if (parts[3] === 'uploads' && ID.test(parts[4] || '') && parts.length === 5) result = { kind: 'status', id: parts[4], methods: ['GET'] };
@@ -232,10 +239,24 @@ function createAssetHttpHandler({ assets, authorize, authorizePolicy = null, sig
       if (closing) throw fail('asset-service-busy');
       if (active >= 8) throw fail('asset-service-busy'); active++; admitted = true;
       await allowed(context, target.projectId, ['metadata', 'read', 'ticket', 'policy', 'usage', 'availability', 'archive'].includes(target.kind) ? 'read' : 'write');
-      if (target.kind === 'archive' || target.kind === 'policy' && req.method === 'PUT') await ownerAllowed(context, target.projectId);
+      if (['archive', 'hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)
+        || target.kind === 'policy' && req.method === 'PUT') await ownerAllowed(context, target.projectId);
       let result;
       if (target.kind === 'put' || target.kind === 'read') verifyTicket(target, req.method);
-      if (target.kind === 'policy') {
+      if (['hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)) {
+        const body = await readBody(req, { writing: req.method !== 'GET', signal: controller.signal });
+        await ownerAllowed(context, target.projectId);
+        if (target.kind === 'hold') {
+          result = validateHold(req.method === 'GET' ? await assets.getHold(context, target.projectId, target.id)
+            : await assets.setHold(context, target.projectId, target.id, validateHoldInput(body)));
+          if (result.assetId !== target.id) throw fail('service-unavailable');
+        } else if (target.kind === 'retention') result = validateRetention(req.method === 'GET'
+          ? await assets.getRetentionPolicy(context, target.projectId)
+          : await assets.setRetentionPolicy(context, target.projectId, validateRetentionInput(body)));
+        else if (target.kind === 'lifecycle-report') result = validateReport(await assets.getLifecycleReport(context, target.projectId, validateReportInput(body)));
+        else result = validatePlan(await assets.planCleanup(context, target.projectId, validatePlanInput(body)));
+        if (result.projectId !== target.projectId) throw fail('service-unavailable');
+      } else if (target.kind === 'policy') {
         if (req.method === 'GET') { await readBody(req, { writing: false, signal: controller.signal }); result = validatePolicy(await assets.getPolicy(context, target.projectId)); }
         else {
           const body = await readBody(req, { signal: controller.signal });
