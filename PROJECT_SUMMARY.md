@@ -1,75 +1,137 @@
-# Frameline project summary
+# Frameline — full project overview
 
-## What it is
+## Project description
 
-Frameline is an early desktop prototype for versioning video-editing decisions, inspecting collaborator changes, and protecting a local edit before any future pull workflow. Its first integration target is **DaVinci Resolve Free 21.1.2 on macOS**, using **FCPXML 1.10** for read-only timeline exchange.
+Frameline is a local-first collaboration and version-control product for video-editing projects. Its purpose is to let editors preserve a trustworthy history of editing decisions, review incoming changes before they affect a working timeline, resolve conflicts deliberately, and eventually share projects and media with collaborators without losing local work.
 
-Today, the desktop app can safely scan selected FCPXML files or bundles, maintain immutable local revision history on named branches, compare safe inventory details, audit media availability without exposing paths to the renderer, and create byte-verified review copies. Its Resolve preview compares three API snapshots, presents conflicts and warnings, and records review intent. Applying edits to a project remains deliberately disabled until stable identity and a safe editor write path are proven.
+The product is intentionally being built from safety evidence outward. It starts by proving what an editor integration can read, identify, validate, and write safely; it does not promise universal project-file compatibility or enable automatic timeline changes until those conditions are met. The initial integration target is **DaVinci Resolve Free 21.1.2 on macOS**, using **FCPXML 1.10** for read-only interchange and Resolve API snapshots for additional diagnostic evidence.
 
-The repository also contains an executable, in-process foundation for collaboration: immutable content-addressed history, compare-and-swap branch heads, authenticated roles, encrypted credentials and records, audit trails, metadata-only sync, offline retry, concurrent-update protection, and cached metadata. It is **not** a deployed cloud service.
+## Product vision
 
-## Languages, frameworks, and formats
+Frameline is intended to give video teams a workflow analogous to source control while respecting the differences of timeline-based creative work:
 
-| Area | Technology | Use |
-|---|---|---|
-| Desktop application | Electron 41 | Hosts the isolated desktop main process and renderer |
-| Application logic | JavaScript / Node.js, CommonJS | Timeline scans, local history, sync, security, and desktop orchestration |
-| User interface | HTML and CSS | Local desktop interface; no React, Vue, or other UI framework |
-| XML parsing | `fast-xml-parser` 5.12 | Read-only parsing of supported FCPXML exports |
-| Proof tooling | Python 3 standard library | Resolve XML/API mapping proof and tests |
-| Project interchange | FCPXML 1.10, JSON | Timeline export, scan manifests, API snapshots, and revision artifacts |
+- Create immutable, understandable project revisions on named branches.
+- Show what changed before changing an editor project.
+- Preserve local edits when an incoming revision overlaps them.
+- Make media availability, missing assets, and relink confidence visible.
+- Offer safe review-copy and eventual transactional in-place pull workflows.
+- Support teams, permissions, history, sharing, cloud sync, and reliable recovery.
 
-## Developer tools and libraries
+The desired outcome is a collaboration workflow where editors can move quickly without relying on opaque file overwrites, manual folder comparisons, or unverified project copies.
 
-| Tool or library | Role |
+## Full project scope
+
+| Product area | Intended outcome |
 |---|---|
-| npm | Dependency installation and scripts |
-| `node --test` | JavaScript unit and integration test runner |
-| Python `unittest` | Tests for the Resolve proof tooling |
-| Git and GitHub | Source history, review, and branch publishing |
-| Electron `safeStorage` | Main-process operating-system-protected credential storage |
-| `fast-xml-parser` | Bounded, validated FCPXML parsing |
-| `@fontsource/anton`, `@fontsource/ibm-plex-sans`, `@fontsource/ibm-plex-mono` | Bundled interface typography |
+| Editor research and compatibility | Select integrations only after proving timeline enumeration, stable identity, safe validation, and a supported write path. Maintain compatibility fixtures and explicit support boundaries. |
+| Local project foundation | Scan project exports safely, normalize them into deterministic manifests, store immutable revisions, create branches, recover from corruption, and export/import history. |
+| Change review and safe pull | Compare a common base, local state, and incoming revision; identify conflicts; create an executable pull plan; back up, apply, validate, and recover transactionally. |
+| Media intelligence | Inventory referenced media, identify availability and relink candidates, fingerprint files, explain requirements, and later sync media assets intentionally. |
+| Cloud collaboration | Maintain versioned project history, identities, team roles, branch protection, invitations, activity history, sharing, push/fetch, offline operation, and reconciliation. |
+| Asset services | Add content-addressed media storage, resumable transfers, deduplication, storage policies, proxies, retention, previews, and observable background jobs. |
+| Release and expansion | Provide onboarding, accessibility, performance for large projects, diagnostics, packaging, updates, CI, incident response, and one proven editor adapter at a time. |
 
-## Current project metrics
+## Current delivery position
 
-| Metric | Current value | Meaning |
+The project currently has a working Electron prototype and executable local service foundations. It can safely read supported FCPXML input, maintain local revision history, create verified review copies, audit media availability, preview Resolve API snapshot differences, and test collaboration invariants locally.
+
+Features intentionally still open include project-write/apply support, universal clip identity, production cloud deployment, user-facing sync controls, media upload/download, team-sharing interface, installer release engineering, and additional editor integrations. This is an evidence-based prototype, not a release-ready collaboration service.
+
+## Languages, frameworks, and developer tools
+
+| Area | Current technology | Role or planned direction |
+|---|---|---|
+| Desktop application | Electron 41 | Local desktop host with isolated main and renderer processes |
+| Application logic | JavaScript / Node.js, CommonJS | Scanning, revision history, sync, security, local workflow orchestration |
+| User interface | HTML and CSS | Desktop interface; no React, Vue, or other UI framework is currently used |
+| XML parsing | `fast-xml-parser` 5.12 | Read-only, validated parsing of supported FCPXML exports |
+| Proof tooling | Python 3 standard library | Resolve XML/API mapping proof and tests |
+| Interchange and artifacts | FCPXML 1.10 and JSON | Editor exports, scan manifests, API snapshots, revision and review artifacts |
+| Testing | `node --test` and Python `unittest` | Unit, integration, fixture, safety, and proof coverage |
+| Security primitives | Electron `safeStorage`, Node `crypto` | Protected local credentials, hashing, authenticated encryption, and audit-chain primitives |
+| Source control and delivery | Git, GitHub, npm | Version history, publishing, dependencies, and scripts |
+| Cloud infrastructure | Not selected | Deployment region, hosted database/object store, transport, key management, monitoring, and disaster recovery remain explicit product decisions |
+
+The visual interface uses bundled Anton and IBM Plex font packages. The project does not currently rely on a database ORM, cloud provider SDK, TypeScript, or frontend component framework.
+
+## Project metrics
+
+### Verified engineering metrics
+
+| Metric | Current value | Interpretation |
 |---|---:|---|
-| Roadmap completion | 88 / 188 tasks (46.8%) | Checked items in `ROADMAP.md`; this includes proofs and foundations, not only production features |
-| Node test suite | 219 passing | Automated JavaScript coverage across desktop, parsing, history, review, security, and sync modules |
-| Python proof tests | 24 passing | Automated coverage for the Resolve XML/API proof tooling |
-| Initial scan scope | 1 top-level picture sequence | Supported FCPXML read path; complex/nested content is warned about or rejected rather than guessed |
-| Supported initial target | Resolve Free 21.1.2 + FCPXML 1.10 | Evidence-backed initial integration boundary, not a general compatibility promise |
-| Cloud deployment | 0 deployed services | Collaboration code is an executable local foundation only |
+| Roadmap tasks complete | 88 / 188 (46.8%) | All checked items in `ROADMAP.md`; includes research proofs, foundations, and shipped prototype capabilities |
+| JavaScript tests | 219 passing | Automated checks across desktop workflows, parsing, local history, review, security, and sync foundations |
+| Python proof tests | 24 passing | Automated checks for Resolve XML/API proof tooling |
+| Initial editor target | Resolve Free 21.1.2 + FCPXML 1.10 | Explicitly bounded compatibility target, not a general format guarantee |
+| Deployed cloud services | 0 | Collaboration code is currently an executable local foundation rather than a hosted product |
 
-## Productivity and time-saved measurement
+### Product and productivity metrics to measure in pilots
 
-No production usage telemetry has been collected, so Frameline does **not** claim a measured time-saving result yet. Its expected benefit is reducing repetitive, manual work around revision inspection, source verification, media readiness checks, review-copy preparation, and recovery after unsafe changes.
+No production telemetry has been collected, so Frameline does **not** claim measured time savings yet. Pilot measurement should establish a baseline for each team, then compare the same workflows with Frameline.
 
-Use this model after pilot usage begins:
+| Metric | Why it matters |
+|---|---|
+| Time from receiving a revision to completing a review decision | Measures review speed and friction |
+| Time spent finding, validating, or relinking required media | Measures media-readiness efficiency |
+| Number of manual project-copy and folder-comparison steps avoided | Measures replacement of repetitive operational work |
+| Successful verified review copies and restore points | Measures safety and recovery confidence |
+| Conflicts resolved without modifying the original project | Measures protection of local work |
+| Sync retry, reconciliation, and duplicate-revision rates | Measures collaboration reliability |
+| Unsupported-input, validation, and recovery outcomes | Guides compatibility investment and prevents false confidence |
+
+Use the following calculation only after collecting real baseline and pilot data:
 
 ```text
 Weekly time saved (hours) =
-  reviews per week × (manual review minutes − Frameline review minutes) / 60
+  review cycles per week × (baseline minutes per cycle − Frameline minutes per cycle) / 60
 ```
 
-For example, if a team completes 10 review cycles per week and Frameline removes an observed 15 minutes from each cycle, the estimated benefit is **2.5 hours per week**. That example is illustrative; it is not a measured product result.
+For illustration only: 10 review cycles per week with an observed 15-minute reduction per cycle would equal **2.5 hours saved per week**. That is a measurement model, not a current product claim.
 
-Recommended pilot metrics:
+### Initial planning estimates for a finished product
 
-- Median time from export selection to a completed review decision
-- Manual media-location checks avoided per review
-- Review copies verified without a collision or stale-source failure
-- Conflicts reviewed and recovered from without editing the original project
-- Sync retries completed without duplicate remote revisions
-- Failed, blocked, and reconciled sync operations by cause
+These are proposed targets for a small-team pilot after Frameline supports a proven editor write path and hosted collaboration. They are planning estimates, not current measurements or guarantees.
 
-## Important boundaries
+| Area | Initial target | Assumption or definition |
+|---|---:|---|
+| Time saved | 15–30 minutes per review cycle | Compared with a team's documented manual baseline for a typical revision review, media check, and safe handoff |
+| Team time saved | 2.5–5 hours per week | 10 review cycles per week, each shortened by 15–30 minutes |
+| Review speed | ≤15 minutes median for a routine revision | Excludes complex editorial conflicts and unsupported editor constructs |
+| Safe-pull reliability | ≥99.5% completed without rollback | Applies only to inputs inside the declared compatibility boundary |
+| Data-loss incidents | 0 | A non-negotiable target; any incident requires investigation and release gating |
+| Restore verification | 100% before in-place apply | A restore point must be created and verified before modifying a supported project |
+| Media readiness | ≥85% of required assets verified automatically | Remaining assets must be shown as explicit confirmation-required or blocked cases |
+| Sync success | ≥99% completed without manual intervention | Includes normal network retries; excludes intentional conflict reconciliation |
+| Retry recovery | ≥95% of transient sync failures recover automatically | Measured after a connection returns, without duplicate remote revisions |
+| Reconciliation rate | <5% of sync attempts | Divergent branches should remain uncommon and always preserve both histories |
+| Performance | Scan a 1,000-clip supported export in ≤10 seconds | Measured on the published reference hardware and supported editor/version |
+| Availability | ≥99.9% monthly hosted-service availability | Applicable only after a production service, monitoring, and incident process exist |
+| Crash-free sessions | ≥99.5% | Excludes developer builds and explicitly unsupported environments |
+| Pilot retention | ≥60% of invited editors active after 30 days | Active means completing at least one review, revision, or sync workflow |
+| Accessibility | 100% of core workflows keyboard-operable | Core workflows: select, scan, review, resolve, create copy, restore, and sync |
 
-- Frameline does not currently apply edits, merge timelines, or modify Resolve project data.
-- Stable identity between Resolve API items and editable exports is not yet proven.
-- The app does not have a hosted API, cloud database, desktop account flow, or user-facing sync controls.
-- Media is not uploaded or placed in the offline metadata cache.
-- Unsupported or ambiguous input is designed to fail closed rather than produce a guessed result.
+Suggested evaluation window: run these targets against at least four weeks of pilot data, segment results by editor version and project-size range, and publish unsupported/ambiguous cases alongside the success rate.
 
-For detailed scope and evidence, see `README.md`, `PRODUCT.md`, `SYSTEM_DESIGN.md`, `SERVICE_FOUNDATION.md`, `SECURITY_MODEL.md`, and `ROADMAP.md`.
+## Success criteria
+
+Frameline should be considered successful when it can demonstrate all of the following for each supported editor/version combination:
+
+1. Editors can create and restore immutable project history without losing work.
+2. Incoming changes can be reviewed with clear, frame-accurate context and explicit unresolved cases.
+3. A pull either applies transactionally and validates in the target editor, or fails safely with a recoverable original.
+4. Media requirements are visible and no asset is silently substituted or uploaded.
+5. Concurrent work never overwrites a collaborator's remote head or a user's local project.
+6. Security, privacy, accessibility, performance, and support behavior meet the published release boundary.
+7. Pilot teams show a measurable reduction in manual review/recovery effort without increased project-risk incidents.
+
+## Non-negotiable product principles
+
+- Make the affected change visible before altering a project.
+- Fail closed on ambiguous identity, unsupported constructs, stale inputs, or unsafe write conditions.
+- Keep source paths, media locations, credentials, and unnecessary project details out of public UI and telemetry.
+- Keep review-copy and in-place update workflows distinct.
+- Treat media transfer as explicit, inspectable, and reversible.
+- Expand to additional editors only after the first adapter is proven reliable.
+
+For detailed evidence and task-level status, see `README.md`, `PRODUCT.md`, `SYSTEM_DESIGN.md`, `SERVICE_FOUNDATION.md`, `SECURITY_MODEL.md`, and `ROADMAP.md`.
