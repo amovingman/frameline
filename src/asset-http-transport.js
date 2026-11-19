@@ -4,6 +4,7 @@ const { TextDecoder } = require('node:util');
 const { API_VERSION, createRequestContext } = require('./project-api-contracts');
 const { validateHoldInput, validateRetentionInput, validateReportInput, validatePlanInput,
   validateHold, validateRetention, validateReport, validatePlan } = require('./asset-lifecycle-protocol');
+const { validateJobSubmit, validateJobAction, validateJobPageInput, validateAssetJob, validateJobPage, validateJobMetrics } = require('./asset-jobs-protocol');
 
 const MAX_CHUNK_BYTES = 1024 * 1024, MAX_JSON_REQUEST_BYTES = 64 * 1024, MAX_JSON_RESPONSE_BYTES = 1024 * 1024;
 const MAX_ASSET_BYTES = 64 * 1024 ** 3, TICKET_TTL_MS = 5 * 60_000;
@@ -20,7 +21,9 @@ const ERROR_STATUS = new Map([
   ['asset-key-rotation-required', 409], ['asset-capacity-exceeded', 413], ['asset-request-invalid', 400],
   ['asset-state-newer-version', 500], ['asset-service-closed', 503], ['asset-policy-excluded', 403], ['asset-policy-forbidden', 403],
   ['asset-policy-invalid', 400], ['asset-policy-version-conflict', 409], ['asset-archived', 403], ['asset-archive-invalid', 400], ['asset-archive-conflict', 409],
-  ['asset-lifecycle-invalid', 400], ['asset-lifecycle-version-conflict', 409], ['asset-lifecycle-idempotency-conflict', 409], ['asset-lifecycle-plan-stale', 409]
+  ['asset-lifecycle-invalid', 400], ['asset-lifecycle-version-conflict', 409], ['asset-lifecycle-idempotency-conflict', 409], ['asset-lifecycle-plan-stale', 409],
+  ['asset-job-invalid', 400], ['asset-job-not-found', 404], ['asset-job-forbidden', 403], ['asset-job-idempotency-conflict', 409],
+  ['asset-job-run-stale', 409], ['asset-job-state-conflict', 409], ['asset-job-attempts-exhausted', 409]
 ]);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -108,6 +111,11 @@ function parseRoute(raw) {
   else if (parts.length === 4 && parts[3] === 'policy') result = { kind: 'policy', methods: ['GET', 'PUT'] };
   else if (parts.length === 4 && parts[3] === 'usage') result = { kind: 'usage', methods: ['GET'] };
   else if (parts.length === 4 && parts[3] === 'retention') result = { kind: 'retention', methods: ['GET', 'PUT'] };
+  else if (parts.length === 4 && parts[3] === 'jobs') result = { kind: 'jobs-submit', methods: ['POST'] };
+  else if (parts.length === 5 && parts[3] === 'jobs' && parts[4] === 'list') result = { kind: 'jobs-list', methods: ['POST'] };
+  else if (parts.length === 5 && parts[3] === 'jobs' && parts[4] === 'metrics') result = { kind: 'jobs-metrics', methods: ['GET'] };
+  else if (parts.length === 5 && parts[3] === 'jobs') result = { kind: 'jobs-read', id: parts[4], methods: ['GET'] };
+  else if (parts.length === 6 && parts[3] === 'jobs' && ['cancel', 'retry'].includes(parts[5])) result = { kind: `jobs-${parts[5]}`, id: parts[4], methods: ['POST'] };
   else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'report') result = { kind: 'lifecycle-report', methods: ['POST'] };
   else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'plan') result = { kind: 'cleanup-plan', methods: ['POST'] };
   else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'hold') result = { kind: 'hold', id: parts[3], methods: ['GET', 'PUT'] };
@@ -238,12 +246,21 @@ function createAssetHttpHandler({ assets, authorize, authorizePolicy = null, sig
       if (!target.methods.includes(req.method)) { res.setHeader('Allow', target.methods.join(', ')); throw fail('method-not-allowed'); }
       if (closing) throw fail('asset-service-busy');
       if (active >= 8) throw fail('asset-service-busy'); active++; admitted = true;
-      await allowed(context, target.projectId, ['metadata', 'read', 'ticket', 'policy', 'usage', 'availability', 'archive'].includes(target.kind) ? 'read' : 'write');
+      await allowed(context, target.projectId, ['metadata', 'read', 'ticket', 'policy', 'usage', 'availability', 'archive', 'jobs-list', 'jobs-read', 'jobs-metrics'].includes(target.kind) ? 'read' : 'write');
       if (['archive', 'hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)
         || target.kind === 'policy' && req.method === 'PUT') await ownerAllowed(context, target.projectId);
       let result;
       if (target.kind === 'put' || target.kind === 'read') verifyTicket(target, req.method);
-      if (['hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)) {
+      if (target.kind.startsWith('jobs-')) {
+        const body = await readBody(req, { writing: req.method !== 'GET', signal: controller.signal });
+        if (target.kind === 'jobs-submit') result = validateAssetJob(await assets.submitVerificationJob(context, target.projectId, validateJobSubmit(body)));
+        else if (target.kind === 'jobs-list') result = validateJobPage(await assets.listVerificationJobs(context, target.projectId, validateJobPageInput(body)));
+        else if (target.kind === 'jobs-metrics') result = validateJobMetrics(await assets.getVerificationMetrics(context, target.projectId));
+        else if (target.kind === 'jobs-read') result = validateAssetJob(await assets.getVerificationJob(context, target.projectId, target.id));
+        else result = validateAssetJob(await assets[target.kind === 'jobs-cancel' ? 'cancelVerificationJob' : 'retryVerificationJob'](
+          context, target.projectId, target.id, validateJobAction(body)));
+        if (result.projectId !== target.projectId || target.id && result.id !== target.id) throw fail('service-unavailable');
+      } else if (['hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)) {
         const body = await readBody(req, { writing: req.method !== 'GET', signal: controller.signal });
         await ownerAllowed(context, target.projectId);
         if (target.kind === 'hold') {

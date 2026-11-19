@@ -1,6 +1,6 @@
 # Asset lifecycle and background jobs
 
-Phase 4 has local reference implementations for retention, owner reports, background jobs and optional preview handlers. The desktop media-audit path now uses the durable local job queue. Hosted storage, production workers and an editor renderer remain unconfigured.
+Phase 4 has local reference implementations for retention, owner reports, background jobs and optional preview handlers. The desktop media-audit path uses the durable local job queue. A separate [ten-feature self-hosted verification queue](ASSET_VERIFICATION_JOBS.md) now uses fenced leases and a standalone-host worker to rehash published media. Managed hosting, production-scale workers and an editor renderer remain unconfigured.
 
 ## Retention and owner reports
 
@@ -32,4 +32,4 @@ After the restarted check completed, a second quit/relaunch and matching-export 
 
 The sparse fixture establishes this local streaming/control flow and completed-report recovery. It is not representative editor-project performance evidence or proof of restartable uploads or applies.
 
-Cross-process worker leases, hosted job transport, real media rendering, quotas, retention windows, project deletion, and production garbage collection remain open. Local audit progress does not provide upload progress, restartable editor apply or production worker monitoring.
+The self-hosted verification queue now has cooperative cross-process leases, HTTPS job transport, cancellation/retry, metrics, and full-content hashing; see its separate scope above. Real media rendering, production-scale scheduling, quotas, retention windows, project deletion, and production garbage collection remain open. Local audit progress does not provide upload progress or restartable editor apply.

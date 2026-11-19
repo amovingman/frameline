@@ -389,6 +389,12 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
   };
   return {
     identity, members,
+    // Trusted in-process worker authorization. This facade is never routed over
+    // HTTP and accepts no bearer credential from persisted jobs.
+    authorizeAssetWorker: (actorId, projectId, action) => transact(world => {
+      if (action !== 'read' || !validId(actorId) || world.identity.getUser(actorId).status !== 'active') throw fail('forbidden');
+      world.access.authorize(actorId, { projectId, resource: 'asset', action: 'read' }); return { allowed: true, actorId };
+    }),
     notifications: Object.fromEntries(['schedule', 'claim', 'prepare', 'acknowledge', 'fail']
       .map(method => [method, (...args) => transact(world => world.notifications[method](...args))])),
     teams: { create: (context, name) => transact(world => world.access.createTeam(world.actor(context), name)),
@@ -408,7 +414,8 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
       else if (before.teamId !== input.teamId) throw fail('project-access-invalid');
       return value;
     }), delete: (context, projectId) => transact(world => world.access.deleteProject(world.actor(context), projectId)),
-    getInitialAssetPolicy: (context, projectId) => transact(world => world.projectPresets.initialPolicy(world.actor(context), projectId)) },
+    getInitialAssetPolicy: (context, projectId) => transact(world => world.projectPresets.initialPolicy(world.actor(context), projectId)),
+    getInitialAssetPolicyForWorker: (actorId, projectId) => transact(world => world.projectPresets.initialPolicy(actorId, projectId)) },
     service: Object.fromEntries(['putManifest', 'createRevision', 'updateBranch', 'getManifest', 'getRevision',
       'findRevisionBySource', 'listRevisions', 'getBranch', 'listActivity', 'listNotifications', 'markNotificationRead', 'authorizeAsset', 'authorizeAssetPolicy',
       'listReviewComments', 'addReviewComment', 'resolveReviewComment', 'getBranchReview', 'setBranchProtection', 'requestBranchApproval', 'approveBranchRequest',

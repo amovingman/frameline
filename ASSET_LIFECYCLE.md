@@ -55,7 +55,7 @@ The CLI deliberately does not sign in or persist tokens. Use the service's exist
 
 ## Storage, migration, and recovery
 
-Encrypted asset-index **schema 3** adds holds, hold-release tombstones, retention policies, exact-request receipts, and archive timestamps. The outer encrypted envelope stays at version 1. Combined collaboration schema 7 is unchanged. Existing private file/directory modes, cooperative locks, write-ahead byte checks, atomic index replacement, file/directory flushes, and uncertain-publication refusal remain in use.
+Encrypted asset-index **schema 3** introduced holds, hold-release tombstones, retention policies, exact-request receipts, and archive timestamps. Current schema 4 preserves those records and adds [verification jobs](ASSET_VERIFICATION_JOBS.md). The outer encrypted envelope stays at version 1. Combined collaboration schema 7 is unchanged. Existing private file/directory modes, cooperative locks, write-ahead byte checks, atomic index replacement, file/directory flushes, and uncertain-publication refusal remain in use.
 
 Valid schema-1 and schema-2 indexes migrate atomically without changing upload IDs, chunk bytes, identities, publication receipts, or existing transfer policy. Schema-1 assets begin unarchived and transfer classes remain disabled. An asset already archived in schema 2 has no provable archive time, so migration starts its waiting period at the migration time. Existing unarchived media receives no archive timestamp. Newer schemas and inconsistent lifecycle records fail closed; an interrupted or uncertain publication can be inspected by a fresh runtime. Migration creates no new asset-byte files and does not collect old files.
 

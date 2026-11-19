@@ -70,6 +70,7 @@ const workerScript = String.raw`
       let upload = config.upload, pendingTicket = config.pendingTicket, retainedTicket = config.retainedTicket;
       let completed = config.completed;
       let lifecycleHold = config.lifecycleHold;
+      let verificationJob = config.verificationJob;
       if (config.phase === 'partial') {
         assert.deepEqual(await clients.owner.getPolicy(config.projectId), { projectId: config.projectId, version: 0, syncClasses: [] });
         await assert.rejects(clients.owner.beginUpload(config.projectId, config.identity), { code: 'asset-policy-excluded' });
@@ -176,9 +177,27 @@ const workerScript = String.raw`
         const wrongProject = retainedTicket.path.replace('/projects/' + config.projectId + '/', '/projects/' + config.otherProjectId + '/');
         const otherProjectResponse = await raw('GET', wrongProject, sessions.outsider.accessToken);
         assert.equal(otherProjectResponse.status, 403); assert.equal(otherProjectResponse.json.error.code, 'asset-ticket-invalid');
+        await denied(clients.viewer.submitVerificationJob(config.projectId, { assetId: completed.assetId, idempotencyKey: 'viewer-verification' }));
+        verificationJob = await clients.owner.submitVerificationJob(config.projectId, { assetId: completed.assetId, idempotencyKey: 'proof-verification' });
+        assert.equal(verificationJob.assetId, completed.assetId);
+        assert.equal((await clients.viewer.getVerificationJob(config.projectId, verificationJob.id)).id, verificationJob.id);
       } else {
         assert.deepEqual(await clients.owner.getPolicy(config.projectId), { projectId: config.projectId, version: 3, syncClasses: ['original'] });
         assert.equal((await clients.owner.getUsage(config.projectId)).logicalBytes, bytes.length);
+        const verificationDeadline = Date.now() + 15000;
+        while (true) {
+          const job = await clients.owner.getVerificationJob(config.projectId, verificationJob.id);
+          if (job.status === 'succeeded') {
+            assert.equal(job.result.size, bytes.length); assert.equal(job.result.sha256, sha(bytes));
+            assert.equal(job.progressBytes, bytes.length); break;
+          }
+          assert.notEqual(job.status, 'failed'); assert(Date.now() < verificationDeadline);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        assert.equal((await clients.owner.submitVerificationJob(config.projectId, { assetId: completed.assetId, idempotencyKey: 'proof-verification' })).id, verificationJob.id);
+        const jobMetrics = await clients.owner.getVerificationMetrics(config.projectId);
+        assert.equal(jobMetrics.totalJobs, 1); assert.equal(jobMetrics.succeeded, 1); assert.equal(jobMetrics.verifiedBytes, bytes.length);
+        await denied(clients.viewer.getVerificationJob(config.projectId, verificationJob.id));
         assert(retainedTicket.expiresAt > Date.now(), 'Revocation is checked while the old capability is still unexpired');
         const revoked = await raw('GET', retainedTicket.path, sessions.viewer.accessToken);
         assert.equal(revoked.status, 403); assert.equal(revoked.json.error.code, 'forbidden');
@@ -210,7 +229,7 @@ const workerScript = String.raw`
         await clients.owner.setArchived(config.projectId, completed.assetId, { expectedArchived: true, archived: false });
         assert.deepEqual((await clients.owner.readChunk(config.projectId, completed.assetId, 0)).bytes, bytes.subarray(0, upload.chunkSize));
       }
-      process.send({ type: 'result', data: { sessions, upload, pendingTicket, retainedTicket, completed, lifecycleHold, requests } }, () => process.disconnect());
+      process.send({ type: 'result', data: { sessions, upload, pendingTicket, retainedTicket, completed, lifecycleHold, verificationJob, requests } }, () => process.disconnect());
     } catch (error) {
       const line = /\[eval\]:(\d+):\d+/.exec(error.stack || '')?.[1];
       if (process.connected) process.send({ type: 'failure', data: {
@@ -379,6 +398,8 @@ async function runAssetNetworkProof() {
       lifecycleHoldPersistedAcrossHostRestart: true, lifecycleExactRetryDoesNotReinstateReleasedHold: true,
       lifecycleRetentionPersistedAcrossHostRestart: true, lifecycleOwnerReportsAndStalePlansVerified: true,
       lifecyclePlanRemainsBlockedAndMediaRetained: true,
+      verificationJobSurvivedHostRestart: true, verificationWorkerRehashedWholeContent: true,
+      verificationRequestRetryReusedJob: true, verificationViewerReadAndMutationBoundaries: true, verificationMetricsVerified: true,
       encryptedChunksOmitPlaintext: true, privateFileMode: '0600', gracefulSigtermExit: true,
       priorOwnedProcessesTerminalBeforeRestart: true, allOwnedProcessesTerminated: true,
       publicLogsAndReceiptOmitCredentialsCapabilitiesAndPrivatePaths: true,

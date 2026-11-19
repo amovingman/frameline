@@ -2,6 +2,7 @@
 const { randomUUID, createHash } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const { API_VERSION } = require('./project-api-contracts');
+const { validateJobSubmit, validateJobAction, validateJobPageInput, validateAssetJob, validateJobPage, validateJobMetrics } = require('./asset-jobs-protocol');
 const { validateHoldInput, validateRetentionInput, validateReportInput, validatePlanInput,
   validateHold, validateRetention, validateReport, validatePlan } = require('./asset-lifecycle-protocol');
 const { chunkPath, validateIdentity, validateUpload, validateMetadata, validateComplete, validateProgress,
@@ -15,7 +16,8 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'asset-forbidden', 
   'asset-state-invalid', 'asset-state-newer-version', 'asset-key-rotation-required', 'asset-capacity-exceeded', 'asset-request-invalid',
   'asset-storage-unavailable', 'asset-storage-uncertain', 'asset-cancelled', 'request-too-large', 'body-invalid', 'request-invalid', 'invalid-request-headers',
   'asset-policy-excluded', 'asset-policy-forbidden', 'asset-policy-invalid', 'asset-policy-version-conflict', 'asset-archived', 'asset-archive-invalid', 'asset-archive-conflict',
-  'asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale']);
+  'asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale',
+  'asset-job-invalid', 'asset-job-not-found', 'asset-job-forbidden', 'asset-job-idempotency-conflict', 'asset-job-run-stale', 'asset-job-state-conflict', 'asset-job-attempts-exhausted']);
 const exact = (value, fields) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join('|') === fields.slice().sort().join('|');
 const number = (value, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= 0 && value <= max;
@@ -121,6 +123,30 @@ function createAssetHttpClient({ origin, getAccessToken, fetch: send = globalThi
     return result.path;
   }
   return {
+    submitVerificationJob: async (pid, input, options = {}) => {
+      const body = validateJobSubmit(input), result = await checked(validateAssetJob, request('POST', `${project(pid)}/jobs`, { ...options, body }));
+      if (result.projectId !== pid || result.assetId !== body.assetId) throw fail('asset-response-invalid'); return result;
+    },
+    getVerificationJob: async (pid, jobId, options = {}) => {
+      const result = await checked(validateAssetJob, request('GET', `${project(pid)}/jobs/${segment(jobId)}`, options));
+      if (result.projectId !== pid || result.id !== jobId) throw fail('asset-response-invalid'); return result;
+    },
+    listVerificationJobs: async (pid, input = { afterJobId: null, limit: 100 }, options = {}) => {
+      const body = validateJobPageInput(input), result = await checked(validateJobPage, request('POST', `${project(pid)}/jobs/list`, { ...options, body }));
+      if (result.projectId !== pid || result.items.length > body.limit || body.afterJobId !== null && result.items.some(item => item.id <= body.afterJobId)) throw fail('asset-response-invalid'); return result;
+    },
+    cancelVerificationJob: async (pid, jobId, input, options = {}) => {
+      const body = validateJobAction(input), result = await checked(validateAssetJob, request('POST', `${project(pid)}/jobs/${segment(jobId)}/cancel`, { ...options, body }));
+      if (result.projectId !== pid || result.id !== jobId) throw fail('asset-response-invalid'); return result;
+    },
+    retryVerificationJob: async (pid, jobId, input, options = {}) => {
+      const body = validateJobAction(input), result = await checked(validateAssetJob, request('POST', `${project(pid)}/jobs/${segment(jobId)}/retry`, { ...options, body }));
+      if (result.projectId !== pid || result.id !== jobId || result.run < body.expectedRun + 1) throw fail('asset-response-invalid'); return result;
+    },
+    getVerificationMetrics: async (pid, options = {}) => {
+      const result = await checked(validateJobMetrics, request('GET', `${project(pid)}/jobs/metrics`, options));
+      if (result.projectId !== pid) throw fail('asset-response-invalid'); return result;
+    },
     getHold: async (pid, aid, options = {}) => {
       const result = await checked(validateHold, request('GET', `${project(pid)}/${asset(aid)}/hold`, options));
       if (result.projectId !== pid || result.assetId !== aid) throw fail('asset-response-invalid'); return result;

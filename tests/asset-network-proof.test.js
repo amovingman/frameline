@@ -18,7 +18,8 @@ test('signed HTTPS asset chunks resume across service process restarts and reche
     'excludedBytesRetainedAndBlocked', 'outstandingTicketsRecheckArchiveAndPolicy', 'stalePolicyUpdateRejected',
     'restoredPolicyAllowsRead', 'lifecycleHoldPersistedAcrossHostRestart', 'lifecycleExactRetryDoesNotReinstateReleasedHold',
     'lifecycleRetentionPersistedAcrossHostRestart', 'lifecycleOwnerReportsAndStalePlansVerified',
-    'lifecyclePlanRemainsBlockedAndMediaRetained']) assert.equal(receipt[key], true, key);
+    'lifecyclePlanRemainsBlockedAndMediaRetained', 'verificationJobSurvivedHostRestart', 'verificationWorkerRehashedWholeContent',
+    'verificationRequestRetryReusedJob', 'verificationViewerReadAndMutationBoundaries', 'verificationMetricsVerified']) assert.equal(receipt[key], true, key);
   assert.equal(receipt.privateFileMode, '0600');
   assert.doesNotMatch(JSON.stringify(receipt), /Bearer |accessToken|refreshToken|signature=|\/Users\/|\/private\/|https:\/\/127/);
 });

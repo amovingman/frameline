@@ -9,6 +9,7 @@ const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/s
   'src/shared-storage-protocol.js', 'src/shared-storage-volume.js', 'src/shared-storage-store.js',
   'src/asset-lifecycle-protocol.js', 'src/service-asset-lifecycle.js', 'src/asset-lifecycle-cli.js',
   'src/desktop-asset-lifecycle.js', 'src/asset-lifecycle-intents.js', 'src/asset-lifecycle-renderer.js',
+  'src/asset-jobs-protocol.js', 'src/service-asset-jobs.js', 'src/asset-verification-worker.js', 'src/asset-jobs-cli.js',
   'src/desktop-shared-storage.js', 'src/shared-storage-renderer.js',
   'src/companion/resolve-internal.py', 'src/companion/resolve_snapshot.py',
   'src/companion/resolve-internal.lua', 'src/resolve-menu-companion.js',

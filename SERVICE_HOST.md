@@ -1,5 +1,7 @@
 # Running a single-host metadata service
 
+When asset storage is configured, the host also runs the [stored-media verification worker](ASSET_VERIFICATION_JOBS.md). Owners/editors explicitly submit jobs through HTTPS or `service:asset-jobs`; current members can read their status and project metrics. No verification starts until submitted, and worker lease operations have no public endpoint. Shutdown retires the worker before closing asset storage.
+
 Owners of projects with asset storage can use the [asset lifecycle API and stdin-only CLI](ASSET_LIFECYCLE.md) for durable holds, hold release, retention settings, paged reports, and reviewed cleanup plans. These operations require an existing owner session. They do not perform garbage collection or alter editor projects.
 
 Frameline includes a standalone HTTPS launcher and trusted local account tools. They use the encrypted identity/access/history store and the same API as the desktop Service history panel. The default configuration serves metadata; optional [asset storage](ASSET_NETWORK_SYNC.md) adds authenticated media chunks. These tools do not choose a hosting provider or deploy infrastructure. The filesystem stores remain a single-host foundation; production database, managed keys, monitoring, backups, and disaster recovery remain separate gates.

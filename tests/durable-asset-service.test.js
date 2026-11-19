@@ -139,7 +139,7 @@ test('tampered chunks and corrupt encrypted index references are refused before 
   await assert.rejects(f.store.readChunk(viewer, 'project-a', a.identity.contentId, 0), { code: 'asset-chunk-corrupt' }); await fs.writeFile(filename, chunk);
   const indexPath = path.join(f.directory, 'assets.enc.json'); const original = JSON.parse(await fs.readFile(indexPath));
   const edits = [value => { value.uploads[0].id = '../private'; }, value => { value.uploads.push(structuredClone(value.uploads[0])); },
-    value => { value.assets[0].projectId = 'project-b'; }, value => { value.uploads[0].identity.localPath = '/Users/private'; }, value => { value.schemaVersion = 4; }];
+    value => { value.assets[0].projectId = 'project-b'; }, value => { value.uploads[0].identity.localPath = '/Users/private'; }, value => { value.schemaVersion = 5; }];
   for (const edit of edits) { const envelope = structuredClone(original); const value = f.keyring.decrypt(envelope.record); edit(value); envelope.record = f.keyring.encrypt(value); await fs.writeFile(indexPath, JSON.stringify(envelope));
     await assert.rejects(createDurableAssetService(f.opts), error => ['asset-state-invalid', 'asset-state-newer-version'].includes(error.code)); }
   await fs.writeFile(indexPath, JSON.stringify(original));
@@ -311,7 +311,7 @@ test('policy CAS is fresh across instances and a policy update linearizes after 
 
 async function downgradeToV1(f) {
   await f.store.close(); const filename = path.join(f.directory, 'assets.enc.json'); const envelope = JSON.parse(await fs.readFile(filename));
-  const value = f.keyring.decrypt(envelope.record); value.schemaVersion = 1; delete value.policies; delete value.lifecycle; value.assets = value.assets.map(({ archived, ...asset }) => asset);
+  const value = f.keyring.decrypt(envelope.record); value.schemaVersion = 1; delete value.policies; delete value.lifecycle; delete value.jobs; value.assets = value.assets.map(({ archived, ...asset }) => asset);
   envelope.record = f.keyring.encrypt(value); const bytes = Buffer.from(JSON.stringify(envelope)); await fs.writeFile(filename, bytes);
   return { filename, bytes, generation: value.generation, value };
 }
@@ -321,7 +321,7 @@ test('schema1 migration atomically preserves upload IDs, encrypted bytes and pub
   const partial = await f.store.beginUpload(owner, 'project-a', identify(partialBytes)); await f.store.putChunk(owner, 'project-a', partial.uploadId, 1, partialBytes.subarray(4), sha(partialBytes.subarray(4)));
   const chunkPath = path.join(f.directory, 'uploads', published.begin.uploadId, '0.enc.json'); const chunkBefore = await fs.readFile(chunkPath); const old = await downgradeToV1(f);
   await f.reopen(); const envelope = JSON.parse(await fs.readFile(old.filename)); const migrated = f.keyring.decrypt(envelope.record);
-  assert.equal(migrated.schemaVersion, 3); assert.equal(migrated.generation, old.generation + 1); assert.deepEqual(migrated.uploads, old.value.uploads);
+  assert.equal(migrated.schemaVersion, 4); assert.equal(migrated.generation, old.generation + 1); assert.deepEqual(migrated.uploads, old.value.uploads);
   assert.deepEqual(migrated.assets, old.value.assets.map(asset => ({ ...asset, archived: false }))); assert.deepEqual(migrated.policies, []);
   assert.deepEqual(await fs.readFile(chunkPath), chunkBefore); assert.deepEqual((await f.store.uploadStatus(owner, 'project-a', partial.uploadId)).received, [false, true]);
   assert.equal((await f.store.getAvailability(viewer, 'project-a', published.identity.contentId)).excluded, true);
@@ -340,7 +340,7 @@ test('failed migration never resets evidence and an ambiguous migrated-index pub
   const afterRenameFailure = { ...fs, async rename(from, to) { await fs.rename(from, to); throw Object.assign(new Error('uncertain'), { code: 'EIO' }); } };
   await assert.rejects(createDurableAssetService({ ...f.opts, storage: afterRenameFailure }), { code: 'asset-storage-uncertain' });
   const committed = await fs.readFile(old.filename); assert.notDeepEqual(committed, old.bytes); await f.reopen(); assert.deepEqual(await fs.readFile(old.filename), committed);
-  const envelope = JSON.parse(committed); const future = f.keyring.decrypt(envelope.record); future.schemaVersion = 4; envelope.record = f.keyring.encrypt(future);
+  const envelope = JSON.parse(committed); const future = f.keyring.decrypt(envelope.record); future.schemaVersion = 5; envelope.record = f.keyring.encrypt(future);
   await fs.writeFile(old.filename, JSON.stringify(envelope)); const malformed = await fs.readFile(old.filename);
   await assert.rejects(createDurableAssetService(f.opts), { code: 'asset-state-newer-version' }); assert.deepEqual(await fs.readFile(old.filename), malformed);
 });

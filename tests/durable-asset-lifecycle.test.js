@@ -107,10 +107,10 @@ test('lifecycle report paging is deterministic and state hashes detect policy, a
 test('schema2 migration preserves archived bytes and starts unknown archive age at migration time', async t => {
   const f = await lifecycleFixture(t), a = await f.upload();
   await f.store.setArchived(owner, 'film', a.assetId, { expectedArchived: false, archived: true }); await f.store.close();
-  const legacy = await f.state(); legacy.schemaVersion = 2; delete legacy.lifecycle; await f.saveState(legacy);
+  const legacy = await f.state(); legacy.schemaVersion = 2; delete legacy.lifecycle; delete legacy.jobs; await f.saveState(legacy);
   const bytes = await fs.readFile(path.join(f.directory, 'uploads', a.uploadId, '0.enc.json'));
   f.advance(90 * DAY); await f.reopen(); const report = await f.store.getLifecycleReport(owner, 'film', page);
-  assert.equal((await f.state()).schemaVersion, 3); assert.equal(report.items[0].archivedAt, f.at);
+  assert.equal((await f.state()).schemaVersion, 4); assert.equal(report.items[0].archivedAt, f.at);
   assert.equal(report.items[0].eligibleAt, f.at + 30 * DAY); assert.equal(report.items[0].cleanupCandidate, false);
   assert.deepEqual(await fs.readFile(path.join(f.directory, 'uploads', a.uploadId, '0.enc.json')), bytes);
 });

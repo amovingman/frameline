@@ -14,6 +14,7 @@ const { createUnsubscribeViewerHandler, isUnsubscribeViewerRequest } = require('
 const { validateNotificationConfig } = require('./service-host-config');
 const { createSmtpNotificationSender } = require('./smtp-notification-sender');
 const { createNotificationWorker } = require('./notification-worker');
+const { createAssetVerificationWorker } = require('./asset-verification-worker');
 
 function fail(code) { return Object.assign(new Error(code), { code }); }
 function nested(parent, child) {
@@ -41,18 +42,24 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
     listProjects: context => runtime.projects.list(context) });
   const shareViewer = createShareViewerHandler();
   const unsubscribeViewer = createUnsubscribeViewerHandler();
-  let assets = null, assetHandler = null, notificationWorker = null;
+  let assets = null, assetHandler = null, notificationWorker = null, assetWorker = null;
   try {
     if (config.assets) {
-      const authorize = (context, projectId, action) => runtime.service.authorizeAsset(context, projectId, action);
+      const workerActors = new WeakMap();
+      const workerActorContext = actorId => { const context = Object.freeze({}); workerActors.set(context, actorId); return context; };
+      const authorize = (context, projectId, action) => workerActors.has(context)
+        ? runtime.authorizeAssetWorker(workerActors.get(context), projectId, action) : runtime.service.authorizeAsset(context, projectId, action);
       const authorizePolicy = (context, projectId, action) => runtime.service.authorizeAssetPolicy(context, projectId, action);
       assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, authorizePolicy,
-        getInitialPolicy: (context, projectId) => runtime.projects.getInitialAssetPolicy(context, projectId), initialize });
+        getInitialPolicy: (context, projectId) => workerActors.has(context)
+          ? runtime.projects.getInitialAssetPolicyForWorker(workerActors.get(context), projectId) : runtime.projects.getInitialAssetPolicy(context, projectId),
+        workerActorContext, initialize });
       assetHandler = createAssetHttpHandler({ assets, authorize, authorizePolicy, signingKey: config.assets.signingKey });
+      assetWorker = createAssetVerificationWorker({ worker: assets.worker });
     }
     if (notificationConfig) notificationWorker = createNotificationWorker({ notifications: runtime.notifications,
       sender: createSmtpNotificationSender({ config: notificationConfig }), onChange: onNotificationStatus });
-  } catch (error) { await notificationWorker?.stop(); await assets?.close(); await runtime.close(); throw error; }
+  } catch (error) { await assetWorker?.stop(); await notificationWorker?.stop(); await assets?.close(); await runtime.close(); throw error; }
   const sockets = new Set(), handlers = new Set(); let closing = false, closePromise = null;
   const server = https.createServer({ ...tls, maxHeaderSize: 16 * 1024, headersTimeout: 10_000,
     requestTimeout: 30_000, keepAliveTimeout: 5000, connectionsCheckingInterval: 1000 }, (req, res) => {
@@ -81,10 +88,11 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
       const ready = () => { server.off('error', failed); resolve(); };
       server.once('error', failed); server.once('listening', ready); server.listen(config.port, config.host);
     });
-  } catch (error) { for (const socket of sockets) socket.destroy(); await notificationWorker?.stop(); await assets?.close(); await runtime.close(); throw error; }
+  } catch (error) { for (const socket of sockets) socket.destroy(); await assetWorker?.stop(); await notificationWorker?.stop(); await assets?.close(); await runtime.close(); throw error; }
   server.on('error', () => {});
   const address = server.address();
   notificationWorker?.start();
+  assetWorker?.start();
   function close() {
     if (closePromise) return closePromise;
     closing = true;
@@ -94,6 +102,7 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
       // stop those jobs before draining accepted requests and closing storage.
       const assetShutdown = assetHandler ? assetHandler.close().then(() => null, () => fail('service-host-shutdown-failed')) : Promise.resolve(null);
       const notificationShutdown = notificationWorker ? notificationWorker.stop().then(() => null, () => fail('service-host-shutdown-failed')) : Promise.resolve(null);
+      const workerShutdown = assetWorker ? assetWorker.stop().then(() => null, () => fail('service-host-shutdown-failed')) : Promise.resolve(null);
       const networkClosed = new Promise((resolve, reject) => server.close(error => error ? reject(fail('service-host-shutdown-failed')) : resolve()));
       server.closeIdleConnections();
       const destroyConnections = () => { server.closeAllConnections(); for (const socket of sockets) socket.destroy(); };
@@ -103,6 +112,7 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
         while (handlers.size) await Promise.allSettled([...handlers]);
         const assetError = await assetShutdown; if (assetError) throw assetError;
         const notificationError = await notificationShutdown; if (notificationError) throw notificationError;
+        const workerError = await workerShutdown; if (workerError) throw workerError;
         await assets?.close();
         await runtime.close();
       })();

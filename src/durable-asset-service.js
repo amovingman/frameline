@@ -7,6 +7,7 @@ const { acquireMetadataLock } = require('./metadata-lock');
 const { createMediaAssetIdentity } = require('./media-asset-identity');
 const { fingerprint } = require('./project-api-contracts');
 const { emptyLifecycle, validateAssetLifecycleState, createAssetLifecycleOperations } = require('./service-asset-lifecycle');
+const { emptyAssetJobs, validateAssetJobsState, createAssetJobOperations } = require('./service-asset-jobs');
 
 const MAX_INDEX_BYTES = 32 * 1024 * 1024, MAX_FILE_BYTES = 48 * 1024 * 1024;
 const MAX_ASSET_BYTES = 64 * 1024 * 1024 * 1024, MAX_CHUNKS = 65536;
@@ -42,10 +43,10 @@ function envelope(value) {
     || !id(value.keyId) || value.algorithm !== 'aes-256-gcm' || !base64(value.iv, 12) || !base64(value.tag, 16)
     || !base64(value.ciphertext) || !value.ciphertext) throw fail('asset-state-invalid');
 }
-function validateState(value, chunkSize, maxAssetBytes, version = 3) {
+function validateState(value, chunkSize, maxAssetBytes, version = 4) {
   const legacy = version === 1;
-  if (value?.schemaVersion > 3) throw fail('asset-state-newer-version');
-  if (!exact(value, ['schemaVersion', 'generation', 'chunkSize', 'maxAssetBytes', 'uploads', 'assets', ...(legacy ? [] : ['policies']), ...(version === 3 ? ['lifecycle'] : [])])
+  if (value?.schemaVersion > 4) throw fail('asset-state-newer-version');
+  if (!exact(value, ['schemaVersion', 'generation', 'chunkSize', 'maxAssetBytes', 'uploads', 'assets', ...(legacy ? [] : ['policies']), ...(version >= 3 ? ['lifecycle'] : []), ...(version >= 4 ? ['jobs'] : [])])
     || value.schemaVersion !== version || !Number.isSafeInteger(value.generation) || value.generation < 0
     || value.chunkSize !== chunkSize || value.maxAssetBytes !== maxAssetBytes
     || !Array.isArray(value.uploads) || value.uploads.length > 10000 || !Array.isArray(value.assets) || value.assets.length > 10000
@@ -76,26 +77,28 @@ function validateState(value, chunkSize, maxAssetBytes, version = 3) {
       || JSON.stringify(policy.syncClasses) !== JSON.stringify([...policy.syncClasses].sort())) throw fail('asset-state-invalid');
     policyProjects.add(policy.projectId);
   }
-  if (version === 3) validateAssetLifecycleState(value.lifecycle, value.assets);
+  if (version >= 3) validateAssetLifecycleState(value.lifecycle, value.assets);
+  if (version >= 4) validateAssetJobsState(value.jobs, value.assets, value.uploads);
   if (Buffer.byteLength(JSON.stringify(value)) > MAX_INDEX_BYTES) throw fail('asset-state-invalid');
   return structuredClone(value);
 }
 function migrateState(value, chunkSize, maxAssetBytes, at) {
-  if (![1, 2].includes(value?.schemaVersion)) return validateState(value, chunkSize, maxAssetBytes);
+  if (![1, 2, 3].includes(value?.schemaVersion)) return validateState(value, chunkSize, maxAssetBytes);
   const previous = validateState(value, chunkSize, maxAssetBytes, value.schemaVersion);
   const assets = value.schemaVersion === 1 ? previous.assets.map(asset => ({ ...asset, archived: false })) : previous.assets;
-  const lifecycle = emptyLifecycle();
+  const lifecycle = previous.lifecycle || emptyLifecycle();
   // Legacy records have no trustworthy archive time. Start their waiting period
   // at migration instead of assuming they were archived long ago.
-  lifecycle.archives = assets.filter(asset => asset.archived).map(({ projectId, assetId }) => ({ projectId, assetId, archivedAt: at }));
-  return validateState({ ...previous, schemaVersion: 3, policies: previous.policies || [], assets, lifecycle }, chunkSize, maxAssetBytes);
+  if (value.schemaVersion < 3) lifecycle.archives = assets.filter(asset => asset.archived).map(({ projectId, assetId }) => ({ projectId, assetId, archivedAt: at }));
+  return validateState({ ...previous, schemaVersion: 4, policies: previous.policies || [], assets, lifecycle, jobs: emptyAssetJobs() }, chunkSize, maxAssetBytes);
 }
 
 async function createDurableAssetService({ directory, keyring, authorize, authorizePolicy = null, getInitialPolicy = null, initialize = false, chunkSize = 1024 * 1024,
-  maxAssetBytes = MAX_ASSET_BYTES, storage = fs, lockTimeoutMs = 5000, now = Date.now } = {}) {
+  maxAssetBytes = MAX_ASSET_BYTES, storage = fs, lockTimeoutMs = 5000, now = Date.now, workerActorContext = null } = {}) {
   if (!path.isAbsolute(directory || '') || !keyring || typeof keyring.encrypt !== 'function' || typeof keyring.decrypt !== 'function'
     || typeof authorize !== 'function' || authorizePolicy !== null && typeof authorizePolicy !== 'function'
     || getInitialPolicy !== null && typeof getInitialPolicy !== 'function'
+    || workerActorContext !== null && typeof workerActorContext !== 'function'
     || typeof now !== 'function' || typeof initialize !== 'boolean' || !Number.isSafeInteger(chunkSize) || chunkSize < 1 || chunkSize > 1024 * 1024
     || !Number.isSafeInteger(maxAssetBytes) || maxAssetBytes < 0 || maxAssetBytes > MAX_ASSET_BYTES
     || !Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 0 || lockTimeoutMs > 30000) throw fail('asset-service-invalid');
@@ -112,6 +115,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
   // journal. Keep them scoped to this fresh transaction's in-memory state.
   const initialPolicies = new WeakMap();
   const lifecycle = createAssetLifecycleOperations({ now });
+  const jobs = createAssetJobOperations({ now });
   const count = size => Math.max(1, Math.ceil(size / chunkSize));
   const length = (size, index) => Math.min(chunkSize, Math.max(0, size - index * chunkSize));
   async function permission(context, projectId, action) {
@@ -213,7 +217,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
         abort(signal); if (!startup) await permission(context, projectId, action);
         let value = await state(); const previous = value && fingerprint(value);
         if (value === null) {
-          value = { schemaVersion: 3, generation: 0, chunkSize, maxAssetBytes, uploads: [], assets: [], policies: [], lifecycle: emptyLifecycle() };
+          value = { schemaVersion: 4, generation: 0, chunkSize, maxAssetBytes, uploads: [], assets: [], policies: [], lifecycle: emptyLifecycle(), jobs: emptyAssetJobs() };
           try { await privateDirectory(uploadsPath, true); await syncDir(directory); }
           catch (error) { if (error.code !== 'EEXIST') throw error; await privateDirectory(uploadsPath); }
         } else await privateDirectory(uploadsPath);
@@ -246,6 +250,8 @@ async function createDurableAssetService({ directory, keyring, authorize, author
           'asset-policy-invalid', 'asset-policy-forbidden', 'asset-policy-version-conflict', 'asset-policy-excluded',
           'asset-archive-invalid', 'asset-archive-conflict', 'asset-archived',
           'asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale',
+          'asset-job-invalid', 'asset-job-not-found', 'asset-job-forbidden', 'asset-job-idempotency-conflict', 'asset-job-run-stale',
+          'asset-job-state-conflict', 'asset-job-attempts-exhausted', 'asset-job-lease-stale', 'asset-job-lease-expired',
           'forbidden', 'access-token-invalid', 'rate-limit-exceeded']);
         throw fail(safe.has(error?.code) ? error.code : 'asset-storage-unavailable');
       } finally { try { await release(); } catch { uncertain = true; throw fail('asset-storage-uncertain'); } }
@@ -290,6 +296,64 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       actorId = await policyPermission(context, projectId); const result = await operation(value, actorId); await recheckOwner(); return result;
     }, undefined, false, recheckOwner);
   }
+  async function jobActor(context, projectId, action) {
+    const result = await authorize(context, projectId, action);
+    if (result?.allowed !== true || !id(result.actorId)) throw fail('asset-job-forbidden'); return result.actorId;
+  }
+  function jobWrite(context, projectId, operation, jobId = null) {
+    let actorId, crossAuthor = false;
+    const check = async () => { if (await jobActor(context, projectId, 'write') !== actorId) throw fail('asset-job-forbidden'); };
+    return transact(context, projectId, 'write', async value => {
+      actorId = await jobActor(context, projectId, 'write');
+      crossAuthor = jobId !== null && jobs.get(value, projectId, jobId).actorId !== actorId;
+      if (crossAuthor) {
+        if (await policyPermission(context, projectId) !== actorId) throw fail('asset-job-forbidden');
+      }
+      const result = await operation(value, actorId); await check(); return result;
+    }, undefined, false, async () => {
+      await check();
+      if (crossAuthor && await policyPermission(context, projectId) !== actorId) throw fail('asset-job-forbidden');
+    });
+  }
+  function verifyJobAsset(value, projectId, assetId) {
+    const upload = getAssetUpload(value, projectId, assetId); transferable(value, upload); return upload;
+  }
+  function jobContext(claim) {
+    if (!workerActorContext || !id(claim?.actorId)) throw fail('asset-job-forbidden');
+    return workerActorContext(claim.actorId);
+  }
+  function leasedOperation(claim, operation) {
+    let deadline;
+    return transact(jobContext(claim), claim.projectId, 'read', value => {
+      const job = jobs.assertLease(value, claim); deadline = job.lease.until; return operation(value, job);
+    }, undefined, false, () => {
+      // Authentication/policy reads can await another store. A lease that was
+      // valid before those awaits must still be valid at commit/acknowledgment.
+      if (jobs.clock() >= deadline) throw fail('asset-job-lease-expired');
+    });
+  }
+  const worker = workerActorContext === null ? null : {
+    claim: leaseMs => transact(null, null, null, value => jobs.claim(value, leaseMs, async (actorId, projectId) => {
+      const context = workerActorContext(actorId); if (await jobActor(context, projectId, 'read') !== actorId) throw fail('asset-job-forbidden');
+    }), null, true),
+    metadata: claim => leasedOperation(claim, (value, job) => {
+      const upload = verifyJobAsset(value, claim.projectId, job.assetId);
+      return { assetId: job.assetId, size: job.size, chunks: upload.hashes.length, chunkSize };
+    }),
+    readChunk: (claim, index) => leasedOperation(claim, async (value, job) => {
+      const upload = verifyJobAsset(value, claim.projectId, job.assetId);
+      const bytes = await read(upload, index); jobs.assertLease(value, claim); transferable(value, upload); return bytes;
+    }),
+    progress: (claim, bytes) => leasedOperation(claim, value => jobs.progress(value, claim, bytes)),
+    complete: (claim, result) => leasedOperation(claim, (value, job) => {
+      verifyJobAsset(value, claim.projectId, job.assetId); return jobs.complete(value, claim, result);
+    }),
+    fail: (claim, code, interrupted = false) => {
+      let deadline;
+      return transact(null, null, null, value => { deadline = jobs.assertLease(value, claim).lease.until; return jobs.fail(value, claim, code, interrupted); }, null, true,
+        () => { if (jobs.clock() >= deadline) throw fail('asset-job-lease-expired'); });
+    }
+  };
   const receipt = upload => ({ assetId: upload.identity.contentId, size: upload.identity.size, chunkSize, chunks: upload.hashes.length, verified: true });
   async function read(upload, index) {
     if (!Number.isSafeInteger(index) || index < 0 || index >= upload.hashes.length) throw fail('asset-chunk-invalid');
@@ -306,6 +370,16 @@ async function createDurableAssetService({ directory, keyring, authorize, author
   }
   await transact(null, null, null, () => null, null, true);
   return {
+    worker,
+    submitVerificationJob: (context, projectId, input) => jobWrite(context, projectId, (value, actorId) =>
+      jobs.submit(value, actorId, projectId, input, assetId => verifyJobAsset(value, projectId, assetId))),
+    getVerificationJob: (context, projectId, jobId) => transact(context, projectId, 'read', value => jobs.publicJob(jobs.get(value, projectId, jobId))),
+    listVerificationJobs: (context, projectId, input) => transact(context, projectId, 'read', value => jobs.list(value, projectId, input)),
+    cancelVerificationJob: (context, projectId, jobId, input) => jobWrite(context, projectId, (value, actorId) =>
+      jobs.action(value, actorId, projectId, jobId, 'cancel', input, assetId => verifyJobAsset(value, projectId, assetId)), jobId),
+    retryVerificationJob: (context, projectId, jobId, input) => jobWrite(context, projectId, (value, actorId) =>
+      jobs.action(value, actorId, projectId, jobId, 'retry', input, assetId => verifyJobAsset(value, projectId, assetId)), jobId),
+    getVerificationMetrics: (context, projectId) => transact(context, projectId, 'read', value => jobs.metrics(value, projectId)),
     beginUpload: (context, projectId, candidate) => {
       let checked; try { checked = identity(candidate, maxAssetBytes, chunkSize); } catch (error) { return Promise.reject(error); }
       return transact(context, projectId, 'write', async value => {
