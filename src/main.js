@@ -3,7 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 const { createProjectSession } = require('./project-session');
-const { createLocalMetadataStore } = require('./local-metadata');
+const { createDesktopOnboarding } = require('./desktop-onboarding');
 const { createResolveRevisionManifest, createResolveObservationManifest } = require('./resolve-revision-manifest');
 const { compareResolveRevisionManifests, describeResolveRevisionCoverage } = require('./resolve-revision-comparison');
 const { describeResolveHistoryChanges, describeResolveHistoryAudit } = require('./resolve-history-detail');
@@ -41,8 +41,7 @@ const { createDesktopAssetTransfers, safeAssetTransferError } = require('./deskt
 const { createDesktopProjectActivity } = require('./desktop-project-activity');
 const { fingerprint } = require('./project-api-contracts');
 const { createAccessControl } = require('./access-control');
-const { createFirstRun } = require('./first-run');
-const { createDiagnosticsReport } = require('./diagnostics-report');
+const { createDesktopDiagnostics } = require('./desktop-diagnostics');
 const { createAdapterMetrics } = require('./adapter-metrics');
 const { createResolveTrialSession } = require('./resolve-trial-session');
 const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
@@ -306,11 +305,13 @@ async function serviceAction(action) {
   }
 }
 
-if (hasSingleInstanceLock) app.whenReady().then(() => {
+if (hasSingleInstanceLock) app.whenReady().then(async () => {
+  firstRun = await createDesktopOnboarding({ directory: path.join(app.getPath('userData'), 'onboarding'),
+    defaultDirectory: app.getPath('userData') });
   adapterMetrics = createAdapterMetrics();
   desktopSharedStorage = createDesktopSharedStorage({ directory: path.join(app.getPath('userData'), 'shared-storage'),
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('shared-storage:state', state); } });
-  localMetadataStore = createLocalMetadataStore(app.getPath('userData'));
+  localMetadataStore = firstRun.store;
   resolveHistoryTransfer = createResolveHistoryTransfer({ store: localMetadataStore });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
     scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, localMetadataStore);
@@ -367,7 +368,6 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   serviceConnection.initialize().then(() => desktopRevisionSync.getState()).then(publishServiceState).catch(() => {});
   collaborationAccess = createAccessControl();
   collaborationTeam = collaborationAccess.createTeam(LOCAL_OWNER_ID, 'Local workspace');
-  firstRun = createFirstRun({ directory: path.join(app.getPath('userData'), 'onboarding') });
   mediaAuditView = createMediaAuditView({ getSelection: mediaAuditSelection,
     getAudit: target => privateMediaAudits[target], setAudit: (target, report) => { privateMediaAudits[target] = report; } });
   mediaAuditJobs = createMediaAuditJobs({ directory: path.join(app.getPath('userData'), 'media-audits'),
@@ -406,22 +406,36 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     } });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
-  ipcMain.handle('onboarding:get', () => firstRun.read());
-  ipcMain.handle('onboarding:save', (_event, selection) => firstRun.save(selection));
-  const diagnostic = () => createDiagnosticsReport({ appVersion: app.getVersion(), state: projectSession.getState(),
-    syncState: latestServiceState || { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot() });
-  ipcMain.handle('diagnostics:preview', () => {
-    const { report, sha256 } = diagnostic(); return { report, sha256 };
-  });
-  ipcMain.handle('diagnostics:export', async (_event, expectedHash) => {
-    const current = diagnostic();
-    if (typeof expectedHash !== 'string' || expectedHash !== current.sha256) return { saved: false, error: 'diagnostics-changed' };
-    const choice = await dialog.showSaveDialog({ title: 'Export reviewed diagnostics', defaultPath: 'frameline-diagnostics.json',
-      filters: [{ name: 'JSON report', extensions: ['json'] }] });
-    if (choice.canceled || !choice.filePath) return { saved: false, cancelled: true };
-    try { await fs.writeFile(choice.filePath, current.bytes, { flag: 'wx', mode: 0o600 }); return { saved: true }; }
-    catch { return { saved: false, error: 'diagnostics-save-failed' }; }
-  });
+  const onboardingAction = async action => {
+    try { return { state: await action() }; }
+    catch (error) { return { error: ['workspace-locked', 'workspace-busy', 'first-run-invalid'].includes(error.code) ? error.code : 'workspace-unavailable' }; }
+  };
+  ipcMain.handle('onboarding:get', () => firstRun.getState());
+  ipcMain.handle('onboarding:use-default', () => onboardingAction(() => firstRun.useDefaultDirectory()));
+  ipcMain.handle('onboarding:choose-directory', () => onboardingAction(async () => {
+    const choice = await dialog.showOpenDialog({ title: 'Choose a revision workspace folder', properties: ['openDirectory', 'createDirectory'] });
+    if (choice.canceled || !choice.filePaths.length) return firstRun.getState();
+    return firstRun.chooseDirectory(choice.filePaths[0]);
+  }));
+  ipcMain.handle('onboarding:save', (_event, selection) => onboardingAction(() => firstRun.configure(selection)));
+  const finishOnboarding = async state => {
+    if (state.scanStatus === 'ready') {
+      try { await firstRun.complete(); }
+      catch { return { ...state, onboardingError: 'onboarding-save-failed' }; }
+    }
+    return state;
+  };
+  const diagnostics = createDesktopDiagnostics({ getInput: () => ({ appVersion: app.getVersion(), state: projectSession.getState(),
+    syncState: latestServiceState || { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot(),
+    runtime: { platform: process.platform, architecture: process.arch, electron: process.versions.electron,
+      chromium: process.versions.chrome, node: process.versions.node, packaged: app.isPackaged } }),
+    chooseDestination: async () => {
+      const choice = await dialog.showSaveDialog({ title: 'Export reviewed diagnostics', defaultPath: 'frameline-diagnostics.json',
+        filters: [{ name: 'JSON report', extensions: ['json'] }] });
+      return choice.canceled ? null : choice.filePath;
+    } });
+  ipcMain.handle('diagnostics:preview', (_event, options) => diagnostics.preview(options));
+  ipcMain.handle('diagnostics:export', (_event, review) => diagnostics.exportReviewed(review));
   ipcMain.handle('sync:get-state', () => desktopRevisionSync.getState());
   ipcMain.handle('sync:retry', (_event, id) => serviceAction(() => desktopRevisionSync.retry(id)));
   ipcMain.handle('sync:cancel', (_event, id) => serviceAction(() => desktopRevisionSync.cancel(id)));
@@ -1001,7 +1015,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       else logger.warn('project.scan-failed', { code: state.error });
     }
     desktopRevisionSync.selectionChanged();
-    return state;
+    return finishOnboarding(state);
   });
   ipcMain.handle('project:rescan', async () => {
     desktopRevisionSync.selectionChanged();
@@ -1014,7 +1028,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     if (state.scan?.sourceHash !== previousHash) privateMediaAudits = {};
     if (state.scanStatus === 'ready') logger.info('project.rescan-complete', { clipCount: state.scan.clips.length, warningCount: state.scan.warnings.length });
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
-    return state;
+    return finishOnboarding(state);
   });
   ipcMain.handle('project:cancel-scan', () => { const state = projectSession.cancelScan(); desktopRevisionSync.selectionChanged(); return state; });
   ipcMain.handle('project:prepare-review-copy', async () => {
@@ -1202,6 +1216,9 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   app.on('activate', () => {
     if (!mediaShutdown && BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch(() => {
+  dialog.showErrorBox('Frameline could not start', 'Local storage could not be initialized. Check workspace settings, disk space, and folder permissions, then reopen Frameline.');
+  app.quit();
 });
 
 app.on('window-all-closed', () => {

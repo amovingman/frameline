@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "scope": "Shipped main/preload/renderer in two real Electron processes; OS picker results supplied by a disposable fixture",
+  "checks": [
+    "native directory and project picker IPC wiring",
+    "picker cancellation preserves incomplete setup",
+    "failed-scan recovery completes setup after rescan",
+    "custom storage contains real scanned revisions",
+    "source export unchanged",
+    "first-run completion survives process restart",
+    "same project and history restored from custom storage",
+    "optional diagnostics sections and explicit consent",
+    "changed reports require new review",
+    "cancelled export preserves review",
+    "export bytes equal displayed reviewed bytes",
+    "private output mode and no paths, media names or credentials",
+    "desktop and narrow layouts",
+    "no renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "first",
+      "directoryPickerCalls": 2,
+      "projectPickerCalls": 2,
+      "saveDialogCalls": 2,
+      "sourceUnchanged": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 768,
+          "scrollWidth": 768,
+          "panelWidth": 728
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390,
+          "panelWidth": 358
+        },
+        {
+          "width": 360,
+          "scrollWidth": 360,
+          "panelWidth": 328
+        }
+      ],
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    },
+    {
+      "stage": "restore",
+      "directoryPickerCalls": 0,
+      "projectPickerCalls": 1,
+      "saveDialogCalls": 0,
+      "sourceUnchanged": true,
+      "layouts": [],
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    }
+  ],
+  "automatedValidation": {
+    "fullSuite": {
+      "tests": 1397,
+      "passed": 1397,
+      "failed": 0,
+      "skipped": 0
+    },
+    "focusedSetupSupport": {
+      "tests": 41,
+      "passed": 41
+    },
+    "packageCheck": "passed",
+    "tasteLint": {
+      "failures": 0,
+      "warnings": 0
+    },
+    "impeccableDetector": {
+      "advisories": 31,
+      "nonAdvisory": 0,
+      "newSurfaceFindings": 0
+    }
+  }
+}

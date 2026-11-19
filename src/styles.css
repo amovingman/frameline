@@ -154,3 +154,19 @@
 .lifecycle-panel :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 @media(max-width:1100px){.lifecycle-work{grid-template-columns:minmax(0,1fr)}.lifecycle-detail{padding-top:20px;border-top:1px solid var(--line)}}
 @media(max-width:600px){.lifecycle-select,.lifecycle-filters{grid-template-columns:minmax(0,1fr)}.lifecycle-select>button{width:100%}.lifecycle-panel .service-base-facts{grid-template-columns:minmax(0,1fr)}.lifecycle-actions>button{flex:1 1 140px}.lifecycle-panel .service-project-heading{flex-wrap:wrap}.lifecycle-table-scroll th:nth-child(2){width:38%}}
+
+/* Workspace setup and explicit diagnostics review share the existing app surface. */
+.first-run > *, .diagnostics-panel > * { min-width: 0; }
+.first-run output { padding: 10px 12px; background: var(--ground); border-radius: 6px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.first-run form > div { flex-wrap: wrap; }
+.first-run button:hover:not(:disabled), .diagnostics-panel button:hover:not(:disabled) { background: var(--hover); }
+.first-run button[type=submit]:hover:not(:disabled) { background: var(--secondary); }
+.first-run button:disabled, .diagnostics-panel button:disabled { opacity: .55; cursor: default; }
+.diagnostics-options { grid-column: 1 / -1; display: grid; gap: 10px; border: 0; padding: 0; margin: 0; }
+.diagnostics-options legend { margin-bottom: 10px; font-size: 13px; font-weight: 500; }
+.diagnostics-options label, .diagnostics-confirm { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; }
+.diagnostics-panel input[type=checkbox] { flex-shrink: 0; width: 17px; height: 17px; margin-top: 2px; accent-color: var(--accent); }
+.diagnostics-panel .diagnostics-hash { overflow-wrap: anywhere; margin: 10px 0 16px; }
+.diagnostics-panel #diagnostics-status { grid-column: 1 / -1; margin: 0; }
+.diagnostics-panel #diagnostics-status:empty, .first-run #first-run-status:empty { display: none; }
+@media (max-width: 600px) { .first-run button, .diagnostics-panel button { min-height: 44px; } }

@@ -2,6 +2,8 @@
 
 ## Unreleased — experimental local build
 
+- Completed two Phase 5.1 roadmap items: [first-run workspace setup and privacy-reviewed diagnostics](WORKSPACE_SETUP_AND_DIAGNOSTICS.md). Setup now selects actual revision storage and completes after a successful project scan, with existing-storage preservation and restart recovery. Diagnostics now provide optional details, strict value allowlists, exact JSON/hash review, explicit approval, stale-state checks, and private atomic export. Native verification uses a disposable profile and fixture picker results.
+
 - Added ten [self-hosted verification-job capabilities](ASSET_VERIFICATION_JOBS.md), including exact-input deduplication, cancellation/run-guarded retry, private fenced leases, monotonic progress, restart recovery, complete stored-content SHA-256 verification, and scoped metrics/CLI access. Encrypted asset schema 4 preserves existing uploads and lifecycle evidence. No verification job changes media or editor state.
 - Added ten [desktop lifecycle features](DESKTOP_ASSET_LIFECYCLE.md): owner project selection, verified report paging, loaded-asset filters, details, reviewed hold editing/release, retention editing, blocked cleanup-plan review, reviewed JSON exports, and durable account-scoped retry recovery. Credentials and retry keys stay in the main process. Deletion remains unavailable.
 - Added five self-hosted [asset lifecycle features](ASSET_LIFECYCLE.md): durable owner holds, guarded hold release, retention/archive clocks, paged owner reports, and reviewed cleanup plans through the HTTPS asset API and stdin-only CLI. Encrypted asset schema 3 migrates earlier indexes conservatively. Plans remain blocked until canonical retained references are proven; no bytes are deleted.

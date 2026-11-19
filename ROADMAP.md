@@ -23,6 +23,8 @@ Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequ
 
 For this workspace, commit verified features locally and preserve the user’s local-only Git preference. Do not push unless the user explicitly requests it again.
 
+A request to complete a feature means completing one existing roadmap checkbox in full. Supporting capabilities do not count as completed features while that checkbox remains open. The current request authorizes completing two roadmap items and pushing the verified changes to GitHub.
+
 ---
 
 ## Phase 0 — Editor choice and integration proof
@@ -247,11 +249,11 @@ For this workspace, commit verified features locally and preserve the user’s l
 ## Phase 5 — Hardening, release, and expansion
 
 ### 5.1 Product quality and support
-- [ ] Add first-run onboarding for choosing an editor, project, and workspace. A first-run panel now records the experimental Resolve target and local workspace label, then opens the real project picker; choosing a storage location remains open.
+- [x] Add first-run onboarding for choosing an editor, project, and workspace. The experimental Resolve target, workspace name, and actual revision-storage folder are selected before the native project picker; cancellation preserves incomplete setup, successful scans complete it, and existing users retain their storage. Custom workspace identity checks prevent silent replacement or fallback. Real filesystem tests and a two-process native restart proof restore the same project/revisions. See `WORKSPACE_SETUP_AND_DIAGNOSTICS.md` and `phase-0/setup-support-desktop/verification.json`.
 - [ ] Add accessible keyboard navigation and screen-reader labels for dense timeline and conflict UI. Arrow navigation and labels were added to working lists; a full keyboard and assistive-technology audit remains open.
 - [ ] Handle large projects with virtualized lists, incremental scans, caching, and cancellation. Revision history is windowed; FCPXML scans reuse hash-bound parsed inventory, refresh media in batches, and can be cancelled. Media audits now stream hashing through a cancellable background worker, with native cancellation and restart checks on an 8 GiB sparse fixture. Larger editor-backed performance evidence remains open.
 - [ ] Add crash recovery and restartable scans/uploads/applies. A path-free recovery journal describes reselect/rescan, verified chunk resume, and manual restore. The desktop recovers issued experimental rename drills through persistent command retirement, fresh effect inspection, verified source/reverse-name actions, and linked outcome revisions. Startup discovery/list code passes automated, real-filesystem and native restart/recovery checks; completed records remain cleared after another app restart. Media audit jobs now wait for a matching project/export selection before explicit restart and reread files rather than resume partial hashes. Native orderly-quit/reselection/restart checks and completed-report recovery after another restart passed; recovered timestamps and report hashes were preserved without rehashing. See `phase-0/media-audit-jobs-live-observation.json`. Integrated scan/upload recovery, general apply, and full editor validation remain open.
-- [ ] Create diagnostics export with explicit privacy review and path redaction. The desktop now previews a counts-and-codes-only report and saves only the reviewed hash; a broader production diagnostics package remains open.
+- [x] Create diagnostics export with explicit privacy review and path redaction. Allowlisted app/runtime details, status codes, and counts exclude paths, filenames, media, identities, credentials, and logs; project and performance details are optional. Exact JSON/hash review and explicit consent bind the export, with state rechecks around the save dialog and atomic private publication. Privacy, stale-review, filesystem-failure, and native desktop checks pass. See `WORKSPACE_SETUP_AND_DIAGNOSTICS.md`.
 - [x] Establish support process and compatibility issue templates. See `SUPPORT.md` and `.github/ISSUE_TEMPLATE/compatibility.yml`.
 
 ### 5.2 Release engineering

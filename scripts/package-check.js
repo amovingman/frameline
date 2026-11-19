@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const manifest = require(path.join(root, 'package.json'));
 if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) throw new Error('Package manifest is not release-ready');
 const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
+  'src/first-run.js', 'src/desktop-onboarding.js', 'src/diagnostics-report.js', 'src/desktop-diagnostics.js', 'src/setup-support-renderer.js',
   'src/shared-storage-protocol.js', 'src/shared-storage-volume.js', 'src/shared-storage-store.js',
   'src/asset-lifecycle-protocol.js', 'src/service-asset-lifecycle.js', 'src/asset-lifecycle-cli.js',
   'src/desktop-asset-lifecycle.js', 'src/asset-lifecycle-intents.js', 'src/asset-lifecycle-renderer.js',

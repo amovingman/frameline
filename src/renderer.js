@@ -156,6 +156,8 @@ const scanRecovery = {
   'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.',
   'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.',
   'metadata-unavailable': 'Frameline could not save local project metadata. Check free disk space and folder permissions, then rescan. The export was not changed.',
+  'workspace-unavailable': 'Revision storage is unavailable or has been replaced. Reconnect the original workspace folder at its saved location, then choose the project again.',
+  'workspace-busy': 'Workspace setup is still saving. Wait for it to finish, then choose the project again.',
   'metadata-locked': 'Local project metadata is in use by another process. Close the other Frameline window and retry. The export was not changed.',
   'metadata-invalid': 'Local project metadata is damaged and no valid backup was found. Keep the metadata files for recovery before trying again. The export was not changed.',
   'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.',
@@ -2415,6 +2417,7 @@ async function chooseFile() {
     const state = await window.desktop.chooseProject();
     if (!state) return;
     renderAppState(state);
+    window.dispatchEvent(new CustomEvent('frameline:project-chosen', { detail: state }));
     if (state.selectedProject && !state.error) {
       notice.textContent = state.selectedProject.metadataRecovered
         ? 'Local project metadata was restored from its backup. The damaged file was preserved. The export was scanned read only.'
@@ -2444,6 +2447,7 @@ async function rescanProject() {
     if (!window.desktop?.rescanProject) throw new Error('Rescan unavailable');
     const state = await window.desktop.rescanProject();
     renderAppState(state);
+    window.dispatchEvent(new CustomEvent('frameline:project-chosen', { detail: state }));
     if (!state.error) {
       notice.textContent = 'Timeline and local media availability refreshed. This scan did not change the project.';
       notice.hidden = false;
@@ -2504,42 +2508,6 @@ selectChange(selectedChangeId);
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => chooseMode(button)));
 document.getElementById('choose-file').addEventListener('click', chooseFile);
-window.desktop?.getFirstRun?.().then(state => {
-  const panel = document.getElementById('first-run');
-  panel.hidden = state?.completed === true || !!currentAppState?.selectedProject;
-  if (state?.workspaceName) document.getElementById('first-run-workspace').value = state.workspaceName;
-}).catch(() => {});
-document.getElementById('first-run-form').addEventListener('submit', async event => {
-  event.preventDefault();
-  const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true;
-  try {
-    await window.desktop.saveFirstRun({ editor: document.getElementById('first-run-editor').value,
-      workspaceName: document.getElementById('first-run-workspace').value });
-    document.getElementById('first-run').hidden = true;
-    await chooseFile();
-  } catch { document.getElementById('file-notice').textContent = 'Could not save first-run choices. Try again.';
-    document.getElementById('file-notice').hidden = false; }
-  finally { button.disabled = false; }
-});
-document.getElementById('first-run-skip').addEventListener('click', () => { document.getElementById('first-run').hidden = true; });
-let reviewedDiagnosticsHash = null;
-document.getElementById('diagnostics-review').addEventListener('click', async () => {
-  const panel = document.getElementById('diagnostics-preview');
-  try {
-    const preview = await window.desktop.previewDiagnostics();
-    reviewedDiagnosticsHash = preview.sha256;
-    document.getElementById('diagnostics-content').textContent = JSON.stringify(preview.report, null, 2);
-    panel.hidden = false;
-  } catch { document.getElementById('diagnostics-status').textContent = 'Diagnostics are unavailable. Retry after the app starts.'; panel.hidden = false; }
-});
-document.getElementById('diagnostics-export').addEventListener('click', async () => {
-  const status = document.getElementById('diagnostics-status');
-  try {
-    const result = await window.desktop.exportDiagnostics(reviewedDiagnosticsHash);
-    status.textContent = result.saved ? 'Reviewed diagnostics saved.' : result.cancelled ? 'Export cancelled.'
-      : result.error === 'diagnostics-changed' ? 'App state changed. Review the report again before exporting.' : 'Could not save diagnostics. Choose a new filename.';
-  } catch { status.textContent = 'Could not save diagnostics. Try again.'; }
-});
 document.getElementById('rescan-project').addEventListener('click', rescanProject);
 document.getElementById('cancel-scan').addEventListener('click', async () => {
   const state = await window.desktop.cancelScan(); renderAppState(state); setScanBusy(false);

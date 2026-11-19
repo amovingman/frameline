@@ -1,29 +1,50 @@
 const { createHash } = require('node:crypto');
-function fail(code) { const error = new Error(code); error.code = code; return error; }
-function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = null } = {}) {
-  if (typeof appVersion !== 'string' || !/^\d+\.\d+\.\d+/.test(appVersion) || !state || !syncState) throw fail('diagnostics-input-invalid');
-  const report = {
-    schemaVersion: 1, product: 'Frameline', appVersion,
-    selectedFormat: ['FCPXML', null].includes(state.selectedProject?.format ?? null) ? state.selectedProject?.format ?? null : 'unknown',
-    scanStatus: ['idle', 'scanning', 'ready', 'error'].includes(state.scanStatus) ? state.scanStatus : 'unknown',
-    scanErrorCode: typeof state.error === 'string' && /^[a-z0-9-]{1,80}$/.test(state.error) ? state.error : null,
-    scanManifestVersion: Number.isSafeInteger(state.scan?.schemaVersion) ? state.scan.schemaVersion : null,
+const { KNOWN_ERRORS } = require('./adapter-metrics');
+const SAFE_ERRORS = new Set([...KNOWN_ERRORS, 'scan-failed', 'metadata-invalid', 'metadata-unavailable',
+  'metadata-storage-uncertain', 'metadata-lock-timeout', 'workspace-busy']);
+const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
+const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}(?:\.\d{1,5})?$/.test(value) ? value : null;
+function diagnosticsOptions(input = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)
+    || Object.keys(input).some(key => !['includeProject', 'includeAdapter'].includes(key))
+    || Object.values(input).some(value => typeof value !== 'boolean')) throw Object.assign(new Error('diagnostics-input-invalid'), { code: 'diagnostics-input-invalid' });
+  return { includeProject: input.includeProject !== false, includeAdapter: input.includeAdapter !== false };
+}
+
+// Build a new allowlisted object. Never serialize input objects, free-form error
+// messages, logs, URLs, identifiers or paths, even when they look like safe codes.
+function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = null, runtime = {}, options } = {}) {
+  if (!version(appVersion) || !state || !syncState) throw Object.assign(new Error('diagnostics-input-invalid'), { code: 'diagnostics-input-invalid' });
+  const included = diagnosticsOptions(options);
+  const report = { schemaVersion: 2, product: 'Frameline', appVersion,
+    runtime: {
+      platform: ['darwin', 'win32', 'linux'].includes(runtime.platform) ? runtime.platform : 'unknown',
+      architecture: ['arm64', 'x64', 'ia32', 'arm'].includes(runtime.architecture) ? runtime.architecture : 'unknown',
+      electron: version(runtime.electron), chromium: version(runtime.chromium), node: version(runtime.node),
+      packaged: runtime.packaged === true
+    },
+    includedSections: included,
+    syncConnected: syncState.connected === true || syncState.status === 'connected',
+    syncStatus: ['connected', 'disconnected', 'offline', 'connecting', 'error'].includes(syncState.status) ? syncState.status : 'unknown',
+    queuedSyncCount: Array.isArray(syncState.operations) ? syncState.operations.length : 0
+  };
+  if (included.includeProject) Object.assign(report, {
+    selectedFormat: ['FCPXML', 'FCPXML bundle', null].includes(state.selectedProject?.format ?? null) ? state.selectedProject?.format ?? null : 'unknown',
+    scanStatus: ['idle', 'not-scanned', 'scanning', 'ready', 'error'].includes(state.scanStatus) ? state.scanStatus : 'unknown',
+    scanErrorCode: SAFE_ERRORS.has(state.error) ? state.error : null,
+    scanManifestVersion: count(state.scan?.schemaVersion),
     pictureClipCount: Array.isArray(state.scan?.clips) ? state.scan.clips.length : null,
     mediaReferenceCount: Array.isArray(state.scan?.media) ? state.scan.media.length : null,
-    revisionCount: Array.isArray(state.revisions) ? state.revisions.length : 0,
-    syncConnected: syncState.connected === true,
-    queuedSyncCount: Array.isArray(syncState.operations) ? syncState.operations.length : 0,
-    adapterUsage: adapterUsage && Number.isSafeInteger(adapterUsage.attempts)
-      ? { attempts: adapterUsage.attempts, succeeded: adapterUsage.succeeded,
-        failed: adapterUsage.failed, cancelled: adapterUsage.cancelled,
-        averageDurationMs: adapterUsage.averageDurationMs,
-        recentSampleCount: adapterUsage.recentSampleCount,
-        recentP50Ms: adapterUsage.recentP50Ms, recentP95Ms: adapterUsage.recentP95Ms,
-        errorCodes: Object.fromEntries(Object.entries(adapterUsage.errorCodes || {})
-          .filter(([code, count]) => /^[a-z0-9-]{1,80}$/.test(code) && Number.isSafeInteger(count) && count >= 0)) }
-      : null
-  };
+    revisionCount: Array.isArray(state.revisions) ? state.revisions.length : 0
+  });
+  if (included.includeAdapter) report.adapterUsage = adapterUsage && count(adapterUsage.attempts) !== null
+    ? Object.fromEntries([
+      ...['attempts', 'succeeded', 'failed', 'cancelled', 'averageDurationMs', 'recentSampleCount', 'recentP50Ms', 'recentP95Ms']
+        .map(key => [key, count(adapterUsage[key])]),
+      ['errorCodes', Object.fromEntries([...SAFE_ERRORS].filter(code => Object.hasOwn(adapterUsage.errorCodes || {}, code)
+        && count(adapterUsage.errorCodes[code]) !== null).map(code => [code, adapterUsage.errorCodes[code]]))]
+    ]) : null;
   const bytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
   return { report, sha256: createHash('sha256').update(bytes).digest('hex'), bytes };
 }
-module.exports = { createDiagnosticsReport };
+module.exports = { createDiagnosticsReport, diagnosticsOptions };

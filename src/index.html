@@ -10,6 +10,7 @@
   <script defer src="./availability-summary.js"></script>
   <script defer src="./windowed-list.js"></script>
   <script defer src="./renderer.js"></script>
+  <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
   <script defer src="./asset-lifecycle-renderer.js"></script>
 </head>
@@ -29,8 +30,25 @@
     <main class="page"><div class="workspace-bar"><span>Launch film <span class="breadcrumb-separator">/</span> <strong id="view-label">Review changes</strong></span><span class="branch-label">main <span class="branch-dot"></span> Sample project</span></div>
       <div id="file-notice" class="file-notice" role="status" hidden></div>
       <div id="resolve-recovery-reminder" class="resolve-recovery-reminder" hidden><p id="resolve-recovery-reminder-text" role="status"></p><button id="resolve-recovery-review" type="button">Review retained drills</button></div>
-      <section id="first-run" class="first-run" aria-labelledby="first-run-title" hidden><div><h2 id="first-run-title">Start with a timeline export</h2><p>Frameline can scan FCPXML 1.10 from Resolve Free 21.1.2 on macOS. The scan is read only.</p></div><form id="first-run-form"><label for="first-run-editor">Editor</label><select id="first-run-editor"><option value="resolve-free-21.1.2">Resolve Free 21.1.2</option></select><label for="first-run-workspace">Workspace label</label><input id="first-run-workspace" maxlength="60" value="Local workspace" required><p>Revisions remain in Frameline’s local app storage. This label does not move files.</p><div><button type="submit">Continue to project picker</button><button id="first-run-skip" type="button">Skip for now</button></div></form></section>
-      <section id="diagnostics-panel" class="diagnostics-panel" aria-labelledby="diagnostics-title"><div><h2 id="diagnostics-title">Diagnostics</h2><p>Review the path-free report, including app details, status codes, and counts, before saving it.</p></div><button id="diagnostics-review" type="button">Review report</button><div id="diagnostics-preview" hidden><pre id="diagnostics-content"></pre><button id="diagnostics-export" type="button">Export reviewed report</button><p id="diagnostics-status" role="status"></p></div></section>
+      <section id="first-run" class="first-run" aria-labelledby="first-run-title" hidden>
+        <div><h2 id="first-run-title">Start with a timeline export</h2><p id="first-run-editor-help">Choose the experimental Resolve Free 21.1.2 integration on macOS, then an FCPXML 1.10 export. The scan is read only.</p><p>Choose where Frameline keeps revision history. Project files and media stay in their current locations.</p></div>
+        <form id="first-run-form">
+          <label for="first-run-editor">Editor</label><select id="first-run-editor" aria-describedby="first-run-editor-help"><option value="resolve-free-21.1.2">Resolve Free 21.1.2</option></select>
+          <label for="first-run-workspace">Workspace name</label><input id="first-run-workspace" maxlength="60" value="Local workspace" required>
+          <label for="first-run-directory">Revision storage</label><output id="first-run-directory" aria-describedby="first-run-storage-help"></output>
+          <div class="first-run-folder-actions"><button id="first-run-choose-directory" type="button">Choose folder</button><button id="first-run-default-directory" type="button">Use app storage</button></div>
+          <p id="first-run-storage-help">A chosen folder gets a “Frameline revisions” subfolder. Existing history stays in its current workspace. After opening a project, the storage location is fixed for this workspace.</p>
+          <div><button id="first-run-continue" type="submit">Choose project</button><button id="first-run-skip" type="button">Skip for now</button></div>
+          <p id="first-run-status" role="status"></p>
+        </form>
+      </section>
+      <section id="diagnostics-panel" class="diagnostics-panel" aria-labelledby="diagnostics-title">
+        <div><h2 id="diagnostics-title">Diagnostics</h2><p id="diagnostics-privacy">The report includes app and runtime versions, connection status, and queue counts. Paths, filenames, media, account details, credentials, and logs are excluded. Nothing is uploaded.</p></div>
+        <button id="diagnostics-review" type="button">Review report</button>
+        <fieldset class="diagnostics-options" aria-describedby="diagnostics-privacy"><legend>Optional details</legend><label><input id="diagnostics-project" type="checkbox" checked> Include project counts and scan status</label><label><input id="diagnostics-adapter" type="checkbox" checked> Include session scan performance</label></fieldset>
+        <div id="diagnostics-preview" hidden><pre id="diagnostics-content" tabindex="0" aria-label="Exact diagnostics report to export"></pre><p id="diagnostics-hash" class="diagnostics-hash"></p><label class="diagnostics-confirm"><input id="diagnostics-confirm" type="checkbox"> I have reviewed this report and approve saving these details.</label><button id="diagnostics-export" type="button" disabled>Export reviewed report</button></div>
+        <p id="diagnostics-status" role="status"></p>
+      </section>
       <section id="view-workspace" class="view active" aria-label="Workspace">
         <div class="masthead">
           <div class="masthead-main"><h1>Review incoming changes</h1><p id="workspace-finding">3 proposed edits. 1 overlapping trim needs your attention.</p></div>

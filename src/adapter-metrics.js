@@ -40,4 +40,4 @@ function createAdapterMetrics({ now = () => Date.now() } = {}) {
   return { wrapScan, snapshot };
 }
 
-module.exports = { createAdapterMetrics };
+module.exports = { createAdapterMetrics, KNOWN_ERRORS };
