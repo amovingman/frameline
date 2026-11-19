@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
   <title>Frameline — Launch film</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./media-jobs.css">
   <link rel="stylesheet" href="./product-truth.css">
   <link rel="stylesheet" href="./accessibility.css">
   <script defer src="./sample-data.js"></script>
@@ -18,6 +19,7 @@
   <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
   <script defer src="./asset-lifecycle-renderer.js"></script>
+  <script defer src="./media-jobs-renderer.js"></script>
   <script defer src="./product-truth.js"></script>
   <script defer src="./product-truth-renderer.js"></script>
   <script defer src="./copy-recovery-renderer.js"></script>
@@ -309,6 +311,28 @@
       </section>
 
       <section id="view-media" class="view" aria-label="Media"><div class="secondary-hero"><span>Launch film / Sequence 01</span><h1>Project media</h1><p>Four assets referenced by the sample cut. No local media has been scanned.</p></div>
+        <section id="media-jobs-panel" class="media-jobs-panel" aria-labelledby="media-jobs-title">
+          <h2 id="media-jobs-title">Background jobs</h2>
+          <p>Hash and check local media, or generate optional thumbnails, proxy files and a timeline storyboard. Originals and revision data stay separate from the local preview cache. Nothing here uploads media.</p>
+          <p id="media-jobs-availability">Choose and scan a regular FCPXML export to use background jobs.</p>
+          <div class="media-jobs-policy">
+            <label><input id="media-jobs-enable" type="checkbox"> Enable preview generation for this project</label>
+            <label><input id="media-jobs-rights" type="checkbox"> I have permission to generate previews from these media files</label>
+          </div>
+          <div class="media-jobs-source"><button id="media-jobs-source-choose" type="button">Choose local media</button><span id="media-jobs-source-name">Choose a media file</span></div>
+          <form id="media-jobs-form" class="media-jobs-form">
+            <div><label for="media-jobs-kind">Job type</label><select id="media-jobs-kind"><option value="hash">Hash file</option><option value="asset-check">Check asset</option><option value="thumbnail">Clip thumbnail</option><option value="proxy">Lightweight proxy</option><option value="timeline-preview">Timeline storyboard</option></select></div>
+            <div id="media-jobs-frame-field" hidden><label for="media-jobs-frame">Source frame</label><input id="media-jobs-frame" type="number" min="0" max="4096" step="1" value="0"></div>
+            <button id="media-jobs-submit" type="submit">Queue job</button>
+          </form>
+          <p class="media-jobs-explanation">Storyboards sample the source in-point of each clip in a supported flat FCPXML primary picture track, up to 24 clips. They do not render effects, transitions or audio. Video proxies use a 640 × 480 bounding box and keep the full clip, up to five minutes. Unsupported inputs are refused.</p>
+          <p id="media-jobs-status" role="status" aria-live="polite"></p>
+          <div id="media-jobs-metrics" class="media-jobs-metrics" aria-label="Local worker metrics">Choose a project to see its worker measurements.</div>
+          <details class="media-jobs-cost-settings"><summary>Storage estimate</summary><p>Local disk usage is measured. An optional rate estimates monthly storage cost; it is not a charge or a cloud bill.</p><label for="media-jobs-cost">USD per GiB per month (leave blank if unknown)</label><div><input id="media-jobs-cost" type="number" min="0" max="100000" step="any" inputmode="decimal"><button id="media-jobs-settings-save" type="button">Save rate</button></div></details>
+          <div id="media-jobs-list" class="media-jobs-list" aria-label="Background job history"></div>
+          <nav class="media-jobs-paging" aria-label="Background job pages"><button id="media-jobs-previous" type="button">Previous jobs</button><span id="media-jobs-range"></span><button id="media-jobs-next" type="button">Next jobs</button></nav>
+          <figure id="media-jobs-preview-figure" hidden><div id="media-jobs-preview-slot"></div><figcaption id="media-jobs-preview-caption">Optional local preview. Original media and canonical edit data are unchanged.</figcaption><button id="media-jobs-preview-close" type="button">Close preview</button></figure>
+        </section>
         <section id="media-audit-jobs" class="media-audit-jobs" aria-labelledby="media-audit-jobs-title" hidden>
           <div class="media-audit-jobs-head"><div><h2 id="media-audit-jobs-title" tabindex="-1">Media checks</h2><p id="media-audit-summary" role="status">No local checks queued.</p></div><button id="media-audit-start" type="button" disabled>Start media audit</button></div>
           <p class="media-audit-explanation">Checks read local media files without changing or uploading them. After an interruption, reselect the matching export to restart the check. Files are read again from the beginning.</p>

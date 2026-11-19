@@ -1,6 +1,6 @@
 # Asset lifecycle and background jobs
 
-Phase 4 has local reference implementations for retention, owner reports, background jobs and optional preview handlers. The desktop media-audit path uses the durable local job queue. A separate [ten-feature self-hosted verification queue](ASSET_VERIFICATION_JOBS.md) now uses fenced leases and a standalone-host worker to rehash published media. Managed hosting, production-scale workers and an editor renderer remain unconfigured.
+Phase 4 has local reference implementations for retention, owner reports, background jobs and optional preview handlers. The desktop media-audit path uses the durable local job queue. A separate [ten-feature self-hosted verification queue](ASSET_VERIFICATION_JOBS.md) now uses fenced leases and a standalone-host worker to rehash published media. The later [desktop background-job delivery](DESKTOP_MEDIA_JOBS.md) adds a bundled Apple media renderer, durable consent and actual thumbnail/proxy/storyboard workers. Managed hosting and production-scale scheduling remain separate work.
 
 ## Retention and owner reports
 
@@ -12,11 +12,11 @@ Phase 4 has local reference implementations for retention, owner reports, backgr
 
 `createMediaJobQueue` persists exact-input-deduplicated jobs for hashing, thumbnails, proxies, asset checks, and timeline previews. A fresh process requeues interrupted running jobs. Workers report 0–100 progress, bounded results, and coded failures. Failed jobs can be retried up to a configured limit; a separate explicit new run resets the attempt budget. Journal updates are serialized independently of the worker, allowing another queued job to be cancelled while a large file is being hashed. The queue runs one worker in a process and stores opaque source IDs, a sanitized display label and bounded options rather than file paths.
 
-`createMediaPreviewHandlers` provides optional thumbnail and lightweight timeline-preview jobs. It requires a positive rights confirmation, an editor or licensed rendering provider, and a storage callback. It validates bounded PNG/JPEG output and marks previews `canonical: false`. No renderer is bundled, so a job fails with `preview-provider-unavailable` when none is configured. Preview artifacts never become timeline edit data.
+`createMediaPreviewHandlers` provides optional thumbnail and lightweight timeline-preview jobs. It requires a positive rights confirmation, an editor or licensed rendering provider, and a storage callback. It validates bounded PNG/JPEG output and marks previews `canonical: false`. These injectable reference handlers still fail with `preview-provider-unavailable` when none is configured; the desktop now uses its separate bundled native provider. Preview artifacts never become timeline edit data.
 
 ## Desktop media audits
 
-The media audit for a selected regular FCPXML export or verified review copy runs as an `asset-check` job. Availability checks and streamed SHA-256 reads report progress while the interface remains available. The desktop controls expose cancellation, retry, restart of interrupted checks and a new audit after a completed or cancelled run. These checks read local media; they do not upload, copy, relink or edit it. Thumbnail, proxy and timeline-preview workers are separate and remain unconfigured in the desktop app.
+The media audit for a selected regular FCPXML export or verified review copy runs as an `asset-check` job. Availability checks and streamed SHA-256 reads report progress while the interface remains available. The desktop controls expose cancellation, retry, restart of interrupted checks and a new audit after a completed or cancelled run. These checks read local media; they do not upload, copy, relink or edit it. The separate [desktop media worker](DESKTOP_MEDIA_JOBS.md) now supplies thumbnails, proxies and timeline storyboards; it has its own job journal and cache.
 
 An interrupted job waits for the same local project ID and export hash to be selected again. A review-copy job also needs its copy to be verified again. Reselecting equal bytes under a different local project ID does not bind the old job. Restarting rereads the media files from the beginning; no partial hash state or byte offset is resumed. Selecting another source pauses current work, and quitting the app stops the worker before shutdown when possible.
 
@@ -32,4 +32,4 @@ After the restarted check completed, a second quit/relaunch and matching-export 
 
 The sparse fixture establishes this local streaming/control flow and completed-report recovery. It is not representative editor-project performance evidence or proof of restartable uploads or applies.
 
-The self-hosted verification queue now has cooperative cross-process leases, HTTPS job transport, cancellation/retry, metrics, and full-content hashing; see its separate scope above. Real media rendering, production-scale scheduling, quotas, retention windows, project deletion, and production garbage collection remain open. Local audit progress does not provide upload progress or restartable editor apply.
+The self-hosted verification queue now has cooperative cross-process leases, HTTPS job transport, cancellation/retry, metrics, and full-content hashing; see its separate scope above. Desktop media rendering is delivered separately. Production-scale scheduling, quotas, retention windows, project deletion and production garbage collection remain open. Local audit progress does not provide upload progress or restartable editor apply.

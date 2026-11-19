@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "scope": "Four shipped Electron main/preload/renderer processes, abrupt first-process exit without disposal, and the actual Apple native media provider; disposable generated media and native picker fixture results only. The interruption barrier precedes helper launch, so active-encoder parent-death behavior is not claimed.",
+  "checks": [
+    "idle native helper exits after its parent dies while independent FIFO writer remains open",
+    "default-off and rights-confirmed rendering",
+    "real source SHA-256 and asset inspection",
+    "decoded nonblank PNG thumbnail",
+    "actual H.264 MP4 with video duration and frames",
+    "ordered three-clip source-bound FCPXML storyboard",
+    "deduplication and measured metrics",
+    "deterministic native-provider cancellation, retry, restart and policy fencing",
+    "explicit resume after process restart",
+    "verified cache recovery and corrupt artifact rejection",
+    "corrupt optional job journal leaves canonical project scanning and history available",
+    "canonical source, revisions and sync bases preserved",
+    "private source paths absent from public DTOs",
+    "unknown-to-configured storage estimate",
+    "360–1440px layouts, keyboard and accessible action labels",
+    "no renderer errors"
+  ],
+  "helperParentDeath": {
+    "state": "idle helper blocked on stdin",
+    "independentWriterKeptOpen": true,
+    "parentTerminated": "SIGKILL",
+    "helperExited": true,
+    "elapsedMs": 23,
+    "activeEncoderKillTested": false
+  },
+  "stages": [
+    {
+      "stage": "first",
+      "sourceCheck": {
+        "available": true,
+        "verified": true,
+        "byteLength": 3791,
+        "inspection": "decoded",
+        "kind": "video",
+        "width": 320,
+        "height": 180,
+        "durationSeconds": 2,
+        "frameRate": 24
+      },
+      "thumbnail": {
+        "width": 640,
+        "height": 360,
+        "sampledColors": 14
+      },
+      "proxy": {
+        "byteLength": 3827,
+        "kind": "video",
+        "width": 320,
+        "height": 180,
+        "durationSeconds": 2,
+        "frameRate": 24,
+        "canonical": false,
+        "distinctDecodedFrames": 2
+      },
+      "storyboard": {
+        "width": 960,
+        "height": 360,
+        "sampledColors": 36,
+        "orderedRGB": true
+      },
+      "stillThumbnail": {
+        "width": 320,
+        "height": 180,
+        "sampledColors": 594
+      },
+      "metrics": {
+        "counts": {
+          "queued": 0,
+          "running": 0,
+          "paused": 0,
+          "completed": 6,
+          "failed": 0,
+          "cancelled": 0
+        },
+        "backlog": 0,
+        "failures": 0,
+        "processingMs": 1551,
+        "cacheBytes": 20795,
+        "estimatedMonthlyStorageCostUSD": 0.0000029050279408693314
+      },
+      "measuredFailure": true,
+      "controls": {
+        "retry": true,
+        "restart": true,
+        "cancellation": true,
+        "disabledPolicyPreventsPublication": true
+      },
+      "accessibleActions": 7,
+      "distinctSourceFrames": 13,
+      "paging": {
+        "total": 25,
+        "pageSize": 20,
+        "secondPage": 5
+      },
+      "abruptExitWithRunningAndQueuedJobs": true,
+      "sourceUnchanged": true,
+      "canonicalUnchanged": true,
+      "providerCalls": 42,
+      "reveals": 1,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440
+        },
+        {
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390
+        },
+        {
+          "width": 360,
+          "scrollWidth": 360
+        }
+      ],
+      "rendererErrors": 0,
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    },
+    {
+      "stage": "restart",
+      "ownedStagingCleanedAndUnrelatedPreserved": true,
+      "recoveredThumbnail": {
+        "width": 640,
+        "height": 360,
+        "sampledColors": 14
+      },
+      "recoveredStoryboard": {
+        "width": 960,
+        "height": 360,
+        "sampledColors": 36
+      },
+      "explicitResume": true,
+      "sourceUnchanged": true,
+      "canonicalUnchanged": true,
+      "providerCalls": 2,
+      "reveals": 0,
+      "layouts": [],
+      "rendererErrors": 0,
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    },
+    {
+      "stage": "tampered",
+      "corruptArtifactWithheld": true,
+      "sourceUnchanged": true,
+      "canonicalUnchanged": true,
+      "providerCalls": 0,
+      "reveals": 0,
+      "layouts": [],
+      "rendererErrors": 0,
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    },
+    {
+      "stage": "corrupt-journal",
+      "corruptOptionalJournalDoesNotBlockCanonicalProject": true,
+      "sourceUnchanged": true,
+      "canonicalUnchanged": true,
+      "providerCalls": 0,
+      "reveals": 0,
+      "layouts": [],
+      "rendererErrors": 0,
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    }
+  ]
+}

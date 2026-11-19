@@ -3,6 +3,22 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose a deliberately small, safe API to the renderer as integrations are added.
 contextBridge.exposeInMainWorld('desktop', {
   appName: 'Git for Video Editing',
+  getMediaJobsState: () => ipcRenderer.invoke('media-jobs:state'),
+  chooseMediaJobSource: () => ipcRenderer.invoke('media-jobs:source'),
+  saveMediaJobsPolicy: input => ipcRenderer.invoke('media-jobs:policy', input),
+  enqueueMediaJob: input => ipcRenderer.invoke('media-jobs:enqueue', input),
+  cancelMediaJob: id => ipcRenderer.invoke('media-jobs:cancel', id),
+  retryMediaJob: id => ipcRenderer.invoke('media-jobs:retry', id),
+  restartMediaJob: id => ipcRenderer.invoke('media-jobs:restart', id),
+  resumeMediaJob: id => ipcRenderer.invoke('media-jobs:resume', id),
+  previewMediaJob: id => ipcRenderer.invoke('media-jobs:preview', id),
+  revealMediaJob: id => ipcRenderer.invoke('media-jobs:reveal', id),
+  onMediaJobsState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('media-jobs:state', handle);
+    return () => ipcRenderer.removeListener('media-jobs:state', handle);
+  },
   getAssetLifecycleState: () => ipcRenderer.invoke('asset-lifecycle:state'),
   refreshLifecycleProjects: () => ipcRenderer.invoke('asset-lifecycle:refreshProjects'),
   selectLifecycleProject: id => ipcRenderer.invoke('asset-lifecycle:selectProject', id),

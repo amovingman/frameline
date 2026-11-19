@@ -22,6 +22,9 @@ const { createCaptureRequest, readCaptureResponse } = require('./resolve-compani
 const { acceptConsoleOutput } = require('./resolve-console-transfer');
 const { verifyReviewCopy } = require('./review-copy-verifier');
 const { createMediaAuditJobs } = require('./media-audit-jobs');
+const { createDesktopMediaJobs } = require('./desktop-media-jobs');
+const { createNativeMediaRenderer } = require('./native-media-renderer');
+const { readPrivateMediaPreview } = require('./private-media-preview');
 const { createMediaAuditView } = require('./media-audit-view');
 const { resolveFolderCandidates, sanitizeResolutionReport } = require('./local-media-readiness');
 const { createSyncQueue } = require('./sync-queue');
@@ -79,6 +82,7 @@ let verifiedCopyHash = null;
 let mediaAuditBusy = false;
 let privateMediaAudits = {};
 let mediaAuditJobs;
+let desktopMediaJobs;
 let mediaAuditView;
 let syncQueue;
 let serviceConnection;
@@ -96,6 +100,11 @@ let adapterMetrics;
 const collaborationProjects = new Set();
 const LOCAL_OWNER_ID = 'local-owner';
 const RESOLVE_SOURCE_LIMIT = 20 * 1024 * 1024;
+
+async function mediaJobsSelectionChanged() {
+  try { await desktopMediaJobs?.selectionChanged(); }
+  catch { logger.warn('media-jobs.unavailable', { code: 'media-jobs-unavailable' }); }
+}
 
 function ensureCollaborationProject(projectId) {
   if (!collaborationProjects.has(projectId)) {
@@ -329,6 +338,19 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   resolveHistoryTransfer = createResolveHistoryTransfer({ store: localMetadataStore });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
     scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, localMetadataStore);
+  desktopMediaJobs = createDesktopMediaJobs({ directory: path.join(app.getPath('userData'), 'media-jobs'),
+    renderer: createNativeMediaRenderer(),
+    getSelection: () => {
+      const state = projectSession.getState();
+      return selectedProjectPath && state.scanStatus === 'ready' && !state.error
+        && state.selectedProject?.format === 'FCPXML' && state.scan?.sourceHash
+        ? { projectId: state.selectedProject.id, sourceHash: state.scan.sourceHash, exportPath: selectedProjectPath } : null;
+    },
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('media-jobs:state', state); }
+  });
+  await desktopMediaJobs.initialize().catch(() => {
+    logger.warn('media-jobs.unavailable', { code: 'media-jobs-unavailable' });
+  });
   syncQueue = createSyncQueue({ directory: path.join(app.getPath('userData'), 'sync') });
   serviceConnection = createDesktopServiceConnection({ directory: path.join(app.getPath('userData'), 'service'),
     vault: createCredentialVault({ directory: path.join(app.getPath('userData'), 'service-secrets'), safeStorage }),
@@ -1020,6 +1042,46 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
     return state;
   }));
+  const mediaJobsAction = async action => {
+    try { return await action(); }
+    catch (error) {
+      const known = ['selection-changed', 'source-changed', 'policy-disabled', 'preview-rights-required',
+        'no-selected-media', 'no-selected-project', 'invalid-media-job', 'invalid-media-policy', 'invalid-media-job-state', 'media-job-attempt-limit'];
+      const code = known.includes(error.code) ? error.code
+        : typeof error.code === 'string' && /^media-[a-z-]+$/.test(error.code) ? error.code : 'media-job-failed';
+      const state = await desktopMediaJobs.getState().catch(() => ({ available: false, projectId: null, sourceHash: null,
+        source: null, jobs: [], metrics: null, renderingAvailable: false,
+        policy: { enabled: false, rightsConfirmed: false, costPerGiBMonthUSD: null } }));
+      return { ...state, error: code };
+    }
+  };
+  ipcMain.handle('media-jobs:state', () => mediaJobsAction(() => desktopMediaJobs.getState()));
+  ipcMain.handle('media-jobs:policy', (_event, input) => mediaJobsAction(() => desktopMediaJobs.setPolicy(input)));
+  ipcMain.handle('media-jobs:enqueue', (_event, input) => mediaJobsAction(() => desktopMediaJobs.enqueue(input)));
+  for (const method of ['cancel', 'retry', 'restart', 'resume']) {
+    ipcMain.handle(`media-jobs:${method}`, (_event, id) => mediaJobsAction(() => desktopMediaJobs[method](id)));
+  }
+  ipcMain.handle('media-jobs:source', () => mediaJobsAction(async () => {
+    const before = projectSession.getState();
+    const result = await dialog.showOpenDialog({ title: 'Choose local media for background jobs', properties: ['openFile'],
+      filters: [{ name: 'Local media', extensions: ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'm4v'] }] });
+    if (result.canceled || !result.filePaths.length) return desktopMediaJobs.getState();
+    const after = projectSession.getState();
+    if (before.selectedProject?.id !== after.selectedProject?.id || before.scan?.sourceHash !== after.scan?.sourceHash) {
+      return { ...await desktopMediaJobs.getState(), error: 'media-selection-changed' };
+    }
+    return desktopMediaJobs.chooseSource(result.filePaths[0]);
+  }));
+  ipcMain.handle('media-jobs:preview', async (_event, id) => {
+    try {
+      const artifact = await desktopMediaJobs.getArtifact(id);
+      return await readPrivateMediaPreview(artifact, () => desktopMediaJobs.getArtifact(id));
+    } catch { return { error: 'media-artifact-unavailable' }; }
+  });
+  ipcMain.handle('media-jobs:reveal', async (_event, id) => {
+    try { const artifact = await desktopMediaJobs.getArtifact(id); if (!artifact) throw new Error(); shell.showItemInFolder(artifact.path); return { revealed: true }; }
+    catch { return { error: 'media-artifact-unavailable' }; }
+  });
   ipcMain.handle('project:choose', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Choose a DaVinci Resolve timeline',
@@ -1031,10 +1093,13 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
       return projectSession.getState();
     }
     const selectedPath = result.filePaths[0];
+    selectedProjectPath = null;
+    await mediaJobsSelectionChanged();
     desktopRevisionSync.selectionChanged();
     mediaAuditJobs.selectionChanged();
     const state = await projectSession.select(selectedPath);
     selectedProjectPath = state.error === 'unsupported-format' ? null : selectedPath;
+    await mediaJobsSelectionChanged();
     verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
     privateMediaAudits = {};
     if (state.error === 'unsupported-format') {
@@ -1051,10 +1116,15 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     return finishOnboarding(state);
   });
   ipcMain.handle('project:rescan', async () => {
+    const sourcePath = selectedProjectPath;
+    selectedProjectPath = null;
+    await mediaJobsSelectionChanged();
     desktopRevisionSync.selectionChanged();
     mediaAuditJobs.selectionChanged();
     const previousHash = projectSession.getState().scan?.sourceHash;
     const state = await projectSession.rescan();
+    selectedProjectPath = sourcePath;
+    await mediaJobsSelectionChanged();
     if (state.scanStatus !== 'ready' || state.scan?.sourceHash !== verifiedCopyHash) {
       verifiedCopyPath = verifiedCopySourcePath = verifiedCopyHash = null;
     }
@@ -1063,7 +1133,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     else if (state.scanStatus === 'error') logger.warn('project.rescan-failed', { code: state.error });
     return finishOnboarding(state);
   });
-  ipcMain.handle('project:cancel-scan', () => { const state = projectSession.cancelScan(); desktopRevisionSync.selectionChanged(); return state; });
+  ipcMain.handle('project:cancel-scan', async () => { const state = projectSession.cancelScan(); desktopRevisionSync.selectionChanged(); await mediaJobsSelectionChanged(); return state; });
   ipcMain.handle('project:prepare-review-copy', async () => {
     if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
     if (!copyCleanupJournal) return { status: 'error', error: { code: 'review-copy-recovery-unavailable', message: 'Copy recovery storage is unavailable. Check app storage permissions, recheck incomplete copies, and try again.' } };
@@ -1204,7 +1274,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   });
   ipcMain.handle('project:relink', async (_event, projectId) => {
     mediaAuditJobs.selectionChanged(); desktopRevisionSync.selectionChanged();
-    const state = await projectSession.relinkProject(projectId); desktopRevisionSync.selectionChanged(); return state;
+    const state = await projectSession.relinkProject(projectId); desktopRevisionSync.selectionChanged(); await mediaJobsSelectionChanged(); return state;
   });
   ipcMain.handle('project:export-revisions', async () => {
     try {
@@ -1262,12 +1332,12 @@ app.on('window-all-closed', () => {
 
 let mediaShutdown = false, mediaShutdownReady = false;
 app.on('before-quit', event => {
-  if (mediaShutdownReady || !mediaAuditJobs && !serviceConnection) return;
+  if (mediaShutdownReady || !mediaAuditJobs && !serviceConnection && !desktopMediaJobs) return;
   event.preventDefault();
   if (mediaShutdown) return;
   mediaShutdown = true;
   // Let the prevented native quit event unwind before requesting the final quit.
   const finish = () => { mediaShutdownReady = true; setImmediate(() => app.quit()); };
-  Promise.allSettled([desktopAssetLifecycle?.dispose(), desktopSharedStorage?.dispose(), mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopProjectPresets?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
+  Promise.allSettled([desktopMediaJobs?.dispose(), desktopAssetLifecycle?.dispose(), desktopSharedStorage?.dispose(), mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopProjectPresets?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
     .then(() => serviceConnection?.dispose()).then(finish, finish);
 });

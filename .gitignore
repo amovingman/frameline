@@ -23,3 +23,6 @@ out/
 # Regenerable Resolve compatibility media
 /phase-0/compatibility-corpus/moving-bars-with-audio.mov
 /phase-0/performance-live.fcpxmld/
+
+# Native media helper built for the distribution architecture
+/src/native/bin/

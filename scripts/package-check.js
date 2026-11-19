@@ -5,7 +5,9 @@ const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const manifest = require(path.join(root, 'package.json'));
 if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) throw new Error('Package manifest is not release-ready');
-const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
+const requiredFiles = ['scripts/build-media-renderer.cjs', 'src/private-media-preview.js', 'src/desktop-media-jobs.js', 'src/media-render-input.js', 'src/media-artifact-store.js',
+  'src/media-jobs-fingerprint-worker.js', 'src/media-jobs-renderer.js', 'src/media-jobs.css', 'src/native-media-renderer.js',
+  'src/native/media-renderer.swift', 'src/native/bin/media-renderer', 'src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
   'src/review-copy-cleanup.js', 'src/copy-recovery-renderer.js', 'src/accessibility.js', 'src/accessibility.css',
   'src/product-truth.js', 'src/product-truth-renderer.js', 'src/product-truth.css',
   'src/frame-timecode.js', 'src/resolve-change-context.js', 'src/resolve-review-risk-policy.js', 'src/resolve-comparison-renderer.js',
@@ -54,7 +56,7 @@ try {
   }))[0];
   const files = new Set(result.files.map(item => item.path));
   if (!files.has('package.json') || requiredFiles.some(file => !files.has(file))
-    || [...files].some(file => !file.startsWith('src/') && !['package.json', 'README.md', 'LICENSE'].includes(file))) {
+    || [...files].some(file => !file.startsWith('src/') && !['package.json', 'README.md', 'LICENSE', 'scripts/build-media-renderer.cjs'].includes(file))) {
     throw new Error('Unexpected package contents');
   }
 } finally { fs.rmSync(cache, { recursive: true, force: true }); }

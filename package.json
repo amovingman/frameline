@@ -5,7 +5,9 @@
   "description": "Desktop starter for versioning video editing projects",
   "main": "src/main.js",
   "files": [
-    "src"
+    "src",
+    "src/native/bin/media-renderer",
+    "scripts/build-media-renderer.cjs"
   ],
   "scripts": {
     "start": "electron .",
@@ -32,7 +34,13 @@
     "verify:copy-recovery": "node scripts/verify-copy-recovery-desktop.cjs",
     "verify:accessibility": "node scripts/verify-accessibility.cjs",
     "verify:product-truth": "node scripts/verify-product-truth.cjs",
-    "audit:editor-choice": "node phase-0/revisit-editor-choice.js"
+    "audit:editor-choice": "node phase-0/revisit-editor-choice.js",
+    "prestart": "node scripts/build-media-renderer.cjs --if-missing --if-supported",
+    "build:media": "node scripts/build-media-renderer.cjs",
+    "build:media:universal": "node scripts/build-media-renderer.cjs --universal",
+    "prepackage:check": "node scripts/build-media-renderer.cjs --universal",
+    "test:media-jobs": "node --test tests/desktop-media-jobs*.test.js tests/media-render-input*.test.js tests/media-artifact-store*.test.js tests/native-media-renderer.test.js tests/private-media-preview.test.js tests/media-jobs-renderer.test.js",
+    "verify:media-jobs": "node scripts/verify-media-jobs.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",
