@@ -3,6 +3,24 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose a deliberately small, safe API to the renderer as integrations are added.
 contextBridge.exposeInMainWorld('desktop', {
   appName: 'Git for Video Editing',
+  getSharedStorageState: () => ipcRenderer.invoke('shared-storage:state'),
+  registerSharedStorage: label => ipcRenderer.invoke('shared-storage:register', label),
+  selectSharedStorage: id => ipcRenderer.invoke('shared-storage:select', id),
+  renameSharedStorage: input => ipcRenderer.invoke('shared-storage:rename', input),
+  forgetSharedStorage: input => ipcRenderer.invoke('shared-storage:forget', input),
+  reconnectSharedStorage: input => ipcRenderer.invoke('shared-storage:reconnect', input),
+  checkSharedStorage: input => ipcRenderer.invoke('shared-storage:check', input),
+  importSharedStorageRequest: () => ipcRenderer.invoke('shared-storage:import'),
+  verifySharedStorage: input => ipcRenderer.invoke('shared-storage:verify', input),
+  cancelSharedStorage: () => ipcRenderer.invoke('shared-storage:cancel'),
+  prepareSharedStorageProposal: input => ipcRenderer.invoke('shared-storage:prepareProposal', input),
+  exportSharedStorageProposal: input => ipcRenderer.invoke('shared-storage:export', input),
+  onSharedStorageState: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('shared-storage:state', handle);
+    return () => ipcRenderer.removeListener('shared-storage:state', handle);
+  },
   getAppState: () => ipcRenderer.invoke('app:get-state'),
   getFirstRun: () => ipcRenderer.invoke('onboarding:get'),
   saveFirstRun: selection => ipcRenderer.invoke('onboarding:save', selection),

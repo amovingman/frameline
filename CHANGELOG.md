@@ -2,6 +2,7 @@
 
 ## Unreleased — experimental local build
 
+- Added twenty [Studio storage features](STUDIO_STORAGE.md#delivered-feature-checklist): private folder registration and reconnection, bounded asset requests, streamed verification/cancellation, restart and interrupted-check recovery, filtered results, and reviewed path-free proposal export. Relink proposals remain non-executable; real studio mount support and editor relinking are not enabled.
 - Added read-only FCPXML scan history, review-copy verification, Resolve snapshot review, and local collaboration/media foundations.
 - Added first-run setup, cancellable scans, a reviewed path-free diagnostics export, local scan metrics, and a local review-comment store for verified immutable anchors.
 - Added release policy checks, CI checks, and recovery policy tests. These do not create signed installers or enable automatic updates.

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scope": "Disposable local folder; native picker selections supplied by harness",
+  "checks": [
+    "real preload/controller asset verification",
+    "reviewed path-free export",
+    "media unchanged by verification",
+    "desktop and narrow layouts",
+    "registry and historical report recovery after controller restart and page reload",
+    "content changes block proposals",
+    "forget cancellation preserves registration",
+    "no browser console errors"
+  ],
+  "layouts": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "panelWidth": 1176
+    },
+    {
+      "width": 768,
+      "scrollWidth": 768,
+      "panelWidth": 728
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "panelWidth": 358
+    },
+    {
+      "width": 360,
+      "scrollWidth": 360,
+      "panelWidth": 328
+    }
+  ]
+}

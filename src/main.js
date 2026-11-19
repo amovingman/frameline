@@ -34,6 +34,7 @@ const { createDesktopShareLinks } = require('./desktop-share-links');
 const { createDesktopAccountUpdates } = require('./desktop-account-updates');
 const { createDesktopProjectPresets } = require('./desktop-project-presets');
 const { createProjectPresetIntents } = require('./project-preset-intents');
+const { createDesktopSharedStorage } = require('./desktop-shared-storage');
 const { createDesktopAssetTransfers, safeAssetTransferError } = require('./desktop-asset-transfers');
 const { createDesktopProjectActivity } = require('./desktop-project-activity');
 const { fingerprint } = require('./project-api-contracts');
@@ -50,6 +51,7 @@ let desktopBranchReview;
 let desktopShareLinks;
 let desktopAccountUpdates;
 let desktopProjectPresets;
+let desktopSharedStorage;
 let resolveReviewSession;
 let resolveTrialSession;
 let resolveHistoryTransfer;
@@ -303,6 +305,8 @@ async function serviceAction(action) {
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   adapterMetrics = createAdapterMetrics();
+  desktopSharedStorage = createDesktopSharedStorage({ directory: path.join(app.getPath('userData'), 'shared-storage'),
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('shared-storage:state', state); } });
   localMetadataStore = createLocalMetadataStore(app.getPath('userData'));
   resolveHistoryTransfer = createResolveHistoryTransfer({ store: localMetadataStore });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
@@ -463,6 +467,38 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('project-presets:create', (_event, input) => desktopProjectPresets.createProjectFromPreset(input));
   ipcMain.handle('project-presets:retry', (_event, input) => desktopProjectPresets.retryProjectPresetIntent(input));
   ipcMain.handle('project-presets:dismiss', (_event, input) => desktopProjectPresets.dismissProjectPresetIntent(input));
+  ipcMain.handle('shared-storage:state', () => desktopSharedStorage.initialize());
+  ipcMain.handle('shared-storage:select', (_event, id) => desktopSharedStorage.select(id));
+  for (const method of ['rename', 'forget', 'check', 'verify', 'prepareProposal']) {
+    ipcMain.handle(`shared-storage:${method}`, (_event, input) => desktopSharedStorage[method](input));
+  }
+  ipcMain.handle('shared-storage:cancel', () => desktopSharedStorage.cancel());
+  ipcMain.handle('shared-storage:register', async (_event, label) => {
+    if (desktopSharedStorage.getState().busy) return desktopSharedStorage.getState();
+    const result = await dialog.showOpenDialog({ title: 'Choose shared storage folder', properties: ['openDirectory'] });
+    if (result.canceled || !result.filePaths.length) return desktopSharedStorage.getState();
+    return desktopSharedStorage.register(result.filePaths[0], label);
+  });
+  ipcMain.handle('shared-storage:reconnect', async (_event, input) => {
+    if (desktopSharedStorage.getState().busy) return desktopSharedStorage.getState();
+    const result = await dialog.showOpenDialog({ title: 'Locate the same storage folder', properties: ['openDirectory'] });
+    if (result.canceled || !result.filePaths.length) return desktopSharedStorage.getState();
+    return desktopSharedStorage.reconnect(input, result.filePaths[0]);
+  });
+  ipcMain.handle('shared-storage:import', async () => {
+    if (desktopSharedStorage.getState().busy) return desktopSharedStorage.getState();
+    const result = await dialog.showOpenDialog({ title: 'Choose storage asset request', properties: ['openFile'],
+      filters: [{ name: 'Storage asset request', extensions: ['json'] }] });
+    if (result.canceled || !result.filePaths.length) return desktopSharedStorage.getState();
+    return desktopSharedStorage.importRequest(result.filePaths[0]);
+  });
+  ipcMain.handle('shared-storage:export', async (_event, input) => {
+    if (desktopSharedStorage.getState().busy) return desktopSharedStorage.getState();
+    const result = await dialog.showSaveDialog({ title: 'Save reviewed relink proposal', defaultPath: 'shared-storage-proposal.json',
+      filters: [{ name: 'Relink proposal', extensions: ['json'] }] });
+    if (result.canceled || !result.filePath) return desktopSharedStorage.getState();
+    return desktopSharedStorage.exportProposal(input, result.filePath);
+  });
   ipcMain.handle('resolve-service:select', (_event, projectId) => resolveServiceAction(() => desktopResolveServiceSync.select(projectId)));
   for (const method of ['bind', 'unlink', 'check', 'push', 'fetch', 'retry', 'cancel']) {
     ipcMain.handle(`resolve-service:${method}`, (_event, input) => resolveServiceAction(() => desktopResolveServiceSync[method](input)));
@@ -1162,6 +1198,6 @@ app.on('before-quit', event => {
   mediaShutdown = true;
   // Let the prevented native quit event unwind before requesting the final quit.
   const finish = () => { mediaShutdownReady = true; setImmediate(() => app.quit()); };
-  Promise.allSettled([mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopProjectPresets?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
+  Promise.allSettled([desktopSharedStorage?.dispose(), mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopProjectPresets?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
     .then(() => serviceConnection?.dispose()).then(finish, finish);
 });

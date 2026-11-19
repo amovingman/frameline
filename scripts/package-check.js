@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, '..');
 const manifest = require(path.join(root, 'package.json'));
 if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) throw new Error('Package manifest is not release-ready');
 const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
+  'src/shared-storage-protocol.js', 'src/shared-storage-volume.js', 'src/shared-storage-store.js',
+  'src/desktop-shared-storage.js', 'src/shared-storage-renderer.js',
   'src/companion/resolve-internal.py', 'src/companion/resolve_snapshot.py',
   'src/companion/resolve-internal.lua', 'src/resolve-menu-companion.js',
   'src/companion/resolve-effects.lua', 'src/resolve-effect-observation.js', 'src/resolve-effect-console.js',
