@@ -4,6 +4,7 @@ const { createResolvePreviewPlan, refreshResolvePreviewPlan, verifyResolvePrevie
 const { saveResolvePreview, loadResolvePreview } = require('./resolve-preview-store');
 const { saveResolveReview, loadResolveReview } = require('./resolve-review-store');
 const { createResolveConflictReview, createResolveDecisionAudit } = require('./resolve-review-decisions');
+const { createResolveReviewGuidance } = require('./resolve-review-guidance');
 
 // Source bytes and bindings stay in the main process. The public state is a
 // detached JSON value and never grants permission to apply a change.
@@ -11,6 +12,7 @@ function createResolveReviewSession({ artifactDirectory }) {
   let plan = null, review = null, sources = null, decisions = [], audit = null, artifactId = null;
   let status = 'empty', error = null, reviewArtifactId = null, sourceVerification = null;
   let sourceMode = 'local';
+  let guidance = null;
   const clone = value => value === null ? null : JSON.parse(JSON.stringify(value));
   function publicValue(value) {
     if (!value) return null;
@@ -19,12 +21,12 @@ function createResolveReviewSession({ artifactDirectory }) {
     return result;
   }
   function getState() {
-    return { status, sourceMode, plan: publicValue(plan), review: publicValue(review), decisions: clone(decisions),
+    return { status, sourceMode, plan: publicValue(plan), guidance: clone(guidance), review: publicValue(review), decisions: clone(decisions),
       audit: publicValue(audit), artifactId, reviewArtifactId, sourceHashes: plan ? clone(plan.binding.hashes) : null,
       sourceVerification: clone(sourceVerification), error: clone(error) };
   }
   function failure(code, message, clear = false) {
-    if (clear) { plan = review = sources = audit = artifactId = reviewArtifactId = sourceVerification = null; decisions = []; }
+    if (clear) { plan = review = sources = audit = artifactId = reviewArtifactId = sourceVerification = guidance = null; decisions = []; }
     status = clear || !plan ? 'error' : 'ready';
     error = { code, message };
     return getState();
@@ -37,10 +39,11 @@ function createResolveReviewSession({ artifactDirectory }) {
   function install(nextPlan, input, keep) {
     const nextSources = copySources(input);
     const nextReview = createResolveConflictReview(nextPlan, nextSources);
+    const nextGuidance = createResolveReviewGuidance(nextPlan, nextSources);
     const nextDecisions = keep ? decisions : [];
     const nextAudit = nextDecisions.length === nextReview.conflicts.length
       ? createResolveDecisionAudit(nextPlan, nextSources, nextDecisions) : null;
-    plan = nextPlan; sources = nextSources; review = nextReview; decisions = nextDecisions; audit = nextAudit;
+    plan = nextPlan; sources = nextSources; review = nextReview; guidance = nextGuidance; decisions = nextDecisions; audit = nextAudit;
     if (!keep) artifactId = reviewArtifactId = null;
     sourceVerification = { changed: false, staleRoles: [] };
     status = 'ready'; error = null;
@@ -115,7 +118,7 @@ function createResolveReviewSession({ artifactDirectory }) {
     return { sources: copySources(input), plan: clone(plan), audit: clone(audit) };
   }
   function clear(reason = null) {
-    plan = review = sources = audit = artifactId = reviewArtifactId = sourceVerification = null; decisions = [];
+    plan = review = sources = audit = artifactId = reviewArtifactId = sourceVerification = guidance = null; decisions = [];
     sourceMode = 'local'; status = reason === null ? 'empty' : 'error';
     const codes = ['service-selection-changed', 'service-sign-in-required', 'service-project-unavailable',
       'service-review-stale', 'service-review-read-only', 'resolve-source-changed'];

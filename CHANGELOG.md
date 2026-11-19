@@ -2,6 +2,8 @@
 
 ## Unreleased — experimental local build
 
+- Completed two Phase 2.2 roadmap items: [deletion conflict review and timeline ordering rules](RESOLVE_CONFLICT_POLICY.md). The Resolve review explains edited-entity deletion and each choice’s consequence. A source-bound placement report includes concurrent additions/moves, overlaps with unchanged neighbors, observed intervals, track-layout risks, bounded analysis, and keyboard paging. Existing preview/review/audit hashes remain compatible; policies are regenerated on verified recovery and refreshed sources.
+
 - Completed two Phase 5.1 roadmap items: [first-run workspace setup and privacy-reviewed diagnostics](WORKSPACE_SETUP_AND_DIAGNOSTICS.md). Setup now selects actual revision storage and completes after a successful project scan, with existing-storage preservation and restart recovery. Diagnostics now provide optional details, strict value allowlists, exact JSON/hash review, explicit approval, stale-state checks, and private atomic export. Native verification uses a disposable profile and fixture picker results.
 
 - Added ten [self-hosted verification-job capabilities](ASSET_VERIFICATION_JOBS.md), including exact-input deduplication, cancellation/run-guarded retry, private fenced leases, monotonic progress, restart recovery, complete stored-content SHA-256 verification, and scoped metrics/CLI access. Encrypted asset schema 4 preserves existing uploads and lifecycle evidence. No verification job changes media or editor state.

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two shipped main/preload/renderer Electron processes with a disposable profile and fixture-supplied OS source picker results. No editor write or production service is exercised.",
+  "checks": [
+    "explicit local-edit/incoming-deletion warning and per-choice consequences",
+    "conflict decisions required before a complete review audit",
+    "whole-entity local retention is recorded",
+    "concurrent additions and divergent moves expose conservative placement policy",
+    "unchanged interval blockers are included",
+    "bounded paged report, keyboard-operable next/previous, desktop/narrow layouts",
+    "review choices, audit hash and source-bound guidance survive real process restart",
+    "source refresh changes guidance and clears prior review choices",
+    "source bytes unchanged by review and recovery",
+    "apply remains disabled",
+    "no renderer console errors"
+  ],
+  "stages": [
+    {
+      "stage": "first",
+      "pickerCalls": 3,
+      "conflicts": 3,
+      "placementChanges": 50,
+      "observedInteractions": 49,
+      "sourceHashes": {
+        "base": "133fd9002eb800b91281d183afb4a13fd3a9b80a6b941906519286ccf9a692db",
+        "local": "9464051f7cc23b04fc6deecd97c9e4ec5bacda20adc425eb0ec8218313519c22",
+        "incoming": "f86511a55e45ce85fb63cc1a9b03be9d29327b88ee74874f8eaa47a2621e2d04"
+      },
+      "sourceBytesUnchanged": true,
+      "applyDisabled": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "records": 12
+        },
+        {
+          "width": 768,
+          "scrollWidth": 768,
+          "records": 12
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390,
+          "records": 12
+        },
+        {
+          "width": 360,
+          "scrollWidth": 360,
+          "records": 12
+        }
+      ],
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    },
+    {
+      "stage": "restore",
+      "pickerCalls": 3,
+      "conflicts": 3,
+      "placementChanges": 50,
+      "observedInteractions": 49,
+      "sourceHashes": {
+        "base": "133fd9002eb800b91281d183afb4a13fd3a9b80a6b941906519286ccf9a692db",
+        "local": "9464051f7cc23b04fc6deecd97c9e4ec5bacda20adc425eb0ec8218313519c22",
+        "incoming": "f86511a55e45ce85fb63cc1a9b03be9d29327b88ee74874f8eaa47a2621e2d04"
+      },
+      "sourceBytesUnchanged": true,
+      "applyDisabled": true,
+      "layouts": [],
+      "runtime": {
+        "electron": "41.10.7",
+        "chromium": "146.0.7680.216"
+      }
+    }
+  ],
+  "automatedValidation": {
+    "fullSuite": {
+      "tests": 1436,
+      "passed": 1436,
+      "failed": 0,
+      "skipped": 0
+    },
+    "newPolicyTests": {
+      "placement": 22,
+      "deletion": 11,
+      "guidanceAndLegacyCompatibility": 6
+    },
+    "packageCheck": "passed",
+    "tasteLint": {
+      "failures": 0,
+      "warnings": 0
+    },
+    "impeccableDetector": {
+      "advisories": 31,
+      "nonAdvisory": 0,
+      "newSurfaceFindings": 0
+    }
+  }
+}

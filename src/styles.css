@@ -170,3 +170,24 @@
 .diagnostics-panel #diagnostics-status { grid-column: 1 / -1; margin: 0; }
 .diagnostics-panel #diagnostics-status:empty, .first-run #first-run-status:empty { display: none; }
 @media (max-width: 600px) { .first-run button, .diagnostics-panel button { min-height: 44px; } }
+
+.resolve-placement-policy { margin: 24px 0; padding: 20px 24px; background: var(--surface); border-radius: 12px; }
+.resolve-placement-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.resolve-placement-policy h2 { font-size: 16px; font-weight: 600; }
+.resolve-placement-policy p { margin-top: 8px; font-size: 13px; line-height: 1.5; color: var(--secondary); max-width: 75ch; overflow-wrap: anywhere; }
+.resolve-placement-heading label { display: grid; gap: 6px; min-width: 180px; max-width: 100%; font-size: 13px; }
+.resolve-placement-heading select { min-width: 0; width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--raised); color: var(--text); font: inherit; }
+.resolve-placement-policy details { margin-top: 16px; }
+.resolve-placement-policy summary { cursor: pointer; font-size: 13px; padding: 8px 0; }
+.resolve-placement-record { padding: 16px 0; min-width: 0; }
+.resolve-placement-record h3 { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.resolve-placement-values { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 6px 16px; margin-top: 12px; font-size: 13px; line-height: 1.5; }
+.resolve-placement-values dt { color: var(--secondary); }
+.resolve-placement-values dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.resolve-placement-pages { margin-top: 12px; }
+.resolve-placement-policy :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.resolve-detail .resolve-deletion-warning { color: var(--warning); margin: 16px 0; line-height: 1.5; font-size: 14px; }
+.resolve-deletion-choice { flex: 1 1 180px; min-width: 0; }
+.resolve-deletion-choice button { width: 100%; }
+.resolve-detail .resolve-choice-consequence { margin-top: 8px; color: var(--secondary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .resolve-placement-heading { flex-direction: column; } .resolve-placement-heading label { width: 100%; } .resolve-placement-policy button, .resolve-placement-policy select { min-height: 44px; } .resolve-placement-values { grid-template-columns: 1fr; gap: 4px; } .resolve-placement-values dd { margin-bottom: 8px; } }

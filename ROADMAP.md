@@ -136,8 +136,8 @@ A request to complete a feature means completing one existing roadmap checkbox i
 
 ### 2.2 Conflict rules and resolution
 - [ ] Implement field-level conflicts with safe app-level apply rules for properties proven safe by the editor spike. The preview can review observed-field conflicts but cannot apply their choices.
-- [ ] Treat local edit vs incoming deletion as a conflict.
-- [ ] Define ordering rules for concurrent clip additions and timeline moves.
+- [x] Treat local edit vs incoming deletion as a conflict. Clip/timeline deletion conflicts preserve the other side’s represented edits, including richer observations and child changes. The desktop explains both directions, changed fields, and each choice’s consequence; a complete audit requires an explicit choice. Saved review recovery preserves exact entity choices and historical hashes. See `RESOLVE_CONFLICT_POLICY.md` and `phase-0/conflict-policy-desktop/verification.json`.
+- [x] Define ordering rules for concurrent clip additions and timeline moves. Source-bound rules preserve explicit half-open frame intervals, never break placement ties by ID or ripple neighbors, and require review of divergent placements, overlapping additions/moves, unchanged blockers, and changed track layouts. A bounded full-source report exposes source sides, intervals, incomplete analysis, timeline filtering, and keyboard paging. Deterministic, randomized-reference, dense-limit, and native restart checks pass. See `RESOLVE_CONFLICT_POLICY.md`.
 - [ ] Treat ripple edits, linked clips, transitions, nested sequences, and timing interactions conservatively until proven.
 - [x] Offer conflict review choices in the Resolve preview, with affected values/context. These are review decisions only; supported manual field edits and apply are not implemented.
 - [ ] Show the affected clip in context, field values, and the consequence of each choice.

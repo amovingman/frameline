@@ -2854,6 +2854,7 @@ function renderResolveState(state) {
   }
   renderResolveExport(state, ready);
   renderResolveInspection();
+  window.renderResolvePlacementPolicy?.(state);
   const filter = document.getElementById('resolve-filter').value;
   const visible = items.filter(item => {
     if (document.getElementById('resolve-timeline').value !== 'all' && item.timelineId !== document.getElementById('resolve-timeline').value) return false;
@@ -2895,10 +2896,19 @@ function renderResolveDetail() {
   detail.append(make('h2', '', item ? `${item.field} comparison` : 'Source comparison'));
   if (!item) { detail.append(make('p', '', 'Select a change to inspect base, local, and incoming source values.')); return; }
   detail.append(make('p', 'resolve-context', [item.context?.timelineName || `Timeline ${item.timelineId || 'unspecified'}`, item.context?.itemName || item.itemId, item.context?.track, resolveLabels[item.status] || item.status].filter(Boolean).join(' · ')));
+  const deletion = resolveState?.guidance?.deletionPolicy?.conflicts?.find(value => value.timelineId === item.timelineId && value.itemId === item.itemId && value.field === item.field);
+  if (deletion) {
+    const warning = make('p', 'resolve-deletion-warning', deletion.deletedBy === 'incoming'
+      ? 'Local edits conflict with incoming deletion. Deleting this entity would discard the edited local version.'
+      : 'Local deletion conflicts with incoming edits. Taking incoming would restore the edited entity.');
+    warning.id = 'resolve-deletion-warning'; detail.append(warning);
+    const fields = make('p', 'resolve-context', `Changed observations: ${deletion.changedFields.join(', ') || (deletion.changedFieldCount ? 'field details omitted by display limits' : 'entity state')}${deletion.changedFieldsTruncated ? ` (showing ${deletion.changedFields.length} of ${deletion.changedFieldCount})` : ''}. This comparison covers captured values; unobserved editor state remains unknown.`);
+    fields.id = 'resolve-deletion-fields'; detail.append(fields);
+  }
   const values = make('div', 'resolve-values');
   for (const [key, label] of [['base', 'Common base'], ['local', 'Your local cut'], ['incoming', 'Incoming cut']]) {
     const column = make('div', key === 'incoming' ? 'incoming-value' : '');
-    column.append(make('h3', '', label), make('pre', '', resolveValue(item[key])));
+    column.append(make('h3', '', label), make('pre', '', item.field === 'existence' && item[key] === null ? 'Not present in this cut' : resolveValue(item[key])));
     values.append(column);
   }
   detail.append(values);
@@ -2912,7 +2922,12 @@ function renderResolveDetail() {
       button.type = 'button'; button.disabled = resolveBusy || activeResolveTrial();
       button.setAttribute('aria-pressed', String(selected === choice));
       button.addEventListener('click', () => resolveAction('setResolveDecision', conflict.id, choice));
-      controls.append(button);
+      if (deletion) {
+        const group = make('div', 'resolve-deletion-choice');
+        const consequence = make('p', 'resolve-choice-consequence', deletion.consequences[choice].description);
+        consequence.id = `resolve-consequence-${choice}`; button.setAttribute('aria-describedby', consequence.id);
+        group.append(button, consequence); controls.append(group);
+      } else controls.append(button);
     }
     detail.append(controls);
   }
