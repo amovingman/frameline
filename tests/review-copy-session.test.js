@@ -56,11 +56,11 @@ test('fails closed for invalid requests, bundles, symlinks, stale sources and ma
   fs.writeFileSync(request.sourcePath, '<broken');
   request.expectedSha256 = createHash('sha256').update('<broken').digest('hex');
   assert.equal((await prepareReviewCopySession(request)).status, 'error');
-  assert.deepEqual(fs.readdirSync(request.destinationDirectory), []);
+  assert.deepEqual(fs.readdirSync(request.destinationDirectory), ['Review.fcpxml']);
 });
 
 for (const tamper of ['source', 'copy', 'scan-hash', 'source-symlink']) {
-  test(`rejects ${tamper} tampering during scan and removes the failed copy`, async t => {
+  test(`rejects ${tamper} tampering during scan and preserves the published copy`, async t => {
     const request = fixture(t);
     const scan = adapter.scanFcpXml;
     adapter.scanFcpXml = async filename => {
@@ -76,7 +76,9 @@ for (const tamper of ['source', 'copy', 'scan-hash', 'source-symlink']) {
       const result = await prepareReviewCopySession(request);
       assert.equal(result.status, 'error');
       assert.equal(result.scanSummary, null);
-      assert.deepEqual(fs.readdirSync(request.destinationDirectory), []);
+      assert.deepEqual(fs.readdirSync(request.destinationDirectory), ['Review.fcpxml']);
+      assert.equal(result.recoveryRequired, true);
+      if (tamper === 'copy') assert.match(fs.readFileSync(path.join(request.destinationDirectory, 'Review.fcpxml'), 'utf8'), /changed$/);
     } finally { adapter.scanFcpXml = scan; }
   });
 }

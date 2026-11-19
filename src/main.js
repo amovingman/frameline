@@ -14,6 +14,7 @@ const { fcpxmlProjectAdapter } = require('./project-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
 const { prepareReviewCopySession } = require('./review-copy-session');
+const { createReviewCopyCleanup } = require('./review-copy-cleanup');
 const { compareResolveSnapshotToExport } = require('./resolve-export-candidates');
 const { installResolveCompanion } = require('./resolve-companion-install');
 const { createLuaCaptureCommand } = require('./resolve-menu-companion');
@@ -62,6 +63,8 @@ let resolveHistoryRevisionIds = null;
 let resolveBusy = false;
 let selectedProjectPath = null;
 let reviewCopyBusy = false;
+let copyCleanupJournal = null;
+let copyCleanupState = { status: 'unavailable', removedCount: 0, preservedCount: 0, pendingCount: 0, entries: [] };
 let resolveExportPath = null;
 let resolveExportTimelineId = null;
 let resolveExportComparison = null;
@@ -308,6 +311,17 @@ async function serviceAction(action) {
 if (hasSingleInstanceLock) app.whenReady().then(async () => {
   firstRun = await createDesktopOnboarding({ directory: path.join(app.getPath('userData'), 'onboarding'),
     defaultDirectory: app.getPath('userData') });
+  const recoverCopies = () => {
+    try {
+      copyCleanupJournal ||= createReviewCopyCleanup({ directory: path.join(app.getPath('userData'), 'review-copy-cleanup') });
+      copyCleanupState = copyCleanupJournal.recover();
+    } catch {
+      copyCleanupJournal = null;
+      copyCleanupState = { status: 'unavailable', removedCount: 0, preservedCount: 0, pendingCount: 0, entries: [] };
+    }
+    return structuredClone(copyCleanupState);
+  };
+  recoverCopies();
   adapterMetrics = createAdapterMetrics();
   desktopSharedStorage = createDesktopSharedStorage({ directory: path.join(app.getPath('userData'), 'shared-storage'),
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('shared-storage:state', state); } });
@@ -406,6 +420,25 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     } });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
+  ipcMain.handle('review-copy-recovery:state', (_event, options) => {
+    if (!copyCleanupJournal) return structuredClone(copyCleanupState);
+    try { return copyCleanupJournal.getState(options); }
+    catch (error) {
+      if (error.code === 'review-copy-cleanup-input-invalid') return { error: error.code };
+      copyCleanupJournal = null;
+      copyCleanupState = { status: 'unavailable', removedCount: 0, preservedCount: 0, pendingCount: 0, entries: [] };
+      return structuredClone(copyCleanupState);
+    }
+  });
+  ipcMain.handle('review-copy-recovery:refresh', () => reviewCopyBusy ? { error: 'review-copy-busy' } : recoverCopies());
+  ipcMain.handle('review-copy-recovery:reveal', (_event, id) => {
+    if (reviewCopyBusy || !copyCleanupJournal || typeof id !== 'string') return { revealed: false };
+    try {
+      const location = copyCleanupJournal.getRecoveryLocation(id);
+      if (!location) return { revealed: false };
+      shell.showItemInFolder(location); return { revealed: true };
+    } catch { return { revealed: false }; }
+  });
   const onboardingAction = async action => {
     try { return { state: await action() }; }
     catch (error) { return { error: ['workspace-locked', 'workspace-busy', 'first-run-invalid'].includes(error.code) ? error.code : 'workspace-unavailable' }; }
@@ -1033,6 +1066,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle('project:cancel-scan', () => { const state = projectSession.cancelScan(); desktopRevisionSync.selectionChanged(); return state; });
   ipcMain.handle('project:prepare-review-copy', async () => {
     if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy is already being prepared.' } };
+    if (!copyCleanupJournal) return { status: 'error', error: { code: 'review-copy-recovery-unavailable', message: 'Copy recovery storage is unavailable. Check app storage permissions, recheck incomplete copies, and try again.' } };
     const state = projectSession.getState();
     if (!selectedProjectPath || state.scanStatus !== 'ready' || state.selectedProject?.format !== 'FCPXML'
       || !state.scan?.sourceHash || state.error) {
@@ -1055,6 +1089,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
       }
       const prepared = await prepareReviewCopySession({
         sourcePath,
+        cleanupJournal: copyCleanupJournal,
         expectedSha256: state.scan.sourceHash,
         destinationDirectory: path.dirname(result.filePath),
         preferredFilename: path.basename(result.filePath)
@@ -1069,7 +1104,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     } catch (error) {
       logger.warn('review-copy.failed', { code: error.code || 'review-copy-failed' });
       return { status: 'error', error: { code: 'review-copy-failed', message: 'Unable to prepare a verified review copy.' } };
-    } finally { reviewCopyBusy = false; }
+    } finally { reviewCopyBusy = false; recoverCopies(); }
   });
   ipcMain.handle('project:verify-review-copy', async () => {
     if (reviewCopyBusy || mediaAuditJobs.isBusy()) return { status: 'error', error: { code: 'review-copy-busy', message: 'A review copy check is already running.' } };

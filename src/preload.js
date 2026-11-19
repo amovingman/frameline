@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('desktop', {
     return () => ipcRenderer.removeListener('shared-storage:state', handle);
   },
   getAppState: () => ipcRenderer.invoke('app:get-state'),
+  getCopyRecovery: options => ipcRenderer.invoke('review-copy-recovery:state', options),
+  refreshCopyRecovery: () => ipcRenderer.invoke('review-copy-recovery:refresh'),
+  revealRetainedCopy: id => ipcRenderer.invoke('review-copy-recovery:reveal', id),
   getFirstRun: () => ipcRenderer.invoke('onboarding:get'),
   chooseWorkspaceDirectory: () => ipcRenderer.invoke('onboarding:choose-directory'),
   useDefaultWorkspaceDirectory: () => ipcRenderer.invoke('onboarding:use-default'),

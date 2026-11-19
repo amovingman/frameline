@@ -30,15 +30,15 @@ function verifyRegularFile(filename, expectedHash) {
 }
 
 async function prepareReviewCopySession(request) {
-  let copyPath, ownedStat;
+  let copyPath, transaction;
   try {
-    copyPath = prepareReviewCopy(request);
-    ownedStat = fs.lstatSync(copyPath, { bigint: true });
+    copyPath = prepareReviewCopy({ ...request, onTransaction: value => { transaction = value; } });
     const expectedHash = request.expectedSha256.toLowerCase();
     const scan = await adapter.scanFcpXml(copyPath);
     if (scan.sourceHash !== expectedHash) throw new Error('changed');
     verifyRegularFile(copyPath, expectedHash);
     verifyRegularFile(request.sourcePath, expectedHash);
+    if (transaction) request.cleanupJournal.validated(transaction);
     return {
       status: 'ready', copyName: path.basename(copyPath), sourceHash: expectedHash,
       scanSummary: {
@@ -48,15 +48,14 @@ async function prepareReviewCopySession(request) {
       error: null
     };
   } catch {
-    if (copyPath && ownedStat) {
-      try {
-        const current = fs.lstatSync(copyPath, { bigint: true });
-        if (current.dev === ownedStat.dev && current.ino === ownedStat.ino) fs.unlinkSync(copyPath);
-      } catch { /* Cleanup must never expose filesystem details. */ }
-    }
+    if (transaction) { try { request.cleanupJournal.abort(transaction); } catch { /* Recovery remains available at next startup. */ } }
+    // Publication is a point of uncertainty. Never unlink a published pathname
+    // after asynchronous work: it may now contain user edits or be the only
+    // remaining copy of the originally verified source bytes.
     return {
       status: 'error', copyName: null, sourceHash: null, scanSummary: null,
-      error: { code: 'review-copy-failed', message: 'Unable to prepare a verified FCPXML review copy.' }
+      error: { code: 'review-copy-failed', message: 'Unable to prepare a verified FCPXML review copy.' },
+      ...(copyPath || transaction ? { recoveryRequired: true } : {})
     };
   }
 }

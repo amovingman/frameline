@@ -2,6 +2,8 @@
 
 ## Unreleased — experimental local build
 
+- Completed five roadmap items: evidence-backed [editor reassessment](EDITOR_INTEGRATION_DECISION.md), [crash-safe incomplete-copy cleanup](REVIEW_COPY_RECOVERY.md), dense review navigation and the broader [accessibility audit](ACCESSIBILITY_AUDIT.md), and the [product truth audit](PRODUCT_TRUTH_AUDIT.md). Recovery preserves published/uncertain copies while cleaning verified staging aliases; sample/unknown/service states are explicit, and ordinary writes remain gated.
+
 - Completed five [Resolve comparison-review roadmap items](RESOLVE_COMPARISON_REVIEW.md): equivalent-value normalization across comparison layers; source-specific timeline/track/clip/frame context and optional user-selected non-drop timecode; full-diff filtering, grouping, and 40-row paging; persistent conservative complex-edit gates; and explicit consequences for all supported conflict choices. Saved history includes before/after context. Raw sources and canonical saved plan/review/audit identities remain compatible.
 
 - Completed two Phase 2.2 roadmap items: [deletion conflict review and timeline ordering rules](RESOLVE_CONFLICT_POLICY.md). The Resolve review explains edited-entity deletion and each choice’s consequence. A source-bound placement report includes concurrent additions/moves, overlaps with unchanged neighbors, observed intervals, track-layout risks, bounded analysis, and keyboard paging. Existing preview/review/audit hashes remain compatible; policies are regenerated on verified recovery and refreshed sources.

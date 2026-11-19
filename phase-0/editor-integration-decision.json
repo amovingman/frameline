@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "decisionDate": "2026-11-19",
+  "decision": "stop-release-retain-read-only-experiment",
+  "decisionCompleted": true,
+  "releaseSupported": false,
+  "safeToApply": false,
+  "target": {
+    "editor": "DaVinci Resolve",
+    "edition": "Free",
+    "editorVersion": "21.1.2",
+    "editorBuild": "21.1.20010",
+    "os": "darwin",
+    "format": "FCPXML",
+    "formatVersion": "1.10",
+    "onboardingEditorId": "resolve-free-21.1.2",
+    "maximumXmlBytes": 20971520
+  },
+  "auditSha256": "f933b00d47d984906b6e6272bde4fce071ff1d79358e52871a7fb8ba3126b877",
+  "evidence": {
+    "src/compatibility-contract.js": "3ed81b7c047426f47ec35f9f70176fa38c455c2bc53ddeebb71ca7008fb6be50",
+    "phase-0/audit-first-editor.js": "87b10a3a7b315d0702d2d259818e878e3e51ed3d41036c1ded514d48dc3c7224",
+    "phase-0/INTEGRATION_ASSESSMENT.md": "51355e89154022fa4df8a29fc7613758c3d54eed0f6c0d8f46672244f1c3fcf7",
+    "phase-0/FIRST_EDITOR_READINESS.md": "c5210dc0138b3ced8fc9536a2b88f3ad6b1e7416b66aa9034bf34aa2c9a60f7b",
+    "phase-0/SUPPORT_MATRIX.md": "c25547538522d64b236cc1deff140eb04304534397ff1e32d7c521a1b331ca9b",
+    "phase-0/external-api-observation.json": "96a2ee1da0854ac61e16d90012fc9e2dbce86807b2e8c37e27f7c0c41ff0c8aa"
+  },
+  "alternatives": [
+    {
+      "id": "free-fcpxml",
+      "disposition": "retain-read-only",
+      "reason": "Proven bounded picture scanning; export identity and complete construct preservation remain unproven."
+    },
+    {
+      "id": "free-internal-console",
+      "disposition": "research-only",
+      "reason": "Read-only capture and guarded disposable rename/recovery evidence exist; complete state, track identity and general apply do not."
+    },
+    {
+      "id": "studio-external-api",
+      "disposition": "not-selected",
+      "reason": "A different edition/license and independently proven corpus/integration would be required; no Studio support is inferred."
+    },
+    {
+      "id": "another-editor",
+      "disposition": "not-selected",
+      "reason": "No release-ready candidate or consented first-user evidence exists. No second adapter is started by this decision."
+    },
+    {
+      "id": "native-byte-patching",
+      "disposition": "rejected",
+      "reason": "Opaque native content changes are not semantically explained. Native files are backup artifacts, not a supported edit schema."
+    }
+  ],
+  "blockers": [
+    {
+      "id": "first-user-cohort",
+      "status": "open",
+      "evidence": "No intended-user editor/version distribution is recorded."
+    },
+    {
+      "id": "complete-timeline-enumeration",
+      "status": "blocked",
+      "evidence": "Mixed API capture: 3 video, 49 audio, 1 transition items, 1 reciprocal linked pair. Supplements observe 1 effect type ID and 43 returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved."
+    },
+    {
+      "id": "release-version-corpus",
+      "status": "open",
+      "evidence": "Only the named Free 21.1.2 build is editor-backed; no release support range is declared."
+    },
+    {
+      "id": "stable-clip-and-track-identity",
+      "status": "blocked",
+      "evidence": "5 retained API item IDs in paired captures. A separate repeated-media relink fixture retains 5 occurrence IDs and 3 media-pool IDs through relocation, save/reopen and original-path restoration. XML association is candidate-only and track identity is index-only."
+    },
+    {
+      "id": "representative-scan-write-reopen",
+      "status": "partial",
+      "evidence": "One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open."
+    },
+    {
+      "id": "editor-choice-stop-or-revisit",
+      "status": "blocked",
+      "evidence": "External Free connection was unavailable in the 2026-11-17 local probe; the internal Lua Console bridge now captures read-only fixtures, but safe apply and full coverage remain unproven."
+    },
+    {
+      "id": "lossless-editor-fields",
+      "status": "blocked",
+      "evidence": "Paired coverage leaves 6 construct/identity categories unobservable. Native edit and no-edit control each change 3 members; common opaque line tags do not prove semantic equivalence."
+    },
+    {
+      "id": "durable-sidecar-identity",
+      "status": "blocked",
+      "evidence": "No generated ID mapping survives a changed export; candidate ledger is exact-source-bound."
+    },
+    {
+      "id": "stable-id-object-matching",
+      "status": "partial",
+      "evidence": "5 API IDs are retained in one project; API-to-export identity remains unproven."
+    },
+    {
+      "id": "smallest-safe-change-detection",
+      "status": "partial",
+      "evidence": "2 observed API-field differences; unrepresented editor fields cannot be compared."
+    }
+  ],
+  "reopeningCriteria": [
+    "Consented first-user edition/build/OS and representative project evidence",
+    "Complete enumeration and explicit unsupported-construct inventory",
+    "Persistent track/item identity and unambiguous project/export mapping",
+    "Lossless represented-field inventory with unexplained native differences resolved",
+    "Transactional restore-point, supported API write, reopen validation and interrupted recovery on representative projects"
+  ],
+  "enforcement": {
+    "exactScanExperimental": true,
+    "ordinaryWriteSupported": false
+  },
+  "decisionSha256": "acd8f392c2223963f004c3e850bea6dc18e8d546567f382cd16ac74f77fa1db4"
+}

@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "scope": "Trusted native keyboard events, Chromium Accessibility.getFullAXTree, computed contrast, real shipped main/preload/renderer. No VoiceOver speech test is claimed.",
+  "checks": [
+    "all visible native controls have AX names in sample/selected/history/conflict workflows",
+    "dense scoped arrows/Home/End and native activation",
+    "native focus remains visible",
+    "detail action and paging retain intentional focus",
+    "atomic status announcements",
+    "scrollable source values are keyboard reachable",
+    "360–1440px layouts"
+  ],
+  "audits": [
+    {
+      "name": "first-run-onboarding",
+      "accessibilityControls": 24,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 88,
+        "failures": []
+      }
+    },
+    {
+      "name": "diagnostics-privacy-review",
+      "accessibilityControls": 20,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 80,
+        "failures": []
+      }
+    },
+    {
+      "name": "sample-workspace",
+      "accessibilityControls": 20,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 80,
+        "failures": []
+      }
+    },
+    {
+      "name": "sample-history",
+      "accessibilityControls": 80,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 169,
+        "failures": []
+      }
+    },
+    {
+      "name": "sample-media",
+      "accessibilityControls": 11,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 54,
+        "failures": []
+      }
+    },
+    {
+      "name": "sample-resolve",
+      "accessibilityControls": 69,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 129,
+        "failures": []
+      }
+    },
+    {
+      "name": "selected-fcpxml-workspace",
+      "accessibilityControls": 23,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 66,
+        "failures": []
+      }
+    },
+    {
+      "name": "selected-fcpxml-history",
+      "accessibilityControls": 94,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 174,
+        "failures": []
+      }
+    },
+    {
+      "name": "selected-fcpxml-media",
+      "accessibilityControls": 19,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 59,
+        "failures": []
+      }
+    },
+    {
+      "name": "saved-local-history",
+      "accessibilityControls": 95,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 179,
+        "failures": []
+      }
+    },
+    {
+      "name": "resolve-conflicts",
+      "accessibilityControls": 117,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 364,
+        "failures": []
+      }
+    },
+    {
+      "name": "resolve-next-page",
+      "accessibilityControls": 92,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 264,
+        "failures": []
+      }
+    },
+    {
+      "name": "refreshed-source-conflicts",
+      "accessibilityControls": 117,
+      "unnamedControls": [],
+      "contrast": {
+        "checked": 364,
+        "failures": []
+      }
+    }
+  ],
+  "retainedControlNames": {
+    "checked": 296,
+    "unnamed": []
+  },
+  "firstFocus": {
+    "name": "A03Snowy summit15s. Timeline clips: item 2 of 2 on this page.",
+    "outline": "rgb(158, 234, 240)",
+    "style": "solid",
+    "width": "2px"
+  },
+  "focusedAnchor": "Repeated clip local",
+  "layouts": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 768,
+      "scrollWidth": 768
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 360,
+      "scrollWidth": 360
+    }
+  ],
+  "consoleErrors": []
+}

@@ -1,0 +1,5 @@
+.product-truth { margin: 16px 0; padding: 16px 20px; border-radius: 12px; background: var(--surface); }
+.product-truth h2 { font-size: 14px; font-weight: 600; }
+.product-truth p { margin-top: 6px; max-width: 75ch; font-size: 13px; line-height: 1.5; color: var(--secondary); }
+.product-truth p[hidden] { display: none; }
+@media (max-width: 600px) { .product-truth { padding: 16px; } }

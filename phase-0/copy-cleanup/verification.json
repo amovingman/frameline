@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "scope": "Seven real Node process deaths/completions using disposable copies of a pinned FCPXML fixture; no editor write or user project",
+  "checks": [
+    "partial staged bytes removed only after private marker/inode ownership verification",
+    "prepared copy cleanup after SIGKILL",
+    "publication-before-record ambiguity retained",
+    "unvalidated published copies retained",
+    "durably validated copies never removed",
+    "source bytes, mode, mtime, ctime, and identity unchanged",
+    "repeated startup recovery idempotent",
+    "public counts contain no paths"
+  ],
+  "results": [
+    {
+      "phase": "partial-stage",
+      "signal": "SIGKILL",
+      "removedCount": 1,
+      "preservedCount": 0,
+      "publishedCopyPreserved": false,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    },
+    {
+      "phase": "prepared",
+      "signal": "SIGKILL",
+      "removedCount": 1,
+      "preservedCount": 0,
+      "publishedCopyPreserved": false,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    },
+    {
+      "phase": "linked-before-record",
+      "signal": "SIGKILL",
+      "removedCount": 1,
+      "preservedCount": 1,
+      "publishedCopyPreserved": true,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    },
+    {
+      "phase": "published",
+      "signal": "SIGKILL",
+      "removedCount": 1,
+      "preservedCount": 1,
+      "publishedCopyPreserved": true,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    },
+    {
+      "phase": "during-validation",
+      "signal": "SIGKILL",
+      "removedCount": 0,
+      "preservedCount": 1,
+      "publishedCopyPreserved": true,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    },
+    {
+      "phase": "validated",
+      "signal": "SIGKILL",
+      "removedCount": 0,
+      "preservedCount": 0,
+      "publishedCopyPreserved": true,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    },
+    {
+      "phase": "complete",
+      "signal": null,
+      "removedCount": 0,
+      "preservedCount": 0,
+      "publishedCopyPreserved": true,
+      "sourceBytesAndMetadataUnchanged": true,
+      "repeatedRecoveryIdempotent": true
+    }
+  ]
+}

@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, '..');
 const manifest = require(path.join(root, 'package.json'));
 if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) throw new Error('Package manifest is not release-ready');
 const requiredFiles = ['src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
+  'src/review-copy-cleanup.js', 'src/copy-recovery-renderer.js', 'src/accessibility.js', 'src/accessibility.css',
+  'src/product-truth.js', 'src/product-truth-renderer.js', 'src/product-truth.css',
   'src/frame-timecode.js', 'src/resolve-change-context.js', 'src/resolve-review-risk-policy.js', 'src/resolve-comparison-renderer.js',
   'src/resolve-deletion-policy.js', 'src/resolve-placement-policy.js', 'src/resolve-review-guidance.js', 'src/resolve-policy-renderer.js',
   'src/first-run.js', 'src/desktop-onboarding.js', 'src/diagnostics-report.js', 'src/desktop-diagnostics.js', 'src/setup-support-renderer.js',

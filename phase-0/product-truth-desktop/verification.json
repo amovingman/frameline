@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scope": "Shipped main/preload/renderer, disposable real source files and fixture OS picker results. Service/asset rows use explicit presentation fixtures; no external account or service is exercised.",
+  "checks": [
+    "all three example content surfaces labeled as sample beside content",
+    "sample local history explanation does not label independent connected service panels as demonstrations",
+    "real FCPXML scan shows local, missing, unchecked external and unspecified references without fake zeros",
+    "connected/offline presentation and archived/excluded/not-on-service remain distinct with blocked unavailable downloads",
+    "failed selected export has unavailable inventory, never substituted sample values",
+    "matching captures do not claim apply; null captured field is not observed while ordinary apply stays disabled"
+  ],
+  "layouts": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "width": 768,
+      "scrollWidth": 768
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 360,
+      "scrollWidth": 360
+    }
+  ],
+  "sourceBytesUnchanged": true,
+  "rendererErrors": 0
+}

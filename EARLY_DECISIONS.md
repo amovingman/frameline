@@ -2,6 +2,8 @@
 
 These are working defaults for local experiments, not release or pricing decisions. The unresolved gates below require editor-backed tests and pilot input before a public promise.
 
+The [November 19 integration reassessment](EDITOR_INTEGRATION_DECISION.md) records an explicit release No-Go while retaining the exact read-only experiment. It closes the stop/revisit decision process, with source-bound evidence and reopening criteria; it does not close the identity, coverage, validation, pilot, or write gates below.
+
 | Decision | Current working position | Evidence still required |
 |---|---|---|
 | First editor and format | DaVinci Resolve **Free 21.1.2, build 21.1.20010**, on macOS; FCPXML 1.10 for read-only scanning. The exact target is encoded in `src/compatibility-contract.js`. | Complete timeline enumeration, persistent identity across API and export, safe write/reopen. |

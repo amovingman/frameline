@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "scope": "Real SIGKILL at private copy checkpoints followed by two shipped Electron main/preload/renderer processes; disposable files only",
+  "checks": [
+    "startup removes only owned staged aliases",
+    "all 21 unvalidated published copies retained",
+    "validated copy retained after crash",
+    "source and unrelated files preserved",
+    "public report contains no private paths",
+    "20-entry server paging and retained-copy reveal",
+    "invalid page input preserves usable journal",
+    "restart recovery does not re-delete or lose retained reports",
+    "360\u20131440px layouts and no renderer errors",
+    "ordinary successful copy uses the journal without adding recovery work"
+  ],
+  "stages": [
+    {
+      "stage": "first",
+      "removedCount": 22,
+      "preservedCount": 21,
+      "retainedCopies": 22,
+      "sourceUnchanged": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440
+        },
+        {
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390
+        },
+        {
+          "width": 360,
+          "scrollWidth": 360
+        }
+      ],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "restart",
+      "removedCount": 0,
+      "preservedCount": 21,
+      "retainedCopies": 22,
+      "sourceUnchanged": true,
+      "layouts": [],
+      "rendererErrors": 0
+    }
+  ],
+  "automatedValidation": {
+    "fullSuite": {
+      "tests": 1494,
+      "passed": 1494,
+      "failed": 0,
+      "skipped": 0
+    },
+    "copyFocused": {
+      "tests": 42,
+      "passed": 42
+    },
+    "productTruthAndDecision": {
+      "tests": 7,
+      "passed": 7
+    },
+    "accessibility": {
+      "states": 13,
+      "axControlChecks": 781,
+      "retainedControls": 296,
+      "contrastChecks": 2070,
+      "unnamedControls": 0,
+      "contrastFailures": 0
+    },
+    "packageCheck": "passed",
+    "tasteLint": {
+      "failures": 0,
+      "warnings": 0
+    },
+    "impeccableDetector": {
+      "advisories": 30,
+      "nonAdvisory": 0,
+      "newSurfaceFindings": 0
+    }
+  }
+}

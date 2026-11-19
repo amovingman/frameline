@@ -274,6 +274,7 @@ function renderAppState(state) {
   renderServicePanel();
   syncAssetTransferContext();
   renderAssetTransferPanel();
+  window.FramelineProductTruth?.render();
 }
 
 function renderScan(scan) {
@@ -1450,6 +1451,7 @@ function renderServicePanel() {
   syncShareLinksAccount();
   syncAccountUpdatesAccount();
   syncProjectPresetsAccount();
+  window.FramelineProductTruth?.render();
 }
 function renderServiceState(state) {
   if (!state || !Number.isSafeInteger(state.version) || state.version < serviceStateVersion) return;
@@ -2367,6 +2369,7 @@ function showView(name) {
     if (active) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
+  window.FramelineProductTruth?.render();
 }
 
 function selectChange(id) {
@@ -2777,7 +2780,7 @@ let resolveCoveragePage = 0;
 let resolveCoverageKey = '';
 let resolveLookupState = null;
 let resolveConflictLookup = new Map(), resolveChoiceLookup = new Map();
-const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Already applied', conflict: 'Conflict' };
+const resolveLabels = { 'incoming-only': 'Incoming edit', 'local-only': 'Local edit', 'already-applied': 'Matching observations', conflict: 'Conflict' };
 function resolveValue(value) {
   if (value === undefined || value === null) return 'Not present';
   if (typeof value === 'object' && Object.keys(value).join(',') === 'decimal' && typeof value.decimal === 'string') {
@@ -2815,6 +2818,7 @@ function resolveChoice(conflict) {
 }
 function renderResolveState(state) {
   resolveState = state;
+  window.FramelineProductTruth?.render();
   renderResolveServiceProvenance(); renderResolveServicePanel();
   const coverageKey = JSON.stringify(state?.sourceHashes || null);
   if (coverageKey !== resolveCoverageKey) { resolveCoveragePage = 0; resolveCoverageKey = coverageKey; }
@@ -2888,6 +2892,7 @@ function renderResolveState(state) {
     const choice = resolveChoice(resolveConflict(item));
     const button = make('button', `queue-item${item === resolveSelected ? ' selected' : ''}`);
     button.type = 'button';
+    button.dataset.resolveAnchor = JSON.stringify([item.timelineId, item.itemId, item.field]);
     button.setAttribute('aria-pressed', String(item === resolveSelected));
     const sourceContext = window.FramelineComparison?.contextFor(item);
     button.append(make('strong', '', sourceContext?.itemName || sourceContext?.timelineName || item.context?.itemName || item.context?.timelineName || item.itemId || item.timelineId || 'Timeline'), make('small', '', item.field || 'Change'), make('span', 'queue-kind', [sourceContext?.timelineName || item.context?.timelineName || item.timelineId, sourceContext?.tracks?.join(' / ') || item.context?.track].filter(Boolean).join(' · ')), make('span', `queue-status${item.status === 'conflict' && !choice ? ' conflict' : ''}`, choice ? 'Decided' : resolveLabels[item.status] || item.status));
@@ -2925,7 +2930,7 @@ function renderResolveDetail() {
   const values = make('div', 'resolve-values');
   for (const [key, label] of [['base', 'Common base'], ['local', 'Your local cut'], ['incoming', 'Incoming cut']]) {
     const column = make('div', key === 'incoming' ? 'incoming-value' : '');
-    column.append(make('h3', '', label), make('pre', '', item.field === 'existence' && item[key] === null ? 'Not present in this cut' : resolveValue(item[key])));
+    column.append(make('h3', '', label), make('pre', '', item.field === 'existence' && item[key] === null ? 'Not present in this cut' : item[key] === null ? 'Not observed' : resolveValue(item[key])));
     values.append(column);
   }
   detail.append(values);
@@ -3671,6 +3676,8 @@ async function loadResolveHistory(projectId, generation = ++resolveHistoryGenera
     }
     for (const revision of result.revisions) {
       const button = make('button', 'resolve-history-entry'); button.type = 'button';
+      button.dataset.revisionId = revision.id;
+      button.dataset.projectId = projectId;
       button.setAttribute('aria-pressed', 'false');
       button.append(make('strong', '', revision.message), make('small', '', `${revision.createdAt} · ${revision.id.slice(0, 12)}`));
       button.addEventListener('click', () => openResolveHistoryRevision(projectId, revision.id, generation, button));
@@ -4167,6 +4174,7 @@ async function reviewCopyAction(method) {
     reviewCopyBusy = false;
     renderAppState(currentAppState);
     refreshMediaAuditJobs();
+    window.dispatchEvent(new Event('frameline:copy-finished'));
   }
 }
 

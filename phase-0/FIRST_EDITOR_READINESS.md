@@ -2,6 +2,8 @@
 
 Run `node phase-0/audit-first-editor.js` to recompute ten Phase 0 and early Phase 1 gates from the checked-in, disposable Resolve captures. The report is deterministic and path-free. Its source hashes bind the paired API snapshots, their FCPXML exports, and the separate structure export. It does not contact Resolve or modify a project.
 
+The [November 19 editor reassessment](../EDITOR_INTEGRATION_DECISION.md) completes the stop/revisit decision: stop release promotion and retain the exact read-only experiment. `node phase-0/revisit-editor-choice.js` binds that decision to this evidence. The capability statuses below, including the audit’s blocked integration-choice gate, remain unchanged; completing the decision is not proof that safe identity, validation, or apply has become available.
+
 On November 17, 2026, `python3 phase-0/probe-external-resolve.py` returned `connected: false` while the Free build was running with a disposable project, both inside and outside the workspace sandbox. `external-api-observation.json` records the outside-sandbox run. This is an observation of the installed configuration, not a claim about every Free installation. The internal Resolve console still works, but the Electron app has no proven live API connection to Free.
 
 The paired capture retains five API item IDs across an edit. One corresponding FCPXML spine position changes from 5 to 6. `src/resolve-candidate-ledger.js` records those observations and verifies a saved ledger against all four exact source byte streams. A collision makes its result unresolved and suppresses retained-ID claims. The ledger is **candidate evidence**, not a persistent clip/track sidecar or an API-to-FCPXML identity proof.

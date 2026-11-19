@@ -205,3 +205,18 @@
 .resolve-detail .resolve-values pre { max-height: 300px; overflow: auto; }
 @media (max-width: 1000px) { .resolve-context-roles { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .resolve-change-pages button { min-height: 44px; } .resolve-history-frame-context { grid-template-columns: 1fr; } }
+
+.copy-recovery-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; margin: 16px 0; padding: 20px 24px; border-radius: 12px; background: var(--surface); }
+.copy-recovery-panel[hidden] { display: none; }
+.copy-recovery-panel h2 { font-size: 16px; font-weight: 600; }
+.copy-recovery-panel p { margin-top: 6px; color: var(--secondary); font-size: 13px; line-height: 1.5; max-width: 75ch; }
+.copy-recovery-panel > p, #copy-recovery-entries { grid-column: 1 / -1; }
+.copy-recovery-panel button { min-height: 38px; padding: 8px 12px; border-radius: 6px; background: var(--raised); color: var(--text); font: inherit; font-size: 13px; align-self: start; }
+.copy-recovery-panel button:hover:not(:disabled) { background: var(--hover); }
+.copy-recovery-panel button:disabled { opacity: .55; }
+.copy-recovery-entry { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; }
+.copy-recovery-panel :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 600px) { .copy-recovery-panel { grid-template-columns: minmax(0, 1fr); } .copy-recovery-entry { flex-direction: column; gap: 8px; } .copy-recovery-panel button { min-height: 44px; justify-self: start; } }
+
+.copy-recovery-panel details { grid-column: 1 / -1; }
+.copy-recovery-panel summary { padding: 8px 0; cursor: pointer; font-size: 13px; }

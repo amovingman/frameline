@@ -6,6 +6,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
   <title>Frameline — Launch film</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./product-truth.css">
+  <link rel="stylesheet" href="./accessibility.css">
   <script defer src="./sample-data.js"></script>
   <script defer src="./availability-summary.js"></script>
   <script defer src="./windowed-list.js"></script>
@@ -16,6 +18,10 @@
   <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
   <script defer src="./asset-lifecycle-renderer.js"></script>
+  <script defer src="./product-truth.js"></script>
+  <script defer src="./product-truth-renderer.js"></script>
+  <script defer src="./copy-recovery-renderer.js"></script>
+  <script defer src="./accessibility.js"></script>
 </head>
 <body>
   <div class="site-shell">
@@ -32,6 +38,12 @@
 
     <main class="page"><div class="workspace-bar"><span>Launch film <span class="breadcrumb-separator">/</span> <strong id="view-label">Review changes</strong></span><span class="branch-label">main <span class="branch-dot"></span> Sample project</span></div>
       <div id="file-notice" class="file-notice" role="status" hidden></div>
+      <section id="copy-recovery-panel" class="copy-recovery-panel" aria-labelledby="copy-recovery-title" hidden>
+        <div><h2 id="copy-recovery-title">Review copy recovery</h2><p id="copy-recovery-status" role="status" tabindex="-1"></p></div>
+        <button id="copy-recovery-refresh" type="button">Recheck incomplete copies</button>
+        <p>Only journaled temporary files with verified ownership are removed. Published copies and changed or uncertain files are kept for review.</p>
+        <details id="copy-recovery-details"><summary id="copy-recovery-summary">Review retained copies</summary><div id="copy-recovery-entries"></div><div class="resolve-toolbar"><button id="copy-recovery-previous" type="button" hidden>Earlier retained copies</button><button id="copy-recovery-more" type="button" hidden>More retained copies</button></div></details>
+      </section>
       <div id="resolve-recovery-reminder" class="resolve-recovery-reminder" hidden><p id="resolve-recovery-reminder-text" role="status"></p><button id="resolve-recovery-review" type="button">Review retained drills</button></div>
       <section id="first-run" class="first-run" aria-labelledby="first-run-title" hidden>
         <div><h2 id="first-run-title">Start with a timeline export</h2><p id="first-run-editor-help">Choose the experimental Resolve Free 21.1.2 integration on macOS, then an FCPXML 1.10 export. The scan is read only.</p><p>Choose where Frameline keeps revision history. Project files and media stay in their current locations.</p></div>

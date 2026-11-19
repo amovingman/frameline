@@ -45,13 +45,13 @@ function readAtStart(fd) {
  * Destination publication uses an exclusive hard link, so collisions never
  * replace files and incomplete bytes are never visible under the chosen name.
  */
-function prepareReviewCopy({ sourcePath, expectedSha256, destinationDirectory, preferredFilename } = {}) {
+function prepareReviewCopy({ sourcePath, expectedSha256, destinationDirectory, preferredFilename, cleanupJournal = null, onTransaction = () => {} } = {}) {
   if (typeof sourcePath !== 'string' || !sourcePath || !/\.fcpxml$/iu.test(sourcePath)
     || typeof destinationDirectory !== 'string' || !destinationDirectory
     || typeof expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/iu.test(expectedSha256)
     || typeof preferredFilename !== 'string' || preferredFilename !== path.basename(preferredFilename)
     || preferredFilename.includes('\\') || preferredFilename.includes('\0')
-    || !/^[^.].*\.fcpxml$/iu.test(preferredFilename)) invalid('Invalid review-copy request.');
+    || !/^[^.].*\.fcpxml$/iu.test(preferredFilename) || typeof onTransaction !== 'function') invalid('Invalid review-copy request.');
   const source = assertPlainPath(sourcePath);
   const directory = assertPlainPath(destinationDirectory);
   const directoryStat = fs.statSync(directory, { bigint: true });
@@ -60,23 +60,30 @@ function prepareReviewCopy({ sourcePath, expectedSha256, destinationDirectory, p
   let temporary;
   let published;
   let created = false;
+  let transaction = null, ownedStage = null;
   try {
     const initial = fs.fstatSync(fd, { bigint: true });
     if (!initial.isFile()) invalid('Review-copy source must be a regular FCPXML file.');
     if (initial.size > BigInt(MAX_XML_BYTES)) invalid('Review-copy source exceeds the supported FCPXML size.');
     const bytes = readAtStart(fd);
     if (digest(bytes) !== expectedSha256.toLowerCase()) invalid('Review-copy source has changed.');
-    temporary = path.join(directory, `.review-copy-${randomBytes(16).toString('hex')}.tmp`);
-    const output = fs.openSync(temporary, 'wx+', 0o600);
+    if (cleanupJournal) {
+      transaction = cleanupJournal.begin({ sourcePath: source, destinationDirectory: directory, expectedSha256: expectedSha256.toLowerCase(), sourceIdentity: initial, directoryIdentity: directoryStat });
+      temporary = transaction.temporaryPath; onTransaction(transaction);
+    } else temporary = path.join(directory, `.review-copy-${randomBytes(16).toString('hex')}.tmp`);
+    const output = transaction ? transaction.outputFd : fs.openSync(temporary, 'wx+', 0o600);
+    ownedStage = fs.fstatSync(output, { bigint: true });
     created = true;
     try {
       fs.writeFileSync(output, bytes);
+      if (transaction) cleanupJournal.willPreserveMetadata(transaction);
       // Preserve ordinary permission bits without propagating special bits.
       fs.fchmodSync(output, Number(initial.mode & 0o777n));
       fs.futimesSync(output, Number(initial.atimeNs) / 1e9, Number(initial.mtimeNs) / 1e9);
       fs.fsyncSync(output);
       if (digest(readAtStart(output)) !== expectedSha256.toLowerCase()) invalid('Review copy verification failed.');
-    } finally { fs.closeSync(output); }
+      if (transaction) cleanupJournal.stageReady(transaction);
+    } finally { ownedStage = fs.fstatSync(output, { bigint: true }); fs.closeSync(output); }
     assertPlainPath(source);
     assertPlainPath(directory);
     const currentDirectory = fs.statSync(directory, { bigint: true });
@@ -89,14 +96,26 @@ function prepareReviewCopy({ sourcePath, expectedSha256, destinationDirectory, p
     const stem = preferredFilename.slice(0, -extension.length);
     for (let index = 1; ; index += 1) {
       const candidate = path.join(directory, index === 1 ? preferredFilename : `${stem} (${index})${extension}`);
-      try { fs.linkSync(temporary, candidate); published = candidate; break; }
+      try {
+        if (transaction) cleanupJournal.prepareDestination(transaction, candidate);
+        fs.linkSync(temporary, candidate); published = candidate;
+        if (transaction) cleanupJournal.published(transaction);
+        else { const parent = fs.openSync(directory, READ_FLAGS); try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); } }
+        break;
+      }
       catch (error) { if (error.code !== 'EEXIST') throw error; }
     }
     return published;
   } finally {
     fs.closeSync(fd);
-    if (created) {
-      try { fs.unlinkSync(temporary); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (transaction) cleanupJournal.releaseStage(transaction);
+    else if (created) {
+      try {
+        assertPlainPath(directory);
+        const named = fs.lstatSync(temporary, { bigint: true }), parent = fs.statSync(directory, { bigint: true });
+        if (named.isFile() && !named.isSymbolicLink() && ownedStage && parent.dev === directoryStat.dev && parent.ino === directoryStat.ino
+          && ['dev', 'ino', 'birthtimeNs'].every(key => named[key] === ownedStage[key])) fs.unlinkSync(temporary);
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
   }
 }
