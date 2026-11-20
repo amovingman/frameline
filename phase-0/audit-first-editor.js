@@ -296,6 +296,14 @@ function readRichInterruptionEvidence() {
 }
 
 function auditFirstEditor() {
+  const scopeBytes = fs.readFileSync(path.join(__dirname, 'project-scope.json'));
+  const scope = JSON.parse(scopeBytes);
+  if (scope.schemaVersion !== 1 || scope.purpose !== 'personal-project' || scope.intendedUsers !== 'project-owner-only'
+    || scope.additionalUsersRequired !== false || scope.publicReleaseRequired !== false
+    || scope.hostedDeploymentRequired !== false || scope.representativeUserProjectsRequired !== false
+    || scope.testPolicy !== 'small-disposable-synthetic-fixtures' || scope.defaultFixtureClips !== 50
+    || scope.editor?.name !== 'DaVinci Resolve' || scope.editor.edition !== 'Free' || scope.editor.version !== '21.1.2'
+    || scope.editor.build !== '21.1.20010' || scope.editor.os !== 'macOS') throw new Error('invalid-project-scope');
   const external = JSON.parse(fs.readFileSync(path.join(__dirname, 'external-api-observation.json'), 'utf8'));
   if (external.schemaVersion !== 1 || external.readOnly !== true || external.edition !== 'Free'
     || external.editorVersion !== '21.1.2' || external.editorBuild !== '21.1.20010'
@@ -328,11 +336,11 @@ function auditFirstEditor() {
   const relinkIdentity = auditRelinkIdentity();
   if (native.observedControlSnapshotSha256 !== recovery.sourceHash) throw new Error('native-control-snapshot-mismatch');
   const gates = [
-    gate('first-user-cohort', 'open', 'No intended-user editor/version distribution is recorded.'),
+    gate('first-user-cohort', 'not-required', 'User-confirmed personal project for its owner and the installed Resolve build; no additional users or pilot cohort are required.'),
     gate('complete-timeline-enumeration', 'blocked', `Mixed API capture: ${mixed.itemCounts.video} video, ${mixed.itemCounts.audio} audio, ${mixed.itemCounts.transition} transition items, ${mixed.reciprocalLinkedPairs} reciprocal linked pair. Supplements observe ${effects.observedEffects} effect type ID and ${properties.returnedPropertyKeys} returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved.`),
-    gate('release-version-corpus', 'open', 'Only the named Free 21.1.2 build is editor-backed; no release support range is declared.'),
+    gate('release-version-corpus', 'not-required', 'Public distribution is outside personal-project scope. The installed Free 21.1.2 build has local fixtures; broader release support is not claimed.'),
     gate('stable-clip-and-track-identity', 'blocked', `${ledger.retained.length} retained API item IDs in paired captures. A separate repeated-media relink fixture retains ${relinkIdentity.occurrenceCount} occurrence IDs and ${relinkIdentity.mediaPoolItemCount} media-pool IDs through relocation, save/reopen and original-path restoration. XML association is candidate-only and track identity is index-only.`),
-    gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open.'),
+    gate('representative-scan-write-reopen', 'partial', 'One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; operation-specific small-fixture desktop transaction measurements remain open; customer projects are not required.'),
     gate('editor-choice-stop-or-revisit', 'blocked', `External Free connection was unavailable in the ${external.observedOn} local probe; the internal Lua Console bridge now captures read-only fixtures, but safe apply and full coverage remain unproven.`),
     gate('lossless-editor-fields', 'blocked', `Paired coverage leaves ${pairedCoverage.timelines[0].unobservable.length} construct/identity categories unobservable. Native edit and no-edit control each change ${native.changedDuringNoEditControl} members; common opaque line tags do not prove semantic equivalence.`),
     gate('durable-sidecar-identity', 'blocked', 'No generated ID mapping survives a changed export; candidate ledger is exact-source-bound.'),
@@ -341,7 +349,7 @@ function auditFirstEditor() {
   ];
   return { schemaVersion: 1, readOnly: true, safeToApply: false, releaseSupported: false,
     target: 'DaVinci Resolve Free 21.1.2 / build 21.1.20010 / macOS / FCPXML 1.10',
-    sources: { ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes,
+    sources: { projectScope: createHash('sha256').update(scopeBytes).digest('hex'), ...ledger.sourceHashes, ...mixed.hashes, ...native.hashes, effectReports: effects.hashes,
       effectGuardReport: effectGuard.hash, desktopEffectGuardReport: desktopEffects.hash, structureExport: structureCoverage.sourceHash,
       interruptionReports: interruptions.hashes,
       propertyGuardReport: properties.hash,

@@ -62,6 +62,8 @@ test('checked-in live evidence keeps ten first-editor gates honest', () => {
     unrun: '4cb4684783f0fa193b91958d24c81c47e4f476060f2e29de6094cf672ba623db' });
   assert.deepEqual(report.observations.interruptedRecovery, { desktopRestartCases: 2, restoredObservedSource: true,
     verifiedUnrunSource: true, persistentRetirementProbe: true, fullProjectApplyVerified: false });
-  assert(report.gates.every(gate => ['open', 'blocked', 'partial'].includes(gate.status)));
+  assert.deepEqual(report.gates.filter(gate => gate.status === 'not-required').map(gate => gate.id), ['first-user-cohort', 'release-version-corpus']);
+  assert(report.gates.every(gate => ['open', 'blocked', 'partial', 'not-required'].includes(gate.status)));
+  assert.match(report.sources.projectScope, /^[a-f0-9]{64}$/);
   assert(!JSON.stringify(report).includes('/Users/'));
 });

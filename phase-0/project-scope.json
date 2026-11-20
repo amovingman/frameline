@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "confirmedOn": "2026-11-19",
+  "purpose": "personal-project",
+  "intendedUsers": "project-owner-only",
+  "additionalUsersRequired": false,
+  "publicReleaseRequired": false,
+  "hostedDeploymentRequired": false,
+  "representativeUserProjectsRequired": false,
+  "testPolicy": "small-disposable-synthetic-fixtures",
+  "defaultFixtureClips": 50,
+  "editor": {
+    "name": "DaVinci Resolve",
+    "edition": "Free",
+    "version": "21.1.2",
+    "build": "21.1.20010",
+    "os": "macOS"
+  }
+}

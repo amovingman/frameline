@@ -1,5 +1,7 @@
 # System Design: Git for Video Editing
 
+Current scope is a personal project for the owner and the installed Resolve version, using small disposable fixtures. Public-release and hosted-team requirements below describe optional future architecture, not prerequisites for local work. See `PROJECT_SCOPE.md`.
+
 ## 1. Goal
 
 Let editors version their projects, share changes, and pull updates into a project they already have. A pull can use either of two modes:

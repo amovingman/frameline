@@ -3,6 +3,8 @@
 Frameline is an early desktop prototype for versioning video-editing decisions and safely bringing collaborator changes into an existing project.
 Its current compatibility boundary is the named Resolve Free build and FCPXML 1.10 read-only workflow in [the support matrix](phase-0/SUPPORT_MATRIX.md). It does not support arbitrary project files or other editors.
 
+Current scope is a [personal project](PROJECT_SCOPE.md) for the owner, using the installed Resolve version and small disposable fixtures. Additional users, public release and hosted deployment are not required for local development.
+
 ## Run locally
 
 Requirements: Node.js and npm.

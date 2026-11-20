@@ -16,12 +16,14 @@
     "onboardingEditorId": "resolve-free-21.1.2",
     "maximumXmlBytes": 20971520
   },
-  "auditSha256": "f933b00d47d984906b6e6272bde4fce071ff1d79358e52871a7fb8ba3126b877",
+  "auditSha256": "8f50c3578e5c84948842be1c692c7bfb6ebc7b62e1d4a4ae90af3cb63acb6268",
   "evidence": {
+    "PROJECT_SCOPE.md": "baf361bba806340342f93eacfd41e5d2d8343bde2048fabcf3cb3f89362f8e7f",
+    "phase-0/project-scope.json": "7fac2c19a551ef819e5d0b0f507e10235e1df339f1edb4646fa780d13cc41af9",
     "src/compatibility-contract.js": "3ed81b7c047426f47ec35f9f70176fa38c455c2bc53ddeebb71ca7008fb6be50",
-    "phase-0/audit-first-editor.js": "87b10a3a7b315d0702d2d259818e878e3e51ed3d41036c1ded514d48dc3c7224",
+    "phase-0/audit-first-editor.js": "6a6cd894da85aa844f7cdb8d3e3b46d5ecc2809a03eab72730b04e0b26c823e6",
     "phase-0/INTEGRATION_ASSESSMENT.md": "51355e89154022fa4df8a29fc7613758c3d54eed0f6c0d8f46672244f1c3fcf7",
-    "phase-0/FIRST_EDITOR_READINESS.md": "c5210dc0138b3ced8fc9536a2b88f3ad6b1e7416b66aa9034bf34aa2c9a60f7b",
+    "phase-0/FIRST_EDITOR_READINESS.md": "73ea825009c1cf8f56e13556ff17aa3e1ea19e84eac967e542e0a0032be5539b",
     "phase-0/SUPPORT_MATRIX.md": "c25547538522d64b236cc1deff140eb04304534397ff1e32d7c521a1b331ca9b",
     "phase-0/external-api-observation.json": "96a2ee1da0854ac61e16d90012fc9e2dbce86807b2e8c37e27f7c0c41ff0c8aa"
   },
@@ -44,7 +46,7 @@
     {
       "id": "another-editor",
       "disposition": "not-selected",
-      "reason": "No release-ready candidate or consented first-user evidence exists. No second adapter is started by this decision."
+      "reason": "Another editor is outside the user-confirmed personal target. No second adapter is started by this decision."
     },
     {
       "id": "native-byte-patching",
@@ -54,19 +56,9 @@
   ],
   "blockers": [
     {
-      "id": "first-user-cohort",
-      "status": "open",
-      "evidence": "No intended-user editor/version distribution is recorded."
-    },
-    {
       "id": "complete-timeline-enumeration",
       "status": "blocked",
       "evidence": "Mixed API capture: 3 video, 49 audio, 1 transition items, 1 reciprocal linked pair. Supplements observe 1 effect type ID and 43 returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved."
-    },
-    {
-      "id": "release-version-corpus",
-      "status": "open",
-      "evidence": "Only the named Free 21.1.2 build is editor-backed; no release support range is declared."
     },
     {
       "id": "stable-clip-and-track-identity",
@@ -76,7 +68,7 @@
     {
       "id": "representative-scan-write-reopen",
       "status": "partial",
-      "evidence": "One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; representative-project and desktop transaction measurements remain open."
+      "evidence": "One disposable rename and its rollback retain exact observed bytes after separate project close/reopens; operation-specific small-fixture desktop transaction measurements remain open; customer projects are not required."
     },
     {
       "id": "editor-choice-stop-or-revisit",
@@ -105,15 +97,15 @@
     }
   ],
   "reopeningCriteria": [
-    "Consented first-user edition/build/OS and representative project evidence",
+    "Operation-specific small disposable fixtures for the installed editor build",
     "Complete enumeration and explicit unsupported-construct inventory",
     "Persistent track/item identity and unambiguous project/export mapping",
     "Lossless represented-field inventory with unexplained native differences resolved",
-    "Transactional restore-point, supported API write, reopen validation and interrupted recovery on representative projects"
+    "Transactional restore-point, supported API write, reopen validation and interrupted recovery on small disposable projects"
   ],
   "enforcement": {
     "exactScanExperimental": true,
     "ordinaryWriteSupported": false
   },
-  "decisionSha256": "acd8f392c2223963f004c3e850bea6dc18e8d546567f382cd16ac74f77fa1db4"
+  "decisionSha256": "18e42e73a7c6d2996b8b278f54b7afb85fcd596843604b2d8ac37dbf80fd12b8"
 }

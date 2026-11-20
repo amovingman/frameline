@@ -10,7 +10,7 @@ Electron hosts a local HTML/CSS/JavaScript interface on desktop. The interface i
 
 ## Users
 
-Video editors working with project files and collaborators' edits. They need to inspect incoming changes and protect their current work.
+The project owner is the sole intended user. This is a personal project using the installed Resolve Free 21.1.2/build 21.1.20010 on macOS. Development uses small disposable synthetic projects; no additional users or customer-project research are required. See `PROJECT_SCOPE.md`.
 
 ## Product Purpose
 

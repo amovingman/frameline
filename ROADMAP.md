@@ -2,6 +2,10 @@
 
 A dependency-first roadmap from the current Electron prototype to a safe, collaborative version-control workflow for video projects. The initial integration target is **DaVinci Resolve Free 21.1.2 on macOS with FCPXML 1.10**. Release support remains gated by complete read coverage, stable identity, and a recoverable write transaction.
 
+## Current personal scope
+
+This is a personal project for the project owner using the installed Resolve Free 21.1.2/build 21.1.20010 on macOS. Small disposable synthetic fixtures are sufficient for development; no additional users, customer projects or pilot cohort are required. Public-release, hosting and expansion items below are optional/deferred, not prerequisites for local work or completed features. Editor data-safety and correctness gates remain in force. See `PROJECT_SCOPE.md`.
+
 ## Product outcome
 
 Editors can scan a local project, save immutable revisions, share a branch with a collaborator, review a three-way change plan, resolve conflicts, and apply safe edits to the original project or a review copy. Unchanged media is referenced by hash rather than recopied. The app remains useful offline and clearly reports whether media is local, synced, missing, or excluded.
@@ -30,7 +34,7 @@ A request to complete a feature means completing one existing roadmap checkbox i
 ## Phase 0 — Editor choice and integration proof
 
 ### 0.1 Select the initial editor and format
-- [ ] List likely first users and the editor/version they use most. The user reconfirmed the installed Resolve Free 21.1.2/build 21.1.20010 as the sole editor target. A consented first-user cohort and actual representative project evidence are still needed before a release target can be chosen.
+- [x] List likely first users and the editor/version they use most. The user explicitly defined this as a personal project: the project owner is the only intended user, targeting the installed Resolve Free 21.1.2/build 21.1.20010 on macOS. No additional-user cohort is required. This resolves the scope decision and makes no usage-research claim; see `PROJECT_SCOPE.md`.
 - [x] Research Free Resolve 21.1.2 timeline exchange feasibility: FCPXML timeline import/export is available in the installed build.
 - [x] Narrow the initial integration target to the tested Free 21.1.2 build on macOS. Studio and other versions are outside this target.
 - [x] Resolve 21.1.2 (build 21.1.20010) imported a disposable three-clip FCPXML fixture, exported it, and reimported a modified copy. See `phase-0/resolve-xml-proof/README.md`.
@@ -59,7 +63,7 @@ A request to complete a feature means completing one existing roadmap checkbox i
 - [x] Extend the read-only matcher to flat single-picture-source Resolve `<clip>` wrappers, reject mixed/nested/gap-lane structures and timing collisions, and bind candidate reports to snapshot and export hashes. Full performance exports remain unsupported by this matcher.
 - [x] Apply one isolated duration edit to a copy using exported FCPXML.
 - [x] Reimport the modified copy in Resolve and verify the changed clip duration and 10-second resulting timeline; the other two clips remained in sequence.
-- [ ] Measure scan, write, and reopen behavior on realistically sized projects. The benchmark separates first-scan and cached-rescan timing on the pinned 1,001-picture-clip export. New disposable 50/500/10,000-picture-clip exports add desktop scan/cache/cancel evidence; representative user projects and app write/reopen remain open. See `LARGE_PROJECTS.md`.
+- [ ] Measure scan, write, and reopen behavior on realistically sized projects. The benchmark separates first-scan and cached-rescan timing on the pinned 1,001-picture-clip export. New disposable 50/500/10,000-picture-clip exports add desktop scan/cache/cancel evidence; Operation-specific small-fixture write/reopen validation remains open; customer projects are not required for this personal scope. See `LARGE_PROJECTS.md`.
 - [x] Repeat the read-only scanner benchmark ten times on the exact editor-backed 1,001-picture-clip export and assert its hash, byte count, clip count, frames, and warnings each run. This does not measure editor write/reopen or complete coverage.
 - [x] Stop or revisit editor choice if stable IDs and safe validation are not achievable. The evidence-backed reassessment stops release/write promotion and retains the exact Free/FCPXML target as read-only research. Five integration paths have explicit dispositions and reopening criteria; the recomputed audit and named evidence hashes bind the No-Go decision. This completes the decision process while identity, enumeration, and safe-apply capability gates remain blocked. See `EDITOR_INTEGRATION_DECISION.md` and `phase-0/editor-integration-decision.json`.
 
@@ -265,7 +269,7 @@ A request to complete a feature means completing one existing roadmap checkbox i
 - [ ] Document incident response, backups, service recovery, and security disclosure. `INCIDENT_RESPONSE.md` records the local response and restore procedure; private intake, responders, and managed off-device backups remain open.
 
 ### 5.3 Add integrations only after the first is reliable
-- [ ] Measure real usage and failure rates of the first adapter. The desktop now counts session-local scan outcomes and duration without paths and includes aggregate counts in reviewed diagnostics; consented pilot measurements remain open.
+- [ ] Measure real usage and failure rates of the first adapter. The desktop now counts session-local scan outcomes and duration without paths and includes aggregate counts in reviewed diagnostics; owner-use measurements remain deferred until the owner uses the app; no pilot cohort is required.
 - [ ] Generalize the adapter contract only from proven shared behavior. A gate now returns no shared capabilities until two release-ready adapters demonstrate them; only one experimental adapter exists.
 - [ ] Evaluate the next editor against the same identity, diff, write, and validation gates. `EDITOR_EXPANSION.md` and a fail-closed candidate gate define the evidence; selecting and testing a candidate waits on the first adapter's release readiness.
 - [ ] Build one adapter at a time with its own compatibility corpus and release support matrix. The expansion gate requires a candidate corpus; no second adapter or supported matrix row exists yet.
@@ -289,14 +293,14 @@ A request to complete a feature means completing one existing roadmap checkbox i
 - [ ] **Privacy:** collect the least project metadata possible; make media upload explicit and inspectable. Revision transfer now rejects path-like labels and user-entered path text; metadata and asset-byte disclosures are path-free planning artifacts. Desktop review and hosted policy remain open.
 - [ ] **Performance:** stream and hash large media; make long work cancellable and resumable. Streaming hashes and resumable local chunks exist; scan metrics now retain bounded recent p50/p95 timings. Real-project and hosted-transfer measurements remain open.
 - [x] **Accessibility:** keyboard operation, visible focus, clear status text, and readable contrast. The whole-app audit covers 13 current workflow states, 781 actual accessibility-tree control checks, 296 retained-control names, and 2,070 computed text-contrast checks, plus trusted keyboard, focus, reduced-motion, status, and 360–1440px layout checks. Copy recovery adds distinct accessible reveal names and focused paging. The documented scope is Chromium accessibility-tree/native-keyboard testing, without a VoiceOver speech claim. See `ACCESSIBILITY_AUDIT.md`.
-- [ ] **Observability:** useful errors and metrics without leaking media paths or credentials. Log redaction now covers embedded paths; reviewed diagnostics include bounded scan timing aggregates and safe error codes. Consented pilot telemetry remains open.
+- [ ] **Observability:** useful errors and metrics without leaking media paths or credentials. Log redaction now covers embedded paths; reviewed diagnostics include bounded scan timing aggregates and safe error codes. Optional owner-use metrics remain deferred; collecting pilot telemetry is not required.
 - [ ] **Compatibility:** publish exact editor, project-format, OS, and version support. An exact experimental version/build/OS/format contract now fails closed for writes and release claims; a supported release row remains open.
 
 ## Key decisions to resolve early
 
 1. Which editor and project format are first? The working experimental choice is Resolve Free 21.1.2/build 21.1.20010 on macOS with FCPXML 1.10 read-only scan. See `EARLY_DECISIONS.md`; safe write remains unproven.
 2. Can its supported API reliably enumerate and write the timeline objects needed for clip-level changes? Limited internal-console evidence exists; external Free access, complete enumeration, stable mapping and recoverable apply remain open.
-3. Which platforms and editor versions must the first release support? No release row is declared. The exact tested macOS/Free build is a pilot boundary pending intended-user corpus and release drills.
+3. Which platforms and editor versions must the first release support? No release row is declared. The personal target is the installed macOS/Free build with small fixtures; broader public releases are deferred.
 4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests? Pilot planning uses local/shared media and metadata-only history; pricing and hosted media remain research decisions.
 5. What project metadata and media are uploaded, and what privacy, retention, and deletion controls do users require? A validated bundle and explicit asset-byte review describe the proposed transfer; hosted region, retention and deletion policy remain open.
 6. What constitutes a safe automatic merge for ripple edits, linked media, transitions, and nested sequences? None is currently proven; `EARLY_DECISIONS.md` records the per-construct evidence needed before an automatic rule can be enabled.

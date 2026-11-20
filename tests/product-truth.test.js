@@ -56,6 +56,8 @@ test('editor reassessment is deterministic, evidence-bound and keeps every relea
   assert.equal(report.safeToApply, false); assert.equal(report.releaseSupported, false);
   assert.equal(report.enforcement.ordinaryWriteSupported, false); assert.equal(report.enforcement.exactScanExperimental, true);
   assert.ok(report.blockers.some(value => value.id === 'stable-clip-and-track-identity'));
+  assert.ok(!report.blockers.some(value => ['first-user-cohort', 'release-version-corpus'].includes(value.id)));
+  assert.ok(report.reopeningCriteria.every(value => !/cohort|consented first-user/i.test(value)));
   assert.equal(report.alternatives.find(value => value.id === 'native-byte-patching').disposition, 'rejected');
   assert.doesNotMatch(JSON.stringify(report), /\/Users\//);
 });
