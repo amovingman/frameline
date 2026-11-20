@@ -40,6 +40,7 @@
 
     <main class="page"><div class="workspace-bar"><span>Launch film <span class="breadcrumb-separator">/</span> <strong id="view-label">Review changes</strong></span><span class="branch-label">main <span class="branch-dot"></span> Sample project</span></div>
       <div id="file-notice" class="file-notice" role="status" hidden></div>
+      <section id="project-scan-progress-panel" class="project-scan-progress" aria-label="Project scan progress" hidden><div><span id="project-scan-progress-text">Preparing read-only scan</span><progress id="project-scan-progress" max="1" aria-label="Current scan phase"></progress></div><p id="project-scan-status" role="status" aria-live="polite"></p></section>
       <section id="copy-recovery-panel" class="copy-recovery-panel" aria-labelledby="copy-recovery-title" hidden>
         <div><h2 id="copy-recovery-title">Review copy recovery</h2><p id="copy-recovery-status" role="status" tabindex="-1"></p></div>
         <button id="copy-recovery-refresh" type="button">Recheck incomplete copies</button>
@@ -73,7 +74,9 @@
         </div>
         <section class="film-section" aria-labelledby="film-title">
           <div class="film-head"><h2 id="film-title">Sequence 01</h2><span id="timeline-selection">A02 · Frozen peaks</span></div>
+          <div id="scan-clips-controls" class="scan-list-controls" hidden><div class="scan-list-search"><label for="scan-clips-search">Find picture clips</label><input id="scan-clips-search" type="search" autocomplete="off" aria-controls="video-track" placeholder="Name, media or frame value"></div><div class="scan-list-jump"><label for="scan-clips-jump">Clip number</label><div><input id="scan-clips-jump" type="number" min="1" step="1" inputmode="numeric" aria-controls="video-track"><button id="scan-clips-go" type="button">Go to clip</button></div></div><p id="scan-clips-range" class="scan-list-range"></p><p id="scan-clips-help" class="scan-list-help">Browse every scanned clip. Search or jump by original clip number. In the list, use arrow keys, Page Up/Down, Home or End.</p></div>
           <div id="video-track" class="film-strip" aria-label="Illustrative picture track V1"></div>
+          <section id="scan-clips-detail" class="scan-list-detail" aria-label="Selected scanned clip" hidden></section>
           <div class="film-meta"><span>V1 · Picture</span><span>00:00</span><span>00:10</span><span>00:20</span><span>00:30</span><span>00:40</span></div>
           <button id="audio-track" type="button" class="audio-track" aria-label="Music bed, sample audio track"></button>
           <div class="sample-line"><span>Sample mountain footage</span><p>These frames and timeline values are sample content, not media read from a project file.</p></div>
@@ -341,7 +344,7 @@
           <div class="media-audit-job-paging"><span id="media-audit-job-range"></span><button id="media-audit-more" type="button" hidden>Show older checks</button></div>
           <div id="media-audit-reports" class="media-audit-reports" aria-label="Last completed media checks"></div>
         </section>
-        <div class="secondary-section"><div class="section-head"><h2>Referenced files</h2><span id="media-inventory-kind">Sample data</span></div><div id="media-list" class="media-list"></div><p class="view-footnote">A supported editor adapter will resolve actual asset paths and availability.</p></div></section>
+        <div class="secondary-section"><div class="section-head"><h2>Referenced files</h2><span id="media-inventory-kind">Sample data</span></div><div id="scan-media-controls" class="scan-list-controls" hidden><div class="scan-list-search"><label for="scan-media-search">Find referenced files</label><input id="scan-media-search" type="search" autocomplete="off" aria-controls="media-list" placeholder="Filename or availability"></div><div class="scan-list-jump"><label for="scan-media-jump">File number</label><div><input id="scan-media-jump" type="number" min="1" step="1" inputmode="numeric" aria-controls="media-list"><button id="scan-media-go" type="button">Go to file</button></div></div><p id="scan-media-range" class="scan-list-range"></p><p id="scan-media-help" class="scan-list-help">Browse every reference in this scan. Search or jump by original file number. In the list, use arrow keys, Page Up/Down, Home or End.</p></div><div id="media-list" class="media-list" aria-label="Referenced files"></div><section id="scan-media-detail" class="scan-list-detail" aria-label="Selected referenced file" hidden></section><p class="view-footnote">A supported editor adapter will resolve actual asset paths and availability.</p></div></section>
     <footer class="workspace-footer"><span id="file-name">No project file selected</span><span id="sequence-summary">Sample sequence · 24 fps · 00:40</span></footer></main>
   </div>
 </body>

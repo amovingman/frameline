@@ -58,6 +58,13 @@ contextBridge.exposeInMainWorld('desktop', {
     return () => ipcRenderer.removeListener('shared-storage:state', handle);
   },
   getAppState: () => ipcRenderer.invoke('app:get-state'),
+  getProjectScanProgress: () => ipcRenderer.invoke('project:scan-progress'),
+  onProjectScanProgress: listener => {
+    if (typeof listener !== 'function') return () => {};
+    const handle = (_event, state) => listener(state);
+    ipcRenderer.on('project:scan-progress', handle);
+    return () => ipcRenderer.removeListener('project:scan-progress', handle);
+  },
   getCopyRecovery: options => ipcRenderer.invoke('review-copy-recovery:state', options),
   refreshCopyRecovery: () => ipcRenderer.invoke('review-copy-recovery:refresh'),
   revealRetainedCopy: id => ipcRenderer.invoke('review-copy-recovery:reveal', id),

@@ -161,8 +161,12 @@ const scanRecovery = {
   'metadata-locked': 'Local project metadata is in use by another process. Close the other Frameline window and retry. The export was not changed.',
   'metadata-invalid': 'Local project metadata is damaged and no valid backup was found. Keep the metadata files for recovery before trying again. The export was not changed.',
   'metadata-newer-version': 'This project metadata was created by a newer Frameline version. Open it with that version to avoid losing data.',
-  'revision-source-changed': 'The export changed since the last scan. Rescan it before saving a revision.',
+  'revision-source-changed': 'The export changed while it was being checked. Wait for it to finish saving, then rescan before continuing.',
   'scan-cancelled': 'Scan cancelled. The export was not changed. Rescan when ready.',
+  'scan-worker-unavailable': 'The background scanner stopped. Rescan to start a fresh worker. The export was not changed.',
+  'scan-progress-failed': 'The scan stopped while reporting progress. Rescan to try again. The export was not changed.',
+  'scan-disposed': 'The scanner has shut down. Reopen Frameline before scanning again.',
+  'scan-queue-full': 'The scanner already has too many waiting requests. Wait for the current scan, then retry.',
   'revision-head-changed': 'Revision history changed while saving. Choose the project again and retry.',
   'revision-message-invalid': 'Enter a revision message of 1 to 120 characters.',
   'revision-scan-required': 'Scan the selected export before saving a revision.',
@@ -244,6 +248,7 @@ function renderAppState(state) {
     document.querySelector('#view-media .view-footnote').textContent = 'Only local file references are checked. External and unspecified sources are not resolved; media paths stay on this device.';
     if (scan) renderScan(scan);
     else {
+      clearScanWindows();
       document.querySelector('.masthead h1').textContent = 'Timeline scan';
       document.getElementById('video-track').replaceChildren();
       document.getElementById('media-list').replaceChildren();
@@ -277,40 +282,77 @@ function renderAppState(state) {
   window.FramelineProductTruth?.render();
 }
 
+let scanClipWindow, scanMediaWindow, scanClipSource, scanClipSpaces = [];
+function scanListDetail(id, heading, facts) {
+  const node = document.getElementById(id); node.replaceChildren(); node.hidden = !heading;
+  if (!heading) return;
+  node.append(make('h3', '', heading));
+  const list = make('dl', 'scan-detail-facts');
+  for (const [label, value] of facts) list.append(make('dt', '', label), make('dd', '', String(value)));
+  node.append(list);
+}
+function createScanWindow(kind, renderRow, searchText, onSelect) {
+  document.getElementById(kind === 'clips' ? 'video-track' : 'media-list').setAttribute('aria-describedby', `scan-${kind}-help`);
+  return window.createWindowedList({ viewport: document.getElementById(kind === 'clips' ? 'video-track' : 'media-list'),
+    searchInput: document.getElementById(`scan-${kind}-search`), jumpInput: document.getElementById(`scan-${kind}-jump`),
+    jumpButton: document.getElementById(`scan-${kind}-go`), range: document.getElementById(`scan-${kind}-range`),
+    renderRow, searchText, onSelect, rowHeight: 112,
+    emptyText: kind === 'clips' ? 'No supported picture clips in this scan.' : 'No referenced media in this scan.' });
+}
+function clearScanWindows() {
+  scanClipWindow?.clear(); scanMediaWindow?.clear();
+  for (const kind of ['clips', 'media']) {
+    document.getElementById(`scan-${kind}-controls`).hidden = true;
+    document.getElementById(`scan-${kind}-detail`).hidden = true;
+  }
+}
 function renderScan(scan) {
   document.querySelector('.masthead h1').textContent = 'Timeline scan';
   document.getElementById('workspace-finding').textContent = `${scan.clips.length} picture clips · read only · clip identity unresolved`;
   document.getElementById('film-title').textContent = scan.sequence.name;
   document.getElementById('timeline-selection').textContent = scan.warnings.length ? `${scan.warnings.length} scan warning${scan.warnings.length === 1 ? '' : 's'}` : 'Top level picture track';
   document.querySelector('.film-strip').setAttribute('aria-label', 'Scanned top level picture clips');
-  const video = document.getElementById('video-track');
-  video.replaceChildren();
-  let cursor = 0;
-  scan.clips.forEach((clip, index) => {
-    if (clip.offsetFrames > cursor) {
-      const gap = make('div', 'scan-gap', 'Gap');
-      gap.style.flex = `${clip.offsetFrames - cursor} 1 0`;
-      video.append(gap);
-    }
-    const segment = make('div', 'clip scanned-clip');
-    segment.style.flex = `${Math.max(clip.durationFrames, 1)} 1 0`;
-    segment.append(make('span', 'clip-code', `V1 · ${index + 1}`), make('span', 'clip-name', clip.name), make('span', 'clip-duration', `${clip.durationFrames}f`));
-    segment.title = `${clip.name} · source in ${clip.sourceInFrames} frames · ${clip.mediaName}`;
-    video.append(segment);
-    cursor = Math.max(cursor, clip.offsetFrames + clip.durationFrames);
+  if (scanClipSource !== scan.clips) {
+    scanClipSource = scan.clips; let cursor = 0;
+    scanClipSpaces = scan.clips.map(clip => {
+      const space = clip.offsetFrames - cursor; cursor = Math.max(cursor, clip.offsetFrames + clip.durationFrames); return space;
+    });
+  }
+  if (!scanClipWindow) scanClipWindow = createScanWindow('clips', (clip, index) => {
+    const row = make('div', 'scanned-clip');
+    row.append(make('span', 'scan-row-number', `V1 · ${(index + 1).toLocaleString()}`), make('strong', 'scan-row-name', clip.name),
+      make('span', 'scan-row-timing', `Offset ${clip.offsetFrames}f · source in ${clip.sourceInFrames}f · duration ${clip.durationFrames}f`),
+      make('span', 'scan-row-media', clip.mediaName || 'Media name not supplied'));
+    row.setAttribute('aria-label', `Picture clip ${index + 1}: ${clip.name}. Offset ${clip.offsetFrames} frames. Source in ${clip.sourceInFrames} frames. Duration ${clip.durationFrames} frames. Media ${clip.mediaName || 'not supplied'}.`);
+    return row;
+  }, (clip, index) => `${index + 1} ${clip.name} ${clip.mediaName || ''} ${clip.offsetFrames} ${clip.sourceInFrames} ${clip.durationFrames}`,
+  (clip, index) => {
+    const space = scanClipSpaces[index] || 0;
+    scanListDetail('scan-clips-detail', clip ? `Picture clip ${(index + 1).toLocaleString()}: ${clip.name}` : null, clip ? [
+      ['Timeline offset', `${clip.offsetFrames} frames`], ['Source in', `${clip.sourceInFrames} frames`],
+      ['Duration', `${clip.durationFrames} frames`], ['Media', clip.mediaName || 'Name not supplied'],
+      ['Space after prior picture content', space >= 0 ? `${space} frames` : `${-space} overlapping frames`]
+    ] : []);
   });
+  const scope = `${currentAppState?.selectedProject?.id || ''}:${scan.sourceHash}`;
+  document.getElementById('scan-clips-controls').hidden = false;
+  scanClipWindow.setItems(scan.clips, scope);
   document.querySelector('.sample-line span').textContent = 'Read-only FCPXML inventory';
   document.querySelector('.sample-line p').textContent = scan.warnings.length ? scan.warnings.join(' · ') : 'Clip IDs in the XML are not treated as stable. Editing and pull remain unavailable.';
   document.querySelectorAll('.film-meta span').forEach((node, index) => { node.textContent = index === 0 ? 'V1 · Picture' : index === 1 ? '0f' : index === 4 ? `${scan.sequence.durationFrames}f` : ''; });
   document.getElementById('sequence-summary').textContent = `${scan.sequence.frameDuration} per frame · ${scan.sequence.durationFrames} frames`;
-  const media = document.getElementById('media-list');
-  media.replaceChildren();
   const availabilityLabels = { local: 'Available locally', missing: 'Missing', external: 'External source · not checked', unknown: 'Source unspecified', unavailable: 'Could not check' };
-  scan.media.forEach(({ name, availability }) => {
-    const row = make('div', 'media-row scanned-media');
-    row.append(make('strong', '', name), make('span', '', 'Referenced in timeline'), make('span', `media-availability ${availability}`, availabilityLabels[availability] || 'Could not check'));
-    media.append(row);
-  });
+  if (!scanMediaWindow) scanMediaWindow = createScanWindow('media', (asset, index) => {
+    const row = make('div', 'scanned-media');
+    row.append(make('span', 'scan-row-number', `File ${(index + 1).toLocaleString()}`), make('strong', 'scan-row-name', asset.name),
+      make('span', 'scan-row-timing', 'Referenced in export'), make('span', `media-availability ${asset.availability}`, availabilityLabels[asset.availability] || 'Could not check'));
+    row.setAttribute('aria-label', `Referenced file ${index + 1}: ${asset.name}. ${availabilityLabels[asset.availability] || 'Could not check'}.`);
+    return row;
+  }, (asset, index) => `${index + 1} ${asset.name} ${asset.availability} ${availabilityLabels[asset.availability] || ''}`,
+  (asset, index) => scanListDetail('scan-media-detail', asset ? `Referenced file ${(index + 1).toLocaleString()}: ${asset.name}` : null,
+    asset ? [['Availability', availabilityLabels[asset.availability] || 'Could not check'], ['Reference', 'Read from the export; no relinking or upload']] : []));
+  document.getElementById('scan-media-controls').hidden = false;
+  scanMediaWindow.setItems(scan.media, scope);
 }
 
 function make(tag, className, textValue) {
@@ -2412,12 +2454,15 @@ function chooseMode(button) {
     : 'A restore point would be created before the current project is updated.';
 }
 
+let scanActionGeneration = 0;
 async function chooseFile() {
+  const generation = ++scanActionGeneration;
   const notice = document.getElementById('file-notice');
   setScanBusy(true);
   try {
     if (!window.desktop?.chooseProject) throw new Error('Desktop picker unavailable');
     const state = await window.desktop.chooseProject();
+    if (generation !== scanActionGeneration) return;
     if (!state) return;
     renderAppState(state);
     window.dispatchEvent(new CustomEvent('frameline:project-chosen', { detail: state }));
@@ -2428,9 +2473,10 @@ async function chooseFile() {
       notice.hidden = false;
     }
   } catch {
+    if (generation !== scanActionGeneration) return;
     notice.textContent = 'The file picker is available in the desktop app.';
   } finally {
-    setScanBusy(false);
+    if (generation === scanActionGeneration) setScanBusy(false);
   }
   notice.hidden = false;
 }
@@ -2440,15 +2486,53 @@ function setScanBusy(busy) {
   document.getElementById('rescan-project').disabled = busy;
   document.getElementById('rescan-project').textContent = busy ? 'Scanning…' : 'Rescan project';
   document.getElementById('cancel-scan').hidden = !busy;
+  document.getElementById('cancel-scan').disabled = false;
   document.getElementById('view-workspace').setAttribute('aria-busy', String(busy));
+  if (busy) {
+    document.getElementById('project-scan-progress-panel').hidden = false;
+    document.getElementById('project-scan-progress-text').textContent = 'Waiting for the selected export';
+    document.getElementById('project-scan-progress').removeAttribute('value');
+  }
 }
 
+let projectScanAnnouncement = '';
+function renderProjectScanProgress(value) {
+  const phases = { reading: 'Reading export', parsing: 'Parsing timeline', inventory: 'Building picture and media inventory',
+    media: 'Checking local media references', complete: 'Read-only scan complete', cancelled: 'Scan cancelled', failed: 'Scan stopped' };
+  if (!value || typeof value.scanId !== 'string' || !Object.hasOwn(phases, value.phase)) return;
+  const terminal = ['complete', 'cancelled', 'failed'].includes(value.phase);
+  const numerator = value.phase === 'reading' ? value.bytesRead : value.checked;
+  const denominator = value.phase === 'reading' ? value.totalBytes : value.total;
+  const measured = Number.isSafeInteger(numerator) && numerator >= 0 && Number.isSafeInteger(denominator) && denominator > 0;
+  const ratio = measured ? Math.min(1, numerator / denominator) : null;
+  const phase = `${phases[value.phase]}${value.cacheHit ? ' · verified cache' : ''}`;
+  const detail = measured && !terminal ? ` · ${numerator.toLocaleString()} of ${denominator.toLocaleString()} ${value.phase === 'reading' ? 'bytes' : value.phase === 'media' ? 'references' : 'records'}` : '';
+  document.getElementById('project-scan-progress-panel').hidden = false;
+  document.getElementById('project-scan-progress-text').textContent = phase + detail;
+  const progress = document.getElementById('project-scan-progress');
+  if (value.phase === 'complete') progress.value = 1;
+  else if (ratio !== null && !terminal) progress.value = ratio;
+  else progress.removeAttribute('value');
+  progress.setAttribute('aria-label', phase);
+  const announcement = `${value.scanId}:${value.phase}:${ratio === null ? '' : Math.floor(ratio * 10)}`;
+  if (projectScanAnnouncement !== announcement) {
+    projectScanAnnouncement = announcement;
+    document.getElementById('project-scan-status').textContent = value.phase === 'cancelled' ? 'The export was not changed. Choose a file or rescan when ready.'
+      : value.phase === 'failed' ? 'The export was not changed. Review the scan error and retry.'
+        : ratio !== null && !terminal ? `${phase}: ${Math.floor(ratio * 100)}%.` : `${phase}.`;
+  }
+}
+window.desktop?.onProjectScanProgress?.(renderProjectScanProgress);
+window.desktop?.getProjectScanProgress?.().then(renderProjectScanProgress).catch(() => {});
+
 async function rescanProject() {
+  const generation = ++scanActionGeneration;
   const notice = document.getElementById('file-notice');
   setScanBusy(true);
   try {
     if (!window.desktop?.rescanProject) throw new Error('Rescan unavailable');
     const state = await window.desktop.rescanProject();
+    if (generation !== scanActionGeneration) return;
     renderAppState(state);
     window.dispatchEvent(new CustomEvent('frameline:project-chosen', { detail: state }));
     if (!state.error) {
@@ -2456,10 +2540,27 @@ async function rescanProject() {
       notice.hidden = false;
     }
   } catch {
+    if (generation !== scanActionGeneration) return;
     notice.textContent = 'Could not rescan the selected project. Try again.';
     notice.hidden = false;
   } finally {
-    setScanBusy(false);
+    if (generation === scanActionGeneration) setScanBusy(false);
+  }
+}
+
+async function cancelProjectScan() {
+  const generation = ++scanActionGeneration;
+  document.getElementById('cancel-scan').disabled = true;
+  try {
+    const state = await window.desktop.cancelScan();
+    if (generation === scanActionGeneration) renderAppState(state);
+  } catch {
+    if (generation === scanActionGeneration) {
+      const notice = document.getElementById('file-notice'); notice.hidden = false;
+      notice.textContent = 'The scan cancellation could not be confirmed. Wait for the scan or try again.';
+    }
+  } finally {
+    if (generation === scanActionGeneration) setScanBusy(false);
   }
 }
 
@@ -2512,9 +2613,7 @@ document.querySelectorAll('[data-view]').forEach(button => button.addEventListen
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => chooseMode(button)));
 document.getElementById('choose-file').addEventListener('click', chooseFile);
 document.getElementById('rescan-project').addEventListener('click', rescanProject);
-document.getElementById('cancel-scan').addEventListener('click', async () => {
-  const state = await window.desktop.cancelScan(); renderAppState(state); setScanBusy(false);
-});
+document.getElementById('cancel-scan').addEventListener('click', cancelProjectScan);
 document.getElementById('revision-form').addEventListener('submit', saveRevision);
 document.getElementById('invite-form').addEventListener('submit', inviteCollaborator);
 document.getElementById('service-connect-form').addEventListener('submit', event => {

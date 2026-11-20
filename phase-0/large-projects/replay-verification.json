@@ -1,0 +1,427 @@
+{
+  "schemaVersion": 1,
+  "scope": "Shipped Electron main/preload/renderer and production worker; native picker results select disposable corpus imported, saved and exported by the installed DaVinci Resolve 21.1.2 build 21.1.20010. Synthetic data establishes bounded handling, not coverage of every real customer timeline.",
+  "sourceDelivery": "Untouched compressed XML replayed into owned temporary bundles; embedded media locations were not rewritten or recreated",
+  "exports": [
+    {
+      "name": "small",
+      "count": 50,
+      "mediaCount": 50,
+      "durationFrames": 2400,
+      "byteLength": 31076,
+      "sourceHash": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b"
+    },
+    {
+      "name": "typical",
+      "count": 500,
+      "mediaCount": 500,
+      "durationFrames": 24000,
+      "byteLength": 305937,
+      "sourceHash": "3f294791423cab66a6308335e66a4abce20be01cf9f594c8b8d1e2375edc4cf6"
+    },
+    {
+      "name": "large",
+      "count": 10000,
+      "mediaCount": 1,
+      "durationFrames": 120000,
+      "byteLength": 6136857,
+      "sourceHash": "f3ddec7340ac8825986e454a75d330d24c189a6cde266b80745788de6828fcd6"
+    }
+  ],
+  "checks": [
+    "exact 50/500/10000 clip counts and 50/500/1 referenced-media counts without truncation",
+    "actual worker progress and 64-reference media batches",
+    "hash-bound cache replay still checks every media reference",
+    "real cancellation during media checking and XML parsing, followed by rescan",
+    "main and renderer heartbeats during uncached large parsing",
+    "last-row access, original-index jump and full-dataset search",
+    "bounded mounted options, keyboard navigation, focus and native accessibility tree",
+    "360–1440px layouts without overflow",
+    "original editor exports and canonical revision/history/sync-base bytes unchanged",
+    "path-free progress and no renderer errors"
+  ],
+  "native": {
+    "stage": "native-large-projects",
+    "scans": [
+      {
+        "label": "small",
+        "elapsedMs": 112,
+        "phases": [
+          "reading",
+          "parsing",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 21,
+          "parsingTicks": 1,
+          "maxGapMs": 6
+        },
+        "rendererHeartbeat": {
+          "ticks": 17,
+          "parsingTicks": 0,
+          "maxGapMs": 20
+        },
+        "mediaBatches": 1,
+        "checked": 50,
+        "cacheHit": false,
+        "sourceBytesVerified": 31076,
+        "readingProgressEvents": 2,
+        "clips": 50,
+        "media": 50,
+        "durationFrames": 2400,
+        "mediaAvailability": {
+          "missing": 50
+        }
+      },
+      {
+        "label": "typical",
+        "elapsedMs": 100,
+        "phases": [
+          "reading",
+          "parsing",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 18,
+          "parsingTicks": 4,
+          "maxGapMs": 10
+        },
+        "rendererHeartbeat": {
+          "ticks": 18,
+          "parsingTicks": 5,
+          "maxGapMs": 11
+        },
+        "mediaBatches": 8,
+        "checked": 500,
+        "cacheHit": false,
+        "sourceBytesVerified": 305937,
+        "readingProgressEvents": 3,
+        "clips": 500,
+        "media": 500,
+        "durationFrames": 24000,
+        "mediaAvailability": {
+          "missing": 500
+        }
+      },
+      {
+        "label": "large",
+        "elapsedMs": 502,
+        "phases": [
+          "reading",
+          "parsing",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 65,
+          "parsingTicks": 45,
+          "maxGapMs": 66
+        },
+        "rendererHeartbeat": {
+          "ticks": 82,
+          "parsingTicks": 51,
+          "maxGapMs": 30
+        },
+        "mediaBatches": 1,
+        "checked": 1,
+        "cacheHit": false,
+        "sourceBytesVerified": 6136857,
+        "readingProgressEvents": 25,
+        "clips": 10000,
+        "media": 1,
+        "durationFrames": 120000,
+        "mediaAvailability": {
+          "missing": 1
+        }
+      },
+      {
+        "label": "large-cache-replay",
+        "elapsedMs": 162,
+        "phases": [
+          "reading",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 16,
+          "parsingTicks": 0,
+          "maxGapMs": 14
+        },
+        "rendererHeartbeat": {
+          "ticks": 18,
+          "parsingTicks": 0,
+          "maxGapMs": 30
+        },
+        "mediaBatches": 1,
+        "checked": 1,
+        "cacheHit": true,
+        "sourceBytesVerified": 6136857,
+        "readingProgressEvents": 25,
+        "clips": 10000,
+        "media": 1,
+        "durationFrames": 120000,
+        "mediaAvailability": {
+          "missing": 1
+        }
+      },
+      {
+        "label": "cancel-typical-media",
+        "elapsedMs": 70,
+        "phases": [
+          "reading",
+          "inventory",
+          "media",
+          "cancelled"
+        ],
+        "mainHeartbeat": {
+          "ticks": 12,
+          "parsingTicks": 0,
+          "maxGapMs": 8
+        },
+        "rendererHeartbeat": {
+          "ticks": 14,
+          "parsingTicks": 0,
+          "maxGapMs": 6
+        },
+        "cancelled": true
+      },
+      {
+        "label": "cancel-large-parsing",
+        "elapsedMs": 97,
+        "phases": [
+          "reading",
+          "parsing",
+          "cancelled"
+        ],
+        "mainHeartbeat": {
+          "ticks": 19,
+          "parsingTicks": 4,
+          "maxGapMs": 6
+        },
+        "rendererHeartbeat": {
+          "ticks": 19,
+          "parsingTicks": 4,
+          "maxGapMs": 7
+        },
+        "cancelled": true,
+        "parsingCancelledBeforeInventory": true
+      },
+      {
+        "label": "large-after-cancellation",
+        "elapsedMs": 423,
+        "phases": [
+          "reading",
+          "parsing",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 67,
+          "parsingTicks": 49,
+          "maxGapMs": 15
+        },
+        "rendererHeartbeat": {
+          "ticks": 71,
+          "parsingTicks": 55,
+          "maxGapMs": 30
+        },
+        "mediaBatches": 1,
+        "checked": 1,
+        "cacheHit": false,
+        "sourceBytesVerified": 6136857,
+        "readingProgressEvents": 25,
+        "clips": 10000,
+        "media": 1,
+        "durationFrames": 120000,
+        "mediaAvailability": {
+          "missing": 1
+        }
+      },
+      {
+        "label": "large-cache-after-recovery",
+        "elapsedMs": 169,
+        "phases": [
+          "reading",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 17,
+          "parsingTicks": 0,
+          "maxGapMs": 20
+        },
+        "rendererHeartbeat": {
+          "ticks": 20,
+          "parsingTicks": 0,
+          "maxGapMs": 27
+        },
+        "mediaBatches": 1,
+        "checked": 1,
+        "cacheHit": true,
+        "sourceBytesVerified": 6136857,
+        "readingProgressEvents": 25,
+        "clips": 10000,
+        "media": 1,
+        "durationFrames": 120000,
+        "mediaAvailability": {
+          "missing": 1
+        }
+      },
+      {
+        "label": "typical-reference-navigation",
+        "elapsedMs": 152,
+        "phases": [
+          "reading",
+          "parsing",
+          "inventory",
+          "media",
+          "complete"
+        ],
+        "mainHeartbeat": {
+          "ticks": 21,
+          "parsingTicks": 8,
+          "maxGapMs": 18
+        },
+        "rendererHeartbeat": {
+          "ticks": 27,
+          "parsingTicks": 8,
+          "maxGapMs": 15
+        },
+        "mediaBatches": 8,
+        "checked": 500,
+        "cacheHit": false,
+        "sourceBytesVerified": 305937,
+        "readingProgressEvents": 3,
+        "clips": 500,
+        "media": 500,
+        "durationFrames": 24000,
+        "mediaAvailability": {
+          "missing": 500
+        }
+      }
+    ],
+    "lists": [
+      {
+        "kind": "clips",
+        "corpusCase": "large",
+        "total": 10000,
+        "lastOriginalIndex": 9999,
+        "maximumMounted": 11,
+        "searchReachesFinalRow": true,
+        "originalNumberJumpRestoresUnfilteredData": true,
+        "noMatchHasNoDanglingDescendant": true,
+        "keyboardAndFocusPreserved": true,
+        "finalOptionInNativeAXTree": true
+      },
+      {
+        "kind": "media",
+        "corpusCase": "typical",
+        "total": 500,
+        "lastOriginalIndex": 499,
+        "maximumMounted": 10,
+        "searchReachesFinalRow": true,
+        "originalNumberJumpRestoresUnfilteredData": true,
+        "noMatchHasNoDanglingDescendant": true,
+        "keyboardAndFocusPreserved": true,
+        "finalOptionInNativeAXTree": true
+      }
+    ],
+    "layouts": [
+      {
+        "kind": "clips",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "mounted": 7,
+        "viewportWidth": 1136,
+        "viewportScrollWidth": 1136,
+        "selectedOriginalIndex": 9999,
+        "selectedVisible": true
+      },
+      {
+        "kind": "clips",
+        "width": 768,
+        "scrollWidth": 768,
+        "mounted": 7,
+        "viewportWidth": 688,
+        "viewportScrollWidth": 688,
+        "selectedOriginalIndex": 9999,
+        "selectedVisible": true
+      },
+      {
+        "kind": "clips",
+        "width": 390,
+        "scrollWidth": 390,
+        "mounted": 6,
+        "viewportWidth": 334,
+        "viewportScrollWidth": 334,
+        "selectedOriginalIndex": 9999,
+        "selectedVisible": true
+      },
+      {
+        "kind": "clips",
+        "width": 360,
+        "scrollWidth": 360,
+        "mounted": 6,
+        "viewportWidth": 304,
+        "viewportScrollWidth": 304,
+        "selectedOriginalIndex": 9999,
+        "selectedVisible": true
+      },
+      {
+        "kind": "media",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "mounted": 7,
+        "viewportWidth": 1128,
+        "viewportScrollWidth": 1128,
+        "selectedOriginalIndex": 499,
+        "selectedVisible": true
+      },
+      {
+        "kind": "media",
+        "width": 768,
+        "scrollWidth": 768,
+        "mounted": 7,
+        "viewportWidth": 680,
+        "viewportScrollWidth": 680,
+        "selectedOriginalIndex": 499,
+        "selectedVisible": true
+      },
+      {
+        "kind": "media",
+        "width": 390,
+        "scrollWidth": 390,
+        "mounted": 6,
+        "viewportWidth": 302,
+        "viewportScrollWidth": 302,
+        "selectedOriginalIndex": 499,
+        "selectedVisible": true
+      },
+      {
+        "kind": "media",
+        "width": 360,
+        "scrollWidth": 360,
+        "mounted": 6,
+        "viewportWidth": 272,
+        "viewportScrollWidth": 272,
+        "selectedOriginalIndex": 499,
+        "selectedVisible": true
+      }
+    ],
+    "canonicalFilesUnchanged": 5,
+    "sourceExportsUnchanged": true,
+    "rendererErrors": 0,
+    "runtime": {
+      "electron": "41.10.7",
+      "chromium": "146.0.7680.216"
+    }
+  }
+}

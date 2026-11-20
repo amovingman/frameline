@@ -5,7 +5,7 @@ const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const manifest = require(path.join(root, 'package.json'));
 if (manifest.main !== 'src/main.js' || !manifest.private || !manifest.version) throw new Error('Package manifest is not release-ready');
-const requiredFiles = ['scripts/build-media-renderer.cjs', 'src/private-media-preview.js', 'src/desktop-media-jobs.js', 'src/media-render-input.js', 'src/media-artifact-store.js',
+const requiredFiles = ['src/fcpxml-scan-core.js', 'src/fcpxml-scan-worker.js', 'src/fcpxml-scan-controller.js', 'scripts/build-media-renderer.cjs', 'src/private-media-preview.js', 'src/desktop-media-jobs.js', 'src/media-render-input.js', 'src/media-artifact-store.js',
   'src/media-jobs-fingerprint-worker.js', 'src/media-jobs-renderer.js', 'src/media-jobs.css', 'src/native-media-renderer.js',
   'src/native/media-renderer.swift', 'src/native/bin/media-renderer', 'src/main.js', 'src/preload.js', 'src/index.html', 'src/styles.css',
   'src/review-copy-cleanup.js', 'src/copy-recovery-renderer.js', 'src/accessibility.js', 'src/accessibility.css',

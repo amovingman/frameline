@@ -11,6 +11,7 @@ const { readResolveHistoryPreviewSources, readResolveLiveHistoryPreviewSources }
 const { parseResolvePreviewSource, previewSnapshotBytes } = require('./resolve-preview-source');
 const { saveResolveCaptureFile } = require('./resolve-capture-file');
 const { fcpxmlProjectAdapter } = require('./project-adapter');
+const { createFcpXmlScanner } = require('./fcpxml-adapter');
 const logger = require('./logger');
 const { createResolveReviewSession } = require('./resolve-review-session');
 const { prepareReviewCopySession } = require('./review-copy-session');
@@ -51,6 +52,9 @@ const { createResolveTrialSession } = require('./resolve-trial-session');
 const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
 
 let projectSession;
+let projectScanner;
+let projectScanProgress = null;
+let projectScanGeneration = 0;
 let desktopResolveComments;
 let desktopBranchReview;
 let desktopShareLinks;
@@ -336,13 +340,35 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('shared-storage:state', state); } });
   localMetadataStore = firstRun.store;
   resolveHistoryTransfer = createResolveHistoryTransfer({ store: localMetadataStore });
+  projectScanner = createFcpXmlScanner();
+  const publishScanProgress = value => {
+    projectScanProgress = value;
+    for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('project:scan-progress', value);
+  };
+  const scan = adapterMetrics.wrapScan(async (sourcePath, options = {}) => {
+    const generation = ++projectScanGeneration, scanId = randomUUID();
+    const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
+    try {
+      return await projectScanner.scan(sourcePath, { ...options, onProgress: progress => {
+        if (generation !== projectScanGeneration || options.signal?.aborted) return;
+        if (!['reading', 'parsing', 'inventory', 'media', 'complete'].includes(progress.phase)) return;
+        publishScanProgress({ scanId, phase: progress.phase, bytesRead: count(progress.bytesRead), totalBytes: count(progress.totalBytes),
+          checked: count(progress.checked), total: count(progress.total), cacheHit: progress.cacheHit === true });
+      } });
+    } catch (error) {
+      if (generation === projectScanGeneration) publishScanProgress({ scanId,
+        phase: error.code === 'scan-cancelled' ? 'cancelled' : 'failed', bytesRead: 0, totalBytes: 0, checked: 0, total: 0, cacheHit: false });
+      throw error;
+    }
+  });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
-    scan: adapterMetrics.wrapScan(fcpxmlProjectAdapter.scan) }, localMetadataStore);
+    scan, verifySource: (sourcePath, hash) => projectScanner.verifySource(sourcePath, hash) }, localMetadataStore);
   desktopMediaJobs = createDesktopMediaJobs({ directory: path.join(app.getPath('userData'), 'media-jobs'),
     renderer: createNativeMediaRenderer(),
     getSelection: () => {
       const state = projectSession.getState();
       return selectedProjectPath && state.scanStatus === 'ready' && !state.error
+        && path.extname(selectedProjectPath).toLowerCase() === '.fcpxml'
         && state.selectedProject?.format === 'FCPXML' && state.scan?.sourceHash
         ? { projectId: state.selectedProject.id, sourceHash: state.scan.sourceHash, exportPath: selectedProjectPath } : null;
     },
@@ -442,6 +468,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     } });
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
+  ipcMain.handle('project:scan-progress', () => projectScanProgress);
   ipcMain.handle('review-copy-recovery:state', (_event, options) => {
     if (!copyCleanupJournal) return structuredClone(copyCleanupState);
     try { return copyCleanupJournal.getState(options); }
@@ -1332,12 +1359,12 @@ app.on('window-all-closed', () => {
 
 let mediaShutdown = false, mediaShutdownReady = false;
 app.on('before-quit', event => {
-  if (mediaShutdownReady || !mediaAuditJobs && !serviceConnection && !desktopMediaJobs) return;
+  if (mediaShutdownReady || !mediaAuditJobs && !serviceConnection && !desktopMediaJobs && !projectScanner) return;
   event.preventDefault();
   if (mediaShutdown) return;
   mediaShutdown = true;
   // Let the prevented native quit event unwind before requesting the final quit.
   const finish = () => { mediaShutdownReady = true; setImmediate(() => app.quit()); };
-  Promise.allSettled([desktopMediaJobs?.dispose(), desktopAssetLifecycle?.dispose(), desktopSharedStorage?.dispose(), mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopProjectPresets?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
+  Promise.allSettled([projectScanner?.dispose(), desktopMediaJobs?.dispose(), desktopAssetLifecycle?.dispose(), desktopSharedStorage?.dispose(), mediaAuditJobs?.dispose(), desktopAssetTransfers?.dispose(), desktopProjectActivity?.dispose(), desktopResolveComments?.dispose(), desktopBranchReview?.dispose(), desktopShareLinks?.dispose(), desktopAccountUpdates?.dispose(), desktopProjectPresets?.dispose(), desktopRevisionSync?.dispose(), desktopResolveServiceSync?.dispose()])
     .then(() => serviceConnection?.dispose()).then(finish, finish);
 });

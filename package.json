@@ -40,7 +40,9 @@
     "build:media:universal": "node scripts/build-media-renderer.cjs --universal",
     "prepackage:check": "node scripts/build-media-renderer.cjs --universal",
     "test:media-jobs": "node --test tests/desktop-media-jobs*.test.js tests/media-render-input*.test.js tests/media-artifact-store*.test.js tests/native-media-renderer.test.js tests/private-media-preview.test.js tests/media-jobs-renderer.test.js",
-    "verify:media-jobs": "node scripts/verify-media-jobs.cjs"
+    "verify:media-jobs": "node scripts/verify-media-jobs.cjs",
+    "test:large-projects": "node --test tests/fcpxml-scan-worker.test.js tests/windowed-scan-list.test.js tests/renderer-scan-actions.test.js tests/fcpxml-adapter.test.js tests/project-session.test.js tests/accessibility-windowed-list.test.js",
+    "verify:large-projects": "node scripts/verify-large-projects.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",

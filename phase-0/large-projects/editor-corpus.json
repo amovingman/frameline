@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "editor": "DaVinci Resolve",
+    "edition": "Free",
+    "version": "21.1.2",
+    "build": "21.1.20010",
+    "os": "macOS",
+    "format": "FCPXML 1.10"
+  },
+  "provenance": "Untouched exports from a newly created, named disposable project in the installed editor. Counts/save/export were observed through its internal Lua Console and native timeline UI; source bytes were hashed with the production scanner. Inputs are synthetic still-image/image-sequence metadata, not customer footage.",
+  "cases": [
+    {
+      "case": "small",
+      "editorExportSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "xmlBytes": 31076,
+      "clips": 50,
+      "referencedAssets": 50,
+      "sequenceFrames": 2400,
+      "frameDuration": "1/24s",
+      "file": "small-editor.fcpxml.gz"
+    },
+    {
+      "case": "typical",
+      "editorExportSha256": "3f294791423cab66a6308335e66a4abce20be01cf9f594c8b8d1e2375edc4cf6",
+      "xmlBytes": 305937,
+      "clips": 500,
+      "referencedAssets": 500,
+      "sequenceFrames": 24000,
+      "frameDuration": "1/24s",
+      "file": "typical-editor.fcpxml.gz"
+    },
+    {
+      "case": "large",
+      "editorExportSha256": "f3ddec7340ac8825986e454a75d330d24c189a6cde266b80745788de6828fcd6",
+      "xmlBytes": 6136857,
+      "clips": 10000,
+      "referencedAssets": 1,
+      "sequenceFrames": 120000,
+      "frameDuration": "1/24s",
+      "file": "large-editor.fcpxml.gz"
+    }
+  ],
+  "negativeAttempt": {
+    "clips": 10000,
+    "requestedMediaSources": 10000,
+    "outcome": "No completed export; native automation timed out and the owned test session was stopped after over ten minutes. Not a passing benchmark.",
+    "retry": "A 10000-clip import reusing source media completed and exported; Resolve consolidated the repeated source content to one referenced asset."
+  },
+  "limitations": [
+    "No representative customer-project or usage-rate claim",
+    "No audio/effects/multicam/compound coverage claim",
+    "No editor write, identity or release promotion",
+    "Compressed XML contains only disposable local fixture source locations; no customer project paths"
+  ]
+}
