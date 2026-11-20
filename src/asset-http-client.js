@@ -5,6 +5,7 @@ const { API_VERSION } = require('./project-api-contracts');
 const { validateJobSubmit, validateJobAction, validateJobPageInput, validateAssetJob, validateJobPage, validateJobMetrics } = require('./asset-jobs-protocol');
 const { validateHoldInput, validateRetentionInput, validateReportInput, validatePlanInput,
   validateHold, validateRetention, validateReport, validatePlan } = require('./asset-lifecycle-protocol');
+const { validateOwnerReport, validateGcPlan, validateGcInput, validateGcReceipt } = require('./retained-asset-protocol');
 const { chunkPath, validateIdentity, validateUpload, validateMetadata, validateComplete, validateProgress,
   validatePolicy, validateUsage, validateAvailability, validClasses,
   MAX_CHUNK_BYTES, MAX_JSON_REQUEST_BYTES, MAX_JSON_RESPONSE_BYTES, MAX_ASSET_BYTES, TICKET_TTL_MS } = require('./asset-http-transport');
@@ -17,6 +18,7 @@ const ERRORS = new Set(['access-token-invalid', 'forbidden', 'asset-forbidden', 
   'asset-storage-unavailable', 'asset-storage-uncertain', 'asset-cancelled', 'request-too-large', 'body-invalid', 'request-invalid', 'invalid-request-headers',
   'asset-policy-excluded', 'asset-policy-forbidden', 'asset-policy-invalid', 'asset-policy-version-conflict', 'asset-archived', 'asset-archive-invalid', 'asset-archive-conflict',
   'asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale',
+  'asset-reference-invalid', 'asset-reference-unavailable', 'asset-gc-blocked',
   'asset-job-invalid', 'asset-job-not-found', 'asset-job-forbidden', 'asset-job-idempotency-conflict', 'asset-job-run-stale', 'asset-job-state-conflict', 'asset-job-attempts-exhausted']);
 const exact = (value, fields) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join('|') === fields.slice().sort().join('|');
@@ -123,6 +125,18 @@ function createAssetHttpClient({ origin, getAccessToken, fetch: send = globalThi
     return result.path;
   }
   return {
+    getOwnerAssetReport: async (pid, input = { afterAssetId: null, limit: 100 }, options = {}) => {
+      const body = validateReportInput(input), result = await checked(validateOwnerReport, request('POST', `${project(pid)}/lifecycle/owner-report`, { ...options, body }));
+      if (result.projectId !== pid || result.items.length > body.limit || body.afterAssetId !== null && result.items.some(item => item.assetId <= body.afterAssetId)) throw fail('asset-response-invalid'); return result;
+    },
+    planGarbageCollection: async (pid, input, options = {}) => {
+      const body = validatePlanInput(input), result = await checked(validateGcPlan, request('POST', `${project(pid)}/lifecycle/gc-plan`, { ...options, body }));
+      if (result.projectId !== pid || result.stateHash !== body.expectedStateHash || JSON.stringify(result.items.map(item => item.assetId)) !== JSON.stringify([...body.assetIds].sort())) throw fail('asset-response-invalid'); return result;
+    },
+    garbageCollect: async (pid, input, options = {}) => {
+      const body = validateGcInput(input), result = await checked(validateGcReceipt, request('POST', `${project(pid)}/lifecycle/gc-execute`, { ...options, body }));
+      if (result.projectId !== pid || JSON.stringify(result.assetIds) !== JSON.stringify([...body.assetIds].sort())) throw fail('asset-response-invalid'); return result;
+    },
     submitVerificationJob: async (pid, input, options = {}) => {
       const body = validateJobSubmit(input), result = await checked(validateAssetJob, request('POST', `${project(pid)}/jobs`, { ...options, body }));
       if (result.projectId !== pid || result.assetId !== body.assetId) throw fail('asset-response-invalid'); return result;

@@ -54,6 +54,15 @@ test('configuration reads refuse links, oversized files, invalid UTF8 and public
   await fs.writeFile(setup.configPath, Buffer.from([0xff])); await assert.rejects(loadServiceStorageConfig(setup.configPath), { code: 'service-host-config-invalid' });
 });
 
+test('cross-project deduplication is an explicit boolean in private asset configuration', async t => {
+  const setup = await fixture(t);
+  const assets = { directory: path.join(setup.root, 'media'), signingKey: Buffer.alloc(32, 9).toString('base64'), ownerBoundaryDeduplication: true };
+  await setup.write({ ...setup.config, assets });
+  assert.equal((await loadServiceStorageConfig(setup.configPath)).assets.ownerBoundaryDeduplication, true);
+  await setup.write({ ...setup.config, assets: { ...assets, ownerBoundaryDeduplication: 'yes' } });
+  await assert.rejects(loadServiceStorageConfig(setup.configPath), { code: 'service-host-config-invalid' });
+});
+
 test('TLS inputs are bounded regular files and private keys cannot be broadly readable or symbolic links', async t => {
   const setup = await fixture(t); await fs.chmod(setup.config.tls.keyFile, 0o644);
   await assert.rejects(loadServiceHostConfig(setup.configPath), { code: 'service-host-tls-unavailable' });

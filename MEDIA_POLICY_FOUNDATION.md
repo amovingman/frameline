@@ -1,5 +1,7 @@
 # Media availability and storage policy foundation
 
+The [personal revision media workflow](PERSONAL_MEDIA.md) now adds canonical dependency capture, checked-location six-state reports, selected-revision transfers, and reference-aware owner collection through the self-hosted CLI. This page records the earlier classifier and desktop per-content policy foundation.
+
 `src/media-storage-policy.js` adds the next five Phase 4 policy behaviors to the local reference service. The outputs contain IDs, states, classes, hashes, and byte counts; they do not expose local paths.
 
 - Availability uses explicit evidence to distinguish `cloud-present`, `collaborator-only`, `local-only`, `missing`, `excluded`, and `archived`. A cloud-present asset can also have a verified local copy; both facts remain visible.

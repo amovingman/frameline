@@ -19,6 +19,7 @@ const { PRESET_ERROR_CODES, validatePresetTeamCatalog, validateProjectPresetCata
 const LIMIT = 8 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 const ERRORS = new Set(['access-token-invalid', 'forbidden', 'rate-limit-exceeded', 'project-not-found',
+  'asset-revision-media-missing', 'asset-revision-identity-mismatch', 'asset-revision-unavailable',
   'credentials-invalid', 'refresh-token-invalid',
   'manifest-not-found', 'manifest-project-mismatch', 'revision-not-found', 'parent-revision-not-found',
   'branch-not-found', 'branch-head-changed', 'revision-parent-mismatch', 'source-revision-exists',
@@ -298,7 +299,8 @@ function createRevisionHttpClient({ origin, getAccessToken = () => null, fetch: 
     putManifest: (id, manifest, options) => request('PUT', `${project(id)}/manifests`, { manifest }, options),
     createRevision: (input, options = {}) => request('POST', `${project(input.projectId)}/revisions`, {
       manifestId: input.manifestId, parentRevisionId: input.parentRevisionId ?? null, message: input.message,
-      sourceRevisionId: input.sourceRevisionId ?? null }, { ...options, idempotencyKey: input.idempotencyKey ?? null }),
+      sourceRevisionId: input.sourceRevisionId ?? null,
+      ...(input.requireMedia === undefined ? {} : { requireMedia: input.requireMedia }) }, { ...options, idempotencyKey: input.idempotencyKey ?? null }),
     compareAndSwapBranch: (input, options = {}) => request('PUT', `${project(input.projectId)}/branches/${segment(input.branch)}`, {
       revisionId: input.revisionId, expectedRevisionId: input.expectedRevisionId ?? null },
     { ...options, idempotencyKey: input.idempotencyKey ?? null }),

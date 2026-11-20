@@ -389,6 +389,37 @@ async function createDurableCollaborationService({ directory, keyring, now = () 
   };
   return {
     identity, members,
+    createRevisionWithAssetGuard: (context, input, checkManifest) => {
+      if (typeof checkManifest !== 'function' || input.requireMedia !== undefined && typeof input.requireMedia !== 'boolean') {
+        return Promise.reject(fail('revision-invalid'));
+      }
+      return transact(world => {
+        const authorized = createAuthorizedProjectService(world);
+        authorized.authorizeAsset(context, input.projectId, 'write');
+        const manifest = world.history.getManifest(input.projectId, input.manifestId).document;
+        try { require('./revision-manifest').validateRevisionManifest(manifest); } catch { throw fail('manifest-invalid'); }
+        require('./retained-media-references').assertRetainedMediaIdentities(world.history, input.projectId, manifest);
+        checkManifest(manifest, { requireMedia: input.requireMedia === true });
+        return authorized.createRevision(context, input);
+      });
+    },
+    // Asset transactions acquire their own lock first, then this history lease.
+    // The supplied authority operates against the already locked world so the
+    // asset commit never recursively enters a collaboration transaction.
+    withRevisionReferences: (context, projectId, operation) => {
+      if (typeof operation !== 'function') return Promise.reject(fail('collaboration-service-invalid'));
+      return transact(async world => {
+        const authorized = createAuthorizedProjectService(world);
+        authorized.authorizeAssetPolicy(context, projectId, 'write');
+        const lease = {
+          authorize: action => authorized.authorizeAsset(context, projectId, action),
+          authorizePolicy: () => authorized.authorizeAssetPolicy(context, projectId, 'write'),
+          getInitialPolicy: () => world.projectPresets.initialPolicy(world.actor(context), projectId)
+        };
+        const { retainedMediaReferences } = require('./retained-media-references');
+        return operation(retainedMediaReferences(world.history, projectId), lease);
+      });
+    },
     // Trusted in-process worker authorization. This facade is never routed over
     // HTTP and accepts no bearer credential from persisted jobs.
     authorizeAssetWorker: (actorId, projectId, action) => transact(world => {

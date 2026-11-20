@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scope": "Small disposable 50-clip FCPXML and real loopback HTTPS host with separate Node clients; personal owner, synthetic byte files only",
+  "deduplication": {
+    "ownerProjects": 2,
+    "uniqueCiphertextBlobs": 1
+  },
+  "sourceExportsUnchanged": true,
+  "requiredOnlyDownload": true,
+  "availabilityStates": [
+    "cloud-present",
+    "local-only",
+    "collaborator-only",
+    "missing",
+    "excluded",
+    "archived"
+  ],
+  "collaboratorEvidence": "explicit owner-attested bounded report",
+  "retainedRevisionProtected": true,
+  "stalePlanRefused": true,
+  "ownerReportVerified": true,
+  "restartDurable": true,
+  "publishRetryIdempotent": true,
+  "deletionRetryIdempotent": true
+}

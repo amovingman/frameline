@@ -8,6 +8,7 @@ const { createMediaAssetIdentity } = require('./media-asset-identity');
 const { fingerprint } = require('./project-api-contracts');
 const { emptyLifecycle, validateAssetLifecycleState, createAssetLifecycleOperations } = require('./service-asset-lifecycle');
 const { emptyAssetJobs, validateAssetJobsState, createAssetJobOperations } = require('./service-asset-jobs');
+const { emptyGc, validateGcState, validateReferences, createRetainedAssetOperations } = require('./service-retained-assets');
 
 const MAX_INDEX_BYTES = 32 * 1024 * 1024, MAX_FILE_BYTES = 48 * 1024 * 1024;
 const MAX_ASSET_BYTES = 64 * 1024 * 1024 * 1024, MAX_CHUNKS = 65536;
@@ -43,17 +44,17 @@ function envelope(value) {
     || !id(value.keyId) || value.algorithm !== 'aes-256-gcm' || !base64(value.iv, 12) || !base64(value.tag, 16)
     || !base64(value.ciphertext) || !value.ciphertext) throw fail('asset-state-invalid');
 }
-function validateState(value, chunkSize, maxAssetBytes, version = 4) {
+function validateState(value, chunkSize, maxAssetBytes, version = value?.schemaVersion) {
   const legacy = version === 1;
-  if (value?.schemaVersion > 4) throw fail('asset-state-newer-version');
-  if (!exact(value, ['schemaVersion', 'generation', 'chunkSize', 'maxAssetBytes', 'uploads', 'assets', ...(legacy ? [] : ['policies']), ...(version >= 3 ? ['lifecycle'] : []), ...(version >= 4 ? ['jobs'] : [])])
+  if (value?.schemaVersion > 5) throw fail('asset-state-newer-version');
+  if (![1, 2, 3, 4, 5].includes(version) || !exact(value, ['schemaVersion', 'generation', 'chunkSize', 'maxAssetBytes', 'uploads', 'assets', ...(legacy ? [] : ['policies']), ...(version >= 3 ? ['lifecycle'] : []), ...(version >= 4 ? ['jobs'] : []), ...(version >= 5 ? ['blobs', 'garbageCollection'] : [])])
     || value.schemaVersion !== version || !Number.isSafeInteger(value.generation) || value.generation < 0
     || value.chunkSize !== chunkSize || value.maxAssetBytes !== maxAssetBytes
     || !Array.isArray(value.uploads) || value.uploads.length > 10000 || !Array.isArray(value.assets) || value.assets.length > 10000
     || !legacy && (!Array.isArray(value.policies) || value.policies.length > 10000)) throw fail('asset-state-invalid');
   const uploads = new Map(), scoped = new Set(), completed = new Set(); let chunks = 0;
   for (const upload of value.uploads) {
-    if (!exact(upload, ['id', 'projectId', 'identity', 'hashes']) || typeof upload.id !== 'string' || !UUID.test(upload.id)
+    if (!exact(upload, ['id', 'projectId', 'identity', 'hashes', ...(version >= 5 ? ['blobId'] : [])]) || typeof upload.id !== 'string' || !UUID.test(upload.id)
       || uploads.has(upload.id) || !id(upload.projectId) || !Array.isArray(upload.hashes)) throw fail('asset-state-invalid');
     try { identity(upload.identity, maxAssetBytes, chunkSize); } catch { throw fail('asset-state-invalid'); }
     const scope = fingerprint({ projectId: upload.projectId, assetId: upload.identity.contentId });
@@ -77,28 +78,57 @@ function validateState(value, chunkSize, maxAssetBytes, version = 4) {
       || JSON.stringify(policy.syncClasses) !== JSON.stringify([...policy.syncClasses].sort())) throw fail('asset-state-invalid');
     policyProjects.add(policy.projectId);
   }
-  if (version >= 3) validateAssetLifecycleState(value.lifecycle, value.assets);
-  if (version >= 4) validateAssetJobsState(value.jobs, value.assets, value.uploads);
+  let retired = [], retiredUploads = [];
+  if (version >= 5) {
+    if (!Array.isArray(value.blobs) || value.blobs.length > 10000) throw fail('asset-state-invalid');
+    const blobs = new Map();
+    const validateBlob = blob => {
+      if (!exact(blob, ['id', 'projectId', 'identity', 'hashes']) || !UUID.test(blob.id) || !id(blob.projectId) || !Array.isArray(blob.hashes)) throw fail('asset-state-invalid');
+      identity(blob.identity, maxAssetBytes, chunkSize);
+      if (blob.hashes.length !== Math.max(1, Math.ceil(blob.identity.size / chunkSize)) || blob.hashes.some(digest => digest !== null && !SHA.test(digest))) throw fail('asset-state-invalid');
+    };
+    for (const blob of value.blobs) { validateBlob(blob); if (blobs.has(blob.id)) throw fail('asset-state-invalid'); blobs.set(blob.id, blob); }
+    for (const upload of value.uploads) {
+      const blob = blobs.get(upload.blobId);
+      if (!blob || fingerprint(blob.identity) !== fingerprint(upload.identity) || fingerprint(blob.hashes) !== fingerprint(upload.hashes)) throw fail('asset-state-invalid');
+    }
+    if (value.blobs.some(blob => !value.uploads.some(upload => upload.blobId === blob.id))) throw fail('asset-state-invalid');
+    validateGcState(value.garbageCollection, candidate => identity(candidate, maxAssetBytes, chunkSize), UUID);
+    for (const row of value.garbageCollection.pending) { validateBlob(row.blob); if (blobs.has(row.blob.id)) throw fail('asset-state-invalid'); }
+    const published = new Set(value.assets.map(item => JSON.stringify([item.projectId, item.assetId])));
+    const deleted = value.garbageCollection.deleted.filter(item => !published.has(JSON.stringify([item.projectId, item.assetId])));
+    retired = deleted.map(item => ({ projectId: item.projectId, assetId: item.assetId, uploadId: item.uploadId, archived: false }));
+    retiredUploads = deleted.map(item => ({ id: item.uploadId, projectId: item.projectId, identity: item.identity }));
+  }
+  if (version >= 3) validateAssetLifecycleState(value.lifecycle, [...value.assets, ...retired]);
+  if (version >= 4) validateAssetJobsState(value.jobs, [...value.assets, ...retired], [...value.uploads, ...retiredUploads]);
   if (Buffer.byteLength(JSON.stringify(value)) > MAX_INDEX_BYTES) throw fail('asset-state-invalid');
   return structuredClone(value);
 }
-function migrateState(value, chunkSize, maxAssetBytes, at) {
-  if (![1, 2, 3].includes(value?.schemaVersion)) return validateState(value, chunkSize, maxAssetBytes);
+function migrateState(value, chunkSize, maxAssetBytes, at, targetVersion = 4) {
+  if (value?.schemaVersion >= 4) {
+    const previous = validateState(value, chunkSize, maxAssetBytes);
+    if (previous.schemaVersion === 5 || targetVersion === 4) return previous;
+    return validateState({ ...previous, schemaVersion: 5, blobs: previous.uploads.map(item => structuredClone(item)),
+      uploads: previous.uploads.map(item => ({ ...item, blobId: item.id })), garbageCollection: emptyGc() }, chunkSize, maxAssetBytes);
+  }
   const previous = validateState(value, chunkSize, maxAssetBytes, value.schemaVersion);
   const assets = value.schemaVersion === 1 ? previous.assets.map(asset => ({ ...asset, archived: false })) : previous.assets;
   const lifecycle = previous.lifecycle || emptyLifecycle();
   // Legacy records have no trustworthy archive time. Start their waiting period
   // at migration instead of assuming they were archived long ago.
   if (value.schemaVersion < 3) lifecycle.archives = assets.filter(asset => asset.archived).map(({ projectId, assetId }) => ({ projectId, assetId, archivedAt: at }));
-  return validateState({ ...previous, schemaVersion: 4, policies: previous.policies || [], assets, lifecycle, jobs: emptyAssetJobs() }, chunkSize, maxAssetBytes);
+  return migrateState({ ...previous, schemaVersion: 4, policies: previous.policies || [], assets, lifecycle, jobs: emptyAssetJobs() }, chunkSize, maxAssetBytes, at, targetVersion);
 }
 
 async function createDurableAssetService({ directory, keyring, authorize, authorizePolicy = null, getInitialPolicy = null, initialize = false, chunkSize = 1024 * 1024,
-  maxAssetBytes = MAX_ASSET_BYTES, storage = fs, lockTimeoutMs = 5000, now = Date.now, workerActorContext = null } = {}) {
+  maxAssetBytes = MAX_ASSET_BYTES, storage = fs, lockTimeoutMs = 5000, now = Date.now, workerActorContext = null,
+  withRevisionReferences = null, ownerBoundaryDeduplication = false } = {}) {
   if (!path.isAbsolute(directory || '') || !keyring || typeof keyring.encrypt !== 'function' || typeof keyring.decrypt !== 'function'
     || typeof authorize !== 'function' || authorizePolicy !== null && typeof authorizePolicy !== 'function'
     || getInitialPolicy !== null && typeof getInitialPolicy !== 'function'
     || workerActorContext !== null && typeof workerActorContext !== 'function'
+    || withRevisionReferences !== null && typeof withRevisionReferences !== 'function' || typeof ownerBoundaryDeduplication !== 'boolean'
     || typeof now !== 'function' || typeof initialize !== 'boolean' || !Number.isSafeInteger(chunkSize) || chunkSize < 1 || chunkSize > 1024 * 1024
     || !Number.isSafeInteger(maxAssetBytes) || maxAssetBytes < 0 || maxAssetBytes > MAX_ASSET_BYTES
     || !Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 0 || lockTimeoutMs > 30000) throw fail('asset-service-invalid');
@@ -115,23 +145,25 @@ async function createDurableAssetService({ directory, keyring, authorize, author
   // journal. Keep them scoped to this fresh transaction's in-memory state.
   const initialPolicies = new WeakMap();
   const lifecycle = createAssetLifecycleOperations({ now });
+  const retained = createRetainedAssetOperations({ lifecycle });
+  const targetVersion = withRevisionReferences || ownerBoundaryDeduplication ? 5 : 4;
   const jobs = createAssetJobOperations({ now });
   const count = size => Math.max(1, Math.ceil(size / chunkSize));
   const length = (size, index) => Math.min(chunkSize, Math.max(0, size - index * chunkSize));
-  async function permission(context, projectId, action) {
+  async function permission(context, projectId, action, lease = null) {
     if (!id(projectId)) throw fail('asset-request-invalid');
-    const result = await authorize(context, projectId, action);
+    const result = lease ? await lease.authorize(action) : await authorize(context, projectId, action);
     if (result !== true && result?.allowed !== true) throw fail('asset-forbidden');
   }
-  async function policyPermission(context, projectId) {
+  async function policyPermission(context, projectId, lease = null) {
     if (typeof authorizePolicy !== 'function') throw fail('asset-policy-forbidden');
-    const result = await authorizePolicy(context, projectId, 'write');
+    const result = lease ? await lease.authorizePolicy() : await authorizePolicy(context, projectId, 'write');
     if (!exact(result, ['allowed', 'actorId']) || result.allowed !== true || !id(result.actorId)) throw fail('asset-policy-forbidden');
     return result.actorId;
   }
-  async function initialPolicy(context, projectId) {
-    if (getInitialPolicy === null) return { projectId, version: 0, syncClasses: [] };
-    const value = await getInitialPolicy(context, projectId);
+  async function initialPolicy(context, projectId, lease = null) {
+    if (getInitialPolicy === null && lease === null) return { projectId, version: 0, syncClasses: [] };
+    const value = lease ? await lease.getInitialPolicy() : await getInitialPolicy(context, projectId);
     const fields = ['projectId', 'version', 'syncClasses'];
     if (!value || typeof value !== 'object' || Array.isArray(value)
       || ![Object.prototype, null].includes(Object.getPrototypeOf(value)) || Reflect.ownKeys(value).length !== fields.length
@@ -197,7 +229,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       const file = await bounded(indexPath, MAX_FILE_BYTES, 'asset-state-invalid');
       if (file?.schemaVersion > 1) throw fail('asset-state-newer-version');
       if (!exact(file, ['schemaVersion', 'generation', 'record']) || file.schemaVersion !== 1) throw fail('asset-state-invalid');
-      envelope(file.record); const original = keyring.decrypt(file.record), checked = migrateState(original, chunkSize, maxAssetBytes, lifecycle.clock());
+      envelope(file.record); const original = keyring.decrypt(file.record), checked = migrateState(original, chunkSize, maxAssetBytes, lifecycle.clock(), targetVersion);
       needsMigration = original.schemaVersion !== checked.schemaVersion;
       if (checked.generation !== file.generation) throw fail('asset-state-invalid'); observedKeyId = file.record.keyId;
       return checked;
@@ -206,7 +238,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       throw fail(error.code === 'asset-state-newer-version' ? error.code : 'asset-state-invalid');
     }
   }
-  function transact(context, projectId, action, operation, signal, startup = false, commitPermission = null) {
+  function transact(context, projectId, action, operation, signal, startup = false, commitPermission = null, references = false) {
     if (closing) return Promise.reject(fail('asset-service-closed'));
     const next = pending.then(async () => {
       if (uncertain) throw fail('asset-storage-uncertain'); abort(signal);
@@ -217,7 +249,8 @@ async function createDurableAssetService({ directory, keyring, authorize, author
         abort(signal); if (!startup) await permission(context, projectId, action);
         let value = await state(); const previous = value && fingerprint(value);
         if (value === null) {
-          value = { schemaVersion: 4, generation: 0, chunkSize, maxAssetBytes, uploads: [], assets: [], policies: [], lifecycle: emptyLifecycle(), jobs: emptyAssetJobs() };
+          value = { schemaVersion: targetVersion, generation: 0, chunkSize, maxAssetBytes, uploads: [], assets: [], policies: [], lifecycle: emptyLifecycle(), jobs: emptyAssetJobs(),
+            ...(targetVersion >= 5 ? { blobs: [], garbageCollection: emptyGc() } : {}) };
           try { await privateDirectory(uploadsPath, true); await syncDir(directory); }
           catch (error) { if (error.code !== 'EEXIST') throw error; await privateDirectory(uploadsPath); }
         } else await privateDirectory(uploadsPath);
@@ -226,22 +259,29 @@ async function createDurableAssetService({ directory, keyring, authorize, author
           baseline = await initialPolicy(context, projectId);
           validateInitialPolicy(value, baseline); initialPolicies.set(value, baseline);
         }
-        const result = await operation(value);
-        validateState(value, chunkSize, maxAssetBytes); abort(signal);
-        if (!startup) {
-          await permission(context, projectId, action);
-          const rechecked = await initialPolicy(context, projectId);
-          if (fingerprint(rechecked) !== fingerprint(baseline)) throw fail('asset-state-invalid');
-          validateInitialPolicy(value, rechecked);
-          await permission(context, projectId, action);
-        }
-        if (commitPermission) await commitPermission();
-        abort(signal);
-        if (needsMigration || previous !== fingerprint(value)) {
-          if (value.generation === Number.MAX_SAFE_INTEGER) throw fail('asset-state-invalid'); value.generation++;
-          await atomic(indexPath, { schemaVersion: 1, generation: value.generation, record: encrypt(value) }, MAX_FILE_BYTES);
-        }
-        initialized = true; return result;
+        const commit = async (snapshot = null, lease = null) => {
+          if (lease) await permission(context, projectId, action, lease);
+          const result = await operation(value, snapshot, lease);
+          validateState(value, chunkSize, maxAssetBytes); abort(signal);
+          if (!startup) {
+            await permission(context, projectId, action, lease);
+            const rechecked = await initialPolicy(context, projectId, lease);
+            if (fingerprint(rechecked) !== fingerprint(baseline)) throw fail('asset-state-invalid');
+            validateInitialPolicy(value, rechecked);
+            await permission(context, projectId, action, lease);
+          }
+          if (commitPermission) await commitPermission(lease);
+          abort(signal);
+          if (needsMigration || previous !== fingerprint(value)) {
+            if (value.generation === Number.MAX_SAFE_INTEGER) throw fail('asset-state-invalid'); value.generation++;
+            await atomic(indexPath, { schemaVersion: 1, generation: value.generation, record: encrypt(value) }, MAX_FILE_BYTES);
+          }
+          initialized = true; return result;
+        };
+        if (!references) return await commit();
+        if (!withRevisionReferences) throw fail('asset-reference-unavailable');
+        // Always asset lock -> history lock. Hold both until index publication.
+        return await withRevisionReferences(context, projectId, commit);
       } catch (error) {
         const safe = new Set(['asset-state-invalid', 'asset-state-newer-version', 'asset-storage-unavailable', 'asset-storage-uncertain',
           'asset-key-rotation-required', 'asset-service-busy', 'asset-request-invalid', 'asset-forbidden', 'asset-identity-invalid',
@@ -249,6 +289,8 @@ async function createDurableAssetService({ directory, keyring, authorize, author
           'asset-capacity-exceeded', 'asset-not-found', 'asset-cancelled', 'upload-not-found', 'upload-incomplete',
           'asset-policy-invalid', 'asset-policy-forbidden', 'asset-policy-version-conflict', 'asset-policy-excluded',
           'asset-archive-invalid', 'asset-archive-conflict', 'asset-archived',
+          'asset-reference-invalid', 'asset-reference-unavailable', 'asset-gc-blocked',
+          'asset-revision-media-missing', 'asset-revision-identity-mismatch', 'asset-revision-unavailable',
           'asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale',
           'asset-job-invalid', 'asset-job-not-found', 'asset-job-forbidden', 'asset-job-idempotency-conflict', 'asset-job-run-stale',
           'asset-job-state-conflict', 'asset-job-attempts-exhausted', 'asset-job-lease-stale', 'asset-job-lease-expired',
@@ -342,7 +384,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
     }),
     readChunk: (claim, index) => leasedOperation(claim, async (value, job) => {
       const upload = verifyJobAsset(value, claim.projectId, job.assetId);
-      const bytes = await read(upload, index); jobs.assertLease(value, claim); transferable(value, upload); return bytes;
+      const bytes = await read(value, upload, index); jobs.assertLease(value, claim); transferable(value, upload); return bytes;
     }),
     progress: (claim, bytes) => leasedOperation(claim, value => jobs.progress(value, claim, bytes)),
     complete: (claim, result) => leasedOperation(claim, (value, job) => {
@@ -355,22 +397,95 @@ async function createDurableAssetService({ directory, keyring, authorize, author
     }
   };
   const receipt = upload => ({ assetId: upload.identity.contentId, size: upload.identity.size, chunkSize, chunks: upload.hashes.length, verified: true });
-  async function read(upload, index) {
+  async function read(value, upload, index) {
     if (!Number.isSafeInteger(index) || index < 0 || index >= upload.hashes.length) throw fail('asset-chunk-invalid');
     if (!upload.hashes[index]) throw fail('upload-incomplete');
     try {
-      const folder = path.join(uploadsPath, upload.id); await privateDirectory(folder);
+      const physical = value.schemaVersion >= 5 ? value.blobs.find(blob => blob.id === upload.blobId) : upload;
+      if (!physical) throw fail('asset-chunk-corrupt');
+      const folder = path.join(uploadsPath, physical.id); await privateDirectory(folder);
       const encrypted = await bounded(path.join(folder, `${index}.enc.json`), maxChunkFile, 'asset-chunk-corrupt'); envelope(encrypted);
-      const value = keyring.decrypt(encrypted);
-      if (!exact(value, ['schemaVersion', 'uploadId', 'projectId', 'index', 'checksum', 'data']) || value.schemaVersion !== 1
-        || value.uploadId !== upload.id || value.projectId !== upload.projectId || value.index !== index
-        || value.checksum !== upload.hashes[index] || !base64(value.data, length(upload.identity.size, index))) throw fail('asset-chunk-corrupt');
-      const bytes = Buffer.from(value.data, 'base64'); if (hash(bytes) !== upload.hashes[index]) throw fail('asset-chunk-corrupt'); return bytes;
+      const payload = keyring.decrypt(encrypted);
+      if (!exact(payload, ['schemaVersion', 'uploadId', 'projectId', 'index', 'checksum', 'data']) || payload.schemaVersion !== 1
+        || payload.uploadId !== physical.id || payload.projectId !== physical.projectId || payload.index !== index
+        || payload.checksum !== upload.hashes[index] || !base64(payload.data, length(upload.identity.size, index))) throw fail('asset-chunk-corrupt');
+      const bytes = Buffer.from(payload.data, 'base64'); if (hash(bytes) !== upload.hashes[index]) throw fail('asset-chunk-corrupt'); return bytes;
     } catch { throw fail('asset-chunk-corrupt'); }
   }
+  function ownerReferences(context, projectId, operation) {
+    return transact(context, projectId, 'write', async (value, references, lease) => {
+      const actor = await policyPermission(context, projectId, lease);
+      const result = await operation(value, references, actor);
+      if (await policyPermission(context, projectId, lease) !== actor) throw fail('asset-policy-forbidden');
+      return result;
+    }, undefined, false, null, true);
+  }
+  function cleanupPendingGarbage() {
+    return transact(null, null, null, async value => {
+      if (value.schemaVersion < 5) return;
+      for (const pendingBlob of [...value.garbageCollection.pending]) {
+        const blob = pendingBlob.blob, folder = path.join(uploadsPath, blob.id);
+        let clean = true;
+        try {
+          try { await privateDirectory(folder); }
+          catch (error) { if (error.code === 'ENOENT') { value.garbageCollection.pending = value.garbageCollection.pending.filter(row => row.blob.id !== blob.id); continue; } throw error; }
+          const directoryIdentity = await storage.lstat(folder);
+          const expected = new Set(blob.hashes.map((_, index) => `${index}.enc.json`)); const identities = new Map();
+          const names = await storage.readdir(folder);
+          if (names.some(name => !expected.has(name))) continue; // Unknown files are never recursively removed.
+          for (const name of names) {
+            const index = Number(name.slice(0, -'.enc.json'.length)), filename = path.join(folder, name);
+            const before = await storage.lstat(filename);
+            if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1) { clean = false; break; }
+            const encrypted = await bounded(filename, maxChunkFile, 'asset-chunk-corrupt'); envelope(encrypted);
+            const payload = keyring.decrypt(encrypted), checksum = blob.hashes[index];
+            if (!exact(payload, ['schemaVersion', 'uploadId', 'projectId', 'index', 'checksum', 'data']) || payload.schemaVersion !== 1
+              || payload.uploadId !== blob.id || payload.projectId !== blob.projectId || payload.index !== index || payload.checksum !== checksum
+              || !base64(payload.data, length(blob.identity.size, index)) || hash(Buffer.from(payload.data, 'base64')) !== checksum) { clean = false; break; }
+            const after = await storage.lstat(filename);
+            if (before.dev !== after.dev || before.ino !== after.ino || before.ctimeMs !== after.ctimeMs || before.mtimeMs !== after.mtimeMs) { clean = false; break; }
+            identities.set(name, after);
+          }
+          if (!clean) continue;
+          for (const name of names) {
+            const currentDirectory = await storage.lstat(folder), expectedFile = identities.get(name), filename = path.join(folder, name);
+            if (!currentDirectory.isDirectory() || currentDirectory.isSymbolicLink() || currentDirectory.dev !== directoryIdentity.dev || currentDirectory.ino !== directoryIdentity.ino) { clean = false; break; }
+            const current = await storage.lstat(filename);
+            if (current.dev !== expectedFile.dev || current.ino !== expectedFile.ino || current.ctimeMs !== expectedFile.ctimeMs
+              || current.mtimeMs !== expectedFile.mtimeMs || !current.isFile() || current.isSymbolicLink() || current.nlink !== 1) { clean = false; break; }
+            await storage.unlink(filename);
+          }
+          if (!clean) continue;
+          await syncDir(folder); await storage.rmdir(folder); await syncDir(uploadsPath);
+          value.garbageCollection.pending = value.garbageCollection.pending.filter(row => row.blob.id !== blob.id);
+        } catch { /* A durable pending record retains exact ownership for explicit/restart retry. */ }
+      }
+    }, undefined, true);
+  }
   await transact(null, null, null, () => null, null, true);
+  await cleanupPendingGarbage();
   return {
     worker,
+    getOwnerAssetReport: (context, projectId, input) => ownerReferences(context, projectId, (value, references) => retained.report(value, projectId, references, input)),
+    planGarbageCollection: (context, projectId, input) => ownerReferences(context, projectId, (value, references) => retained.plan(value, projectId, references, input)),
+    garbageCollect: async (context, projectId, input) => {
+      const result = await ownerReferences(context, projectId, (value, references, actor) => retained.execute(value, actor, projectId, references, input));
+      await cleanupPendingGarbage(); return result;
+    },
+    withPublicationGuard: (context, projectId, operation) => {
+      if (typeof operation !== 'function') return Promise.reject(fail('asset-request-invalid'));
+      return transact(context, projectId, 'write', value => operation((manifest, { requireMedia = false } = {}) => {
+        if (!manifest?.mediaDependencies) { if (requireMedia) throw fail('asset-revision-media-missing'); return; }
+        if (requireMedia && manifest.mediaDependencies.coverage !== 'complete') throw fail('asset-revision-media-missing');
+        for (const dependency of manifest.mediaDependencies.assets || []) {
+          const asset = value.assets.find(item => item.projectId === projectId && item.assetId === dependency.identity?.contentId);
+          if (!asset) { if (requireMedia) throw fail('asset-revision-media-missing'); continue; }
+          const upload = getUpload(value, projectId, asset.uploadId);
+          if (fingerprint(upload.identity) !== fingerprint(dependency.identity)) throw fail('asset-revision-identity-mismatch');
+          if (requireMedia) { try { transferable(value, upload); } catch { throw fail('asset-revision-media-missing'); } }
+        }
+      }));
+    },
     submitVerificationJob: (context, projectId, input) => jobWrite(context, projectId, (value, actorId) =>
       jobs.submit(value, actorId, projectId, input, assetId => verifyJobAsset(value, projectId, assetId))),
     getVerificationJob: (context, projectId, jobId) => transact(context, projectId, 'read', value => jobs.publicJob(jobs.get(value, projectId, jobId))),
@@ -382,16 +497,43 @@ async function createDurableAssetService({ directory, keyring, authorize, author
     getVerificationMetrics: (context, projectId) => transact(context, projectId, 'read', value => jobs.metrics(value, projectId)),
     beginUpload: (context, projectId, candidate) => {
       let checked; try { checked = identity(candidate, maxAssetBytes, chunkSize); } catch (error) { return Promise.reject(error); }
+      let dedupSource = null, dedupActor = null;
       return transact(context, projectId, 'write', async value => {
+        if (withRevisionReferences) await withRevisionReferences(context, projectId, references => {
+          const canonical = validateReferences(references, projectId);
+          for (const revision of canonical.revisions) for (const retainedIdentity of revision.assets) {
+            if (retainedIdentity.contentId === checked.contentId && fingerprint(retainedIdentity) !== fingerprint(checked)) throw fail('asset-identity-collision');
+          }
+        });
         const existing = value.uploads.find(item => item.projectId === projectId && item.identity.contentId === checked.contentId);
         if (existing) {
           if (fingerprint(existing.identity) !== fingerprint(checked)) throw fail('asset-identity-collision'); transferable(value, existing); return status(value, existing);
         }
+        const retired = value.garbageCollection?.deleted.find(item => item.projectId === projectId && item.assetId === checked.contentId);
+        if (retired && fingerprint(retired.identity) !== fingerprint(checked)) throw fail('asset-identity-collision');
         if (value.uploads.length >= 10000) throw fail('asset-capacity-exceeded');
-        const upload = { id: randomUUID(), projectId, identity: checked, hashes: Array(count(checked.size)).fill(null) };
+        if (ownerBoundaryDeduplication && value.schemaVersion >= 5) {
+          try { dedupActor = await policyPermission(context, projectId); } catch (error) { if (!['asset-policy-forbidden', 'forbidden'].includes(error.code)) throw error; }
+          if (dedupActor) for (const asset of value.assets) {
+            const source = getUpload(value, asset.projectId, asset.uploadId);
+            if (asset.projectId === projectId || asset.archived || fingerprint(source.identity) !== fingerprint(checked)) continue;
+            try { if (await policyPermission(context, asset.projectId) === dedupActor) { dedupSource = source; break; } }
+            catch (error) { if (!['asset-policy-forbidden', 'forbidden'].includes(error.code)) throw error; }
+          }
+        }
+        const uploadId = randomUUID();
+        const upload = { id: uploadId, projectId, identity: checked,
+          hashes: dedupSource ? [...dedupSource.hashes] : Array(count(checked.size)).fill(null),
+          ...(value.schemaVersion >= 5 ? { blobId: dedupSource ? dedupSource.blobId : uploadId } : {}) };
         transferable(value, upload);
-        await privateDirectory(path.join(uploadsPath, upload.id), true); await syncDir(uploadsPath);
+        if (!dedupSource) {
+          const physicalId = upload.blobId || upload.id;
+          if (value.schemaVersion >= 5) value.blobs.push({ id: physicalId, projectId, identity: structuredClone(checked), hashes: [...upload.hashes] });
+          await privateDirectory(path.join(uploadsPath, physicalId), true); await syncDir(uploadsPath);
+        }
         value.uploads.push(upload); transferable(value, upload); return status(value, upload);
+      }, undefined, false, async () => {
+        if (dedupSource && (await policyPermission(context, projectId) !== dedupActor || await policyPermission(context, dedupSource.projectId) !== dedupActor)) throw fail('asset-policy-forbidden');
       });
     },
     uploadStatus: (context, projectId, uploadId) => transact(context, projectId, 'write', value => status(value, getUpload(value, projectId, uploadId))),
@@ -407,11 +549,13 @@ async function createDurableAssetService({ directory, keyring, authorize, author
         if (!Number.isSafeInteger(index) || index < 0 || index >= upload.hashes.length || bytes.length !== length(upload.identity.size, index)
           || hash(bytes) !== checksum) throw fail('asset-chunk-invalid');
         if (upload.hashes[index] && upload.hashes[index] !== checksum) throw fail('asset-chunk-conflict');
-        if (upload.hashes[index]) await read(upload, index);
+        if (upload.hashes[index]) await read(value, upload, index);
         else {
-          const folder = path.join(uploadsPath, upload.id); await privateDirectory(folder); abort(signal);
-          const encrypted = encrypt({ schemaVersion: 1, uploadId, projectId, index, checksum, data: bytes.toString('base64') });
+          const physical = value.schemaVersion >= 5 ? value.blobs.find(blob => blob.id === upload.blobId) : upload;
+          const folder = path.join(uploadsPath, physical.id); await privateDirectory(folder); abort(signal);
+          const encrypted = encrypt({ schemaVersion: 1, uploadId: physical.id, projectId: physical.projectId, index, checksum, data: bytes.toString('base64') });
           await atomic(path.join(folder, `${index}.enc.json`), encrypted, maxChunkFile); upload.hashes[index] = checksum;
+          if (value.schemaVersion >= 5) physical.hashes[index] = checksum;
         }
         transferable(value, upload);
         return { receivedBytes: upload.hashes.reduce((sum, digest, part) => sum + (digest ? length(upload.identity.size, part) : 0), 0),
@@ -424,7 +568,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
       transferable(value, upload);
       if (!upload.hashes.every(Boolean)) throw fail('upload-incomplete');
       const digest = createHash('sha256'); let size = 0;
-      for (let index = 0; index < upload.hashes.length; index++) { abort(signal); const bytes = await read(upload, index); digest.update(bytes); size += bytes.length; }
+      for (let index = 0; index < upload.hashes.length; index++) { abort(signal); const bytes = await read(value, upload, index); digest.update(bytes); size += bytes.length; }
       if (size !== upload.identity.size || `sha256:${digest.digest('hex')}` !== upload.identity.contentId) throw fail('asset-content-mismatch');
       transferable(value, upload); value.assets.push({ projectId, assetId: upload.identity.contentId, uploadId, archived: false }); return receipt(upload);
     }, signal),
@@ -434,7 +578,7 @@ async function createDurableAssetService({ directory, keyring, authorize, author
     }),
     readChunk: (context, projectId, assetId, index, { signal } = {}) => transact(context, projectId, 'read', async value => {
       const upload = getAssetUpload(value, projectId, assetId); transferable(value, upload);
-      const bytes = await read(upload, index); abort(signal); transferable(value, upload);
+      const bytes = await read(value, upload, index); abort(signal); transferable(value, upload);
       return { bytes, checksum: upload.hashes[index], chunks: upload.hashes.length, totalBytes: upload.identity.size };
     }, signal),
     getPolicy: (context, projectId) => transact(context, projectId, 'read', value => policy(value, projectId)),

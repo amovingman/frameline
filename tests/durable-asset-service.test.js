@@ -340,7 +340,7 @@ test('failed migration never resets evidence and an ambiguous migrated-index pub
   const afterRenameFailure = { ...fs, async rename(from, to) { await fs.rename(from, to); throw Object.assign(new Error('uncertain'), { code: 'EIO' }); } };
   await assert.rejects(createDurableAssetService({ ...f.opts, storage: afterRenameFailure }), { code: 'asset-storage-uncertain' });
   const committed = await fs.readFile(old.filename); assert.notDeepEqual(committed, old.bytes); await f.reopen(); assert.deepEqual(await fs.readFile(old.filename), committed);
-  const envelope = JSON.parse(committed); const future = f.keyring.decrypt(envelope.record); future.schemaVersion = 5; envelope.record = f.keyring.encrypt(future);
+  const envelope = JSON.parse(committed); const future = f.keyring.decrypt(envelope.record); future.schemaVersion = 6; envelope.record = f.keyring.encrypt(future);
   await fs.writeFile(old.filename, JSON.stringify(envelope)); const malformed = await fs.readFile(old.filename);
   await assert.rejects(createDurableAssetService(f.opts), { code: 'asset-state-newer-version' }); assert.deepEqual(await fs.readFile(old.filename), malformed);
 });

@@ -1,5 +1,7 @@
 # Self-hosted asset lifecycle controls
 
+This page describes the original schema-1 lifecycle report/blocked-plan API, which the desktop panel still uses. The [canonical revision media workflow](PERSONAL_MEDIA.md) adds separate schema-2 owner reports and explicit reference-aware collection through `owner-report`, `gc-plan`, and `gc-execute`. Statements below about blocked plans and absent deletion refer to the original endpoints.
+
 This batch adds five features to the encrypted asset service and its owner-facing HTTPS API/CLI:
 
 1. **Durable asset holds.** A current project owner can place a manual, contractual, or investigation hold on a published content ID, optionally with an expiration. Holds are project-scoped and versioned.

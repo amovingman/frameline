@@ -15,7 +15,7 @@ History → **Asset lifecycle** connects project owners to the existing self-hos
 9. [x] Review report or plan export scope/hash, then save the exact path-free JSON artifact through a native save picker after a fresh service-state check.
 10. [x] Recover a private, account-scoped pending mutation after restart; explicitly retry the same request or dismiss it after checking saved state.
 
-These are desktop workflow features within the broader lifecycle roadmap item. Canonical revision references and transactional garbage collection remain open. Plans continue to report `ready: false` and `deletionPerformed: false`; the desktop exposes no delete or editor-write action.
+These are desktop workflow features within the broader lifecycle roadmap item. The [canonical revision media CLI](PERSONAL_MEDIA.md) now supplies retained references and transactional collection through separate owner endpoints. This desktop panel retains its original conservative API: plans report `ready: false` and `deletionPerformed: false`; it exposes no delete or editor-write action.
 
 ## Workflow
 
@@ -49,6 +49,6 @@ Controller/journal tests cover reviewed versions, exact retries after restart an
 
 The [desktop evidence](phase-0/asset-lifecycle-desktop/verification.json) and adjacent screenshots come from `scripts/verify-asset-lifecycle-desktop.cjs`. It uses the actual preload bridge, controller, asset client, HTTPS handler, and encrypted asset service with disposable media. Fixture account/role metadata and save-picker destinations are supplied by the harness. It injects a lost acknowledgment after a committed hold, replaces the controller and reloads the page, retries without duplicating the hold, releases it, changes retention, reviews/exports a blocked plan, checks filtering and sign-out/viewer privacy, and confirms retained media bytes. Layouts are checked at 360, 390, 768, and 1440 pixels.
 
-This is controller restart/page reload evidence, not a whole application/OS restart or a production identity sign-in test. The separate [three-host lifecycle HTTPS proof](ASSET_LIFECYCLE.md#validation-and-remaining-work) covers real standalone host/account restart. Physical cross-device operation, assistive-technology testing, real studio mounts, canonical retained references, receipt retention operations, and garbage collection remain separate work.
+This is controller restart/page reload evidence, not a whole application/OS restart or a production identity sign-in test. The separate [three-host lifecycle HTTPS proof](ASSET_LIFECYCLE.md#validation-and-remaining-work) covers real standalone host/account restart. Physical cross-device operation, assistive-technology testing, real studio mounts, receipt retention operations, and adding the canonical collection workflow to this panel remain separate work.
 
 The completed batch passed all 1,335 full-suite tests without skips, including 15 new desktop/controller/renderer tests, plus packaging validation and changed-UI source lint. The desktop HTTPS fixture made 12 requests. Screenshot review retained the existing graphite/Plex styling; the mechanical design detector reported no lifecycle findings and only existing advisory palette findings elsewhere.

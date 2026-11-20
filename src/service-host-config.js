@@ -88,7 +88,9 @@ async function load(configPath, includeTls) {
     || !ID.test(value.keyring.activeKeyId) || !object(value.keyring.keys)
     || !Object.hasOwn(value.keyring.keys, value.keyring.activeKeyId)
     || Object.keys(value.keyring.keys).length < 1 || Object.keys(value.keyring.keys).length > 16) throw fail('service-host-config-invalid');
-  if (value.assets !== undefined && (!exact(value.assets, ['directory', 'signingKey']) || !absolute(value.assets.directory)
+  if (value.assets !== undefined && (!exact(value.assets, ['directory', 'signingKey',
+    ...(value.assets && Object.hasOwn(value.assets, 'ownerBoundaryDeduplication') ? ['ownerBoundaryDeduplication'] : [])]) || !absolute(value.assets.directory)
+    || value.assets.ownerBoundaryDeduplication !== undefined && typeof value.assets.ownerBoundaryDeduplication !== 'boolean'
     || typeof value.assets.signingKey !== 'string' || value.assets.signingKey.length !== 44
     || Buffer.from(value.assets.signingKey, 'base64').length !== 32
     || Buffer.from(value.assets.signingKey, 'base64').toString('base64') !== value.assets.signingKey)) throw fail('service-host-config-invalid');
@@ -113,7 +115,8 @@ async function load(configPath, includeTls) {
   }
   const config = { directory: path.resolve(value.directory), host: value.host || '127.0.0.1', port: value.port,
     keyring: createKeyring(keys, value.keyring.activeKeyId) };
-  if (value.assets) config.assets = { directory: path.resolve(value.assets.directory), signingKey: Buffer.from(value.assets.signingKey, 'base64') };
+  if (value.assets) config.assets = { directory: path.resolve(value.assets.directory), signingKey: Buffer.from(value.assets.signingKey, 'base64'),
+    ...(value.assets.ownerBoundaryDeduplication === undefined ? {} : { ownerBoundaryDeduplication: value.assets.ownerBoundaryDeduplication }) };
   if (value.notifications !== undefined) config.notifications = validateNotificationConfig(value.notifications);
   if (includeTls) {
     const [cert, key] = await Promise.all([readFile(value.tls.certFile, MAX_CERT_BYTES, false, 'service-host-tls-unavailable'),

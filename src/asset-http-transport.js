@@ -4,6 +4,7 @@ const { TextDecoder } = require('node:util');
 const { API_VERSION, createRequestContext } = require('./project-api-contracts');
 const { validateHoldInput, validateRetentionInput, validateReportInput, validatePlanInput,
   validateHold, validateRetention, validateReport, validatePlan } = require('./asset-lifecycle-protocol');
+const { validateOwnerReport, validateGcPlan, validateGcInput, validateGcReceipt } = require('./retained-asset-protocol');
 const { validateJobSubmit, validateJobAction, validateJobPageInput, validateAssetJob, validateJobPage, validateJobMetrics } = require('./asset-jobs-protocol');
 
 const MAX_CHUNK_BYTES = 1024 * 1024, MAX_JSON_REQUEST_BYTES = 64 * 1024, MAX_JSON_RESPONSE_BYTES = 1024 * 1024;
@@ -22,6 +23,7 @@ const ERROR_STATUS = new Map([
   ['asset-state-newer-version', 500], ['asset-service-closed', 503], ['asset-policy-excluded', 403], ['asset-policy-forbidden', 403],
   ['asset-policy-invalid', 400], ['asset-policy-version-conflict', 409], ['asset-archived', 403], ['asset-archive-invalid', 400], ['asset-archive-conflict', 409],
   ['asset-lifecycle-invalid', 400], ['asset-lifecycle-version-conflict', 409], ['asset-lifecycle-idempotency-conflict', 409], ['asset-lifecycle-plan-stale', 409],
+  ['asset-reference-invalid', 409], ['asset-reference-unavailable', 503], ['asset-gc-blocked', 409],
   ['asset-job-invalid', 400], ['asset-job-not-found', 404], ['asset-job-forbidden', 403], ['asset-job-idempotency-conflict', 409],
   ['asset-job-run-stale', 409], ['asset-job-state-conflict', 409], ['asset-job-attempts-exhausted', 409]
 ]);
@@ -118,6 +120,9 @@ function parseRoute(raw) {
   else if (parts.length === 6 && parts[3] === 'jobs' && ['cancel', 'retry'].includes(parts[5])) result = { kind: `jobs-${parts[5]}`, id: parts[4], methods: ['POST'] };
   else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'report') result = { kind: 'lifecycle-report', methods: ['POST'] };
   else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'plan') result = { kind: 'cleanup-plan', methods: ['POST'] };
+  else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'owner-report') result = { kind: 'owner-report', methods: ['POST'] };
+  else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'gc-plan') result = { kind: 'gc-plan', methods: ['POST'] };
+  else if (parts.length === 5 && parts[3] === 'lifecycle' && parts[4] === 'gc-execute') result = { kind: 'gc-execute', methods: ['POST'] };
   else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'hold') result = { kind: 'hold', id: parts[3], methods: ['GET', 'PUT'] };
   else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'availability') result = { kind: 'availability', id: parts[3], methods: ['GET'] };
   else if (parts.length === 5 && ASSET.test(parts[3] || '') && parts[4] === 'archive') result = { kind: 'archive', id: parts[3], methods: ['PUT'] };
@@ -247,7 +252,7 @@ function createAssetHttpHandler({ assets, authorize, authorizePolicy = null, sig
       if (closing) throw fail('asset-service-busy');
       if (active >= 8) throw fail('asset-service-busy'); active++; admitted = true;
       await allowed(context, target.projectId, ['metadata', 'read', 'ticket', 'policy', 'usage', 'availability', 'archive', 'jobs-list', 'jobs-read', 'jobs-metrics'].includes(target.kind) ? 'read' : 'write');
-      if (['archive', 'hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)
+      if (['archive', 'hold', 'retention', 'lifecycle-report', 'cleanup-plan', 'owner-report', 'gc-plan', 'gc-execute'].includes(target.kind)
         || target.kind === 'policy' && req.method === 'PUT') await ownerAllowed(context, target.projectId);
       let result;
       if (target.kind === 'put' || target.kind === 'read') verifyTicket(target, req.method);
@@ -260,6 +265,12 @@ function createAssetHttpHandler({ assets, authorize, authorizePolicy = null, sig
         else result = validateAssetJob(await assets[target.kind === 'jobs-cancel' ? 'cancelVerificationJob' : 'retryVerificationJob'](
           context, target.projectId, target.id, validateJobAction(body)));
         if (result.projectId !== target.projectId || target.id && result.id !== target.id) throw fail('service-unavailable');
+      } else if (['owner-report', 'gc-plan', 'gc-execute'].includes(target.kind)) {
+        const body = await readBody(req, { signal: controller.signal }); await ownerAllowed(context, target.projectId);
+        if (target.kind === 'owner-report') result = validateOwnerReport(await assets.getOwnerAssetReport(context, target.projectId, validateReportInput(body)));
+        else if (target.kind === 'gc-plan') result = validateGcPlan(await assets.planGarbageCollection(context, target.projectId, validatePlanInput(body)));
+        else result = validateGcReceipt(await assets.garbageCollect(context, target.projectId, validateGcInput(body)));
+        if (result.projectId !== target.projectId) throw fail('service-unavailable');
       } else if (['hold', 'retention', 'lifecycle-report', 'cleanup-plan'].includes(target.kind)) {
         const body = await readBody(req, { writing: req.method !== 'GET', signal: controller.signal });
         await ownerAllowed(context, target.projectId);

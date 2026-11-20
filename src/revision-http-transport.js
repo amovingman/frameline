@@ -24,6 +24,7 @@ const SERVICE_METHODS = ['putManifest', 'getManifest', 'createRevision', 'getRev
 const ERRORS = new Map([
   ['access-token-invalid', 401], ['forbidden', 403], ['rate-limit-exceeded', 429],
   ['credentials-invalid', 401], ['refresh-token-invalid', 401],
+  ['asset-revision-media-missing', 409], ['asset-revision-identity-mismatch', 409], ['asset-revision-unavailable', 503],
   ...['project-not-found', 'manifest-not-found', 'revision-not-found', 'parent-revision-not-found',
     'branch-not-found'].map(code => [code, 404]),
   ...['branch-head-changed', 'revision-parent-mismatch', 'source-revision-exists',
@@ -320,7 +321,8 @@ async function readBody(req, writing, maxBytes = MAX_HTTP_BYTES, presetBody = fa
   catch { throw fail('body-invalid'); }
 }
 function revisionInput(body, projectId, idempotencyKey) {
-  fields(body, ['manifestId', 'parentRevisionId', 'sourceRevisionId', 'message'], ['manifestId', 'message']);
+  fields(body, ['manifestId', 'parentRevisionId', 'sourceRevisionId', 'message', 'requireMedia'], ['manifestId', 'message']);
+  if (body.requireMedia !== undefined && typeof body.requireMedia !== 'boolean') throw fail('body-invalid');
   identifier(body.manifestId);
   if (body.parentRevisionId !== undefined) identifier(body.parentRevisionId, true);
   if (body.sourceRevisionId !== undefined) identifier(body.sourceRevisionId, true);

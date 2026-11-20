@@ -2,11 +2,13 @@
 const { TextDecoder } = require('node:util');
 const { createAssetHttpClient } = require('./asset-http-client');
 const { fail, exact, id, asset, validateHoldInput, validateRetentionInput, validateReportInput, validatePlanInput } = require('./asset-lifecycle-protocol');
+const { validateGcInput } = require('./retained-asset-protocol');
 const SAFE = new Set(['asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale',
   'asset-not-found', 'asset-policy-forbidden', 'asset-forbidden', 'forbidden', 'access-token-invalid', 'asset-network-unavailable',
   'asset-origin-invalid', 'asset-response-invalid', 'asset-capacity-exceeded', 'asset-storage-unavailable', 'asset-storage-uncertain']);
+for (const code of ['asset-reference-invalid', 'asset-reference-unavailable', 'asset-gc-blocked']) SAFE.add(code);
 function validateLifecycleCliRequest(raw) {
-  if (!raw || !['hold-get', 'hold-set', 'hold-release', 'retention-get', 'retention-set', 'report', 'plan'].includes(raw.action)) throw fail('asset-lifecycle-invalid');
+  if (!raw || !['hold-get', 'hold-set', 'hold-release', 'retention-get', 'retention-set', 'report', 'plan', 'owner-report', 'gc-plan', 'gc-execute'].includes(raw.action)) throw fail('asset-lifecycle-invalid');
   const isHold = raw.action.startsWith('hold-'), withInput = !raw.action.endsWith('-get');
   if (!exact(raw, ['action', 'origin', 'accessToken', 'projectId', ...(isHold ? ['assetId'] : []), ...(withInput ? ['input'] : [])])
     || typeof raw.origin !== 'string' || raw.origin.length > 2048 || typeof raw.accessToken !== 'string'
@@ -21,8 +23,9 @@ function validateLifecycleCliRequest(raw) {
     if (!exact(input, ['expectedVersion', 'idempotencyKey'])) throw fail('asset-lifecycle-invalid');
     input = validateHoldInput({ ...input, held: false, reason: null, until: null });
   } else if (raw.action === 'retention-set') input = validateRetentionInput(input);
-  else if (raw.action === 'report') input = validateReportInput(input);
-  else if (raw.action === 'plan') input = validatePlanInput(input);
+  else if (['report', 'owner-report'].includes(raw.action)) input = validateReportInput(input);
+  else if (['plan', 'gc-plan'].includes(raw.action)) input = validatePlanInput(input);
+  else if (raw.action === 'gc-execute') input = validateGcInput(input);
   return { ...structuredClone(raw), origin: url.origin, ...(withInput ? { input } : {}) };
 }
 async function runAssetLifecycleCli({ argv = process.argv.slice(2), input = process.stdin, output = process.stdout,
@@ -44,6 +47,9 @@ async function runAssetLifecycleCli({ argv = process.argv.slice(2), input = proc
     else if (request.action === 'retention-get') result = await client.getRetentionPolicy(request.projectId);
     else if (request.action === 'retention-set') result = await client.setRetentionPolicy(request.projectId, request.input);
     else if (request.action === 'report') result = await client.getLifecycleReport(request.projectId, request.input);
+    else if (request.action === 'owner-report') result = await client.getOwnerAssetReport(request.projectId, request.input);
+    else if (request.action === 'gc-plan') result = await client.planGarbageCollection(request.projectId, request.input);
+    else if (request.action === 'gc-execute') result = await client.garbageCollect(request.projectId, request.input);
     else result = await client.planCleanup(request.projectId, request.input);
     output.write(`${JSON.stringify(result)}\n`); return 0;
   } catch (error) {

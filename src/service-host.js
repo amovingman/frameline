@@ -32,17 +32,24 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
     || config.tls.cert.length < 1 || config.tls.cert.length > 1024 * 1024 || config.tls.key.length < 1 || config.tls.key.length > 64 * 1024
     || config.assets !== undefined && (!path.isAbsolute(config.assets?.directory || '')
       || !Buffer.isBuffer(config.assets.signingKey) || config.assets.signingKey.length !== 32
+      || config.assets.ownerBoundaryDeduplication !== undefined && typeof config.assets.ownerBoundaryDeduplication !== 'boolean'
       || nested(config.directory, config.assets.directory) || nested(config.assets.directory, config.directory))) throw fail('service-host-invalid');
   const notificationConfig = config.notifications === undefined ? null : validateNotificationConfig(config.notifications);
   const tls = { cert: config.tls.cert, key: config.tls.key, minVersion: 'TLSv1.2', handshakeTimeout: 5000 };
   try { createSecureContext(tls); } catch { throw fail('service-host-tls-unavailable'); }
   const runtime = await createDurableCollaborationService({ directory: config.directory, keyring: config.keyring, initialize,
     notificationDeliveryAvailable: notificationConfig !== null, assetPolicyDefaultsEnabled: !!config.assets });
-  const handler = createRevisionHttpHandler({ service: runtime.service, identity: runtime.identity,
+  let assets = null, assetHandler = null, notificationWorker = null, assetWorker = null;
+  const revisionService = { ...runtime.service, createRevision: (context, input) => {
+    if (assets) return assets.withPublicationGuard(context, input.projectId,
+      checkManifest => runtime.createRevisionWithAssetGuard(context, input, checkManifest));
+    if (input.requireMedia === true) throw fail('asset-revision-unavailable');
+    return runtime.service.createRevision(context, input);
+  } };
+  const handler = createRevisionHttpHandler({ service: revisionService, identity: runtime.identity,
     listProjects: context => runtime.projects.list(context) });
   const shareViewer = createShareViewerHandler();
   const unsubscribeViewer = createUnsubscribeViewerHandler();
-  let assets = null, assetHandler = null, notificationWorker = null, assetWorker = null;
   try {
     if (config.assets) {
       const workerActors = new WeakMap();
@@ -51,6 +58,8 @@ async function startServiceHost({ config, initialize = false, allowEphemeralPort
         ? runtime.authorizeAssetWorker(workerActors.get(context), projectId, action) : runtime.service.authorizeAsset(context, projectId, action);
       const authorizePolicy = (context, projectId, action) => runtime.service.authorizeAssetPolicy(context, projectId, action);
       assets = await createDurableAssetService({ directory: config.assets.directory, keyring: config.keyring, authorize, authorizePolicy,
+        withRevisionReferences: (context, projectId, operation) => runtime.withRevisionReferences(context, projectId, operation),
+        ownerBoundaryDeduplication: config.assets.ownerBoundaryDeduplication === true,
         getInitialPolicy: (context, projectId) => workerActors.has(context)
           ? runtime.projects.getInitialAssetPolicyForWorker(workerActors.get(context), projectId) : runtime.projects.getInitialAssetPolicy(context, projectId),
         workerActorContext, initialize });
