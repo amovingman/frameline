@@ -197,15 +197,22 @@ test('background journal write failure is observable, pauses work and recovers o
   const f = await fixture(t, { renderThumbnail: async (input, controls) => {
     begun(); await delayed; await controls.progress(70); await fs.writeFile(input.outputPath, png); return resultFor(png);
   } });
-  await f.controller.chooseSource(f.media); await enable(f.controller);
-  await f.controller.enqueue({ kind: 'thumbnail', rightsConfirmed: true }); await started;
-  const filename = path.join(f.directory, 'desktop-media-jobs.json'); const retained = `${filename}.retained`;
-  await fs.rename(filename, retained); await fs.mkdir(filename); // Atomic rename is now refused, like an unavailable journal.
-  finish();
-  const failed = await until(f.controller, value => value.error === 'media-storage-unavailable');
-  assert.equal(failed.jobs[0].status, 'paused'); assert.equal(failed.jobs[0].result, null);
-  await assert.rejects(f.controller.enqueue({ kind: 'hash' }), { code: 'media-storage-unavailable' });
-  await f.controller.dispose(); await fs.rmdir(filename); await fs.rename(retained, filename);
-  const restarted = f.make(); const restored = await restarted.initialize();
-  assert.equal(restored.error, null); assert.equal(restored.jobs[0].status, 'paused');
+  try {
+    await f.controller.chooseSource(f.media); await enable(f.controller);
+    await f.controller.enqueue({ kind: 'thumbnail', rightsConfirmed: true }); await started;
+    // Flush earlier fingerprint-progress writes before replacing the journal.
+    await f.controller.getState();
+    const filename = path.join(f.directory, 'desktop-media-jobs.json'); const retained = `${filename}.retained`;
+    await fs.rename(filename, retained); await fs.mkdir(filename); // Atomic rename is now refused, like an unavailable journal.
+    finish();
+    const failed = await until(f.controller, value => value.error === 'media-storage-unavailable');
+    assert.equal(failed.jobs[0].status, 'paused'); assert.equal(failed.jobs[0].result, null);
+    await assert.rejects(f.controller.enqueue({ kind: 'hash' }), { code: 'media-storage-unavailable' });
+    await f.controller.dispose(); await fs.rmdir(filename); await fs.rename(retained, filename);
+    const restarted = f.make(); const restored = await restarted.initialize();
+    assert.equal(restored.error, null); assert.equal(restored.jobs[0].status, 'paused');
+  } finally {
+    // Fixture cleanup must never wait forever on the delayed mock renderer.
+    finish();
+  }
 });

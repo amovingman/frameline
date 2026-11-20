@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "readOnly": true,
+  "safeToApply": false,
+  "fixturePolicy": "small-disposable-fixtures",
+  "target": {
+    "name": "DaVinci Resolve",
+    "edition": "Free",
+    "version": "21.1.2",
+    "build": "21.1.20010",
+    "os": "macOS"
+  },
+  "runtime": {
+    "node": "24.21.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "iterations": 3,
+  "results": [
+    {
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "clips": 1,
+      "media": 1,
+      "iteration": 1,
+      "mode": "first-scan",
+      "elapsedMs": 36.67,
+      "processCpuMicros": {
+        "user": 27622,
+        "system": 4121
+      },
+      "processRssBefore": 55721984,
+      "processRssAfter": 72777728,
+      "cacheHit": false,
+      "sourceUnchanged": true,
+      "warningCount": 2
+    },
+    {
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "clips": 1,
+      "media": 1,
+      "iteration": 1,
+      "mode": "cached-rescan",
+      "elapsedMs": 0.46162499999999795,
+      "processCpuMicros": {
+        "user": 582,
+        "system": 116
+      },
+      "processRssBefore": 72777728,
+      "processRssAfter": 72925184,
+      "cacheHit": true,
+      "sourceUnchanged": true,
+      "warningCount": 2
+    },
+    {
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "clips": 1,
+      "media": 1,
+      "iteration": 2,
+      "mode": "first-scan",
+      "elapsedMs": 22.310792,
+      "processCpuMicros": {
+        "user": 25757,
+        "system": 1392
+      },
+      "processRssBefore": 69255168,
+      "processRssAfter": 75677696,
+      "cacheHit": false,
+      "sourceUnchanged": true,
+      "warningCount": 2
+    },
+    {
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "clips": 1,
+      "media": 1,
+      "iteration": 2,
+      "mode": "cached-rescan",
+      "elapsedMs": 0.608041,
+      "processCpuMicros": {
+        "user": 670,
+        "system": 149
+      },
+      "processRssBefore": 75677696,
+      "processRssAfter": 75694080,
+      "cacheHit": true,
+      "sourceUnchanged": true,
+      "warningCount": 2
+    },
+    {
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "clips": 1,
+      "media": 1,
+      "iteration": 3,
+      "mode": "first-scan",
+      "elapsedMs": 22.034791,
+      "processCpuMicros": {
+        "user": 25098,
+        "system": 1434
+      },
+      "processRssBefore": 71860224,
+      "processRssAfter": 77119488,
+      "cacheHit": false,
+      "sourceUnchanged": true,
+      "warningCount": 2
+    },
+    {
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "clips": 1,
+      "media": 1,
+      "iteration": 3,
+      "mode": "cached-rescan",
+      "elapsedMs": 0.6189169999999962,
+      "processCpuMicros": {
+        "user": 999,
+        "system": 164
+      },
+      "processRssBefore": 77135872,
+      "processRssAfter": 77266944,
+      "cacheHit": true,
+      "sourceUnchanged": true,
+      "warningCount": 2
+    },
+    {
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "clips": 50,
+      "media": 50,
+      "iteration": 1,
+      "mode": "first-scan",
+      "elapsedMs": 28.954499999999996,
+      "processCpuMicros": {
+        "user": 42405,
+        "system": 3024
+      },
+      "processRssBefore": 81625088,
+      "processRssAfter": 89178112,
+      "cacheHit": false,
+      "sourceUnchanged": true,
+      "warningCount": 1
+    },
+    {
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "clips": 50,
+      "media": 50,
+      "iteration": 1,
+      "mode": "cached-rescan",
+      "elapsedMs": 1.2668340000000171,
+      "processCpuMicros": {
+        "user": 2415,
+        "system": 686
+      },
+      "processRssBefore": 89178112,
+      "processRssAfter": 89620480,
+      "cacheHit": true,
+      "sourceUnchanged": true,
+      "warningCount": 1
+    },
+    {
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "clips": 50,
+      "media": 50,
+      "iteration": 2,
+      "mode": "first-scan",
+      "elapsedMs": 26.291541999999993,
+      "processCpuMicros": {
+        "user": 39009,
+        "system": 2270
+      },
+      "processRssBefore": 87244800,
+      "processRssAfter": 91766784,
+      "cacheHit": false,
+      "sourceUnchanged": true,
+      "warningCount": 1
+    },
+    {
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "clips": 50,
+      "media": 50,
+      "iteration": 2,
+      "mode": "cached-rescan",
+      "elapsedMs": 1.120834000000002,
+      "processCpuMicros": {
+        "user": 1123,
+        "system": 459
+      },
+      "processRssBefore": 91766784,
+      "processRssAfter": 91783168,
+      "cacheHit": true,
+      "sourceUnchanged": true,
+      "warningCount": 1
+    },
+    {
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "clips": 50,
+      "media": 50,
+      "iteration": 3,
+      "mode": "first-scan",
+      "elapsedMs": 26.344042,
+      "processCpuMicros": {
+        "user": 38877,
+        "system": 2463
+      },
+      "processRssBefore": 89309184,
+      "processRssAfter": 93798400,
+      "cacheHit": false,
+      "sourceUnchanged": true,
+      "warningCount": 1
+    },
+    {
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "clips": 50,
+      "media": 50,
+      "iteration": 3,
+      "mode": "cached-rescan",
+      "elapsedMs": 1.1897500000000036,
+      "processCpuMicros": {
+        "user": 2430,
+        "system": 516
+      },
+      "processRssBefore": 93798400,
+      "processRssAfter": 93831168,
+      "cacheHit": true,
+      "sourceUnchanged": true,
+      "warningCount": 1
+    }
+  ],
+  "editorWrite": null,
+  "editorReopen": null,
+  "fullGateCompleted": false,
+  "limitations": [
+    "Elapsed time covers worker startup when applicable, reading, hashing, parsing, and media availability checks.",
+    "CPU and RSS describe this process including worker threads; RSS is sampled, not a peak or editor-memory measure.",
+    "Stored exports retain historical media paths; this run does not regenerate their media.",
+    "Editor write/reopen and recovery timing require a live disposable operation; no duration is inferred from old observations."
+  ]
+}

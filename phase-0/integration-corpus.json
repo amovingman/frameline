@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "releaseSupportRange": null,
+  "target": {
+    "name": "DaVinci Resolve",
+    "edition": "Free",
+    "version": "21.1.2",
+    "build": "21.1.20010",
+    "os": "macOS"
+  },
+  "entries": [
+    {
+      "file": "phase-0/compatibility-corpus/resolve-structure-live.fcpxmld/Info.fcpxml",
+      "compression": "none",
+      "storedSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "sourceBytes": 6171,
+      "editor": {
+        "name": "DaVinci Resolve",
+        "edition": "Free",
+        "version": "21.1.2",
+        "build": "21.1.20010",
+        "os": "macOS"
+      },
+      "provenance": "phase-0/compatibility-corpus/README.md",
+      "expected": {
+        "clips": 1,
+        "media": 1,
+        "durationFrames": 241,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned",
+          "Content attached to a gap, including additional tracks, is not scanned"
+        ]
+      }
+    },
+    {
+      "file": "phase-0/large-projects/corpus/small-editor.fcpxml.gz",
+      "compression": "gzip",
+      "storedSha256": "bbb0c388fec9f1d6b2d29e4a87717340762b8a48afb81cd68e8cc2ae1b0b52ee",
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "sourceBytes": 31076,
+      "editor": {
+        "name": "DaVinci Resolve",
+        "edition": "Free",
+        "version": "21.1.2",
+        "build": "21.1.20010",
+        "os": "macOS"
+      },
+      "provenance": "phase-0/large-projects/verification.json",
+      "expected": {
+        "clips": 50,
+        "media": 50,
+        "durationFrames": 2400,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned"
+        ]
+      }
+    },
+    {
+      "file": "phase-0/large-projects/corpus/typical-editor.fcpxml.gz",
+      "compression": "gzip",
+      "storedSha256": "23711822ba0d1fa79951cbf38a61e06dbb35b9dd448bbd9d8fffb1f5026224b0",
+      "sourceSha256": "3f294791423cab66a6308335e66a4abce20be01cf9f594c8b8d1e2375edc4cf6",
+      "sourceBytes": 305937,
+      "editor": {
+        "name": "DaVinci Resolve",
+        "edition": "Free",
+        "version": "21.1.2",
+        "build": "21.1.20010",
+        "os": "macOS"
+      },
+      "provenance": "phase-0/large-projects/verification.json",
+      "expected": {
+        "clips": 500,
+        "media": 500,
+        "durationFrames": 24000,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned"
+        ]
+      }
+    },
+    {
+      "file": "phase-0/large-projects/corpus/large-editor.fcpxml.gz",
+      "compression": "gzip",
+      "storedSha256": "816acb6e61c9f6cbd05bc33531c36b305c8127bc545ce5a0da9b6cb929703450",
+      "sourceSha256": "f3ddec7340ac8825986e454a75d330d24c189a6cde266b80745788de6828fcd6",
+      "sourceBytes": 6136857,
+      "editor": {
+        "name": "DaVinci Resolve",
+        "edition": "Free",
+        "version": "21.1.2",
+        "build": "21.1.20010",
+        "os": "macOS"
+      },
+      "provenance": "phase-0/large-projects/verification.json",
+      "expected": {
+        "clips": 10000,
+        "media": 1,
+        "durationFrames": 120000,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned"
+        ]
+      }
+    }
+  ]
+}

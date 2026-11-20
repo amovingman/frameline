@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "interpreter": "installed-resolve-bundled-ResolvePython",
+  "operation": "import-DaVinciResolveScript-and-scriptapp-Resolve",
+  "readOnly": true,
+  "safeToApply": false,
+  "result": {
+    "readOnly": true,
+    "connected": false,
+    "resolveVersion": null
+  },
+  "stdoutSha256": "6c6bad49160584f57e8283eb2d47ada61235312321ba196e67adc3f299a5c739",
+  "projectAccessed": false,
+  "projectMutationCalls": 0,
+  "scope": "Read-only local connection probe through the vendor bundled interpreter, distinct from the system-Python probe",
+  "limits": [
+    "No connection was obtained in this installed configuration. This does not characterize every Free installation or prove complete editor coverage."
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "newLiveEditorRun": true,
+  "readOnly": true,
+  "safeToApply": false,
+  "releaseSupported": false,
+  "scope": "Native read-only Lua Utility-menu capture of the existing disposable synthetic project; no project mutation or save/load",
+  "invocation": "Workspace > Scripts > Utility > uniquely named read-only inventory",
+  "resultFile": "phase-0/resolve-menu-inventory-live-result.json.gz",
+  "compression": "gzip",
+  "compressedSha256": "2f425431d1ba53cde507786011189f9772bd3b8849770e3b97843282faf180f6",
+  "uncompressedBytes": 3558671,
+  "operation": "resolve-menu-inventory",
+  "probeId": "2e501335cdc22db2a2e752309bfc55e5",
+  "resolveVersion": "21.1.2.10",
+  "projectId": "96752d7b-7fa0-4d51-aa56-80db8f18c5c6",
+  "projectName": "Frameline Large Scan Proof 20261119 corpus01",
+  "timelineCount": 3,
+  "itemCount": 10550,
+  "timelines": [
+    {
+      "id": "0af8c0c7-8cc7-4e7b-af59-f83f3209b929",
+      "name": "Frameline small 50 clips",
+      "startFrame": 0,
+      "tracks": [
+        {
+          "index": 1,
+          "name": "Video 1",
+          "type": "video"
+        },
+        {
+          "index": 1,
+          "name": "Audio 1",
+          "type": "audio"
+        }
+      ],
+      "itemCount": 50,
+      "itemTypes": {
+        "video": 50
+      },
+      "mediaPoolItemCount": 50,
+      "linkedDirectedEdges": 0,
+      "effectCounts": {
+        "fusion": 0,
+        "ofx": 0,
+        "audio": 0
+      }
+    },
+    {
+      "id": "e23734e8-9e59-41cf-96f3-a9fb81954966",
+      "name": "Frameline typical 500 clips",
+      "startFrame": 0,
+      "tracks": [
+        {
+          "index": 1,
+          "name": "Video 1",
+          "type": "video"
+        },
+        {
+          "index": 1,
+          "name": "Audio 1",
+          "type": "audio"
+        }
+      ],
+      "itemCount": 500,
+      "itemTypes": {
+        "video": 500
+      },
+      "mediaPoolItemCount": 500,
+      "linkedDirectedEdges": 0,
+      "effectCounts": {
+        "fusion": 0,
+        "ofx": 0,
+        "audio": 0
+      }
+    },
+    {
+      "id": "6a723de8-35f2-4644-8441-f17db55e572f",
+      "name": "Frameline large 10000 clips 50 sources",
+      "startFrame": 0,
+      "tracks": [
+        {
+          "index": 1,
+          "name": "Video 1",
+          "type": "video"
+        },
+        {
+          "index": 1,
+          "name": "Audio 1",
+          "type": "audio"
+        }
+      ],
+      "itemCount": 10000,
+      "itemTypes": {
+        "video": 10000
+      },
+      "mediaPoolItemCount": 1,
+      "linkedDirectedEdges": 0,
+      "effectCounts": {
+        "fusion": 0,
+        "ofx": 0,
+        "audio": 0
+      }
+    }
+  ],
+  "capturePasses": 2,
+  "representedStateUnchangedAcrossReads": true,
+  "cpuTimeStatus": "captured",
+  "cpuMicros": 33156233,
+  "cpuTimeScope": "Process CPU sampled across two API captures and snapshot encodings; may include other editor threads. Not wall time or editor write/reopen latency.",
+  "resultBytes": 3558671,
+  "resultSha256": "06566f0889aa617192271240a24b7aed5804a56397b9c5f4b15207a17b4a4128",
+  "snapshotCanonicalSha256": "c0aab52b70e1e02cf249b424b8346e5ab9ee0d983a9e520294d8838af512ceb0",
+  "completionMarkerSha256": "e7dd198225fbfff4774519d60300f9d09d809e3dc29e6893bffe83de4e416949",
+  "completionMarkerVerified": true,
+  "sourceSha256": "0b3586866318f6b5f2adc68b549b08e167ec1aea88cbc91deaaaa0eb40350085",
+  "templateSha256": "68eeb9564338943a47feab8afc7857997c42653f92c8c07b1031c8e65fbdaf83",
+  "baseSourceSha256": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+  "apiReferenceSha256": "2a6c156fcba727b73e16fdc21b90e77db9b914c08c5bf5b53b584380a972f8d7",
+  "stableTrackIdentityProven": false,
+  "completeEnumerationProven": false,
+  "editorStateMutated": false,
+  "limitations": [
+    "Schema-3 fields include effect counts, not parameters or full native properties.",
+    "Two matching represented reads do not prove atomic capture or unrepresented state preservation.",
+    "Track type/index/name are observed locations; no persistent track identity is inferred.",
+    "Copied local files are not authenticated editor provenance; ordinary apply remains unavailable."
+  ],
+  "sourceTemplate": "phase-0/resolve-menu-inventory.lua",
+  "baseSource": "src/companion/resolve-internal.lua",
+  "hostReaderSource": "phase-0/prepare-menu-inventory.js",
+  "hostReaderSourceSha256": "accece418e4d726af1da673db2342747e3273aa9c93ca0f9f8efa9e26ad76848",
+  "projectMutationCalls": 0,
+  "projectSaveCalls": 0,
+  "projectLoadCalls": 0,
+  "directoryMode": "0700",
+  "outputModesAfterHostRead": {
+    "result": "0600",
+    "completionMarker": "0600"
+  },
+  "initialMissingResultWasFailure": false,
+  "privatePreparedFilesRetained": true,
+  "installedTestScriptRemoved": true,
+  "installedSourceVerifiedBeforeRemoval": true
+}
