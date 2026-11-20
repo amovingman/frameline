@@ -29,10 +29,10 @@ process.stdin.on('end',async()=>{try{
  const revisions=createRevisionHttpClient({origin:input.origin,getAccessToken:()=>session.accessToken});
  const assets=createAssetHttpClient({origin:input.origin,getAccessToken:()=>session.accessToken});
  const fetched=[]; const tracked={...assets,readChunk:async(...args)=>{fetched.push(args[1]);return assets.readChunk(...args);}};
- const workflow=createRevisionMediaWorkflow({revisionClient:revisions,assetClient:tracked});
+ const workflow=createRevisionMediaWorkflow({origin:input.origin,revisionClient:revisions,assetClient:tracked});
  const [projectA,projectB,projectC]=input.projects;
  const page={afterAssetId:null,limit:100};
- const publish=(projectId,exportPath,key,expectedHead=null,uploadMedia=true)=>workflow.publish({projectId,exportPath,branch:'main',expectedHead,message:'Small canonical media revision',idempotencyKey:key,uploadMedia});
+ const publish=async(projectId,exportPath,key,expectedHead=null,uploadMedia=true)=>{const request={projectId,exportPath,branch:'main',expectedHead,message:'Small canonical media revision',idempotencyKey:key,uploadMedia};const review=await workflow.inspect(request);return workflow.publish({...request,reviewHash:review.reviewHash});};
  const report=pid=>assets.getOwnerAssetReport(pid,page);
  const plan=async(pid,aid)=>{const current=await report(pid);return assets.planGarbageCollection(pid,{assetIds:[aid],expectedStateHash:current.stateHash});};
  const gcInput=(plan,key)=>({assetIds:plan.items.map(item=>item.assetId),expectedStateHash:plan.stateHash,planId:plan.planId,idempotencyKey:key});

@@ -15,7 +15,7 @@ History → **Asset lifecycle** connects project owners to the existing self-hos
 9. [x] Review report or plan export scope/hash, then save the exact path-free JSON artifact through a native save picker after a fresh service-state check.
 10. [x] Recover a private, account-scoped pending mutation after restart; explicitly retry the same request or dismiss it after checking saved state.
 
-These are desktop workflow features within the broader lifecycle roadmap item. The [canonical revision media CLI](PERSONAL_MEDIA.md) now supplies retained references and transactional collection through separate owner endpoints. This desktop panel retains its original conservative API: plans report `ready: false` and `deletionPerformed: false`; it exposes no delete or editor-write action.
+The panel now completes the [advanced lifecycle roadmap item](OWNER_OPERATIONS.md) for the personal/self-hosted scope. It uses authoritative schema-2 reports/plans and explicit reference-aware collection. The original schema-1 blocked-plan API remains available to legacy clients. Editor writes remain outside this workflow.
 
 ## Workflow
 
@@ -27,11 +27,11 @@ Inspect a content ID to see its full observed state. Hold changes, releases, and
 
 Successful mutations display their verified receipt and invalidate the previous report. Load a new report to observe current service state. A historical retry receipt may describe an older successful change; it does not replace a later service hold/release or policy change.
 
-Plan selection stays explicit even when filters hide selected rows. The UI displays the full selection count and limits it to 100. Plans list blockers for every selected asset and continue to explain the missing revision-reference proof.
+Plan selection stays explicit even when filters hide selected rows. The UI displays the full selection count and limits it to 100. Plans list every retained revision and blocker. Complete reference coverage, archive age, no active holds and no active verification are required for an executable plan. Explicit confirmation sends the exact reviewed plan. Unknown legacy coverage remains blocked.
 
 ## Retry recovery and privacy
 
-Before sending a mutation, the main process records its exact project, asset, expected version, desired settings, and generated idempotency key in `userData/asset-lifecycle-intents/lifecycle-intents.json`. The journal uses a `0700` directory, `0600` files, cooperative locking, atomic replacement, file/directory flushes, and a missing-state marker. It stores no passwords, access tokens, media paths, or byte content. Pending records are partitioned by a hash of service origin/account ID and contain only path-free request metadata. The renderer sees the reviewed settings and pending record ID, never the idempotency key.
+Before sending a mutation, the main process records its exact project, asset/collection selection, reviewed version/state/plan, desired settings, and generated idempotency key in `userData/asset-lifecycle-intents/lifecycle-intents.json`. Schema 2 preserves earlier pending requests and stores the matching account's last verified collection receipt. The journal uses a `0700` directory, `0600` files, cooperative locking, atomic replacement, file/directory flushes, and a missing-state marker. It stores no passwords, access tokens, media paths, or byte content. Pending records are partitioned by a hash of service origin/account ID and contain only path-free request metadata. The renderer sees the reviewed settings and pending record ID, never the idempotency key.
 
 Only one pending lifecycle mutation per account may exist. A lost response blocks replacement requests until the original is recovered. Startup/sign-in reads the matching journal locally and never automatically retries a service mutation. Account changes hide former records and discard old report/detail/plan/export state; later sign-in to the original account can recover its pending request. Loss of owner access prevents retrying that project's mutation.
 
@@ -39,7 +39,7 @@ A first definite service rejection clears a newly created intent. An older ambig
 
 ## Reviewed exports
 
-Reports export the individually validated loaded pages and a `complete` flag. Partial reports explicitly state that more pages remain. Plans export the exact validated blocked plan. Both artifacts include a format version, kind, project ID, and reviewed content. They contain no service credentials, local paths, or private retry keys.
+Reports export the individually validated loaded pages and a `complete` flag. Partial reports explicitly state that more pages remain. Plans export the exact validated plan. Receipts export the verified historical deletion outcome, including after restart without reloading a report. All three artifacts include a format version, kind, project ID, and reviewed content. They contain no service credentials, local paths, or private retry keys.
 
 The renderer reviews the artifact's hash, kind, asset count, and completeness before opening the native picker. After the picker returns, the main process rechecks the same scope and a fresh service state hash. Changed state, sign-out, changed selection, symlinked parent folders, and existing destinations prevent a stale or overwriting export. Files are created with `0600` permissions. The snapshot remains evidence of its recorded time; a completed export does not claim current media readiness or authorize deletion.
 
@@ -47,8 +47,8 @@ The renderer reviews the artifact's hash, kind, asset count, and completeness be
 
 Controller/journal tests cover reviewed versions, exact retries after restart and later release, stale project/account scopes, permission changes, report paging, blocked plans, reviewed exports, destination collisions, and private journal validation. Renderer tests cover explicit confirmation, literal labels, preserved drafts, filters and result bounds, pending acknowledgment, stale event versions, and the reference gate.
 
-The [desktop evidence](phase-0/asset-lifecycle-desktop/verification.json) and adjacent screenshots come from `scripts/verify-asset-lifecycle-desktop.cjs`. It uses the actual preload bridge, controller, asset client, HTTPS handler, and encrypted asset service with disposable media. Fixture account/role metadata and save-picker destinations are supplied by the harness. It injects a lost acknowledgment after a committed hold, replaces the controller and reloads the page, retries without duplicating the hold, releases it, changes retention, reviews/exports a blocked plan, checks filtering and sign-out/viewer privacy, and confirms retained media bytes. Layouts are checked at 360, 390, 768, and 1440 pixels.
+The current [desktop evidence](phase-0/owner-operations-desktop/verification.json) comes from `scripts/verify-owner-operations-desktop.cjs` using the shipped main/preload/controller and real HTTPS sign-in. It verifies retained protection, reviewed collection, a lost committed acknowledgment, full app restart, historical retry and receipt export, alongside both metadata publication reviews. Captures cover 390, 768 and 1440 pixels. The earlier [schema-1 evidence](phase-0/asset-lifecycle-desktop/verification.json) remains historical evidence for holds, waiting periods, filters and blocked-plan exports.
 
-This is controller restart/page reload evidence, not a whole application/OS restart or a production identity sign-in test. The separate [three-host lifecycle HTTPS proof](ASSET_LIFECYCLE.md#validation-and-remaining-work) covers real standalone host/account restart. Physical cross-device operation, assistive-technology testing, real studio mounts, receipt retention operations, and adding the canonical collection workflow to this panel remain separate work.
+The current proof includes full application restart and disposable real service sign-in. It does not test OS power loss, physical cross-device operation, assistive-technology software, real studio mounts or managed operations. Those claims remain outside this personal owner workflow.
 
 The completed batch passed all 1,335 full-suite tests without skips, including 15 new desktop/controller/renderer tests, plus packaging validation and changed-UI source lint. The desktop HTTPS fixture made 12 requests. Screenshot review retained the existing graphite/Plex styling; the mechanical design detector reported no lifecycle findings and only existing advisory palette findings elsewhere.

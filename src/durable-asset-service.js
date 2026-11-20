@@ -635,4 +635,11 @@ async function createDurableAssetService({ directory, keyring, authorize, author
     close: async () => { closing = true; await pending; }
   };
 }
-module.exports = { createDurableAssetService, MAX_ASSET_BYTES, MAX_CHUNKS };
+// Pure validation for offline backup verification. Does not hydrate a runtime,
+// migrate, acquire a lock, repair state, or clean pending physical deletion.
+function validateDurableAssetSnapshot(value) {
+  if (!Number.isInteger(value?.chunkSize) || value.chunkSize < 1 || value.chunkSize > 1024 * 1024
+    || !Number.isSafeInteger(value.maxAssetBytes) || value.maxAssetBytes < 0 || value.maxAssetBytes > MAX_ASSET_BYTES) throw fail('asset-state-invalid');
+  return validateState(value, value.chunkSize, value.maxAssetBytes);
+}
+module.exports = { createDurableAssetService, MAX_ASSET_BYTES, MAX_CHUNKS, validateDurableAssetSnapshot };

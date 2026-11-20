@@ -20,15 +20,15 @@ async function fixture(desktopEnabled = true) {
   const document = { activeElement: null }, nodes = new Map(), calls = [];
   const element = key => { if (!nodes.has(key)) nodes.set(key, new Element(document)); return nodes.get(key); };
   document.getElementById = element; document.createElement = () => new Element(document);
-  const row = { assetId: aid, assetClass: 'original', size: 1000, archived: true, archivedAt: 1000, eligibleAt: 1000, sharedProjects: false,
+  const row = { assetId: aid, identity: { assetClass: 'original', size: 1000 }, retainedBy: [], physicalBytesReclaimable: 1000, archived: true, archivedAt: 1000, eligibleAt: 1000, sharedProjects: false,
     hold: { version: 0, held: false, reason: null, until: null }, cleanupCandidate: true, blockers: ['revision-references-unverified'] };
   const state = { version: 1, scopeId: 'scope-1', available: true, connected: true, projects: [{ id: 'film', name: '<b>Film</b>', role: 'owner' }], projectId: 'film',
-    busy: false, ready: true, report: { generatedAt: Date.now(), totalAssets: 1, nextAssetId: null, retentionPolicy: { version: 0, minimumArchiveAgeMs: 0 } },
+    busy: false, ready: true, report: { referenceCoverage: 'incomplete', revisionCount: 0, missingRetainedAssets: [], logicalBytes: 1000, pendingPhysicalBytes: 0, generatedAt: Date.now(), totalAssets: 1, nextAssetId: null, retentionPolicy: { version: 0, minimumArchiveAgeMs: 0 } },
     items: [row], selectedAssetId: aid, selectedIds: [], plan: null, exportReview: null, pending: null, outcome: null, error: null };
   let listener;
   const desktop = { getAssetLifecycleState: async () => structuredClone(state), onAssetLifecycleState: callback => listener = callback };
   for (const name of ['refreshLifecycleProjects', 'selectLifecycleProject', 'refreshLifecycleReport', 'loadMoreLifecycleAssets', 'selectLifecycleAsset',
-    'selectLifecyclePlanAssets', 'saveLifecycleHold', 'saveLifecycleRetention', 'prepareLifecyclePlan', 'retryLifecycleRequest', 'dismissLifecycleRequest', 'prepareLifecycleExport', 'saveLifecycleExport']) {
+    'selectLifecyclePlanAssets', 'saveLifecycleHold', 'saveLifecycleRetention', 'prepareLifecyclePlan', 'executeLifecycleCollection', 'retryLifecycleRequest', 'dismissLifecycleRequest', 'prepareLifecycleExport', 'saveLifecycleExport']) {
     desktop[name] = async input => { calls.push({ name, input: structuredClone(input) }); return structuredClone(state); };
   }
   element('lifecycle-search').value = ''; element('lifecycle-class').value = 'all'; element('lifecycle-filter').value = 'all';
@@ -57,7 +57,7 @@ test('changed scopes discard open reviews while progress preserves hold/retentio
 });
 test('report filters operate on loaded data; hidden selections stay explicit and paging is bounded', async () => {
   const view = await fixture(); view.state.items = Array.from({ length: 205 }, (_, index) => ({ ...view.row,
-    assetId: `sha256:${index.toString(16).padStart(64, '0')}`, assetClass: index % 2 ? 'proxy' : 'original' }));
+    assetId: `sha256:${index.toString(16).padStart(64, '0')}`, identity: { ...view.row.identity, assetClass: index % 2 ? 'proxy' : 'original' } }));
   view.state.report.totalAssets = 205; view.state.selectedIds = [view.state.items[1].assetId]; view.emit();
   assert.equal(view.element('assets').children.length, 100); await view.event('show-more'); assert.equal(view.element('assets').children.length, 200);
   view.element('class').value = 'original'; await view.event('class', 'change'); assert.match(view.element('visible').textContent, /100 of 103/);
@@ -79,9 +79,29 @@ test('retention review converts days to milliseconds and export actions bind the
   assert.deepEqual(view.calls[1].input, { scopeId: 'scope-1', hash: 'b'.repeat(64) });
 });
 test('older responses cannot restore another scope and cleanup always explains the blocked reference gate', async () => {
-  const view = await fixture(); view.state.version = 5; view.state.plan = { items: [view.row], candidateBytes: 1000 }; view.emit();
+  const view = await fixture(); view.state.version = 5; view.state.plan = { items: [view.row], releaseBytes: 1000, physicalBytesReclaimable: 1000, ready: false, planId: 'c'.repeat(64) }; view.emit();
   assert.match(view.element('plan-summary').textContent, /deletion blocked/); assert.match(view.element('plan-items').children[0].textContent, /Revision references unverified/);
   view.emit({ ...view.state, version: 2, scopeId: 'old', plan: null }); assert.equal(view.element('plan').hidden, false);
   view.state.version++; view.state.available = false; view.state.connected = false; view.state.items = []; view.state.report = null; view.state.plan = null; view.state.exportReview = null; view.emit();
   assert.equal(view.element('plan').hidden, true); assert.equal(view.element('report-area').hidden, true);
+});
+
+test('collection is an explicit two-step exact-plan review and receipt export stays available after collection clears the report', async () => {
+  const view = await fixture(); view.row.blockers = []; view.row.cleanupCandidate = true;
+  view.state.plan = { items: [view.row], releaseBytes: 1000, physicalBytesReclaimable: 0, ready: true, planId: 'd'.repeat(64) }; view.emit();
+  assert.equal(view.element('collect-review').disabled, false); await view.event('collect-review');
+  assert.equal(view.calls.length, 0); assert.match(view.element('mutation-summary').textContent, /Permanently remove 1/);
+  assert.match(view.element('mutation-summary').textContent, /0 uniquely stored payload bytes/); assert.equal(view.element('mutation-confirm').textContent, 'Collect reviewed assets');
+  await view.event('mutation-confirm'); assert.deepEqual(view.calls[0], { name: 'executeLifecycleCollection', input: { scopeId: 'scope-1', planId: 'd'.repeat(64), confirmed: true } });
+  view.state.version++; view.state.ready = false; view.state.report = null; view.state.plan = null;
+  view.state.receipt = { projectId: 'film', operationId: 'c'.repeat(64), assetIds: [aid], logicalBytesReleased: 1000, physicalBytesScheduled: 0 }; view.emit();
+  assert.equal(view.element('receipt').hidden, false); assert.equal(view.element('receipt-export').disabled, false);
+  await view.event('receipt-export'); assert.equal(view.calls[1].input.kind, 'receipt');
+});
+test('a changed plan cancels collection consent and incomplete canonical coverage never enables collection', async () => {
+  const view = await fixture(); view.state.plan = { items: [view.row], releaseBytes: 1000, physicalBytesReclaimable: 0, ready: true, planId: 'e'.repeat(64) }; view.emit();
+  await view.event('collect-review'); view.state.version++; view.state.plan.planId = 'f'.repeat(64); view.state.plan.ready = false; view.emit();
+  assert.equal(view.element('mutation-review').hidden, true); assert.equal(view.element('collect-review').disabled, true);
+  await view.event('mutation-confirm'); assert.equal(view.calls.length, 0);
+  assert.match(view.element('reference-summary').textContent, /Retained references: incomplete/);
 });

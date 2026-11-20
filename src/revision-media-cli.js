@@ -7,7 +7,7 @@ const { createRevisionMediaWorkflow } = require('./revision-media-workflow');
 const MAX_INPUT = 256 * 1024;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const fail = code => Object.assign(new Error(code), { code });
-const SAFE = new Set(['revision-media-input-invalid', 'revision-media-owner-required', 'revision-media-binding-required',
+const SAFE = new Set(['revision-media-input-invalid', 'revision-media-review-required', 'revision-media-review-changed', 'revision-media-owner-required', 'revision-media-binding-required',
   'revision-media-manifest-invalid', 'revision-media-observation-invalid', 'revision-media-policy-changed', 'revision-media-source-unavailable',
   'revision-media-source-changed', 'revision-media-coverage-incomplete', 'revision-media-download-blocked', 'revision-media-cancelled',
   'access-token-invalid', 'forbidden', 'project-not-found', 'revision-not-found', 'manifest-not-found', 'branch-not-found',
@@ -26,15 +26,17 @@ const filename = value => typeof value === 'string' && value.length <= 8192 && p
 function validateRevisionMediaCliRequest(value) {
   if (!fields(value, ['origin', 'accessToken', 'projectId', 'action', 'input']) || !id(value.projectId)
     || typeof value.origin !== 'string' || value.origin.length > 2048 || typeof value.accessToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.accessToken)
-    || !['publish', 'availability', 'download', 'policy-get', 'policy-set'].includes(value.action)) throw fail('revision-media-input-invalid');
+    || !['inspect', 'publish', 'availability', 'download', 'policy-get', 'policy-set'].includes(value.action)) throw fail('revision-media-input-invalid');
   let url; try { url = new URL(value.origin); } catch { throw fail('revision-media-input-invalid'); }
   if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw fail('revision-media-input-invalid');
   const input = value.input;
-  if (value.action === 'publish') {
-    const keys = ['exportPath', 'branch', 'expectedHead', 'message', 'idempotencyKey', 'uploadMedia'];
-    if (!fields(input, [...keys, 'maxBytesPerSecond'], keys) || !filename(input.exportPath) || !['.fcpxml', '.fcpxmld'].includes(path.extname(input.exportPath).toLowerCase())
-      || !id(input.branch) || input.expectedHead !== null && !id(input.expectedHead) || !id(input.idempotencyKey)
-      || typeof input.message !== 'string' || !input.message.trim() || input.message.length > 240 || typeof input.uploadMedia !== 'boolean') throw fail('revision-media-input-invalid');
+  if (['inspect', 'publish'].includes(value.action)) {
+    const keys = ['exportPath', 'branch', 'expectedHead', 'message', 'uploadMedia', ...(value.action === 'publish' ? ['idempotencyKey', 'reviewHash'] : [])];
+    if (!fields(input, [...keys, 'maxBytesPerSecond', ...(value.action === 'inspect' ? ['idempotencyKey'] : [])], keys) || !filename(input.exportPath) || !['.fcpxml', '.fcpxmld'].includes(path.extname(input.exportPath).toLowerCase())
+      || !id(input.branch) || input.expectedHead !== null && !id(input.expectedHead)
+      || (value.action === 'publish' || input.idempotencyKey !== undefined) && !id(input.idempotencyKey)
+      || value.action === 'publish' && !/^[a-f0-9]{64}$/.test(input.reviewHash || '')
+      || typeof input.message !== 'string' || !input.message.trim() || input.message.length > 240 || /[\\/\x00-\x1f\x7f]/.test(input.message) || /^[a-z]:/i.test(input.message) || typeof input.uploadMedia !== 'boolean') throw fail('revision-media-input-invalid');
   } else if (['availability', 'download'].includes(value.action)) {
     const required = ['revisionId', ...(value.action === 'download' ? ['destinationDirectory', 'workDirectory'] : [])];
     if (!fields(input, [...required, 'localFiles', 'collaboratorObservation', ...(value.action === 'download' ? ['maxBytesPerSecond'] : [])], required)
@@ -58,7 +60,7 @@ async function runRevisionMediaCli({ argv = process.argv.slice(2), input = proce
     let raw; try { raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks, size))); } catch { throw fail('revision-media-input-invalid'); }
     const value = validateRevisionMediaCliRequest(raw), settings = { origin: value.origin, getAccessToken: () => value.accessToken };
     if (signal?.aborted) throw fail('revision-media-cancelled');
-    const workflow = createWorkflow({ revisionClient: createRevisionClient(settings), assetClient: createAssetClient(settings) });
+    const workflow = createWorkflow({ origin: value.origin, revisionClient: createRevisionClient(settings), assetClient: createAssetClient(settings) });
     let previous = '', lastAt = 0;
     const onProgress = progress => {
       if (!progress || !['reading', 'parsing', 'inventory', 'media', 'hashing', 'uploading', 'verifying', 'downloading', 'writing', 'complete'].includes(progress.phase)) return;
@@ -71,7 +73,7 @@ async function runRevisionMediaCli({ argv = process.argv.slice(2), input = proce
     if (value.action === 'policy-get') result = await workflow.getPolicy({ projectId: value.projectId }, { signal });
     else if (value.action === 'policy-set') result = await workflow.setPolicy({ projectId: value.projectId, input: value.input }, { signal });
     else result = await workflow[value.action]({ projectId: value.projectId, ...value.input }, { signal, onProgress });
-    const bytes = JSON.stringify(result); if (Buffer.byteLength(bytes) > 1024 * 1024) throw fail('revision-media-manifest-invalid');
+    const bytes = JSON.stringify(result); if (Buffer.byteLength(bytes) > 16 * 1024 * 1024) throw fail('revision-media-manifest-invalid');
     output.write(`${bytes}\n`); return 0;
   } catch (error) { errorOutput.write(`${signal?.aborted ? 'revision-media-cancelled' : SAFE.has(error?.code) ? error.code : 'revision-media-operation-failed'}\n`); return 1; }
 }

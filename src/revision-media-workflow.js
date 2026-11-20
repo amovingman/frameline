@@ -10,6 +10,8 @@ const { classifyMediaAvailability } = require('./media-storage-policy');
 const defaultEngine = require('./asset-file-transfer');
 const { scanFcpXml, verifyFcpXmlSource } = require('./fcpxml-adapter');
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/, ASSET = /^sha256:[a-f0-9]{64}$/;
+const REVIEW_HASH = /^[a-f0-9]{64}$/;
+const pathFreeLabel = value => typeof value === 'string' && value.trim().length > 0 && !/[\\/\x00-\x1f\x7f]/.test(value) && !/^[a-z]:/i.test(value);
 const DAY = 86400000, LIMIT = 1000;
 const fail = code => Object.assign(new Error(code), { code });
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -50,7 +52,10 @@ function collaboratorReport(report, selected, assets, at) {
   return seen;
 }
 
-function createRevisionMediaWorkflow({ revisionClient, assetClient, engine = defaultEngine, now = Date.now } = {}) {
+function createRevisionMediaWorkflow({ origin, revisionClient, assetClient, engine = defaultEngine, now = Date.now } = {}) {
+  let destination;
+  try { const url = new URL(origin); if (url.protocol !== 'https:' || url.origin !== origin || url.username || url.password) throw new Error(); destination = url.origin; }
+  catch { throw fail('revision-media-input-invalid'); }
   if (!revisionClient || !['getAccount', 'listProjects', 'putManifest', 'createRevision', 'compareAndSwapBranch', 'getRevision', 'getManifest'].every(key => typeof revisionClient[key] === 'function')
     || !assetClient || !['getPolicy', 'getAvailability', 'getAsset', 'readChunk'].every(key => typeof assetClient[key] === 'function')
     || !['inspectAssetFile', 'uploadAssetFile', 'downloadAssetFile'].every(key => typeof engine[key] === 'function') || typeof now !== 'function') throw fail('revision-media-input-invalid');
@@ -105,21 +110,52 @@ function createRevisionMediaWorkflow({ revisionClient, assetClient, engine = def
       missingMeaning: 'No verified local or service copy, or unexpired reported collaborator copy, among the checked locations.',
       ready: bound.coverage === 'complete' && items.filter(item => item.required).every(item => item.localVerified || item.state === 'cloud-present'), items } };
   }
-  async function publish(input, controls = {}) {
-    const { projectId, exportPath, branch, expectedHead, message, idempotencyKey, uploadMedia, maxBytesPerSecond = null } = input || {};
-    if (!filename(exportPath) || !['.fcpxml', '.fcpxmld'].includes(path.extname(exportPath).toLowerCase()) || !identifier(branch) || !identifier(idempotencyKey)
-      || expectedHead !== null && !identifier(expectedHead) || typeof message !== 'string' || !message.trim() || message.length > 240
-      || typeof uploadMedia !== 'boolean') throw fail('revision-media-input-invalid');
+  function publicationInput(input, publishing = false) {
+    const allowed = ['projectId', 'exportPath', 'branch', 'expectedHead', 'message', 'uploadMedia', 'idempotencyKey', 'maxBytesPerSecond', ...(publishing ? ['reviewHash'] : [])];
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !allowed.includes(key))) throw fail('revision-media-input-invalid');
+    const { projectId, exportPath, branch, expectedHead, message, idempotencyKey, uploadMedia, maxBytesPerSecond = null } = input;
+    if (!identifier(projectId) || !filename(exportPath) || !['.fcpxml', '.fcpxmld'].includes(path.extname(exportPath).toLowerCase()) || !identifier(branch)
+      || expectedHead !== null && !identifier(expectedHead) || !pathFreeLabel(message) || message.length > 240
+      || typeof uploadMedia !== 'boolean' || (publishing || idempotencyKey !== undefined) && !identifier(idempotencyKey)
+      || maxBytesPerSecond !== null && (!Number.isSafeInteger(maxBytesPerSecond) || maxBytesPerSecond < 1024 || maxBytesPerSecond > 1024 ** 3)) throw fail('revision-media-input-invalid');
+    if (publishing && !REVIEW_HASH.test(input.reviewHash || '')) throw fail('revision-media-review-required');
+    return { projectId, exportPath, branch, expectedHead, message: message.trim(), idempotencyKey, uploadMedia, maxBytesPerSecond };
+  }
+  async function preparePublication(input, controls) {
+    const { projectId, exportPath, branch, expectedHead, message, uploadMedia } = input;
     const accountId = await owner(projectId, controls.signal);
     const manifest = await scanFcpXml(exportPath, { signal: controls.signal });
     const captured = await require('./media-revision-manifest').captureMediaRevision({ exportPath, manifest, signal: controls.signal, onProgress: controls.onProgress });
-    const bound = dependencies(captured.manifest), sources = new Map();
-    if (uploadMedia && bound.coverage !== 'complete') throw fail('revision-media-coverage-incomplete');
+    const bound = dependencies(captured.manifest), sources = new Map(), byReference = new Map();
     for (const source of captured.sources) {
-      const identity = validateIdentity(source.identity);
-      if (!filename(source.sourcePath) || !bound.assets.some(item => fingerprint(item.identity) === fingerprint(identity))) throw fail('revision-media-manifest-invalid');
-      sources.set(identity.contentId, source.sourcePath);
+      const identity = validateIdentity(source.identity), basename = path.basename(source.sourcePath);
+      if (!filename(source.sourcePath) || !pathFreeLabel(basename) || !bound.assets.some(item => fingerprint(item.identity) === fingerprint(identity))) throw fail('revision-media-manifest-invalid');
+      sources.set(identity.contentId, source.sourcePath); byReference.set(source.referenceId, basename);
     }
+    const assets = bound.assets.map(item => ({ ...item, sourceFilenames: [...new Set(item.referenceIds.map(ref => byReference.get(ref)))].sort() }));
+    if (assets.some(item => item.sourceFilenames.some(name => !pathFreeLabel(name)))) throw fail('revision-media-manifest-invalid');
+    const sourceFilename = path.basename(exportPath); if (!pathFreeLabel(sourceFilename)) throw fail('revision-media-input-invalid');
+    const uniqueBytes = assets.reduce((sum, item) => sum + item.identity.size, 0);
+    if (!Number.isSafeInteger(uniqueBytes)) throw fail('revision-media-manifest-invalid');
+    const document = { schemaVersion: 1, kind: 'frameline-revision-publication-review', destination, accountId, projectId, branch, expectedHead, message, uploadMedia,
+      source: { filename: sourceFilename, sourceHash: captured.manifest.sourceHash }, manifestId: `sha256:${fingerprint(captured.manifest)}`,
+      manifest: captured.manifest, assets, coverage: bound.coverage, canPublish: !uploadMedia || bound.coverage === 'complete',
+      references: captured.manifest.mediaDependencies.assets.length, uniqueAssets: assets.length, uniqueBytes,
+      mediaBytesAuthorized: uploadMedia ? uniqueBytes : 0, transferStarted: false,
+      disclosure: 'Canonical metadata is published in full. Only the listed originals may be uploaded when uploadMedia is true. The service may look up these content identities to reuse existing bytes. Source paths, export file bytes, and credentials are excluded.' };
+    if (Buffer.byteLength(JSON.stringify(document)) > 16 * 1024 * 1024) throw fail('revision-media-manifest-invalid');
+    await owner(projectId, controls.signal, accountId); check(controls.signal);
+    return { captured, bound, sources, accountId, review: { ...document, reviewHash: fingerprint(document) } };
+  }
+  async function inspect(input, controls = {}) {
+    return (await preparePublication(publicationInput(input), controls)).review;
+  }
+  async function publish(input, controls = {}) {
+    const settings = publicationInput(input, true);
+    const { projectId, exportPath, branch, expectedHead, message, idempotencyKey, uploadMedia, maxBytesPerSecond } = settings;
+    const { captured, bound, sources, accountId, review } = await preparePublication(settings, controls);
+    if (input.reviewHash !== review.reviewHash) throw fail('revision-media-review-changed');
+    if (uploadMedia && bound.coverage !== 'complete') throw fail('revision-media-coverage-incomplete');
     const uploaded = [];
     if (uploadMedia) for (const item of bound.assets) {
       check(controls.signal); if (!sources.has(item.identity.contentId)) throw fail('revision-media-source-unavailable');
@@ -207,6 +243,6 @@ function createRevisionMediaWorkflow({ revisionClient, assetClient, engine = def
     if (value.projectId !== projectId || value.version !== input.expectedVersion + 1 || fingerprint(value.syncClasses) !== fingerprint([...input.syncClasses].sort())) throw fail('revision-media-manifest-invalid');
     await owner(projectId, controls.signal, accountId); return value;
   }
-  return { publish, availability, download, getPolicy, setPolicy };
+  return { inspect, publish, availability, download, getPolicy, setPolicy };
 }
 module.exports = { createRevisionMediaWorkflow };

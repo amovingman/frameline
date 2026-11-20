@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual fixture-CA HTTPS, disposable owner, synthetic 50-clip FCPXML and small media. Backup from an idle running service; separate original keys retained privately. Restore did not start a listener or SMTP; test explicitly activated the fresh host.",
+  "summary": {
+    "format": "frameline-encrypted-service-backup",
+    "version": 1,
+    "backupId": "c6291526-fb0b-4210-b9f8-90524d30e818",
+    "sha256": "3a410e435fdd04e24affc7847b12174e6c9dc3cbf59b008f2f4693418e81174f",
+    "createdAt": "2026-11-20T04:58:11.984Z",
+    "fileCount": 4,
+    "byteLength": 1887036,
+    "assetsIncluded": true,
+    "schemas": {
+      "collaboration": 7,
+      "assets": 5
+    },
+    "generations": {
+      "collaboration": 9,
+      "assets": 9
+    },
+    "containsSessions": true,
+    "containsNotificationState": true,
+    "requiresSeparateKeys": true,
+    "verified": true
+  },
+  "sourceCiphertextUnchanged": true,
+  "sourceExportUnchanged": true,
+  "isolatedRestoreRoots": true,
+  "oldAccessSessionRestored": true,
+  "oldRefreshSessionRestored": true,
+  "ownerRoleRestored": true,
+  "canonicalHistoryRestored": true,
+  "retainedReferenceGcProtection": true,
+  "exactMediaDownloaded": true,
+  "partialUploadResumed": true,
+  "securityState": "Historical access sessions, refresh sessions and owner roles were restored. This is recovery of old security state; no revocation or key rotation is claimed."
+}

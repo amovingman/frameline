@@ -7,6 +7,7 @@ const { TextDecoder } = require('node:util');
 const { acquireMetadataLock } = require('./metadata-lock');
 const { fingerprint } = require('./project-api-contracts');
 const { validateHoldInput, validateRetentionInput, asset, id } = require('./asset-lifecycle-protocol');
+const { validateGcInput, validateGcReceipt } = require('./retained-asset-protocol');
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const HASH = /^[a-f0-9]{64}$/;
@@ -22,18 +23,26 @@ const binding = value => typeof value === 'string' && HASH.test(value);
 const time = value => Number.isSafeInteger(value) && value >= 0 && value <= 8_640_000_000_000_000;
 
 function validateIntent(value, withKey) {
-  if (!exact(value, ['kind', 'projectId', 'assetId', 'input']) || !['hold', 'retention'].includes(value.kind)
+  if (!exact(value, ['kind', 'projectId', 'assetId', 'input']) || !['hold', 'retention', 'gc'].includes(value.kind)
     || !id(value.projectId) || (value.kind === 'hold' ? !asset(value.assetId) : value.assetId !== null)) throw fail(INVALID);
   const supplied = value.input;
   if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied)
     || !withKey && Object.hasOwn(supplied, 'idempotencyKey')) throw fail(INVALID);
-  try { (value.kind === 'hold' ? validateHoldInput : validateRetentionInput)(withKey ? supplied : { ...supplied, idempotencyKey: 'validation-only' }); }
+  try { (value.kind === 'hold' ? validateHoldInput : value.kind === 'gc' ? validateGcInput : validateRetentionInput)(withKey ? supplied : { ...supplied, idempotencyKey: 'validation-only' }); }
   catch { throw fail(INVALID); }
   return structuredClone(value);
 }
 function validateState(value) {
-  if (!exact(value, ['schemaVersion', 'entries']) || value.schemaVersion !== 1
-    || !Array.isArray(value.entries) || value.entries.length > 100) throw fail(INVALID);
+  // Version 1 journals remain readable; the next durable mutation upgrades them.
+  if (exact(value, ['schemaVersion', 'entries']) && value.schemaVersion === 1) value = { ...value, schemaVersion: 2, receipts: [] };
+  if (!exact(value, ['schemaVersion', 'entries', 'receipts']) || value.schemaVersion !== 2
+    || !Array.isArray(value.entries) || value.entries.length > 100 || !Array.isArray(value.receipts) || value.receipts.length > 100) throw fail(INVALID);
+  const receiptBindings = new Set();
+  for (const row of value.receipts) {
+    if (!exact(row, ['bindingHash', 'receipt']) || !binding(row.bindingHash) || receiptBindings.has(row.bindingHash)) throw fail(INVALID);
+    try { validateGcReceipt(row.receipt); } catch { throw fail(INVALID); }
+    receiptBindings.add(row.bindingHash);
+  }
   const seen = new Set();
   for (const entry of value.entries) {
     if (!exact(entry, ['bindingHash', 'record']) || !binding(entry.bindingHash) || seen.has(entry.bindingHash)
@@ -125,7 +134,7 @@ function createAssetLifecycleIntents({ directory, storage = fs, now = Date.now }
       if (error.code !== 'ENOENT') throw error;
       const names = await storage.readdir(directory);
       if (observed || names.some(name => name !== 'metadata.lock')) throw fail(INVALID);
-      const fresh = { schemaVersion: 1, entries: [] };
+      const fresh = { schemaVersion: 2, entries: [], receipts: [] };
       await publish(filename, fresh);
       bytes = Buffer.from(JSON.stringify(fresh));
     }
@@ -184,18 +193,29 @@ function createAssetLifecycleIntents({ directory, storage = fs, now = Date.now }
         }
         const createdAt = now(); if (!time(createdAt) || state.entries.length >= 100) throw fail(INVALID);
         const record = { id, kind: checked.kind, projectId: checked.projectId, assetId: checked.assetId, input, createdAt };
-        const next = validateState({ schemaVersion: 1, entries: [...state.entries, { bindingHash, record }] });
+        const next = validateState({ ...state, entries: [...state.entries, { bindingHash, record }] });
         await publish(filename, next);
         return { record: structuredClone(record), created: true };
       });
     },
-    complete(bindingHash, id) {
+    loadReceipt(bindingHash) {
+      if (!binding(bindingHash)) return Promise.reject(fail(INVALID));
+      return run(state => structuredClone(state.receipts.find(row => row.bindingHash === bindingHash)?.receipt ?? null));
+    },
+    complete(bindingHash, id, receipt = null) {
       if (!binding(bindingHash) || typeof id !== 'string' || !UUID.test(id)) return Promise.reject(fail(INVALID));
       return run(async state => {
         const prior = state.entries.find(entry => entry.bindingHash === bindingHash)?.record;
         if (!prior) return { removed: false };
         if (prior.id !== id) throw fail(`${PREFIX}selection-changed`);
-        await publish(filename, { schemaVersion: 1, entries: state.entries.filter(entry => entry.bindingHash !== bindingHash) });
+        let receipts = state.receipts;
+        if (receipt !== null) {
+          try { validateGcReceipt(receipt); } catch { throw fail(INVALID); }
+          if (prior.kind !== 'gc' || receipt.projectId !== prior.projectId || JSON.stringify(receipt.assetIds) !== JSON.stringify([...prior.input.assetIds].sort())) throw fail(INVALID);
+          receipts = [...receipts.filter(row => row.bindingHash !== bindingHash), { bindingHash, receipt: structuredClone(receipt) }];
+          if (receipts.length > 100) throw fail(INVALID);
+        }
+        await publish(filename, validateState({ ...state, entries: state.entries.filter(entry => entry.bindingHash !== bindingHash), receipts }));
         return { removed: true };
       });
     }

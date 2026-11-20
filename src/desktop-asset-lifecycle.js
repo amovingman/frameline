@@ -5,7 +5,8 @@ const { randomUUID } = require('node:crypto');
 const { fingerprint } = require('./project-api-contracts');
 const { noLinks } = require('./shared-storage-volume');
 const { fail, exact, id, asset, validateHoldInput, validateRetentionInput, validateHold,
-  validateRetention, validateReport, validatePlan } = require('./asset-lifecycle-protocol');
+  validateRetention } = require('./asset-lifecycle-protocol');
+const { validateOwnerReport: validateReport, validateGcPlan: validatePlan, validateGcReceipt } = require('./retained-asset-protocol');
 const clone = value => structuredClone(value);
 const ERRORS = new Set(['asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict',
   'asset-lifecycle-plan-stale', 'asset-policy-forbidden', 'asset-forbidden', 'asset-not-found', 'asset-capacity-exceeded',
@@ -13,15 +14,15 @@ const ERRORS = new Set(['asset-lifecycle-invalid', 'asset-lifecycle-version-conf
   'lifecycle-selection-changed', 'lifecycle-owner-required', 'lifecycle-refresh-required', 'lifecycle-report-changed',
   'lifecycle-busy', 'lifecycle-export-stale', 'lifecycle-destination-exists', 'lifecycle-export-failed',
   'asset-lifecycle-intent-invalid', 'asset-lifecycle-intent-storage-unavailable', 'asset-lifecycle-intent-storage-uncertain',
-  'asset-lifecycle-retry-required', 'asset-lifecycle-selection-changed']);
+  'asset-lifecycle-retry-required', 'asset-lifecycle-selection-changed', 'asset-gc-blocked', 'asset-reference-unavailable']);
 const DEFINITE = new Set(['asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict',
-  'asset-policy-forbidden', 'asset-forbidden', 'asset-not-found', 'asset-capacity-exceeded', 'forbidden', 'access-token-invalid']);
+  'asset-policy-forbidden', 'asset-forbidden', 'asset-not-found', 'asset-capacity-exceeded', 'asset-gc-blocked', 'asset-lifecycle-plan-stale', 'forbidden', 'access-token-invalid']);
 function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} } = {}) {
   if (!connection || !['getState', 'getAssetClient', 'refreshProjects'].every(key => typeof connection[key] === 'function')
     || !intents || !['load', 'begin', 'complete'].every(key => typeof intents[key] === 'function')) throw fail('asset-lifecycle-invalid');
   const empty = () => ({ scopeId: null, available: false, connected: false, projects: [], projectId: null, busy: false,
     ready: false, report: null, items: [], selectedAssetId: null, selectedIds: [], plan: null, exportReview: null,
-    pending: null, outcome: null, error: null });
+    pending: null, receipt: null, outcome: null, error: null });
   let state = { version: 0, ...empty() }, signature = null, accountKey = null, epoch = 0, active = null, closed = false;
   let pendingRecord = null, loadedKey = null, pages = [], exportArtifact = null;
   const tasks = new Set();
@@ -33,7 +34,7 @@ function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} 
     const projects = value.projects.filter(item => id(item.id) && item.role === 'owner').map(item => ({ id: item.id, name: item.name, role: 'owner' }))
       .sort((a, b) => a.id.localeCompare(b.id));
     if (new Set(projects.map(item => item.id)).size !== projects.length) return null;
-    return { key: fingerprint([url.origin, value.account.id]), connected: value.status === 'connected', projects };
+    return { key: fingerprint([url.origin, value.account.id]), actorId: value.account.id, connected: value.status === 'connected', projects };
   }
   function publish(patch) {
     state = { ...state, ...patch, version: state.version + 1 };
@@ -97,13 +98,14 @@ function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} 
   }
   async function loadPending(op, ctx) {
     const record = await intents.load(ctx.key); current(op);
-    pendingRecord = record; loadedKey = ctx.key; publish({ pending: publicPending(record) });
+    const receipt = intents.loadReceipt ? await intents.loadReceipt(ctx.key) : null; current(op);
+    pendingRecord = record; loadedKey = ctx.key; publish({ pending: publicPending(record), receipt });
   }
   async function report(op, ctx, append) {
     const pid = owner(ctx), prior = state.report;
     if (append && (!state.ready || !prior?.nextAssetId)) throw fail('lifecycle-refresh-required');
     const cursor = append ? prior.nextAssetId : null;
-    const result = validateReport(await connection.getAssetClient().getLifecycleReport(pid, { afterAssetId: cursor, limit: 100 }, { signal: op.controller.signal }));
+    const result = validateReport(await connection.getAssetClient().getOwnerAssetReport(pid, { afterAssetId: cursor, limit: 100 }, { signal: op.controller.signal }));
     current(op);
     if (result.projectId !== pid || result.items.some(item => cursor !== null && item.assetId <= cursor)
       || append && (prior.stateHash !== result.stateHash || prior.totalAssets !== result.totalAssets)) throw fail(append ? 'lifecycle-report-changed' : 'asset-response-invalid');
@@ -125,11 +127,15 @@ function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} 
   async function send(op, ctx, record, created = false) {
     owner(ctx, record.projectId); const client = connection.getAssetClient(); let result;
     try {
-      result = record.kind === 'hold' ? validateHold(await client.setHold(record.projectId, record.assetId, record.input, { signal: op.controller.signal }))
+      result = record.kind === 'gc' ? validateGcReceipt(await client.garbageCollect(record.projectId, record.input, { signal: op.controller.signal }))
+        : record.kind === 'hold' ? validateHold(await client.setHold(record.projectId, record.assetId, record.input, { signal: op.controller.signal }))
         : validateRetention(await client.setRetentionPolicy(record.projectId, record.input, { signal: op.controller.signal }));
       const fields = record.kind === 'hold' ? ['held', 'reason', 'until'] : ['minimumArchiveAgeMs'];
-      if (result.projectId !== record.projectId || record.kind === 'hold' && result.assetId !== record.assetId
-        || result.version !== record.input.expectedVersion + 1 || fields.some(key => result[key] !== record.input[key])) throw fail('asset-response-invalid');
+      if (result.projectId !== record.projectId || (record.kind === 'gc'
+        ? result.operationId !== fingerprint({ actorId: ctx.actorId, projectId: record.projectId, input: record.input })
+          || fingerprint(result.assetIds) !== fingerprint([...record.input.assetIds].sort())
+        : record.kind === 'hold' && result.assetId !== record.assetId
+          || result.version !== record.input.expectedVersion + 1 || fields.some(key => result[key] !== record.input[key]))) throw fail('asset-response-invalid');
     } catch (error) {
       if (created && DEFINITE.has(error?.code)) {
         await intents.complete(ctx.key, record.id); current(op); pendingRecord = null; publish({ pending: null });
@@ -138,7 +144,7 @@ function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} 
     }
     current(op);
     publish({ ...(state.projectId === record.projectId ? clearReport() : {}), outcome: { kind: record.kind, projectId: record.projectId, assetId: record.assetId, result } });
-    await intents.complete(ctx.key, record.id); current(op); pendingRecord = null; publish({ pending: null });
+    await intents.complete(ctx.key, record.id, record.kind === 'gc' ? result : null); current(op); pendingRecord = null; publish({ pending: null, ...(record.kind === 'gc' ? { receipt: result } : {}) });
   }
   async function begin(op, ctx, value) {
     await loadPending(op, ctx); if (pendingRecord) throw fail('asset-lifecycle-retry-required');
@@ -185,10 +191,17 @@ function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} 
     preparePlan: input => run(async (op, ctx) => {
       intent(input, [], ctx); if (!state.selectedIds.length || state.pending) throw fail('lifecycle-refresh-required');
       const ids = clone(state.selectedIds), stateHash = state.report.stateHash, pid = state.projectId;
-      const result = validatePlan(await connection.getAssetClient().planCleanup(pid,
+      const result = validatePlan(await connection.getAssetClient().planGarbageCollection(pid,
         { assetIds: ids, expectedStateHash: stateHash }, { signal: op.controller.signal })); current(op);
       if (result.projectId !== pid || result.stateHash !== stateHash || fingerprint(result.items.map(item => item.assetId)) !== fingerprint(ids)) throw fail('asset-response-invalid');
       exportArtifact = null; publish({ plan: result, exportReview: null });
+    }),
+    executeCollection: input => run(async (op, ctx) => {
+      intent(input, ['planId', 'confirmed'], ctx);
+      if (input.confirmed !== true || !state.plan?.ready || input.planId !== state.plan.planId
+        || state.plan.stateHash !== state.report.stateHash || fingerprint(state.selectedIds) !== fingerprint(state.plan.items.map(row => row.assetId))) throw fail('lifecycle-selection-changed');
+      const settings = { assetIds: [...state.selectedIds], expectedStateHash: state.plan.stateHash, planId: state.plan.planId };
+      await begin(op, ctx, { kind: 'gc', projectId: state.projectId, assetId: null, input: settings });
     }),
     retry: input => run(async (op, ctx) => {
       if (!exact(input, ['scopeId', 'pendingId']) || input.scopeId !== state.scopeId || !pendingRecord || pendingRecord.id !== input.pendingId) throw fail('lifecycle-selection-changed');
@@ -201,19 +214,22 @@ function createDesktopAssetLifecycle({ connection, intents, onChange = () => {} 
       publish({ pending: null, outcome: { kind: 'dismissed' } });
     }),
     prepareExport: input => run(async (_op, ctx) => {
-      intent(input, ['kind'], ctx); if (!['report', 'plan'].includes(input.kind) || state.pending) throw fail('lifecycle-refresh-required');
+      intent(input, ['kind'], ctx, input?.kind !== 'receipt'); if (!['report', 'plan', 'receipt'].includes(input.kind) || state.pending) throw fail('lifecycle-refresh-required');
+      if (input.kind === 'receipt' && state.receipt?.projectId !== state.projectId) throw fail('lifecycle-refresh-required');
       if (input.kind === 'plan' && !state.plan) throw fail('lifecycle-refresh-required');
-      const content = input.kind === 'plan' ? validatePlan(state.plan) : { pages: pages.map(validateReport), complete: state.report.nextAssetId === null };
-      exportArtifact = { schemaVersion: 1, kind: `frameline-lifecycle-${input.kind}`, projectId: state.projectId, content };
-      publish({ exportReview: { kind: input.kind, hash: fingerprint(exportArtifact), assetCount: input.kind === 'plan' ? state.plan.items.length : state.items.length,
-        complete: input.kind === 'plan' || content.complete, projectId: state.projectId } });
+      const content = input.kind === 'receipt' ? validateGcReceipt(state.receipt) : input.kind === 'plan' ? validatePlan(state.plan) : { pages: pages.map(validateReport), complete: state.report.nextAssetId === null };
+      exportArtifact = { schemaVersion: 2, kind: `frameline-lifecycle-${input.kind}`, projectId: state.projectId, content };
+      publish({ exportReview: { kind: input.kind, hash: fingerprint(exportArtifact), assetCount: input.kind === 'receipt' ? content.assetIds.length : input.kind === 'plan' ? state.plan.items.length : state.items.length,
+        complete: input.kind !== 'report' || content.complete, projectId: state.projectId } });
     }),
     saveExport: (input, destination) => run(async (op, ctx) => {
-      intent(input, ['hash'], ctx);
+      intent(input, ['hash'], ctx, state.exportReview?.kind !== 'receipt');
       if (!exportArtifact || input.hash !== state.exportReview?.hash || input.hash !== fingerprint(exportArtifact)) throw fail('lifecycle-export-stale');
-      const artifact = clone(exportArtifact), pid = state.projectId, expected = state.report.stateHash;
-      const latest = validateReport(await connection.getAssetClient().getLifecycleReport(pid, { afterAssetId: null, limit: 1 }, { signal: op.controller.signal }));
+      const artifact = clone(exportArtifact), pid = state.projectId, expected = state.report?.stateHash;
+      if (state.exportReview.kind !== 'receipt') {
+      const latest = validateReport(await connection.getAssetClient().getOwnerAssetReport(pid, { afterAssetId: null, limit: 1 }, { signal: op.controller.signal }));
       current(op); if (latest.projectId !== pid || latest.stateHash !== expected) throw fail('lifecycle-export-stale');
+      }
       await noLinks(path.dirname(destination)); current(op);
       let handle;
       try { handle = await fs.open(destination, 'wx', 0o600); }

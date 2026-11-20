@@ -19,7 +19,7 @@ function describeResolveServiceComparison(result) {
 // This selection and its queue/cache are independent of the FCPXML/media scope.
 // A preview returns observed data only; no incoming revision is imported.
 function createDesktopResolveServiceSync({ directory, connection, store, getCapture = () => null,
-  onChange = () => {}, onInvalidate = () => {}, now = Date.now } = {}) {
+  onChange = () => {}, onInvalidate = () => {}, now = Date.now, requirePublicationReview = false } = {}) {
   if (!store || typeof store.getResolveRevisionGraph !== 'function' || typeof getCapture !== 'function'
     || typeof onChange !== 'function' || typeof onInvalidate !== 'function' || typeof now !== 'function') throw fail('service-binding-invalid');
   let selected = null, source = 'saved-head', epoch = 0, closed = false, lastPreview = null;
@@ -47,7 +47,7 @@ function createDesktopResolveServiceSync({ directory, connection, store, getCapt
       || v.acceptedAt > checkedAt || checkedAt - v.acceptedAt > 300000) throw fail('service-resolve-comparison-capture-expired');
     return clone(value);
   }
-  const controller = createDesktopRevisionSync({ directory, connection, store,
+  const controller = createDesktopRevisionSync({ directory, connection, store, requirePublicationReview, now,
     getSelection: () => selected ? { localProjectId: selected.projectId, branch: selected.branch } : null,
     getLocalComparisonSource: async ({ signal }) => {
       const picked = selected, currentEpoch = epoch;
@@ -162,6 +162,8 @@ function createDesktopResolveServiceSync({ directory, connection, store, getCapt
   return { getState, select, preview, getPreview, getCommentTarget, readPreviewSources, selectionChanged, captureChanged: selectionChanged,
     connectionChanged, dispose,
     bind: input => action('bind', input), unlink: () => action('unlink'), check: () => action('check'),
-    push: () => action('push'), fetch: () => action('fetch'), retry: id => action('retry', id), cancel: id => action('cancel', id) };
+    previewPublication: input => controller.previewPublication(input), getPublicationPage: input => controller.getPublicationPage(input),
+    dismissPublicationReview: input => controller.dismissPublicationReview(input),
+    push: input => action('push', input), fetch: () => action('fetch'), retry: input => action('retry', input), cancel: id => action('cancel', id) };
 }
 module.exports = { createDesktopResolveServiceSync, describeResolveServiceComparison };

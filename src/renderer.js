@@ -496,6 +496,7 @@ function renderSyncState(state) {
 }
 
 async function runSyncAction(action, id) {
+  if (action === 'retry' && window.FramePublicationReview) return window.FramePublicationReview.start('fcpxml', id);
   if (syncBusy) return; syncBusy = true; renderServicePanel();
   try {
     const state = await (action === 'retry' ? window.desktop.retrySync(id) : window.desktop.cancelSync(id));
@@ -1509,6 +1510,7 @@ async function refreshServiceState() {
   catch { serviceActionNotice = 'Could not refresh the service state. Try again after the app is ready.'; renderServicePanel(); }
 }
 async function runServiceAction(method, input) {
+  if (method === 'pushServiceRevisions' && window.FramePublicationReview) return window.FramePublicationReview.start('fcpxml');
   if (serviceActionBusy || serviceState?.busy || typeof window.desktop?.[method] !== 'function') return;
   serviceActionBusy = true; serviceActionMethod = method; serviceActionNotice = '';
   serviceBaseTransition = ['connectService', 'disconnectService', 'bindServiceProject', 'unlinkServiceProject'].includes(method);
@@ -3677,6 +3679,7 @@ function renderResolveServiceJobs(operations, busy, contact) {
   document.getElementById('resolve-service-jobs-more').hidden = visible.length >= operations.length;
 }
 async function runResolveServiceQueueAction(method, id) {
+  if (method === 'retryResolveServiceSync' && window.FramePublicationReview) { showView('history'); return window.FramePublicationReview.start('resolve', id); }
   const context = resolveServiceExpectedContext(), key = `${context}:${id}`, focused = document.activeElement;
   if (resolveServiceQueueActions.has(key) || typeof window.desktop?.[method] !== 'function') return;
   resolveServiceQueueActions.add(key); renderResolveServicePanel();
@@ -3691,6 +3694,7 @@ async function runResolveServiceQueueAction(method, id) {
   }
 }
 async function runResolveServiceAction(method, input) {
+  if (method === 'pushResolveServiceRevisions' && window.FramePublicationReview) { showView('history'); return window.FramePublicationReview.start('resolve'); }
   if (resolveServiceAction || resolveServiceState?.busy || typeof window.desktop?.[method] !== 'function') return;
   const context = resolveServiceExpectedContext(), focused = document.activeElement, action = { context, method };
   if (['bindResolveServiceProject', 'unlinkResolveServiceProject', 'checkResolveServiceSync', 'pushResolveServiceRevisions', 'fetchResolveServiceRevisions'].includes(method)) clearResolveServicePreviewDisplay();

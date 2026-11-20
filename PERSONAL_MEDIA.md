@@ -6,7 +6,7 @@ This workflow completes five Phase 4 media items for the current owner-only, loc
 
 `npm run service:revision-media --silent` reads one JSON request from stdin. Every request has `origin`, `accessToken`, `projectId`, `action`, and `input`. The origin must be HTTPS. Credentials stay in stdin; stdout contains a path-free JSON result. Local input paths are used only to read sources or write selected downloads. Errors and progress omit paths and credentials.
 
-The `publish` action takes:
+First use `action: "inspect"` with these publication settings:
 
 ```json
 {
@@ -26,6 +26,8 @@ Capture rescans the selected FCPXML, recursively inventories referenced original
 Missing originals, unresolved references, unsupported dependency-bearing structures, and uncertain coverage produce an explicitly incomplete capture. Those revisions cannot authorize a complete download or garbage collection. Legacy FCPXML and Resolve observation revisions remain readable; they lack canonical media coverage and conservatively block collection for their project. Every immutable revision is retained, including revisions outside the current branch ancestry. There is no revision-pruning operation in this workflow.
 
 Media upload is explicit. `uploadMedia: false` publishes metadata and requirements without transmitting media bytes. With `uploadMedia: true`, the workflow uploads and verifies the required content before publishing; the server rechecks the required project assets under the same asset lock used by garbage collection. Publication also uses branch compare-and-swap and account-scoped exact-input retry keys.
+
+Inspect returns the exact canonical metadata, actual source basenames, unique media identities/bytes and a `reviewHash`, without upload or metadata-write requests. After reviewing it, use `action: "publish"` with the same settings plus that `reviewHash`. Both upload choices require the review hash. Publication rechecks source/media, destination, account, branch/head, message and upload choice before writing; changed inputs require a new inspection. See [publication privacy](OWNER_OPERATIONS.md).
 
 The existing project class policy must already allow the selected class. Capture currently identifies referenced originals as `original`; it never infers that a proxy is a camera original. Use `policy-get` with `{}` and then explicitly consent with `policy-set`, for example:
 
@@ -90,7 +92,7 @@ Incomplete resumable uploads remain available for retry and are outside the expl
 
 Deletion first commits project-reference removal, tombstones, an exact-input receipt, and pending physical work in the encrypted index. Only then can unreferenced ciphertext be removed. An uncertain metadata publication retains bytes and requires a verified reopen. Interrupted physical cleanup remains discoverable and retryable; the owner report distinguishes pending bytes from completed physical cleanup. An exact retry returns the original deletion receipt without executing a new logical deletion.
 
-The existing desktop lifecycle panel still exports its schema-1 blocked plans. Use these schema-2 owner reports and the explicit CLI collection workflow for authoritative reference-aware operations.
+The desktop lifecycle panel now uses these authoritative schema-2 reports and plans too, with explicit collection, durable retry/receipt recovery and reviewed exports. The original schema-1 blocked-plan endpoints remain available for legacy clients. See [owner operations](OWNER_OPERATIONS.md).
 
 ## Validation scope
 

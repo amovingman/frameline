@@ -3,7 +3,7 @@
   const el = id => document.getElementById(`lifecycle-${id}`);
   let state = null, pending = false, review = null, draftKey = '', retentionKey = '', pendingKey = '', optionsKey = '', rowsKey = '', rowLimit = 100;
   const reasons = { 'not-archived': 'Not archived', 'retention-period': 'Waiting period', 'active-hold': 'Active hold',
-    'shared-project': 'Shared content', 'revision-references-unverified': 'Revision references unverified' };
+    'shared-project': 'Shared content', 'retained-revision': 'Retained revision', 'verification-active': 'Verification active', 'revision-references-unverified': 'Revision references unverified' };
   const errors = { 'lifecycle-report-changed': 'Service state changed between pages. Load the report again.',
     'lifecycle-owner-required': 'A current project owner is required. Refresh owned projects or sign in.',
     'lifecycle-selection-changed': 'The review scope changed. Load a fresh report and review the change again.',
@@ -19,6 +19,8 @@
     'asset-policy-forbidden': 'Owner access could not be confirmed. Refresh owned projects.',
     'forbidden': 'Project access changed. Refresh owned projects.',
     'asset-response-invalid': 'The service response could not be verified. Load a new report.',
+    'asset-gc-blocked': 'Collection is blocked by the current holds, revision references, archive state, or verification. Load a fresh report.',
+    'asset-reference-unavailable': 'Retained revision references could not be checked. Reconnect and load a fresh report.',
     'asset-lifecycle-invalid': 'Check the requested settings and expiration time.' };
   const date = at => at === null || at === undefined ? 'Not recorded' : new Date(at).toLocaleString();
   const short = aid => `${aid.slice(0, 19)}…${aid.slice(-6)}`;
@@ -46,19 +48,21 @@
     el('refresh').disabled = !online || busy || !state?.projectId;
     let message = !available ? 'Sign in to manage media on projects you own.' : !online ? 'Reconnect to load current lifecycle state.'
       : busy ? 'Checking lifecycle state…' : state.outcome?.kind === 'exported' ? 'Reviewed export saved.'
+      : state.outcome?.kind === 'gc' ? 'Service confirmed project media collection. The saved receipt records released project bytes and payload bytes scheduled for cleanup. Load a fresh report for current state.'
       : state.outcome?.result ? `Service confirmed ${state.outcome.kind === 'hold' ? state.outcome.result.held ? 'the hold' : 'the release' : 'the waiting period'} at version ${state.outcome.result.version}. Load a fresh report for current state.`
       : state.outcome?.kind === 'dismissed' ? 'Local retry dismissed. The service state was kept.'
       : state.ready ? 'Report loaded. Details describe the recorded check time.' : 'Select an owned project and load its lifecycle report.';
     if (state?.error && available) message = errors[state.error] || 'The lifecycle action could not finish. Check the service connection and retry.';
     el('status').textContent = message; document.getElementById('asset-lifecycle-panel').setAttribute('aria-busy', String(busy));
-    if (review?.input.scopeId !== state?.scopeId) review = null;
+    if (review?.input.scopeId !== state?.scopeId || review?.method === 'executeLifecycleCollection' && review.input.planId !== state?.plan?.planId) review = null;
     el('mutation-review').hidden = !review;
     el('mutation-summary').textContent = review?.summary || ''; el('mutation-confirm').disabled = !mutable || !review;
+    el('mutation-confirm').textContent = review?.method === 'executeLifecycleCollection' ? 'Collect reviewed assets' : 'Confirm service change';
     const record = state?.pending; el('pending').hidden = !record;
     if ((record?.id || '') !== pendingKey) { pendingKey = record?.id || ''; el('dismiss-reviewed').checked = false; }
-    el('pending-summary').textContent = record ? `${record.kind === 'hold' ? record.settings.held ? 'Hold change' : 'Hold release' : 'Waiting-period change'} · expected version ${record.settings.expectedVersion} · recorded ${date(record.createdAt)}.` : '';
-    el('pending-project').textContent = record?.projectId || ''; el('pending-asset').textContent = record?.assetId || 'Project policy';
-    el('pending-settings').textContent = record ? record.kind === 'hold' ? `${record.settings.reason || 'Released'} · ${record.settings.until === null ? 'No expiration' : date(record.settings.until)}`
+    el('pending-summary').textContent = record ? `${record.kind === 'gc' ? 'Media collection' : record.kind === 'hold' ? record.settings.held ? 'Hold change' : 'Hold release' : 'Waiting-period change'}${record.kind === 'gc' ? ` · ${record.settings.assetIds.length} assets · plan ${record.settings.planId}` : ` · expected version ${record.settings.expectedVersion}`} · recorded ${date(record.createdAt)}.` : '';
+    el('pending-project').textContent = record?.projectId || ''; el('pending-asset').textContent = record?.assetId || (record?.kind === 'gc' ? record.settings.assetIds.join(', ') : 'Project policy');
+    el('pending-settings').textContent = record ? record.kind === 'gc' ? `Reviewed source state ${record.settings.expectedStateHash}` : record.kind === 'hold' ? `${record.settings.reason || 'Released'} · ${record.settings.until === null ? 'No expiration' : date(record.settings.until)}`
       : `${record.settings.minimumArchiveAgeMs / 86400000} days` : '';
     el('retry').disabled = !online || busy || !record || !state.projects.some(p => p.id === record.projectId);
     el('dismiss-reviewed').disabled = !online || busy || !record;
@@ -66,8 +70,9 @@
     el('report-area').hidden = !state?.report;
     const count = state?.items.length || 0;
     el('report-summary').textContent = state?.report ? `${count} of ${state.report.totalAssets} published assets loaded · checked ${date(state.report.generatedAt)}. Filters apply to loaded assets.` : '';
+    el('reference-summary').textContent = state?.report ? `Retained references: ${state.report.referenceCoverage} · ${state.report.revisionCount} revisions · ${state.report.missingRetainedAssets.length} missing retained assets. ${state.report.logicalBytes.toLocaleString()} project bytes · ${state.report.pendingPhysicalBytes.toLocaleString()} payload bytes awaiting cleanup.` : '';
     const search = el('search').value.trim().toLowerCase(), filter = el('filter').value, assetClass = el('class').value;
-    const rows = (state?.items || []).filter(value => (!search || value.assetId.includes(search)) && (assetClass === 'all' || value.assetClass === assetClass)
+    const rows = (state?.items || []).filter(value => (!search || value.assetId.includes(search)) && (assetClass === 'all' || value.identity.assetClass === assetClass)
       && (filter === 'all' || filter === 'held' && isHeld(value) || filter === 'archived' && value.archived || filter === 'shared' && value.sharedProjects || filter === 'candidate' && value.cleanupCandidate));
     const nextRowsKey = JSON.stringify([state?.scopeId, state?.items, state?.selectedIds, state?.selectedAssetId, busy, mutable, search, filter, assetClass, rowLimit]);
     if (nextRowsKey !== rowsKey) {
@@ -84,7 +89,7 @@
         button.textContent = short(value.assetId); button.title = value.assetId; button.setAttribute('aria-label', `Inspect ${value.assetId}`);
         button.setAttribute('aria-pressed', String(value.assetId === state.selectedAssetId)); button.disabled = !ready || busy;
         button.addEventListener('click', () => run('selectLifecycleAsset', scope({ assetId: value.assetId }))); idCell.append(button); tr.append(idCell);
-        for (const text of [value.assetClass, `${value.archived ? 'Archived' : 'Available'}${isHeld(value) ? ' · held' : ''}`]) {
+        for (const text of [value.identity.assetClass, `${value.archived ? 'Archived' : 'Available'}${isHeld(value) ? ' · held' : ''}`]) {
           const cell = document.createElement('td'); cell.textContent = text; tr.append(cell);
         }
         el('assets').append(tr);
@@ -98,11 +103,13 @@
     el('report-export').disabled = !mutable;
     el('detail-empty').hidden = !!row; el('detail-content').hidden = !row;
     if (row) {
-      for (const [key, value] of Object.entries({ id: row.assetId, size: `${row.size.toLocaleString()} bytes · ${row.assetClass}`,
+      for (const [key, value] of Object.entries({ id: row.assetId, size: `${row.identity.size.toLocaleString()} bytes · ${row.identity.assetClass}`,
         archive: row.archived ? date(row.archivedAt) : 'No', eligible: row.archived ? date(row.eligibleAt) : 'Not archived',
         shared: row.sharedProjects ? 'Also present in another project' : 'No shared copy observed',
         hold: row.hold.held ? `${row.hold.reason} · ${row.hold.until === null ? 'No expiration' : `expires ${date(row.hold.until)}`}` : 'No hold',
-        version: row.hold.version, blockers: row.blockers.map(reason => reasons[reason]).join(', ') })) el(`detail-${key}`).textContent = String(value);
+        retained: row.retainedBy.length ? row.retainedBy.join(', ') : 'No retained revision references',
+        reclaimable: `${row.physicalBytesReclaimable.toLocaleString()} bytes`,
+        version: row.hold.version, blockers: row.blockers.map(reason => reasons[reason]).join(', ') || 'None' })) el(`detail-${key}`).textContent = String(value);
     }
     const nextDraft = `${state?.scopeId}:${row?.assetId}:${row?.hold.version}`;
     if (nextDraft !== draftKey) { draftKey = nextDraft; el('reason').value = row?.hold.reason || 'manual'; el('until').value = row?.hold.until ? localTime(row.hold.until) : ''; }
@@ -113,13 +120,21 @@
     el('retention-current').textContent = state?.report ? `Current: ${state.report.retentionPolicy.minimumArchiveAgeMs / 86400000} days · policy version ${state.report.retentionPolicy.version}.` : '';
     el('plan').hidden = !state?.plan; el('plan-items').replaceChildren();
     if (state?.plan) {
-      el('plan-summary').textContent = `${state.plan.items.length} ${state.plan.items.length === 1 ? 'asset' : 'assets'} reviewed · ${state.plan.candidateBytes.toLocaleString()} candidate bytes · deletion blocked.`;
-      for (const value of state.plan.items) { const li = document.createElement('li'); li.textContent = `${short(value.assetId)}: ${value.blockers.map(reason => reasons[reason]).join(', ')}`; el('plan-items').append(li); }
+      el('plan-summary').textContent = `${state.plan.items.length} ${state.plan.items.length === 1 ? 'asset' : 'assets'} reviewed · ${state.plan.releaseBytes.toLocaleString()} project bytes to release · ${state.plan.physicalBytesReclaimable.toLocaleString()} uniquely stored payload bytes reclaimable · ${state.plan.ready ? 'ready for explicit collection review' : 'deletion blocked'}.`;
+      for (const value of state.plan.items) { const li = document.createElement('li'); li.textContent = `${short(value.assetId)}: ${value.blockers.map(reason => reasons[reason]).join(', ') || (value.sharedProjects ? 'Project membership only; shared bytes stay available' : 'Eligible for collection')}`; el('plan-items').append(li); }
     }
+    el('plan-hash').textContent = state?.plan?.planId || '';
+    el('collect-review').disabled = !mutable || !state?.plan?.ready;
+    const receipt = state?.receipt && state.receipt.projectId === state.projectId ? state.receipt : null;
+    el('receipt').hidden = !receipt;
+    el('receipt-summary').textContent = receipt ? `${receipt.assetIds.length} project assets collected · ${receipt.logicalBytesReleased.toLocaleString()} project bytes released · ${receipt.physicalBytesScheduled.toLocaleString()} uniquely stored payload bytes scheduled for cleanup. Shared project copies remain available. This receipt records the completed operation; load a report for current storage state.` : '';
+    el('receipt-operation').textContent = receipt?.operationId || '';
+    el('receipt-assets').textContent = receipt?.assetIds.join(', ') || '';
+    el('receipt-export').disabled = !online || busy || !!state?.pending || !receipt;
     el('plan-export').disabled = !mutable || !state?.plan;
     el('export').hidden = !state?.exportReview;
-    el('export-summary').textContent = state?.exportReview ? `${state.exportReview.kind === 'plan' ? 'Cleanup plan' : 'Lifecycle report'} · project ${state.exportReview.projectId} · ${state.exportReview.assetCount} ${state.exportReview.assetCount === 1 ? 'asset' : 'assets'}${state.exportReview.complete ? '' : ' · partial report, more pages remain'}. Locations and credentials are omitted.` : '';
-    el('export-hash').textContent = state?.exportReview?.hash || ''; el('export-save').disabled = !mutable || !state?.exportReview;
+    el('export-summary').textContent = state?.exportReview ? `${state.exportReview.kind === 'receipt' ? 'Collection receipt' : state.exportReview.kind === 'plan' ? 'Cleanup plan' : 'Lifecycle report'} · project ${state.exportReview.projectId} · ${state.exportReview.assetCount} ${state.exportReview.assetCount === 1 ? 'asset' : 'assets'}${state.exportReview.complete ? '' : ' · partial report, more pages remain'}. Locations and credentials are omitted.` : '';
+    el('export-hash').textContent = state?.exportReview?.hash || ''; el('export-save').disabled = !online || busy || !!state?.pending || !state?.exportReview || state.exportReview.kind !== 'receipt' && !ready;
   }
   function accept(value) { if (value && (!state || value.version >= state.version)) state = value; render(); }
   async function run(method, input) {
@@ -138,6 +153,12 @@
   for (const key of ['search', 'class', 'filter']) el(key).addEventListener(key === 'search' ? 'input' : 'change', () => { rowLimit = 100; render(); });
   el('clear-selection').addEventListener('click', () => run('selectLifecyclePlanAssets', scope({ assetIds: [] })));
   el('plan-prepare').addEventListener('click', () => run('prepareLifecyclePlan', scope({})));
+  el('collect-review').addEventListener('click', () => {
+    if (el('collect-review').disabled || !state?.plan?.ready) return;
+    const plan = state.plan;
+    showReview('executeLifecycleCollection', scope({ planId: plan.planId, confirmed: true }),
+      `Permanently remove ${plan.items.length} reviewed assets from service project ${state.projectId}: ${plan.items.map(row => row.assetId).join(', ')}. Release ${plan.releaseBytes.toLocaleString()} project bytes; ${plan.physicalBytesReclaimable.toLocaleString()} uniquely stored payload bytes may be reclaimed. Shared copies remain. Local originals and editor projects are untouched. The service rechecks this exact plan before collection.`);
+  });
   el('hold-form').addEventListener('submit', event => {
     event.preventDefault(); const row = item(); if (el('hold-fields').disabled || !row) return;
     const until = el('until').value ? new Date(el('until').value).getTime() : null;
@@ -163,7 +184,7 @@
   el('retry').addEventListener('click', () => run('retryLifecycleRequest', scope({ pendingId: state?.pending?.id })));
   el('dismiss-reviewed').addEventListener('change', render);
   el('dismiss').addEventListener('click', () => { if (!el('dismiss').disabled) run('dismissLifecycleRequest', scope({ pendingId: state.pending.id, reviewed: true })); });
-  for (const kind of ['report', 'plan']) el(`${kind}-export`).addEventListener('click', () => run('prepareLifecycleExport', scope({ kind })));
+  for (const kind of ['report', 'plan', 'receipt']) el(`${kind}-export`).addEventListener('click', () => run('prepareLifecycleExport', scope({ kind })));
   el('export-save').addEventListener('click', () => run('saveLifecycleExport', scope({ hash: state?.exportReview?.hash })));
   window.desktop?.onAssetLifecycleState?.(accept); render(); if (window.desktop?.getAssetLifecycleState) run('getAssetLifecycleState');
 })();

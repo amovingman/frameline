@@ -36,10 +36,11 @@ async function fixture(t, { missing = false } = {}) {
   };
   const assetClient = Object.fromEntries(['getPolicy', 'setPolicy', 'getAvailability', 'getAsset', 'beginUpload', 'putChunk', 'completeUpload'].map(method => [method, (...args) => assets[method]({}, ...args)]));
   assetClient.readChunk = (...args) => { reads.push(args[1]); return assets.readChunk({}, ...args); };
-  const workflow = createRevisionMediaWorkflow({ revisionClient, assetClient, now: () => 100000 });
-  const publish = uploadMedia => workflow.publish({ projectId: 'film', exportPath, branch: 'main', expectedHead: null, message: 'Exact media capture', idempotencyKey: 'first-publish', uploadMedia });
+  const workflow = createRevisionMediaWorkflow({ origin: 'https://personal.example.test', revisionClient, assetClient, now: () => 100000 });
+  const publication = uploadMedia => ({ projectId: 'film', exportPath, branch: 'main', expectedHead: null, message: 'Exact media capture', idempotencyKey: 'first-publish', uploadMedia });
+  const publish = async uploadMedia => { const input = publication(uploadMedia), review = await workflow.inspect(input); return workflow.publish({ ...input, reviewHash: review.reviewHash }); };
   const destinationDirectory = path.join(root, 'downloads'), workDirectory = path.join(root, 'work'); await fs.mkdir(destinationDirectory); await fs.mkdir(workDirectory);
-  return { root, exportPath, sourceA, sourceB, xml, assets, assetClient, revisionClient, workflow, history, publish, reads, createInputs, destinationDirectory, workDirectory,
+  return { root, exportPath, sourceA, sourceB, xml, assets, assetClient, revisionClient, workflow, history, publication, publish, reads, createInputs, destinationDirectory, workDirectory,
     setAccount(value) { account = value; }, setRole(value) { role = value; } };
 }
 
@@ -130,8 +131,9 @@ test('an account switch after availability preparation prevents any selected-rev
 test('the owner can publish a real FCPXML bundle through its verified Info.fcpxml without changing bundle bytes', async t => {
   const f = await fixture(t), bundle = path.join(f.root, 'editor-export.fcpxmld'); await fs.mkdir(bundle);
   const info = path.join(bundle, 'Info.fcpxml'); await fs.copyFile(f.exportPath, info);
-  const result = await f.workflow.publish({ projectId: 'film', exportPath: bundle, branch: 'main', expectedHead: null,
-    message: 'Exact bundle capture', idempotencyKey: 'bundle-publish', uploadMedia: true });
+  const input = { projectId: 'film', exportPath: bundle, branch: 'main', expectedHead: null,
+    message: 'Exact bundle capture', idempotencyKey: 'bundle-publish', uploadMedia: true };
+  const review = await f.workflow.inspect(input), result = await f.workflow.publish({ ...input, reviewHash: review.reviewHash });
   assert.equal(result.coverage, 'complete'); assert.equal(result.uniqueAssets, 2); assert.equal(result.sourceHash, sha(f.xml));
   assert.equal(await fs.readFile(info, 'utf8'), f.xml); assert.deepEqual(await fs.readdir(bundle), ['Info.fcpxml']);
 });
@@ -145,4 +147,65 @@ test('a newly archived asset cannot publish a download assembled from previously
     }
   } }), { code: 'asset-archived' });
   assert.equal(archived, true); assert.deepEqual(await fs.readdir(f.destinationDirectory), []);
+});
+
+function watchPublicationWrites(f) {
+  const writes = [];
+  for (const [client, methods] of [[f.revisionClient, ['putManifest', 'createRevision', 'compareAndSwapBranch']],
+    [f.assetClient, ['beginUpload', 'putChunk', 'completeUpload', 'setPolicy']]]) {
+    for (const name of methods) { const previous = client[name]; client[name] = (...args) => { writes.push(name); return previous(...args); }; }
+  }
+  return writes;
+}
+test('inspect is read-only and displays exact canonical metadata plus actual source basenames and deduplicated original bytes', async t => {
+  const f = await fixture(t); await fs.copyFile(f.sourceA, f.sourceB); const writes = watchPublicationWrites(f), before = await fs.readFile(f.exportPath);
+  const input = f.publication(true), review = await f.workflow.inspect(input), captured = await captureMediaRevision({ exportPath: f.exportPath });
+  assert.deepEqual(writes, []); assert.equal((await f.assets.getUsage({}, 'film')).assetCount, 0);
+  assert.equal(review.destination, 'https://personal.example.test'); assert.equal(review.accountId, 'owner'); assert.equal(review.projectId, 'film');
+  assert.equal(review.branch, 'main'); assert.equal(review.expectedHead, null); assert.equal(review.message, input.message);
+  assert.equal(review.source.filename, path.basename(f.exportPath)); assert.equal(review.source.sourceHash, sha(before));
+  assert.deepEqual(review.manifest, captured.manifest); assert.equal(review.manifest.clips.length, 50);
+  assert.equal(review.references, 2); assert.equal(review.uniqueAssets, 1); assert.equal(review.uniqueBytes, (await fs.stat(f.sourceA)).size);
+  assert.equal(review.mediaBytesAuthorized, review.uniqueBytes); assert.equal(review.transferStarted, false);
+  assert.deepEqual(review.assets[0].referenceIds, ['media-1', 'media-2']);
+  assert.deepEqual(review.assets[0].sourceFilenames, [path.basename(f.sourceA), path.basename(f.sourceB)]);
+  const { reviewHash, ...document } = review;
+  assert.equal(reviewHash, require('../src/project-api-contracts').fingerprint(document));
+  assert.doesNotMatch(JSON.stringify(review), /sourcePath|exportPath|accessToken|file:\/\/|\/private\/|\/Users\//);
+  assert.deepEqual(await fs.readFile(f.exportPath), before);
+});
+test('missing or changed publication consent prevents every upload and metadata write for both media modes', async t => {
+  const f = await fixture(t), writes = watchPublicationWrites(f);
+  for (const uploadMedia of [true, false]) {
+    const input = f.publication(uploadMedia);
+    await assert.rejects(f.workflow.publish(input), { code: 'revision-media-review-required' });
+    const review = await f.workflow.inspect(input);
+    for (const patch of [{ message: 'Changed message' }, { branch: 'different' }, { expectedHead: 'changed-head' }, { uploadMedia: !uploadMedia }, { reviewHash: '0'.repeat(64) }])
+      await assert.rejects(f.workflow.publish({ ...input, reviewHash: review.reviewHash, ...patch }), { code: 'revision-media-review-changed' });
+    assert.deepEqual(writes, []);
+  }
+  assert.equal((await f.assets.getUsage({}, 'film')).assetCount, 0);
+});
+test('changing actual referenced bytes or export after inspect invalidates consent before any network write', async t => {
+  const f = await fixture(t), input = f.publication(true), writes = watchPublicationWrites(f), review = await f.workflow.inspect(input);
+  const original = await fs.readFile(f.sourceB); await fs.writeFile(f.sourceB, 'changed secret content');
+  await assert.rejects(f.workflow.publish({ ...input, reviewHash: review.reviewHash }), { code: 'revision-media-review-changed' });
+  assert.deepEqual(writes, []); await fs.writeFile(f.sourceB, original);
+  await fs.writeFile(f.exportPath, f.xml.replace('Clip 1"', 'Changed metadata"'));
+  await assert.rejects(f.workflow.publish({ ...input, reviewHash: review.reviewHash }), { code: 'revision-media-review-changed' }); assert.deepEqual(writes, []);
+});
+test('a different authenticated owner or destination cannot reuse a prior publication review', async t => {
+  const f = await fixture(t), input = f.publication(true), writes = watchPublicationWrites(f), review = await f.workflow.inspect(input);
+  f.setAccount('another-owner');
+  await assert.rejects(f.workflow.publish({ ...input, reviewHash: review.reviewHash }), { code: 'revision-media-review-changed' });
+  f.setAccount('owner'); const elsewhere = createRevisionMediaWorkflow({ origin: 'https://another.example.test', revisionClient: f.revisionClient, assetClient: f.assetClient });
+  await assert.rejects(elsewhere.publish({ ...input, reviewHash: review.reviewHash }), { code: 'revision-media-review-changed' }); assert.deepEqual(writes, []);
+});
+test('metadata-only publication is reviewed separately, path text is refused, and an exact reviewed publication remains usable', async t => {
+  const f = await fixture(t), input = f.publication(false), writes = watchPublicationWrites(f), review = await f.workflow.inspect(input);
+  assert.equal(review.mediaBytesAuthorized, 0); assert.equal(review.uploadMedia, false);
+  await assert.rejects(f.workflow.inspect({ ...input, message: 'Found /private/editor/secret.mov' }), { code: 'revision-media-input-invalid' });
+  assert.deepEqual(writes, []);
+  const result = await f.workflow.publish({ ...input, reviewHash: review.reviewHash }); assert.equal(result.uploaded.length, 0);
+  assert.deepEqual(writes, ['putManifest', 'createRevision', 'compareAndSwapBranch']);
 });

@@ -11,11 +11,13 @@ const { createAsyncRevisionSyncService } = require('./revision-sync-async');
 const { verifyServiceSyncBase, validateServiceSyncBaseEntry } = require('./service-sync-base');
 const { createServiceThreeWayComparison } = require('./service-three-way-comparison');
 const { BRANCH_REVIEW_ERROR_CODES } = require('./branch-review-protocol');
+const { describePublication, publicationPage } = require('./publication-disclosure');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, HASH = /^[a-f0-9]{64}$/;
 const validId = value => typeof value === 'string' && ID.test(value);
 const safeName = value => typeof value === 'string' && value.trim() && value.length <= 120 && !/[\\/\x00-\x1f\x7f]/.test(value);
 const ERRORS = new Set([...BRANCH_REVIEW_ERROR_CODES, 'service-sign-in-required', 'service-project-required', 'service-project-unavailable', 'service-viewer-read-only',
+  'publication-review-required', 'publication-review-invalid', 'publication-review-stale', 'publication-review-too-large',
   'service-selection-changed', 'service-sync-busy', 'service-binding-invalid', 'service-storage-unavailable', 'sync-network-unavailable',
   'sync-branch-conflict', 'sync-reconciliation-required', 'sync-history-invalid', 'sync-cancelled', 'forbidden', 'access-token-invalid',
   'branch-not-found', 'project-not-found', 'revision-corrupt', 'revision-transfer-invalid', 'metadata-project-missing', 'sync-operation-unavailable',
@@ -40,10 +42,10 @@ function exact(value, keys) { return value && typeof value === 'object' && !Arra
 // Shared-base observations have the same scope. They reference verified immutable
 // metadata; this controller never imports revisions or applies editor changes.
 function createDesktopRevisionSync({ directory, connection, store, getSelection, getLocalComparisonSource = null,
-  buildComparison = createServiceThreeWayComparison, describeComparison = null, onChange = () => {} } = {}) {
+  buildComparison = createServiceThreeWayComparison, describeComparison = null, onChange = () => {}, requirePublicationReview = false, now = Date.now } = {}) {
   if (!path.isAbsolute(directory || '') || !connection || !store || typeof store.exportRevisions !== 'function'
     || typeof store.getServiceSyncBase !== 'function' || typeof store.recordServiceSyncBase !== 'function'
-    || typeof getSelection !== 'function' || typeof onChange !== 'function'
+    || typeof getSelection !== 'function' || typeof onChange !== 'function' || typeof requirePublicationReview !== 'boolean' || typeof now !== 'function'
     || getLocalComparisonSource !== null && typeof getLocalComparisonSource !== 'function'
     || typeof buildComparison !== 'function' || describeComparison !== null && typeof describeComparison !== 'function') throw fail('service-binding-invalid');
   const bindingDirectory = path.join(directory, 'bindings'), filename = path.join(bindingDirectory, 'bindings.json');
@@ -51,7 +53,7 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
   const scopes = new Map(), notifications = new Set(), controls = new Set();
   const baseValidations = new Map(), unconfirmedBases = new Map();
   let connectionKey = null, baseRevision = 0, comparisonRevision = 0;
-  let comparison = null;
+  let comparison = null, publicationReview = null, publicationRequest = 0;
   const emptyComparison = () => ({ status: 'none', error: null, result: null });
   function publicComparisonResult(value, createdAt) {
     const b = value.binding;
@@ -212,6 +214,7 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
       selection: selected, binding: ctx ? { remoteProjectId: ctx.binding.remoteProjectId, remoteProjectName: ctx.binding.remoteProjectName,
         remoteBranch: ctx.binding.remoteBranch, role: account.projects.find(item => item.id === ctx.binding.remoteProjectId)?.role || ctx.binding.role } : null,
       operations,
+      publicationScopeId: ctx?.id || null, publicationGeneration: generation,
       sync: currentOutcome ? { status: currentOutcome.status, localHead: currentOutcome.localHead, remoteHead: currentOutcome.remoteHead,
         actions: currentOutcome.actions || [], error: currentOutcome.error || null }
         : { status: ctx ? account.status === 'offline' ? 'offline' : 'checking' : 'unbound', localHead: null, remoteHead: null, actions: [], error: null },
@@ -221,9 +224,10 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     if (closed) return;
     const task = getState().then(onChange).catch(() => {}).finally(() => notifications.delete(task)); notifications.add(task);
   }
-  function selectionChanged() { if (closed) return; generation++; active?.controller.abort(); error = null; outcome = null; comparison = null; comparisonRevision++; baseValidations.clear(); notify(); }
+  function selectionChanged() { if (closed) return; generation++; active?.controller.abort(); error = null; outcome = null; comparison = null; publicationReview = null; comparisonRevision++; baseValidations.clear(); notify(); }
   function connectionChanged() {
-    const account = identity(), key = account ? fingerprint([account.origin, account.account.id]) : null;
+    const account = identity(), key = account ? fingerprint([account.origin, account.account.id,
+      (account.projects || []).map(project => ({ id: project.id, role: project.role, branches: [...project.branches].sort() })).sort((a, b) => a.id.localeCompare(b.id))]) : null;
     if (key !== connectionKey) { connectionKey = key; selectionChanged(); } else notify();
   }
   function remoteFor(ctx, client) {
@@ -348,7 +352,63 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     return getState();
   }
   const check = () => run(checkContext);
-  const push = () => run(async (ctx, sync, signal, epoch, client) => {
+  async function publicationSource(ctx, action, operationId = null, bundle = null) {
+    if (!['push', 'retry'].includes(action) || action === 'retry' && typeof operationId !== 'string') throw fail('publication-review-invalid');
+    const currentBundle = bundle || await store.exportRevisions(ctx.selected.localProjectId);
+    const pending = ctx.queue.getPrivatePayloads();
+    if (action === 'retry' && !pending.some(item => item.id === operationId)) throw fail('sync-operation-unavailable');
+    const payloads = pending.map(item => item.payload);
+    if (action === 'push') {
+      if (!currentBundle.branches[ctx.selected.branch]) throw fail('service-project-required');
+      payloads.push({ remoteProjectId: ctx.binding.remoteProjectId, branch: ctx.selected.branch,
+        bundle: currentBundle, authorId: ctx.account.account.id });
+    }
+    const unique = [...new Map(payloads.map(payload => [fingerprint(payload), payload])).values()];
+    if (unique.some(payload => payload.remoteProjectId !== ctx.binding.remoteProjectId || payload.branch !== ctx.selected.branch
+      || payload.authorId !== ctx.account.account.id)) throw fail('publication-review-invalid');
+    return { scope: ctx.id, generation, origin: ctx.account.origin, remoteBranch: ctx.binding.remoteBranch,
+      action, operationId, currentBundleHash: fingerprint(currentBundle), pending: pending.map(item => ({ id: item.id, status: item.status })), payloads: unique };
+  }
+  async function previewPublication(input = { action: 'push' }) {
+    if (!exact(input, ['action', ...(Object.hasOwn(input || {}, 'operationId') ? ['operationId'] : [])]) || active) throw fail('publication-review-invalid');
+    const request = ++publicationRequest, epoch = generation, ctx = await context(), role = ctx.account.projects.find(item => item.id === ctx.binding.remoteProjectId)?.role;
+    if (!['owner', 'editor'].includes(role)) throw fail('service-viewer-read-only');
+    const source = await publicationSource(ctx, input.action, input.operationId ?? null), description = describePublication(source);
+    if (!stillCurrent(ctx, epoch) || request !== publicationRequest) throw fail('publication-review-stale');
+    publicationReview = { ...description, source, reviewId: randomUUID(), createdAt: now() };
+    const { reviewId, sha256, byteLength, revisionCount, pageCount } = publicationReview;
+    return { reviewId, sha256, byteLength, revisionCount, pageCount, destination: source.origin, scopeId: ctx.id, generation: epoch,
+      projectName: ctx.binding.remoteProjectName, branch: source.remoteBranch, action: input.action,
+      operationId: source.operationId, mediaBytesIncluded: false, ...publicationPage(publicationReview, 0) };
+  }
+  async function getPublicationPage(input) {
+    if (!exact(input, ['reviewId', 'page']) || !publicationReview || input.reviewId !== publicationReview.reviewId) throw fail('publication-review-required');
+    const review = publicationReview, ctx = await context(), source = await publicationSource(ctx, review.source.action, review.source.operationId);
+    if (publicationReview !== review || !stillCurrent(ctx, review.source.generation) || fingerprint(source) !== review.sourceHash
+      || now() < review.createdAt || now() - review.createdAt > 300000) {
+      if (publicationReview === review) publicationReview = null; throw fail('publication-review-stale');
+    }
+    return { reviewId: review.reviewId, ...publicationPage(review, input.page) };
+  }
+  function dismissPublicationReview(input) {
+    if (publicationReview && input?.reviewId === publicationReview.reviewId) publicationReview = null;
+    return { dismissed: true };
+  }
+  async function approvePublication(ctx, action, operationId, consent, bundle = null) {
+    if (!requirePublicationReview && !consent) return null;
+    const review = publicationReview;
+    if (!review || !exact(consent, ['reviewId', 'sha256', 'confirmed']) || consent.confirmed !== true
+      || consent.reviewId !== review.reviewId || consent.sha256 !== review.sha256) throw fail('publication-review-required');
+    const source = await publicationSource(ctx, action, operationId, bundle);
+    const at = now();
+    if (publicationReview !== review || !stillCurrent(ctx, review.source.generation)
+      || at < review.createdAt || at - review.createdAt > 300000 || fingerprint(source) !== review.sourceHash) {
+      if (publicationReview === review) publicationReview = null; throw fail('publication-review-stale');
+    }
+    publicationReview = null;
+    return new Set(review.payloadHashes);
+  }
+  const push = consent => run(async (ctx, sync, signal, epoch, client) => {
     const project = ctx.account.projects.find(project => project.id === ctx.binding.remoteProjectId);
     if (ctx.account.connected && !project) throw fail('service-project-unavailable');
     const role = project?.role || ctx.binding.role;
@@ -356,11 +416,14 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     const bundle = await store.exportRevisions(ctx.selected.localProjectId);
     if (!bundle.branches[ctx.selected.branch]) throw fail('service-project-required');
     if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
+    const approved = await approvePublication(ctx, 'push', null, consent, bundle);
+    if (!stillCurrent(ctx, epoch)) throw fail('service-selection-changed');
     ctx.queue.enqueuePush({ remoteProjectId: ctx.binding.remoteProjectId, branch: ctx.selected.branch, bundle, authorId: ctx.account.account.id });
-    await processQueue(ctx, sync, signal, epoch, client);
+    await processQueue(ctx, sync, signal, epoch, client, approved);
   });
-  async function processQueue(ctx, sync, signal, epoch, client) {
+  async function processQueue(ctx, sync, signal, epoch, client, approved = null) {
     const guarded = { ...sync, push: async (input, options) => {
+      if (approved && !approved.has(fingerprint(input))) throw fail('publication-review-stale');
       const operationSignal = options?.signal ? AbortSignal.any([signal, options.signal]) : signal;
       await checkContext(ctx, sync, operationSignal, epoch, client);
       return sync.push(input, { ...options, signal: operationSignal });
@@ -432,9 +495,13 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     if (!['owner', 'editor', 'viewer'].includes(role)) throw fail('service-project-unavailable');
     return structuredClone({ scope: baseScope(ctx), role, revision, manifest: manifest.document, checkedAt: incoming.checkedAt });
   }
-  const retry = id => run(async (ctx, sync, signal, epoch, client) => {
+  const retry = input => run(async (ctx, sync, signal, epoch, client) => {
+    if (!['owner', 'editor'].includes(ctx.account.projects.find(project => project.id === ctx.binding.remoteProjectId)?.role)) throw fail('service-viewer-read-only');
+    const id = typeof input === 'string' ? input : input?.id;
     const job = ctx.queue.inspect().find(item => item.id === id); if (!job) throw fail('sync-operation-unavailable');
-    if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch, client);
+    const consent = typeof input === 'object' && input ? Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'id')) : null;
+    const approved = await approvePublication(ctx, 'retry', id, consent);
+    if (job.status !== 'queued') ctx.queue.retry(id); await processQueue(ctx, sync, signal, epoch, client, approved);
   });
   async function cancelAction(id) {
     try {
@@ -451,6 +518,6 @@ function createDesktopRevisionSync({ directory, connection, store, getSelection,
     const task = Promise.resolve().then(() => action(...args)).finally(() => controls.delete(task)); controls.add(task); return task;
   }
   return { getState, bind: (...args) => control(bindAction, args), unlink: (...args) => control(unlinkAction, args),
-    check, push, fetch, compare, getPrivateComparison, getPrivateIncoming, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
+    check, push, fetch, compare, previewPublication, getPublicationPage, dismissPublicationReview, getPrivateComparison, getPrivateIncoming, retry, cancel: (...args) => control(cancelAction, args), selectionChanged, connectionChanged, dispose };
 }
 module.exports = { createDesktopRevisionSync };

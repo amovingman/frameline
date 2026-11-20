@@ -25,6 +25,9 @@ const REQUEST_ERRORS = new Set([...AUTH_ERRORS, ...COMMENT_ERROR_CODES, ...BRANC
   'asset-key-rotation-required', 'asset-capacity-exceeded', 'asset-storage-unavailable', 'asset-storage-uncertain',
   'asset-cancelled', 'asset-verification-timeout', 'asset-policy-excluded', 'asset-policy-forbidden', 'asset-policy-invalid',
   'asset-policy-version-conflict', 'asset-archived', 'asset-archive-invalid', 'asset-archive-conflict', 'activity-page-invalid',
+  'asset-lifecycle-invalid', 'asset-lifecycle-version-conflict', 'asset-lifecycle-idempotency-conflict', 'asset-lifecycle-plan-stale',
+  'asset-reference-invalid', 'asset-reference-unavailable', 'asset-gc-blocked',
+  'asset-revision-media-missing', 'asset-revision-identity-mismatch', 'asset-revision-unavailable',
   'activity-cursor-invalid', 'activity-state-invalid', 'activity-state-newer-version', 'activity-capacity-exceeded', 'notification-not-found']);
 function fail(code) { return Object.assign(new Error(code), { code }); }
 const clone = value => structuredClone(value);
@@ -138,7 +141,9 @@ function createDesktopServiceConnection({ directory, vault, createClient = creat
     value.authenticated = protect(value.client, arities);
     value.assets = protect(createAssetClient({ origin: serviceOrigin, getAccessToken: () => accessToken(value) }), {
       beginUpload: 2, uploadStatus: 2, putChunk: 5, completeUpload: 2, cancelVerification: 2, getAsset: 2, readChunk: 3,
-      getPolicy: 1, setPolicy: 2, getUsage: 1, getAvailability: 2, setArchived: 3 });
+      getPolicy: 1, setPolicy: 2, getUsage: 1, getAvailability: 2, setArchived: 3,
+      getHold: 2, setHold: 3, getRetentionPolicy: 1, setRetentionPolicy: 2, getLifecycleReport: 2, planCleanup: 2,
+      getOwnerAssetReport: 2, planGarbageCollection: 2, garbageCollect: 2 });
     return value;
   }
   async function accessToken(value) {

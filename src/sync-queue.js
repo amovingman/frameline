@@ -205,7 +205,9 @@ function createSyncQueue({ directory, now = () => Date.now(), baseDelayMs = 1_00
     if (active?.id === id) { active.cancelled = true; active.controller.abort(); }
     return { id, canceled: true };
   }
-  return { enqueuePush, process, processAsync, inspect, retry, cancel };
+  // Trusted main-process inspection only; never expose raw queue data over IPC.
+  const getPrivatePayloads = () => read().items.map(({ id, payload, status }) => ({ id, payload: structuredClone(payload), status }));
+  return { enqueuePush, process, processAsync, inspect, retry, cancel, getPrivatePayloads };
 }
 
 module.exports = { createSyncQueue, MAX_QUEUE_BYTES };

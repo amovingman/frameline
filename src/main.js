@@ -389,12 +389,14 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
       Promise.resolve(desktopProjectPresets?.connectionChanged()).catch(() => {});
       Promise.resolve(desktopAssetLifecycle?.connectionChanged()).catch(() => {}); } });
   desktopRevisionSync = createDesktopRevisionSync({ directory: path.join(app.getPath('userData'), 'service-sync'),
+    requirePublicationReview: true,
     connection: serviceConnection, store: localMetadataStore,
     getSelection: () => {
       const state = projectSession.getState();
       return state.selectedProject?.id ? { localProjectId: state.selectedProject.id, branch: state.currentBranch } : null;
     }, getLocalComparisonSource: options => projectSession.readComparisonSource(options), onChange: publishServiceState });
   desktopResolveServiceSync = createDesktopResolveServiceSync({ directory: path.join(app.getPath('userData'), 'resolve-service-sync'),
+    requirePublicationReview: true,
     connection: serviceConnection, store: localMetadataStore,
     getCapture: () => companionVerifiedSnapshot ? {
       manifest: companionVerifiedSnapshot.observation ? createResolveObservationManifest(companionVerifiedSnapshot.observation)
@@ -519,7 +521,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle('diagnostics:preview', (_event, options) => diagnostics.preview(options));
   ipcMain.handle('diagnostics:export', (_event, review) => diagnostics.exportReviewed(review));
   ipcMain.handle('sync:get-state', () => desktopRevisionSync.getState());
-  ipcMain.handle('sync:retry', (_event, id) => serviceAction(() => desktopRevisionSync.retry(id)));
+  ipcMain.handle('sync:retry', (_event, input) => serviceAction(() => desktopRevisionSync.retry(input)));
   ipcMain.handle('sync:cancel', (_event, id) => serviceAction(() => desktopRevisionSync.cancel(id)));
   ipcMain.handle('service:state', () => desktopRevisionSync.getState());
   ipcMain.handle('service:connect', (_event, input) => serviceAction(() => serviceConnection.connect(input)));
@@ -528,7 +530,19 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle('service:bind', (_event, input) => serviceAction(() => desktopRevisionSync.bind(input)));
   ipcMain.handle('service:unlink', () => serviceAction(() => desktopRevisionSync.unlink()));
   ipcMain.handle('service:check', () => serviceAction(() => desktopRevisionSync.check()));
-  ipcMain.handle('service:push', () => serviceAction(() => desktopRevisionSync.push()));
+  ipcMain.handle('service:push', (_event, input) => serviceAction(() => desktopRevisionSync.push(input)));
+  const publicationAction = async action => {
+    try { return await action(); } catch (error) {
+      return { error: ['publication-review-required', 'publication-review-invalid', 'publication-review-stale', 'publication-review-too-large',
+        'service-viewer-read-only', 'service-project-required', 'service-project-unavailable', 'service-sign-in-required'].includes(error?.code)
+        ? error.code : 'publication-review-invalid' };
+    }
+  };
+  for (const [prefix, target] of [['service', desktopRevisionSync], ['resolve-service', desktopResolveServiceSync]]) {
+    ipcMain.handle(`${prefix}:publication-review`, (_event, input) => publicationAction(() => target.previewPublication(input)));
+    ipcMain.handle(`${prefix}:publication-page`, (_event, input) => publicationAction(() => target.getPublicationPage(input)));
+    ipcMain.handle(`${prefix}:publication-dismiss`, (_event, input) => publicationAction(() => target.dismissPublicationReview(input)));
+  }
   ipcMain.handle('service:fetch', () => serviceAction(() => desktopRevisionSync.fetch()));
   ipcMain.handle('service:compare', () => serviceAction(() => desktopRevisionSync.compare()));
   const resolveServiceAction = async action => {
@@ -563,7 +577,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle('project-presets:state', () => desktopProjectPresets.getState());
   ipcMain.handle('asset-lifecycle:state', () => desktopAssetLifecycle.initialize());
   for (const method of ['refreshProjects', 'selectProject', 'refreshReport', 'loadMore', 'selectAsset', 'selectForPlan',
-    'setHold', 'setRetention', 'preparePlan', 'retry', 'dismiss', 'prepareExport']) {
+    'setHold', 'setRetention', 'preparePlan', 'executeCollection', 'retry', 'dismiss', 'prepareExport']) {
     ipcMain.handle(`asset-lifecycle:${method}`, (_event, input) => desktopAssetLifecycle[method](input));
   }
   ipcMain.handle('asset-lifecycle:saveExport', async (_event, input) => {

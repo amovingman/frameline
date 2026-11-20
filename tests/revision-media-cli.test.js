@@ -10,14 +10,15 @@ async function run(value, options = {}) {
   const code = await runRevisionMediaCli({ argv: [], input: Readable.from([typeof value === 'string' ? value : JSON.stringify(value)]),
     output: { write: value => output += value }, errorOutput: { write: value => error += value },
     createRevisionClient: createClient, createAssetClient: createClient,
-    createWorkflow: () => Object.fromEntries(['publish', 'availability', 'download', 'getPolicy', 'setPolicy'].map(method => [method, async (...args) => {
+    createWorkflow: () => Object.fromEntries(['inspect', 'publish', 'availability', 'download', 'getPolicy', 'setPolicy'].map(method => [method, async (...args) => {
       calls.push({ method, args }); return { accepted: true };
     }])), ...options });
   return { code, output, error, calls };
 }
 test('CLI exposes the complete owner media workflow and explicit separate policy consent without argument credentials', async () => {
   const cases = [
-    ['publish', { exportPath: '/private/selected.fcpxml', branch: 'main', expectedHead: null, message: 'Media bound revision', idempotencyKey: 'publish-one', uploadMedia: true }, 'publish'],
+    ['inspect', { exportPath: '/private/selected.fcpxml', branch: 'main', expectedHead: null, message: 'Media bound revision', uploadMedia: true }, 'inspect'],
+    ['publish', { exportPath: '/private/selected.fcpxml', branch: 'main', expectedHead: null, message: 'Media bound revision', idempotencyKey: 'publish-one', uploadMedia: true, reviewHash: 'a'.repeat(64) }, 'publish'],
     ['availability', { revisionId: 'selected-revision', localFiles: ['/private/original.mov'] }, 'availability'],
     ['download', { revisionId: 'selected-revision', destinationDirectory: '/private/downloads', workDirectory: '/private/work', maxBytesPerSecond: 1024 }, 'download'],
     ['policy-get', {}, 'getPolicy'], ['policy-set', { expectedVersion: 0, syncClasses: ['original'] }, 'setPolicy']
@@ -44,7 +45,7 @@ test('CLI refuses arbitrary selected asset IDs, unbounded input, protocols and i
 test('CLI emits only bounded counters in progress and allowlisted failure codes', async () => {
   for (const code of ['asset-revision-media-missing', 'asset-revision-identity-mismatch', 'asset-revision-unavailable', '/private/secret-code']) {
     const result = await run({ ...base, action: 'publish', input: { exportPath: '/private/source.fcpxml', branch: 'main', expectedHead: null,
-      message: 'Capture', idempotencyKey: 'id', uploadMedia: true } }, { createWorkflow: () => ({ async publish(_input, controls) {
+      message: 'Capture', idempotencyKey: 'id', uploadMedia: true, reviewHash: 'a'.repeat(64) } }, { createWorkflow: () => ({ async publish(_input, controls) {
       controls.onProgress({ phase: 'hashing', bytes: 4, totalBytes: 100, sourcePath: '/private/camera.mov', accessToken: token });
       throw Object.assign(new Error(`Bearer ${token} /private/camera.mov`), { code });
     } }) });
@@ -57,4 +58,20 @@ test('pre-cancelled CLI input never contacts a service and reports a safe cancel
   const controller = new AbortController(); controller.abort(); let clients = 0;
   const result = await run({ ...base, action: 'policy-get', input: {} }, { signal: controller.signal, createRevisionClient: () => { clients++; return {}; } });
   assert.equal(result.code, 1); assert.equal(result.error, 'revision-media-cancelled\n'); assert.equal(clients, 0);
+});
+
+test('CLI inspect needs explicit upload choice and publish requires the exact review hash before client creation', async () => {
+  const input = { exportPath: '/private/source.fcpxml', branch: 'main', expectedHead: null, message: 'Owner reviewed capture', uploadMedia: false };
+  assert.equal((await run({ ...base, action: 'inspect', input })).calls[0].method, 'inspect');
+  let clients = 0;
+  for (const patch of [{}, { reviewHash: 'bad' }, { reviewHash: 'b'.repeat(64), message: '/private/secret' }]) {
+    const result = await run({ ...base, action: 'publish', input: { ...input, idempotencyKey: 'publish', ...patch } }, { createRevisionClient: () => { clients++; return {}; } });
+    assert.equal(result.code, 1);
+  }
+  assert.equal(clients, 0);
+  for (const code of ['revision-media-review-required', 'revision-media-review-changed']) {
+    const result = await run({ ...base, action: 'publish', input: { ...input, idempotencyKey: 'publish', reviewHash: 'b'.repeat(64) } },
+      { createWorkflow: () => ({ async publish() { throw Object.assign(new Error('/private/secret'), { code }); } }) });
+    assert.equal(result.error, `${code}\n`);
+  }
 });

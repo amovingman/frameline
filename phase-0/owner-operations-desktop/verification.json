@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two actual shipped Electron main/preload/renderer processes and real fixture-CA HTTPS; small synthetic 50-clip export, one synthetic saved Resolve observation, disposable accounts and native picker results. No editor operation or real user data.",
+  "sourceUnchanged": true,
+  "originalResolveRevisionUnchanged": true,
+  "retainedCanonicalAssetPreserved": true,
+  "collectionReceiptCount": 1,
+  "visualQa": {
+    "rounds": 2,
+    "initialFinding": "Publication consent checkbox inherited full-width input styling; corrected to explicit18px control.",
+    "confirmation": "Publication and collection at390/768/1440; native AX and keyboard consent."
+  },
+  "stages": [
+    {
+      "stage": "interrupted",
+      "authoritativeReport": true,
+      "retainedBlocked": true,
+      "confirmationRequired": true,
+      "committedAcknowledgmentLost": true,
+      "requests": 8,
+      "metadataWrites": 0,
+      "layouts": [],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "recovered",
+      "publicationWithoutReviewRefused": true,
+      "staleHeadRefused": true,
+      "staleAccountRefused": true,
+      "exactPagedReviewHashVerified": true,
+      "exactReviewedWireMetadataVerified": true,
+      "privateReviewClearedOnAccountSwitch": true,
+      "unconfirmedPublicationRefused": true,
+      "keyboardConsent": true,
+      "fcpxmlPublishedViaHttps": true,
+      "savedResolvePublishedViaHttps": true,
+      "lostAcknowledgmentRecovered": true,
+      "receiptExported": true,
+      "nativeAccessibilityLabelsVerified": true,
+      "requests": 51,
+      "metadataWrites": 6,
+      "layouts": [
+        {
+          "width": 390,
+          "scrollWidth": 390,
+          "panelWidth": 358,
+          "consentLabel": "I approve sending this revision metadata to the service shown above.",
+          "approveText": "Publish reviewed metadata"
+        },
+        {
+          "width": 768,
+          "scrollWidth": 768,
+          "panelWidth": 728,
+          "consentLabel": "I approve sending this revision metadata to the service shown above.",
+          "approveText": "Publish reviewed metadata"
+        },
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176,
+          "consentLabel": "I approve sending this revision metadata to the service shown above.",
+          "approveText": "Publish reviewed metadata"
+        },
+        {
+          "kind": "collection",
+          "width": 390,
+          "scrollWidth": 390
+        },
+        {
+          "kind": "collection",
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "kind": "collection",
+          "width": 1440,
+          "scrollWidth": 1440
+        }
+      ],
+      "rendererErrors": 0
+    }
+  ]
+}
