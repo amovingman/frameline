@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "operation": "native-byte-preservation-diagnostics-evidence",
+  "readOnly": true,
+  "sourceHashes": {
+    "phase-0/resolve-native-byte-census.py": "e1297c932b13e29ae63a105b375614a9176fd0cf6078ec6db29bbbb663cdf72f",
+    "phase-0/native-preserving-name-writer.py": "fcc2138270fffe560c5feb9156f76f2eb2dff445a347a8f0e3184fb036be2492",
+    "phase-0/native-preservation-acceptance.js": "390058c4dfcfeb22552f3fd5d29a40d453206edb55ea86f7cb192acc7159c53f",
+    "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+    "phase-0/compare-native-resolve-exports.py": "89c80a83177fcc4755a2b8a6efdb95f2f2351f23822deef4615194e83fe3ba24"
+  },
+  "sourceLiveInitResultSha256": "f9576a599e194252c178831edecce266d1344f9f5ddaffd3226cb28bb84076ff",
+  "payloads": {
+    "corpus": {
+      "file": "phase-0/native-byte-diagnostics-evidence/corpus.json.gz",
+      "sha256": "1be739642f436080e30fce0cfec6e86b033e8a35a581352c3eaf47f64b78c353",
+      "bytes": 127770,
+      "compressedSha256": "dc359951bfe56632550dd280192ba67448af0f37606e511c18ce68e8307550f1"
+    },
+    "current": {
+      "file": "phase-0/native-byte-diagnostics-evidence/current.json.gz",
+      "sha256": "1eacaf28d4ec722ed51d65fdf37bd8e636bc43feb8abd70ab9820c18f25addec",
+      "bytes": 169381,
+      "compressedSha256": "bc0a895cb7768dd3c7c28d0f2d485155d0a639239d6d9234740aa06d887d417d"
+    },
+    "historical": {
+      "file": "phase-0/native-byte-diagnostics-evidence/historical.json.gz",
+      "sha256": "13b94fdea83e994b3cf03e5bf612bdf2f67d873e9553de81a774bee48c6b19cb",
+      "bytes": 21918,
+      "compressedSha256": "559bc230c61af3370487c47ed6f47ed84b822c3157ba44b2d3d13dbccc51a6d4"
+    },
+    "opaque": {
+      "file": "phase-0/native-byte-diagnostics-evidence/opaque.json.gz",
+      "sha256": "04f170e5c76fd7349e84620b407259165a439ac17947afe9cfdc7451b33aac74",
+      "bytes": 3609,
+      "compressedSha256": "be9803f1958357490ed09e92f4d4ddfb1f45a3a464c0ddc9023839f477464508"
+    }
+  },
+  "privateRetentionManifestSha256": "b5141b9657446f165cf78e0a2ba232033c02f6b4c7ace49f5b3c4d309ee8d968",
+  "privateRetentionFiles": 116,
+  "uniqueNativeArchives": 89,
+  "allCurrentControlNativeMembersCompared": true,
+  "allCurrentControlsFailExactNativeMemberEquality": true,
+  "privateOriginalArchiveBytesRetained": true,
+  "privateArchiveReconstructionPerformedByPublicReceipt": false,
+  "semanticEquivalenceProven": false,
+  "losslessValidated": false,
+  "gateEvidenceComplete": false,
+  "fullNativePreservationProven": false,
+  "ordinaryApplySupported": false,
+  "safeToApply": false,
+  "publicPayloadsIncludePrivateHostDerivedDiagnosticFacts": true,
+  "originalNativeArchivesReconstructedByPublicPayloads": false,
+  "opaqueBlobSemanticsProven": false
+}

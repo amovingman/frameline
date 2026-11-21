@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "scope": "Resolve Free 21.1.2/build21.1.20010 on macOS; controlled closed single-file project, one existing-custom video-item Name cell, guarded private-copy publication, Load/basic Name read and separate UI Close; no SDK Save, concurrent writer or ordinary Apply.",
+  "payloadSha256": "26d93a2edc5395f54febd8bf5b3e7227f0d61eb033958d5d0c5041cc03b8bba8",
+  "compressedSha256": "066793519b0d90bb12b06bfe9c0405debece28f62ebe1a3a73cf33a62b48a639",
+  "sourceHashes": {
+    "phase-0/prepare-preservation-open-verification.js": "cb3898875ab3dfbcc7b22406fba21578fade1f47bc7d9ef259bdef2697133306",
+    "phase-0/prepare-preservation-offline-publication.js": "9cea0854aa3b0c03365c44320a3415ffd88c1d1cf04163ced5f41d5e52252d96",
+    "phase-0/prepare-preservation-reopen-absence-v2.js": "32de1566ded849f456d2949ad6203fdb2a69728d5445fce5e83aba3a30f2dd3f",
+    "phase-0/native-sqlite-preservation.js": "fa77f9afc34d081c8684c1e9679d38614a4fce1c78366c89b78f6c3b7df056d4",
+    "phase-0/resolve-native-sqlite-snapshot.py": "35bc1c7c324f63e7066cf77c22627a3a56a93e66c3427e14cd0bc0aa8a5c82d6",
+    "phase-0/native-sqlite-physical-profile.js": "bd51a5776768fb15b52e03fda909ca0ca2d93eb57c97949b8efc2cff9c91ac4a",
+    "phase-0/preservation-native-handshake.js": "da17e6ec17763dc4b2a05979a2d1becef60ba16645a7b6e996e43f618a9bf73e",
+    "phase-0/native-sqlite-name-target-binding.js": "acc3955043d32fb8f0ba993cf5d6a38212125276562f60438d240bfc5b7901ef",
+    "phase-0/preservation-interrupted-name-evidence.js": "ace8ba476fd593de2b30052adeee9ee237c60c1adadf78fd3bb35d1b33971f15"
+  },
+  "originalBaselineRestorationProven": false,
+  "ordinaryApplySupported": false
+}

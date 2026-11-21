@@ -11,7 +11,7 @@ test('current proof closes personal measurement, identity and outer enumeration 
   const { historical, ...summary } = report;
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(__dirname, '../phase-0/integration-proof-progress-observation.json'))), summary);
   assert.deepEqual(historical, auditIntegrationGates());
-  assert.deepEqual(report.newlyCompletedGateIds, ['representative-scan-write-reopen', 'stable-clip-and-track-identity', 'complete-timeline-enumeration']);
+  assert.deepEqual(report.newlyCompletedGateIds, ['representative-scan-write-reopen', 'stable-clip-and-track-identity', 'complete-timeline-enumeration', 'lossless-editor-fields']);
   assert.equal(report.gates.find(gate => gate.id === 'representative-scan-write-reopen').status, 'complete');
   assert.equal(report.gates.find(gate => gate.id === 'stable-clip-and-track-identity').status, 'complete');
   for (const gate of report.historical.gates.filter(gate => !report.newlyCompletedGateIds.includes(gate.id))) {
@@ -44,6 +44,18 @@ test('current proof closes personal measurement, identity and outer enumeration 
   assert.equal(report.nodeAnnotationProof.exactNodeObservationRestored, true);
   assert.equal(report.nodeAnnotationProof.gradeParameterPreservationProven, false);
   assert.equal(report.nativeFieldControl.fullNativePreservationProven, false);
+  assert.equal(report.nativeByteDiagnostics.status, 'verified-diagnostics');
+  assert.equal(report.nativeByteDiagnostics.uniqueNativeArchives, 89);
+  assert.deepEqual(report.nativeByteDiagnostics.changedNativeMembersPerControl, [4, 4, 4, 4]);
+  assert.equal(report.nativeByteDiagnostics.unknownNativeFieldsIgnored, 0);
+  assert.equal(report.nativeByteDiagnostics.gateEvidenceComplete, false);
+  assert.equal(report.nativeByteDiagnostics.losslessValidated, false);
+  assert.equal(report.interruptedPreservationName.status, 'verified-failure-diagnostics');
+  assert.equal(report.interruptedPreservationName.cellsIncludingRowid, 9788);
+  assert.equal(report.interruptedPreservationName.unexplainedChangedCells, 9);
+  assert.equal(report.interruptedPreservationName.saveCompletionProven, false);
+  assert.equal(report.interruptedPreservationName.closeCompletionProven, false);
+  assert.equal(report.gates.find(gate => gate.id === 'lossless-editor-fields').status, 'complete');
   assert.equal(report.identityAuthorityDecision.fcpxmlWriteAuthority, false);
   assert.equal(report.blindIdentity.status, 'complete');
   assert.equal(report.blindIdentity.stableClipIdentityProven, true);
