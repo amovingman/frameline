@@ -2,6 +2,8 @@
 
 ## Unreleased — experimental local build
 
+- Continued the [integration proof](INTEGRATION_GATE_RESEARCH.md) with a challenge-free calibrated native/API join, explicit API UUID write authority, a separate seven-field guarded rename and backed rollback, color-node slot reads and a cosmetic same-count annotation control. Localized native opaque-field records retain read-only export differences without normalizing them away. General identity, complete enumeration, preservation and ordinary Apply remain unproven.
+
 - Completed the personal-scope [scan/write/reopen measurement gate](INTEGRATION_GATE_RESEARCH.md) with a verified 50-item native backup, guarded rename/save/reopen/rollback, exact represented restoration, same-fixture scan/cache runs and sampled Resolve RSS. A separate current audit preserves the historical integration decision. Native track-ID challenges and additional field captures narrow the remaining proof gaps; ordinary Apply remains disabled.
 
 - Advanced the first five unresolved [integration gates](INTEGRATION_GATE_RESEARCH.md) with read-only SDK/corpus verification, conservative item/track membership witnesses, per-item field coverage and exact-rename preservation inspection, plus small-fixture worker benchmarks. A native Lua Scripts-menu file handoff now returns 10,550 represented items across three existing synthetic timelines, with a matching independent second capture and retained hash-bound evidence. No checkbox is newly completed, no new live editor write is claimed, and ordinary Apply remains disabled.

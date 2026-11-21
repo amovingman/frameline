@@ -28,4 +28,13 @@ test('current proof closes only verified personal measurements and retains the h
   assert.equal(report.additionalItemState.enabledProof.disabledDifferenceCount, 1);
   assert.equal(report.additionalItemState.enabledProof.exactRepresentedBytesRestored, true);
   assert.equal(report.additionalItemState.enabledProof.generalLosslessPreservationProven, false);
+  assert.equal(report.readOnlyTrackBinding.challengeFreeReadOnlyRebindingVerified, true);
+  assert.equal(report.readOnlyTrackBinding.stableTrackIdentityProven, false);
+  assert.equal(report.expandedRenameGuard.guardedReadFamilies, 7);
+  assert.equal(report.expandedRenameGuard.exactRepresentedRestoration, true);
+  assert.equal(report.colorNodeReads.coverage.fields.tools.unavailable, 50);
+  assert.equal(report.nodeAnnotationProof.exactNodeObservationRestored, true);
+  assert.equal(report.nodeAnnotationProof.gradeParameterPreservationProven, false);
+  assert.equal(report.nativeFieldControl.fullNativePreservationProven, false);
+  assert.equal(report.identityAuthorityDecision.fcpxmlWriteAuthority, false);
 });

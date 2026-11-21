@@ -1,0 +1,11 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const {auditColorNodeChallengeEvidence}=require('../phase-0/color-node-challenge-evidence');
+const root=path.resolve(__dirname,'..'),read=file=>fs.readFileSync(path.join(root,file));
+test('native same-count cosmetic annotation change and exact three-contract restoration recompute from retained bytes',()=>{
+  const report=auditColorNodeChallengeEvidence(read);assert.equal(report.cosmeticNodeColorChallengePassed,true);assert.equal(report.sameNodeCountsRetained,true);assert.equal(report.exactNodeObservationRestored,true);assert.equal(report.richAndSevenFieldObservationsUnchanged,true);assert.equal(report.itemCount,50);assert.equal(report.richPropertyValues,1600);assert.equal(report.allThreeInstalledScriptsRemoved,true);assert.equal(report.initialRead.coverage.fields.tools.unavailable,50);assert.equal(report.completeEnumerationProven,false);assert.equal(report.gradeParameterPreservationProven,false);assert.equal(report.persistentNodeIdentityProven,false);assert.equal(report.safeToApply,false);
+});
+test('changed native outputs, markers, sources and fresh-backup predecessor links fail closed',()=>{
+  for(const file of ['phase-0/color-node-evidence/colored.json.gz','phase-0/color-node-evidence/restored.json.gz','phase-0/color-node-evidence/color-rich.json.gz','phase-0/color-node-evidence/restore-extra.json.gz','phase-0/color-node-evidence/color-result.json','phase-0/color-node-evidence/restore-started.json','phase-0/color-node-evidence/color-complete.txt','phase-0/resolve-color-node-challenge.lua'])assert.throws(()=>auditColorNodeChallengeEvidence(name=>name===file?Buffer.concat([read(name),Buffer.from('changed')]):read(name)),/invalid-color-node-challenge-evidence/);
+  for(const edit of [r=>r.predecessor.backupSha256='0'.repeat(64),r=>r.predecessor.sourceHashes.nodes='0'.repeat(64),r=>r.backup.sha256='0'.repeat(64),r=>r.nodesObservationSha256='0'.repeat(64),r=>r.installedScriptRemoved=false])assert.throws(()=>auditColorNodeChallengeEvidence(file=>{const bytes=read(file);if(file!=='phase-0/color-node-evidence/restore-receipt.json')return bytes;const report=JSON.parse(bytes);edit(report);return Buffer.from(JSON.stringify(report));}),/invalid-color-node-challenge-evidence/);
+});

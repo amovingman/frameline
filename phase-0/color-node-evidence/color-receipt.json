@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "newLiveEditorRun": true,
+  "status": "colored",
+  "experimental": true,
+  "safeToApply": false,
+  "mode": "color",
+  "targetItemId": "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+  "nodeIndex": 1,
+  "color": "Blue",
+  "itemCount": 50,
+  "backupSha256": "df3b9d8690574d806deb96f01880e8946735b0a573ae8212303d5f873a49a337",
+  "postStateBackup": {
+    "schemaVersion": 1,
+    "sha256": "77e5c9c8fbe76dd9eb5cc302345970e6b5c01df97bcfab6193c867496fbb2bf5",
+    "size": 54045,
+    "mode": 384,
+    "timelineCount": 1,
+    "archiveVerified": true
+  },
+  "sourceSha256": "eb82e58f7359f90d39d21c081db5ff4cec6436632990a9f8fbd7a0e5a0faea6c",
+  "richObservationSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+  "extraObservationSha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+  "nodesObservationSha256": "58d2b4eeb58b197f91416c9531a96e32651effb43a3fa7ad92110efbc5506db6",
+  "limitations": [
+    "This changes only cosmetic node UI color, not image-grading parameters.",
+    "Index1 is unambiguous only in the exact guarded one-node target state; no persistent node identity is established.",
+    "Tools remain unavailable, and complete topology, graph contents, grade parameters and opaque native fields remain unobserved.",
+    "Runtime backup checks presence/size; host archive integrity and fresh-export association do not prove native semantic equivalence.",
+    "Interrupted or divergent started operations require fresh inspection; retained readback barriers do not prove power-loss durability."
+  ],
+  "requestId": "0b471b286a0f0514ab4643e8656d00af",
+  "proofScope": "single-node-cosmetic-annotation-only",
+  "sourceHashes": {
+    "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+    "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+    "src/companion/resolve-item-state.lua": "aac0fffc28f026f7dd665cd73d9da4a4d61e6e319e4a4375055bfe3a20dfca1e",
+    "src/companion/resolve-color-nodes.lua": "880e0657a4748f66037700bfc435854a4f4c532119ccf7221122dc56df598dfa",
+    "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27",
+    "phase-0/resolve-color-node-challenge.lua": "5e3c5a5b40808e3e54835f2b54f760596f3b17a23c6dc17a0b02ab7fda1bd84d"
+  },
+  "referenceSha256": "2a6c156fcba727b73e16fdc21b90e77db9b914c08c5bf5b53b584380a972f8d7",
+  "baselineHashes": {
+    "rich": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "extra": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+    "nodes": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4"
+  },
+  "sourceObservationHashes": {
+    "rich": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "extra": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+    "nodes": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4"
+  },
+  "backupSourceBinding": {
+    "archiveSha256": "df3b9d8690574d806deb96f01880e8946735b0a573ae8212303d5f873a49a337",
+    "sourceHashes": {
+      "rich": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+      "extra": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+      "nodes": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4"
+    },
+    "association": "fresh-export-host-receipt-not-native-semantic-equivalence"
+  },
+  "backup": {
+    "schemaVersion": 1,
+    "sha256": "df3b9d8690574d806deb96f01880e8946735b0a573ae8212303d5f873a49a337",
+    "size": 53465,
+    "mode": 384,
+    "timelineCount": 1,
+    "archiveVerified": true
+  },
+  "predecessor": null,
+  "readerSource": "phase-0/prepare-color-node-challenge.js",
+  "readerSourceSha256": "9fca89c716e38dbb8b2a57e0e03052b846fdf1ec9174ef8700f37cd455051eb1",
+  "validatorHashes": {
+    "src/resolve-effect-observation.js": "1c9a8e5cef19496759b6f3ae80241292df21759beb219445286b11f9c3422101",
+    "src/resolve-item-state-observation.js": "bb26aeda008292511ca3a9ebed6de6226e9b67d4da3c19b743b4ffc7c286ce2f",
+    "src/resolve-color-node-observation.js": "8db5426f12e6d8b4737e464e7b683719f749b66837f2bc43a9e21552cdf91296"
+  },
+  "nodesObservationFile": "phase-0/color-node-evidence/colored.json.gz",
+  "nodesCompressedSha256": "865ece4666fa517a984b034854a1790419e2dfc465a3fbfe1ef714a151938ad4",
+  "resultFile": "phase-0/color-node-evidence/color-result.json",
+  "resultSha256": "95ee290f6b5f9303fc41950a71e970041ba2199a04b17debc6cf44ecd6ff08f9",
+  "startedMarkerSha256": "8d85abfe75ecd1f07a53a9b8b8b74619d4f25370a891a6e502d65dca876103b3",
+  "completionMarkerSha256": "0531ccd8c2dffbe667e202e626c5b55748c5067ccc9d77c1072b1b74a2e86484",
+  "completionMarkerVerified": true,
+  "installedScriptRemoved": true,
+  "privatePreparedFilesRetained": true,
+  "publishingObservation": "The first host read saw incomplete retained output while this same native invocation was still publishing; a subsequent read completed without another UI invocation or command replay.",
+  "installedSourceVerifiedBeforeRemoval": true,
+  "privateEvidenceCopyRetained": true,
+  "richObservationFile": "phase-0/color-node-evidence/color-rich.json.gz",
+  "richCompressedSha256": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174",
+  "extraObservationFile": "phase-0/color-node-evidence/color-extra.json.gz",
+  "extraCompressedSha256": "eb63b489ee2993416f225f04292d0e2437e8c5e372570bd9c37bb9ae1f5f4df9",
+  "startedMarkerFile": "phase-0/color-node-evidence/color-started.json",
+  "completionMarkerFile": "phase-0/color-node-evidence/color-complete.txt"
+}

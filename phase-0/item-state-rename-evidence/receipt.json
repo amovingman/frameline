@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "operation": "item-state-guarded-rename-live-proof",
+  "experimental": true,
+  "readOnly": false,
+  "safeToApply": false,
+  "ordinaryApplyEnabled": false,
+  "completeEditorStateObserved": false,
+  "generalLosslessPreservationProven": false,
+  "writeAuthority": {
+    "project": "API-project-UUID",
+    "timeline": "API-timeline-UUID",
+    "item": "API-timeline-item-UUID",
+    "namesAndPositions": "source-assertions-only"
+  },
+  "version": "21.1.2.10",
+  "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+  "projectName": "Frameline Integration Gate Fixture 20261120",
+  "sourceGenerator": {
+    "file": "phase-0/prepare-item-state-rename-proof.js",
+    "sha256": "b441563e9aa60f27f40bf3f85b66d2bfcbf7f69ef109fd4c8ec7b17988b893bc"
+  },
+  "sourceHashes": {
+    "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+    "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+    "src/companion/resolve-item-state.lua": "aac0fffc28f026f7dd665cd73d9da4a4d61e6e319e4a4375055bfe3a20dfca1e",
+    "phase-0/resolve-item-state-menu.lua": "ebd4172a835dce39a2b2c1fe81849cc4255ccfe6cb17ae07994cc001cac64a9a"
+  },
+  "baseline": {
+    "requestId": "46a233b090af80381a2c200ccef9ce24",
+    "renderedSourceSha256": "915d488810434c8b80dce7b6825d43d540306b14a67b9fdc02a6f6e01736ed53",
+    "extra": {
+      "file": "phase-0/item-state-rename-evidence/baseline-extra.json.gz",
+      "sha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+      "bytes": 44372,
+      "compressedSha256": "173bb9ccd297919b9f421c404bd13eb2ae1c55da98c1af67f2b2ab0858db9100"
+    },
+    "rich": {
+      "file": "phase-0/item-state-rename-evidence/baseline-rich.json.gz",
+      "sha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+      "bytes": 91556,
+      "compressedSha256": "893940d3c7ca70c8a8b655a9df27240211350776bbb429a089ef07a9cb9b8285"
+    },
+    "result": {
+      "file": "phase-0/item-state-rename-evidence/fresh-capture-result.json",
+      "sha256": "c599957ba2d00928976303b96c214a5708a92c19646b587cccbeabd5810647a6",
+      "bytes": 232
+    },
+    "marker": {
+      "file": "phase-0/item-state-rename-evidence/fresh-capture-marker.txt",
+      "sha256": "56e4ebed75b9bf980a47085299827444e2226e8c88db93c815863b7f20b27536",
+      "bytes": 71
+    }
+  },
+  "phases": [
+    {
+      "mode": "rename",
+      "status": "renamed",
+      "requestId": "0a334ce48e2b3d222824468f7bcbd3e0",
+      "targetItemId": "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+      "name": "Frameline item-state guarded rename proof",
+      "renderedSourceSha256": "223b9e5750a9c01607f3b06e2ec2f2ca12d4bc49b5675f424bc9ba71ab61e87b",
+      "sourceExtraSha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+      "sourceRichSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+      "beforeBackup": {
+        "schemaVersion": 1,
+        "sha256": "db1439fce5693878a7a28394237053dd55a8790ea7fd420ff42c9b3d86f7fbd0",
+        "size": 53487,
+        "mode": 384,
+        "timelineCount": 1,
+        "archiveVerified": true
+      },
+      "postStateBackup": {
+        "schemaVersion": 1,
+        "sha256": "f3c5b7583aae64a95e3ac312637a40926054c844d1728233b703cdf3315c15ed",
+        "size": 53495,
+        "mode": 384,
+        "timelineCount": 1,
+        "archiveVerified": true
+      },
+      "backupSourceBinding": {
+        "extraSha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+        "richSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+        "archiveSha256": "db1439fce5693878a7a28394237053dd55a8790ea7fd420ff42c9b3d86f7fbd0",
+        "association": "fresh-export-host-receipt-not-native-semantic-equivalence"
+      },
+      "predecessor": null,
+      "extra": {
+        "file": "phase-0/item-state-rename-evidence/rename-extra.json.gz",
+        "sha256": "275194815708c0c476a9a956345e0af81291c5e9d9d919ce359c381733e82fcb",
+        "bytes": 44384,
+        "compressedSha256": "59fa9591d6e638f50e005d433a482327ac525981c81724229f889399c8f02915"
+      },
+      "rich": {
+        "file": "phase-0/item-state-rename-evidence/rename-rich.json.gz",
+        "sha256": "bc05352619feb745546d53a2107a55841ab7546940d370b887b6b410e1214a3a",
+        "bytes": 91568,
+        "compressedSha256": "6e9bc6997bae33e6fe2ed5564d6e5dad1357a1e3f73676f1a9c5a189d7f994fb"
+      },
+      "result": {
+        "file": "phase-0/item-state-rename-evidence/rename-result.json",
+        "sha256": "dc5886c57b9b47989bf2f4a08c870168c4c74d932c82bb041fa89e84b7ae0dda",
+        "bytes": 382
+      },
+      "started": {
+        "file": "phase-0/item-state-rename-evidence/rename-started.json",
+        "sha256": "c7713f3b74fe646df3da1187f4d393e668c7bdd37057f5884072fdd93780b4eb",
+        "bytes": 116
+      },
+      "marker": {
+        "file": "phase-0/item-state-rename-evidence/rename-complete.txt",
+        "sha256": "2c98071a2b15a960841b37eb54f5a28d48a96a247ff4212eb8f796603fa267fe",
+        "bytes": 79
+      },
+      "installedScriptRemoved": true
+    },
+    {
+      "mode": "rollback",
+      "status": "restored",
+      "requestId": "25f232860f26e96b52b7104d7a720d1d",
+      "targetItemId": "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+      "name": "asset-[00001-00048]-still.png",
+      "renderedSourceSha256": "c691796e163005fc0ca9e5b59fc5926f0b7ee6d9ed877c443de5210ea24033f6",
+      "sourceExtraSha256": "275194815708c0c476a9a956345e0af81291c5e9d9d919ce359c381733e82fcb",
+      "sourceRichSha256": "bc05352619feb745546d53a2107a55841ab7546940d370b887b6b410e1214a3a",
+      "beforeBackup": {
+        "schemaVersion": 1,
+        "sha256": "f3c5b7583aae64a95e3ac312637a40926054c844d1728233b703cdf3315c15ed",
+        "size": 53495,
+        "mode": 384,
+        "timelineCount": 1,
+        "archiveVerified": true
+      },
+      "postStateBackup": {
+        "schemaVersion": 1,
+        "sha256": "df3b9d8690574d806deb96f01880e8946735b0a573ae8212303d5f873a49a337",
+        "size": 53465,
+        "mode": 384,
+        "timelineCount": 1,
+        "archiveVerified": true
+      },
+      "backupSourceBinding": {
+        "extraSha256": "275194815708c0c476a9a956345e0af81291c5e9d9d919ce359c381733e82fcb",
+        "richSha256": "bc05352619feb745546d53a2107a55841ab7546940d370b887b6b410e1214a3a",
+        "archiveSha256": "f3c5b7583aae64a95e3ac312637a40926054c844d1728233b703cdf3315c15ed",
+        "association": "fresh-export-host-receipt-not-native-semantic-equivalence"
+      },
+      "predecessor": {
+        "requestId": "0a334ce48e2b3d222824468f7bcbd3e0",
+        "renderedSourceSha256": "223b9e5750a9c01607f3b06e2ec2f2ca12d4bc49b5675f424bc9ba71ab61e87b",
+        "sourceExtraSha256": "275194815708c0c476a9a956345e0af81291c5e9d9d919ce359c381733e82fcb",
+        "sourceRichSha256": "bc05352619feb745546d53a2107a55841ab7546940d370b887b6b410e1214a3a",
+        "backupSha256": "f3c5b7583aae64a95e3ac312637a40926054c844d1728233b703cdf3315c15ed"
+      },
+      "extra": {
+        "file": "phase-0/item-state-rename-evidence/rollback-extra.json.gz",
+        "sha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+        "bytes": 44372,
+        "compressedSha256": "173bb9ccd297919b9f421c404bd13eb2ae1c55da98c1af67f2b2ab0858db9100"
+      },
+      "rich": {
+        "file": "phase-0/item-state-rename-evidence/rollback-rich.json.gz",
+        "sha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+        "bytes": 91556,
+        "compressedSha256": "893940d3c7ca70c8a8b655a9df27240211350776bbb429a089ef07a9cb9b8285"
+      },
+      "result": {
+        "file": "phase-0/item-state-rename-evidence/rollback-result.json",
+        "sha256": "0bcd31306e0ead4768307717a36b2b041462ed0d3e8b15edb389b77f3acd3ac5",
+        "bytes": 372
+      },
+      "started": {
+        "file": "phase-0/item-state-rename-evidence/rollback-started.json",
+        "sha256": "ca01d0d66d2088e3519f9caf078222ec8e89acf48b456a81efc6d7e19790a938",
+        "bytes": 118
+      },
+      "marker": {
+        "file": "phase-0/item-state-rename-evidence/rollback-complete.txt",
+        "sha256": "a0813cd86b286103a6456e4c27ef76697cbdf7a3b02e74fb2c18f56c2363283e",
+        "bytes": 79
+      },
+      "installedScriptRemoved": true
+    }
+  ],
+  "nativeOperationCalls": {
+    "SetName": 2,
+    "SaveProject": 2,
+    "CloseProject": 2,
+    "LoadProject": 2,
+    "ExportProject": 2
+  },
+  "nativeArchiveValidation": "host-verified-hash-and-archive-with-private-retained-bytes",
+  "runtimeBackupValidation": "presence-and-size-only",
+  "durability": "readback-and-replay-barriers-not-power-loss-proof",
+  "installedProbeScriptsRemoved": 3,
+  "privateRetention": {
+    "directory": "phase-0/private-integration-proof/item-state-rename",
+    "preparationDirectories": 3,
+    "retainedSourceAndEvidenceFiles": 40,
+    "nativeArchives": 4,
+    "luaSources": 5,
+    "manifest": "manifest.json",
+    "cleanupReceipt": "cleanup-receipt.json",
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "auditCopiesOnly": true,
+    "originalPreparationsUnchanged": true
+  }
+}

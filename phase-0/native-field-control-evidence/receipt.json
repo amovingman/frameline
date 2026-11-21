@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "operation": "native-opaque-field-control-evidence",
+  "readOnly": true,
+  "safeToApply": false,
+  "losslessValidated": false,
+  "newLiveEditorRun": false,
+  "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+  "sourceLiveReadOnlyResultSha256": "97bac67a48fee81d0f76c540cc9832d0cd2c1655ff606706dd69f9c7059ddb98",
+  "sourceProofFile": "phase-0/native-track-readonly-live-observation.json",
+  "nativeArchivesPrivate": true,
+  "sourceHashes": {
+    "phase-0/resolve-native-field-inventory.py": "f718aa5c1ad9318b4b2de66eecc5dd44eff9e97066ab8e90b64968649a2d6b0d",
+    "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+    "phase-0/compare-native-resolve-exports.py": "89c80a83177fcc4755a2b8a6efdb95f2f2351f23822deef4615194e83fe3ba24"
+  },
+  "payloads": {
+    "first-inventory": {
+      "file": "phase-0/native-field-control-evidence/first-inventory.json.gz",
+      "sha256": "87f570cf25355efbf2f434a673db0aa5e1f322443382890409fc6c817ea016a1",
+      "compressedSha256": "06df990913f5cfef4f9a8496689530b915db74a3f388f2bb3b3b9baa0daca640",
+      "bytes": 360293
+    },
+    "second-inventory": {
+      "file": "phase-0/native-field-control-evidence/second-inventory.json.gz",
+      "sha256": "cb9459e65650acc36793a53ac4dec091b874e78636734a08db45d6426a993f17",
+      "compressedSha256": "e350a9137ab1e9a5436e5ff1e8c61c763987ef1e4a7ad56d6c3a15d6ee537f4a",
+      "bytes": 360293
+    },
+    "comparison": {
+      "file": "phase-0/native-field-control-evidence/comparison.json.gz",
+      "sha256": "fa4101625d0fd11cb0d1692e7f9cce0acd93429b9577159568e3f9c1ac167b2d",
+      "compressedSha256": "840408b28cf2a42cfbd593328ec2e96f757b8dc324dd33738cb9b5ec522e17f0",
+      "bytes": 334660
+    }
+  },
+  "inventoryRecordsPerExport": [
+    430,
+    430
+  ],
+  "recordDifferenceCounts": {
+    "added-record": 150,
+    "removed-record": 150,
+    "observed-payload-difference": 1
+  },
+  "rawMemberBytesMatch": false,
+  "allNativeFieldsCovered": false,
+  "completeSelectedPayloadEqualityProven": false,
+  "limitation": "Pinned parsed field facts are recomputed publicly; original native archive bytes are retained privately. No semantic meaning, harmlessness or volatility is inferred from read-only control differences."
+}

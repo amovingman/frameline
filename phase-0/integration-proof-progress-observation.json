@@ -484,7 +484,8 @@
     {
       "id": "complete-timeline-enumeration",
       "status": "blocked",
-      "evidence": "Mixed API capture: 3 video, 49 audio, 1 transition items, 1 reciprocal linked pair. Supplements observe 1 effect type ID and 43 returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved."
+      "evidence": "The existing item/effect/link inventory is supplemented by 50 first-layer node-slot color/cache reads. All 50 documented tool-list reads were unavailable; graph topology, persistent node IDs, nested content and complete enumeration remain unproven.",
+      "evidenceSha256": "eeae8705933fe5043238e5bd693c5ff7c1b3e73f2dcf23659a607a9b9075c625"
     },
     {
       "id": "release-version-corpus",
@@ -494,8 +495,8 @@
     {
       "id": "stable-clip-and-track-identity",
       "status": "blocked",
-      "evidence": "Controlled native name/save/reopen and topology challenges retain track UUIDs through index shifts and distinguish same-index recreation, including empty duplicate-name tracks. A general read-only API/export identity binding remains unproven.",
-      "evidenceSha256": "dca9a58ccacdabd06319186e26566282da70735a994c7cbd70a56841bb3e7a97"
+      "evidence": "A fresh challenge-free read-only capture/export interval rebinds all five tracks against 21 independently calibrated associations. It requires the unchanged calibrated identity graph; general empty-track binding remains unproven. API UUIDs locate experimental clip writes; FCPXML is read-only.",
+      "evidenceSha256": "d7d96200376a7fc6517069cb7aeb18b101ef8e0d054a3a468391b385ece44db8"
     },
     {
       "id": "representative-scan-write-reopen",
@@ -507,10 +508,388 @@
     {
       "id": "lossless-editor-fields",
       "status": "blocked",
-      "evidence": "Typed reads cover seven additional item-state families on 50 items and detect a saved/reopened enabled-state change invisible to the older rich capture, followed by exact restoration. Failed captures expose getter-context dependence. General write guards and complete native field coverage remain unproven.",
-      "evidenceSha256": "f9dabb5e24d644c2846fbb860653547626a2a4e4e83d56ef024d55cfdb0089cc"
+      "evidence": "A separate rename/rollback guard now checks the seven additional item-state families before and after setter/save/reopen/export and restores exact represented bytes. Color-slot metadata extends counts, but tools, complete graphs and opaque fields remain unobserved. Native read-only controls retain unexplained record differences.",
+      "evidenceSha256": "c4687561a9283567fcf95d0959ea2b9d980fb751bc46f0c8bdebe502e6c8fcb9"
     }
   ],
+  "readOnlyTrackBinding": {
+    "schemaVersion": 1,
+    "operation": "audit-native-track-readonly-evidence",
+    "readOnly": true,
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "resolveVersion": "21.1.2.10",
+    "bindings": [
+      {
+        "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+        "type": "video",
+        "index": 1,
+        "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+        "itemCount": 50,
+        "status": "unchanged-graph-calibrated-location",
+        "independentItemParentageWitness": true
+      },
+      {
+        "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+        "type": "video",
+        "index": 2,
+        "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+        "itemCount": 0,
+        "status": "unchanged-graph-calibrated-location",
+        "independentItemParentageWitness": false
+      },
+      {
+        "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+        "type": "video",
+        "index": 3,
+        "nativeTrackId": "d196e846-3ce4-4ece-af4a-98690db4ce0a",
+        "itemCount": 0,
+        "status": "unchanged-graph-calibrated-location",
+        "independentItemParentageWitness": false
+      },
+      {
+        "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+        "type": "audio",
+        "index": 1,
+        "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+        "itemCount": 0,
+        "status": "unchanged-graph-calibrated-location",
+        "independentItemParentageWitness": false
+      },
+      {
+        "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+        "type": "audio",
+        "index": 2,
+        "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+        "itemCount": 0,
+        "status": "unchanged-graph-calibrated-location",
+        "independentItemParentageWitness": false
+      }
+    ],
+    "independentlyChallengedCalibrationAssociations": 21,
+    "challengeFreeReadOnlyRebindingVerified": true,
+    "emptyDuplicateNameTracksBound": 4,
+    "readExportReadStateUnchanged": true,
+    "nativeGraphUnchangedSinceCalibration": true,
+    "nativeIdentityGraphSha256": "37de87148f1eb011070909691875f2a0eaaaca2f8edc0b32d728095e3e472944",
+    "currentLocationRuleCalibrated": true,
+    "vendorDocumentedMappingContract": false,
+    "stableTrackIdentityProven": false,
+    "fullNativePreservationProven": false,
+    "safeToApply": false,
+    "ordinaryApplySupported": false,
+    "limitations": [
+      "Empirical calibration is limited to this exact version, project, timeline and unchanged native identity graph.",
+      "Current vector locations locate UUIDs; they never replace native UUID identity or independently distinguish identical empty API tracks.",
+      "Unobserved concurrent edit-and-revert activity and undocumented future serialization changes are not excluded.",
+      "No native byte rewrite, unknown-field preservation or general track mapping contract is established.",
+      "The fresh read-only interval does not independently prove the serialization-order rule for indistinguishable empty API tracks.",
+      "Public tests recompute pinned native graph facts and raw API observations; private native archive bytes and issued source are retained separately."
+    ],
+    "resultSha256": "97bac67a48fee81d0f76c540cc9832d0cd2c1655ff606706dd69f9c7059ddb98",
+    "nativeGraphFactsSha256": "533564bd63a00788ce7912f633518c875fd2a50f44f30fe8ef874c8bd08897fc",
+    "issuedSourceSha256": "5f925e0a65e204ffebe2e1acdf439d6cc41a497d7973f6cf0c8170a20466fb16",
+    "rawObservationProofRecomputed": true,
+    "calibratedLocationRuleRecomputed": true,
+    "publicNativeGraphConsistencyVerified": true,
+    "nativeGraphsReconstructedFromArchives": false,
+    "nativeArchiveSourcesPrivate": true,
+    "sourceHashes": {
+      "phase-0/prepare-native-track-readonly.js": "128fcb001137aecd27c90d0a13d7272c2b427a6b033ca7eb3e5844679c297458",
+      "phase-0/resolve-native-track-readonly.lua": "69e1f13e4a66f3f2e6242a7e77186cf151c2782bfbe196622221fad00e2e8b49",
+      "phase-0/native-track-readonly-join.js": "e70929c2d24ab8631c57cf3304abaee1a7f91c100140759d64ddd88b87545c58",
+      "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+      "phase-0/compare-native-resolve-exports.py": "89c80a83177fcc4755a2b8a6efdb95f2f2351f23822deef4615194e83fe3ba24",
+      "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+      "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+      "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27"
+    },
+    "installedTestScriptRemoved": true
+  },
+  "expandedRenameGuard": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "status": "verified",
+    "scope": "Pure host audit of one guarded disposable rename and independently prepared rollback on Resolve21.1.2.10.",
+    "liveProofReadOnly": false,
+    "writeAuthority": {
+      "project": "API-project-UUID",
+      "timeline": "API-timeline-UUID",
+      "item": "API-timeline-item-UUID",
+      "namesAndPositions": "source-assertions-only"
+    },
+    "itemCount": 50,
+    "representedProperties": 1600,
+    "guardedReadFamilies": 7,
+    "coverage": {
+      "itemCount": 50,
+      "reads": {
+        "clipEnabled": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "speed": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "Percentage": 50,
+            "PitchCorrection": 0,
+            "StretchKeyframesToFit": 0,
+            "RippleTimeline": 0
+          }
+        },
+        "fades": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "FadeIn": 50,
+            "FadeOut": 50
+          }
+        },
+        "outputBlanking": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "Top": 0,
+            "Bottom": 0,
+            "Left": 0,
+            "Right": 0
+          }
+        },
+        "usesTimelineOutputBlanking": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "fusionCompCount": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "firstColorLayerNodeCount": {
+          "captured": 50,
+          "unavailable": 0
+        }
+      },
+      "completeEditorStateObserved": false,
+      "colorGraphScope": "first-layer-count-only",
+      "capturePage": "color",
+      "colorGraphReadPolicy": "color-page-only",
+      "readOrderPolicy": "color-graph-before-item-state"
+    },
+    "nameChanges": 1,
+    "additionalStateChanges": 0,
+    "exactRepresentedRestoration": true,
+    "freshRollbackBackupLinked": true,
+    "sourceAndRawHashesVerified": true,
+    "nativeArchiveValidation": "host-verified-hash-and-archive-with-private-retained-bytes",
+    "nativeArchiveByteEqualityProven": false,
+    "powerLossDurabilityProven": false,
+    "generalLosslessPreservationProven": false,
+    "safeToApply": false,
+    "ordinaryApplyEnabled": false,
+    "limitations": [
+      "Private native archive validation and export/source association remain host receipts; this pure audit recomputes represented observations and public raw hashes.",
+      "The seven observed read families do not enumerate full graphs, retime, effects or opaque native state.",
+      "Replay/stale/interrupt failures are covered in generated-Lua mock tests, not additional live mutations."
+    ]
+  },
+  "colorNodeReads": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "safeToApply": false,
+    "rawObservationProofRecomputed": true,
+    "observationSha256": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "coverage": {
+      "itemCount": 50,
+      "capturedGraphs": 50,
+      "unavailableGraphs": 0,
+      "nonemptyGraphs": 50,
+      "nodeSlots": 50,
+      "fields": {
+        "tools": {
+          "captured": 0,
+          "unavailable": 50
+        },
+        "color": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "cacheMode": {
+          "captured": 50,
+          "unavailable": 0
+        }
+      },
+      "nodeSlotsWithNonemptyTools": 0,
+      "topologyObserved": false,
+      "persistentNodeIdsObserved": false,
+      "completeGraphObserved": false
+    },
+    "documentedToolsGetterAvailableInThisCapture": false,
+    "nodeColorAndCacheReadsCaptured": true,
+    "sourceHashes": {
+      "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+      "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+      "src/companion/resolve-color-nodes.lua": "880e0657a4748f66037700bfc435854a4f4c532119ccf7221122dc56df598dfa",
+      "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27",
+      "phase-0/resolve-color-node-menu.lua": "6b5ff917f4cffd2a3b05e7f4da898e27afd0c9e93d7a2970995cb2c7eb7e028b"
+    },
+    "exactRenderedSourceRecomputed": false,
+    "privateRenderedSourceHashPinned": true,
+    "nativeProvenanceAuthenticated": false,
+    "persistentNodeIdentityProven": false,
+    "completeEnumerationProven": false,
+    "losslessRoundTripProven": false,
+    "projectMutationCalls": 0,
+    "limitations": [
+      "All50 tools reads were unavailable; this capture does not distinguish a thrown getter from a nil return.",
+      "Only per-slot color and cache mode are observed beyond counts; no tool contents, topology, node UUIDs or complete graphs are established.",
+      "Two identical reads and rich baseline guards do not prove opaque native preservation or absence of getter side effects.",
+      "Exact generated source and runtime receipts remain private; hashes do not authenticate editor provenance."
+    ]
+  },
+  "nodeAnnotationProof": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "safeToApply": false,
+    "initialRead": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "safeToApply": false,
+      "rawObservationProofRecomputed": true,
+      "observationSha256": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4",
+      "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+      "coverage": {
+        "itemCount": 50,
+        "capturedGraphs": 50,
+        "unavailableGraphs": 0,
+        "nonemptyGraphs": 50,
+        "nodeSlots": 50,
+        "fields": {
+          "tools": {
+            "captured": 0,
+            "unavailable": 50
+          },
+          "color": {
+            "captured": 50,
+            "unavailable": 0
+          },
+          "cacheMode": {
+            "captured": 50,
+            "unavailable": 0
+          }
+        },
+        "nodeSlotsWithNonemptyTools": 0,
+        "topologyObserved": false,
+        "persistentNodeIdsObserved": false,
+        "completeGraphObserved": false
+      },
+      "documentedToolsGetterAvailableInThisCapture": false,
+      "nodeColorAndCacheReadsCaptured": true,
+      "sourceHashes": {
+        "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+        "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+        "src/companion/resolve-color-nodes.lua": "880e0657a4748f66037700bfc435854a4f4c532119ccf7221122dc56df598dfa",
+        "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27",
+        "phase-0/resolve-color-node-menu.lua": "6b5ff917f4cffd2a3b05e7f4da898e27afd0c9e93d7a2970995cb2c7eb7e028b"
+      },
+      "exactRenderedSourceRecomputed": false,
+      "privateRenderedSourceHashPinned": true,
+      "nativeProvenanceAuthenticated": false,
+      "persistentNodeIdentityProven": false,
+      "completeEnumerationProven": false,
+      "losslessRoundTripProven": false,
+      "projectMutationCalls": 0,
+      "limitations": [
+        "All50 tools reads were unavailable; this capture does not distinguish a thrown getter from a nil return.",
+        "Only per-slot color and cache mode are observed beyond counts; no tool contents, topology, node UUIDs or complete graphs are established.",
+        "Two identical reads and rich baseline guards do not prove opaque native preservation or absence of getter side effects.",
+        "Exact generated source and runtime receipts remain private; hashes do not authenticate editor provenance."
+      ]
+    },
+    "rawNativeResultProofRecomputed": true,
+    "cosmeticNodeColorChallengePassed": true,
+    "sameNodeCountsRetained": true,
+    "exactNodeObservationRestored": true,
+    "richAndSevenFieldObservationsUnchanged": true,
+    "richPropertyValues": 1600,
+    "itemCount": 50,
+    "trackCount": 5,
+    "sourceHashes": {
+      "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+      "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+      "src/companion/resolve-item-state.lua": "aac0fffc28f026f7dd665cd73d9da4a4d61e6e319e4a4375055bfe3a20dfca1e",
+      "src/companion/resolve-color-nodes.lua": "880e0657a4748f66037700bfc435854a4f4c532119ccf7221122dc56df598dfa",
+      "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27",
+      "phase-0/resolve-color-node-challenge.lua": "5e3c5a5b40808e3e54835f2b54f760596f3b17a23c6dc17a0b02ab7fda1bd84d"
+    },
+    "nodeObservationHashes": {
+      "before": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4",
+      "colored": "58d2b4eeb58b197f91416c9531a96e32651effb43a3fa7ad92110efbc5506db6",
+      "restored": "b165113a00b20a4ba047991933f6db3388e812f56c589250f3932c3f2e92d2e4"
+    },
+    "nativeArchiveReceiptsPinned": true,
+    "nativeArchivesRecomputed": false,
+    "archiveSourcesPrivate": true,
+    "allThreeInstalledScriptsRemoved": true,
+    "persistentNodeIdentityProven": false,
+    "completeEnumerationProven": false,
+    "gradeParameterPreservationProven": false,
+    "losslessRoundTripProven": false,
+    "limitations": [
+      "The changed field is cosmetic node UI color, not image-grading parameters.",
+      "Index1 is unambiguous only in the guarded single-node target source; no persistent node identity is established.",
+      "All50 tool readings remain unavailable in both passes; topology, grading parameters, additional layers and full graph contents remain unobserved.",
+      "Native archive hashes/metadata are pinned host-verification receipts; archive bytes and exact generated sources remain private.",
+      "An incomplete host read while the same invocation is publishing is not a completed outcome or known failure; it must not trigger command replay."
+    ]
+  },
+  "nativeFieldControl": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "safeToApply": false,
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "sourceLiveResultSha256": "97bac67a48fee81d0f76c540cc9832d0cd2c1655ff606706dd69f9c7059ddb98",
+    "representedApiStateUnchangedDuringControl": true,
+    "recordsPerExport": [
+      430,
+      430
+    ],
+    "recordDifferenceCounts": {
+      "added-record": 150,
+      "removed-record": 150,
+      "observed-payload-difference": 1
+    },
+    "pairedAncestorMatchChanges": 0,
+    "memberLocationOnlyChanges": 0,
+    "rawMemberBytesMatch": false,
+    "selectedParsedTextAndShapeMatch": false,
+    "originalNativeArchivesReconstructed": false,
+    "nativeArchivesRetainedPrivately": true,
+    "fullNativePreservationProven": false,
+    "completeSelectedPayloadEqualityProven": false,
+    "sourceHashes": {
+      "phase-0/resolve-native-field-inventory.py": "f718aa5c1ad9318b4b2de66eecc5dd44eff9e97066ab8e90b64968649a2d6b0d",
+      "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+      "phase-0/compare-native-resolve-exports.py": "89c80a83177fcc4755a2b8a6efdb95f2f2351f23822deef4615194e83fe3ba24"
+    },
+    "limitations": [
+      "Added and removed diagnostic records are not paired or treated as harmless payload changes.",
+      "Public checks recompute pinned parsed field facts and API provenance; private native archives are not reconstructed.",
+      "Read-only control differences establish neither semantic change nor volatility. No payload is ignored.",
+      "Only the selected opaque field tags are localized; other native fields remain outside this inventory.",
+      "Text hashes cover parsed XML text, not exact serialized field bytes; untouched member/archive hashes are retained separately.",
+      "Explicit owner UUIDs anchor relative diagnostic field locations; this does not establish general persistent field identity.",
+      "Hex decoding identifies octets only; no semantic meaning, volatility or harmlessness is inferred.",
+      "API-item ancestor matches require a native item tag and UUID equality only; this inventory does not independently validate complete timeline parentage.",
+      "Nested payload contents are not inspected. No changed payload is ignored."
+    ]
+  },
+  "identityAuthorityDecision": {
+    "file": "RESOLVE_IDENTITY_AUTHORITY.md",
+    "sha256": "4d270574a3d4e8e15e59f900053946756dc46a5d2021b31d565b3b43f7815306",
+    "clipWriteLocator": "live-api-project-timeline-item-uuid",
+    "fcpxmlWriteAuthority": false,
+    "ordinaryApplyEnabled": false
+  },
   "newlyCompletedGateIds": [
     "representative-scan-write-reopen"
   ],
