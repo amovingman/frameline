@@ -6,18 +6,25 @@ const path = require('node:path');
 const { auditIntegrationProgress } = require('../phase-0/integration-proof-progress');
 const { auditIntegrationGates } = require('../phase-0/integration-gates');
 
-test('current proof closes verified personal measurements and finite identity while retaining the historical decision', () => {
+test('current proof closes personal measurement, identity and outer enumeration while retaining the historical decision', () => {
   const report = auditIntegrationProgress();
   const { historical, ...summary } = report;
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(__dirname, '../phase-0/integration-proof-progress-observation.json'))), summary);
   assert.deepEqual(historical, auditIntegrationGates());
-  assert.deepEqual(report.newlyCompletedGateIds, ['representative-scan-write-reopen', 'stable-clip-and-track-identity']);
+  assert.deepEqual(report.newlyCompletedGateIds, ['representative-scan-write-reopen', 'stable-clip-and-track-identity', 'complete-timeline-enumeration']);
   assert.equal(report.gates.find(gate => gate.id === 'representative-scan-write-reopen').status, 'complete');
   assert.equal(report.gates.find(gate => gate.id === 'stable-clip-and-track-identity').status, 'complete');
   for (const gate of report.historical.gates.filter(gate => !report.newlyCompletedGateIds.includes(gate.id))) {
     assert.equal(report.gates.find(current => current.id === gate.id).status, gate.status);
   }
   for (const flag of ['safeToApply', 'ordinaryApplyEnabled', 'releaseSupported', 'fullNativePreservationProven']) assert.equal(report[flag], false);
+  assert.equal(report.timelineEnumeration.status, 'complete');
+  assert.equal(report.timelineEnumeration.completeForProfile, true);
+  assert.equal(report.timelineEnumeration.sixConstructFamiliesVerified.length, 6);
+  assert.equal(report.timelineEnumeration.nestedContentPositiveAndRefusalVerified, true);
+  assert.equal(report.timelineEnumeration.offOwnerReadsUsed, false);
+  assert.equal(report.timelineEnumeration.completeEditorEnumerationProven, false);
+  assert.equal(report.timelineEnumeration.internalGraphsEnumerated, false);
   assert.equal(report.performance.exactRepresentedRestoration, true);
   assert.equal(report.nativeTrackIdentity.controlledEmptyTrackBindings, 4);
   assert.equal(report.nativeTrackIdentity.stableTrackIdentityProven, false);

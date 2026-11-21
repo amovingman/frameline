@@ -483,9 +483,10 @@
   "gates": [
     {
       "id": "complete-timeline-enumeration",
-      "status": "blocked",
-      "evidence": "The existing item/effect/link inventory is supplemented by 50 first-layer node-slot color/cache reads. All 50 documented tool-list reads were unavailable; graph topology, persistent node IDs, nested content and complete enumeration remain unproven.",
-      "evidenceSha256": "eeae8705933fe5043238e5bd693c5ff7c1b3e73f2dcf23659a607a9b9075c625"
+      "status": "complete",
+      "scope": "Personal installed Resolve Free 21.1.2/build21.1.20010: saved native flat A/V/transition structure and sequential active-owner SDK catalogue-effect/link inventories. Six outer construct families; unsupported nested/generator/subtitle/unknown layouts refuse.",
+      "evidence": "Source-bound active-owner traversal enumerates the six outer construct families, independently cross-checks saved native typed membership, detects three same-count substitutions and a held-out timeline, verifies logical restoration, and refuses real nested content. Inactive audio effects can silently appear empty; off-owner reads never supply the supported inventory. Internal graphs, parameters and opaque native fields remain unproven.",
+      "evidenceSha256": "95b83c43fe9fafacbd065850499dcb232aaf04348e21f0648887aebeb29a1bd7"
     },
     {
       "id": "release-version-corpus",
@@ -1022,15 +1023,158 @@
       "Stable IDs do not prove enumeration, opaque native preservation, atomic capture, power-loss durability or ordinary Apply."
     ]
   },
+  "timelineEnumeration": {
+    "schemaVersion": 1,
+    "operation": "audit-timeline-enumeration-evidence",
+    "readOnly": true,
+    "status": "complete",
+    "gateId": "complete-timeline-enumeration",
+    "enumerationEvidenceComplete": true,
+    "completeForProfile": true,
+    "profile": "resolve-free-21.1.2.10-saved-outer-av-transition-catalogue-effects-v1",
+    "projectId": "50538e5f-6b6d-4bdc-b44a-b3964625866d",
+    "scope": "Personal installed Resolve Free 21.1.2/build21.1.20010: saved native flat A/V/transition structure and sequential active-owner SDK catalogue-effect/link inventories. Six outer construct families; unsupported nested/generator/subtitle/unknown layouts refuse.",
+    "sixConstructFamiliesVerified": [
+      "sequences",
+      "tracks",
+      "clips",
+      "transitions",
+      "applied-effects",
+      "linked-audio-video"
+    ],
+    "initialCoverage": {
+      "timelines": 2,
+      "tracks": 12,
+      "items": 60,
+      "effects": 7,
+      "linkedDirectedEdges": 4
+    },
+    "changedCoverage": {
+      "timelines": 3,
+      "tracks": 18,
+      "items": 62,
+      "effects": 9,
+      "linkedDirectedEdges": 6
+    },
+    "restoredCoverage": {
+      "timelines": 2,
+      "tracks": 12,
+      "items": 60,
+      "effects": 7,
+      "linkedDirectedEdges": 4
+    },
+    "ownerContextsVerified": 7,
+    "passiveAudioSilentEmptyCounterexampleRetained": true,
+    "passiveEffectCounts": [
+      6,
+      6
+    ],
+    "activeOwnerEffectCount": 7,
+    "offOwnerReadsUsed": false,
+    "contextSelectionRequired": true,
+    "sequentialOwnerInventoryAtomic": false,
+    "sameCountControls": {
+      "effectCatalogueSubstitution": true,
+      "transitionReplacement": true,
+      "linkEndpointSubstitution": true
+    },
+    "heldOutTimelineAdditionVerified": true,
+    "logicalRestoration": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "logicalConstructRestorationVerified": true,
+      "restoredTimelineCount": 2,
+      "restoredTrackCount": 12,
+      "restoredItemCount": 60,
+      "restoredEffectSlotCount": 7,
+      "restoredLinkedEdgeCount": 4,
+      "ordinaryApiItemIdsRetained": true,
+      "ordinaryOwnerRepresentedStateRestored": true,
+      "ordinaryNativeParentageRestored": true,
+      "logicalTransitionMetadataRestored": true,
+      "replacementTransition": {
+        "timelineId": "cdfa15ad-d55b-4536-ad87-d9bab82676a6",
+        "originalItemId": "042122c0-c9f4-4452-a025-3e2295838fc0",
+        "restoredItemId": "72d08d97-f9bc-41ab-abec-5069fa10780b",
+        "freshAgainstAllEarlierCases": true
+      },
+      "originalTransitionIdentityRestored": false,
+      "persistentEffectIdentityProven": false,
+      "effectParametersCompared": false,
+      "fullNativePreservationProven": false,
+      "safeToApply": false,
+      "ordinaryApplySupported": false
+    },
+    "nestedContentPositiveAndRefusalVerified": true,
+    "compoundBoundary": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "nestedContentPositiveAndRefusalVerified": true,
+      "nativeCompoundReferenceChainVerified": true,
+      "apiTimelineLeafCounterexampleRetained": true,
+      "apiLeafProvesNoNativeCompound": false,
+      "apiVisibleTimelineCount": 3,
+      "nativeSequenceOwnerCount": 4,
+      "nativeContainerCount": 4,
+      "compoundMediaCount": 1,
+      "outerCompoundOccurrences": 2,
+      "internalSourceOccurrences": 2,
+      "nativeFlatReaderRefusal": "native-timeline-inventory-failed",
+      "archive": {
+        "sha256": "d756c324f78f2cc993d2e2c86cadd7fdeff88610b0be82351590d883a9abf0aa",
+        "size": 95351
+      },
+      "compoundMediaId": "20d5165a-1363-4ee0-a259-2358571cf073",
+      "internalNativeSequenceId": "11d4e33c-65c8-4b6b-906e-dfe89b5f26bc",
+      "internalNativeContainerId": "abf02cf5-2040-4c85-9eb2-5c38bca13ae9",
+      "sourceSavedCheckpointResultSha256": "0fd886884f5da131b5a9324be72502cbbd1a80b4ed771f263bc1eac25c4b149a",
+      "publicNativeArchiveReconstructed": false,
+      "parametersObserved": false,
+      "internalProcessingGraphsEnumerated": false,
+      "fullNativePreservationProven": false,
+      "safeToApply": false,
+      "ordinaryApplySupported": false
+    },
+    "compoundSetterReturnedNilButMutationObserved": true,
+    "originalCompoundStageCompleted": false,
+    "originalDiagnosticHostAdmissionRefused": true,
+    "apiTimelineLeafCannotExcludeNativeCompound": true,
+    "compoundPersistContentSettersPerformed": false,
+    "originalInterruptedChangeRetained": true,
+    "originalInterruptedChangeCompleted": false,
+    "unsavedDiagnosticUsedForNativeCompleteness": false,
+    "partialPersistContentSettersPerformed": false,
+    "separateCompletionWithoutRepeatedPriorEffectTransitionSetters": true,
+    "publicRawAndSourceHashesVerified": true,
+    "nativeGraphsReconstructedFromArchives": false,
+    "issuedNativeSourcesReconstructed": false,
+    "privateHostSourceReconstructionReceiptsRetained": true,
+    "savedNativeStructuralScopeOnly": true,
+    "currentUnsavedNativeEnumerationProven": false,
+    "nativeEffectMembershipIndependentlyProven": false,
+    "nativeLinkMembershipIndependentlyProven": false,
+    "effectAndLinkAuthority": "sequential-active-owner-sdk-lists",
+    "persistentEffectIdentityProven": false,
+    "effectParametersObserved": false,
+    "internalGraphsEnumerated": false,
+    "completeEditorEnumerationProven": false,
+    "placementSemanticsProven": false,
+    "fullNativePreservationProven": false,
+    "ordinaryApplySupported": false,
+    "safeToApply": false,
+    "releaseSupported": false
+  },
   "newlyCompletedGateIds": [
     "representative-scan-write-reopen",
-    "stable-clip-and-track-identity"
+    "stable-clip-and-track-identity",
+    "complete-timeline-enumeration"
   ],
   "limitations": [
-    "The measurement and finite identity gates are completed for their declared personal scopes.",
-    "The historical editor-choice decision remains intact; complete enumeration and native preservation still block ordinary writes.",
+    "The measurement, finite identity and six-family outer enumeration gates are completed for their declared personal scopes.",
+    "The historical editor-choice decision remains intact; complete processing graphs, opaque native preservation and safe apply remain unproven.",
     "Identity support is limited to the exact Free build and observed normal flat video/mono-audio structures; concurrent track writes and XML identity mapping remain unproven.",
     "Unsaved exports can retain stale native UUIDs; the supported reader binds verified saved/reopened checkpoints only, not current unsaved editor state.",
+    "Enumeration uses saved native structure and sequential active-owner API effects/links; it does not prove an atomic current-unsaved editor inventory.",
     "Wall windows are one-second quantization estimates conditional on no realtime-clock adjustment; no high-resolution native wall clock is claimed.",
     "RSS is sampled process-wide over a window including setup/publication, not a true peak or per-call allocation.",
     "Missing sequence-pattern media references remain missing; this is not media readiness.",
