@@ -1,4 +1,5 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -12,8 +13,7 @@ const { auditRelinkIdentity } = require('../phase-0/audit-relink-identity');
 const root = path.join(__dirname, '../phase-0/resolve-xml-proof');
 const library = process.env.FRAMELINE_LUA_LIBRARY || '/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/libluajit-5.1.2.dylib';
 const luaAvailable = syncFs.existsSync(library);
-const runLua = script => spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library],
-  { input: script, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+const runLua = script => runVendorLuaMock(script, {library: library, maxBuffer: 4 * 1024 * 1024});
 async function fixture(t) {
   const directory = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'relink-proof-test-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));

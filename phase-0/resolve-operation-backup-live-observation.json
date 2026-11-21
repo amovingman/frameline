@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "newLiveEditorRun": true,
+  "experimental": true,
+  "safeToApply": false,
+  "resultFile": "phase-0/resolve-operation-backup-live-result.json",
+  "resultSha256": "d82994fcf03f52c7faf50b5f9366950075a52f57314bfa2b779c19dfa2cbe408",
+  "result": {
+    "calls": [
+      {
+        "cpuMicros": 201463,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 1,
+        "method": "manager.SaveProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 0,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 179629,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 2,
+        "method": "manager.ExportProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 1000000000,
+        "wallStatus": "captured"
+      }
+    ],
+    "commandReturnedNormally": true,
+    "commandSha256": "75a1e5e6aa3c1c1fd3aa2fe1dd963c06a6a8630c8bf07035657debd84713f165",
+    "experimental": true,
+    "failureCode": "none",
+    "operation": "resolve-timed-guarded-command",
+    "probeId": "41679ac66374d232ed886e2aaef60548",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "projectName": "Frameline Integration Gate Fixture 20261120",
+    "representedItemCount": 50,
+    "safeToApply": false,
+    "schemaVersion": 1,
+    "stage": "backup",
+    "total": {
+      "cpuMicros": 730370,
+      "cpuStatus": "captured",
+      "returnedNormally": true,
+      "wallNs": 1000000000,
+      "wallStatus": "captured"
+    },
+    "transactionId": "30290ba16229ba1e306769620cc6a46a",
+    "wallClock": {
+      "id": "lua-os-time",
+      "monotonic": false,
+      "reportedResolutionNs": 1000000000,
+      "status": "captured-coarse"
+    },
+    "resultSha256": "d82994fcf03f52c7faf50b5f9366950075a52f57314bfa2b779c19dfa2cbe408",
+    "completionMarkerVerified": true,
+    "coarseWallWindows": {
+      "total": {
+        "lowerNs": 0,
+        "upperExclusiveNs": 2000000000,
+        "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+        "zeroTicksMeansBelowOneSecond": false
+      },
+      "calls": [
+        {
+          "index": 1,
+          "method": "manager.SaveProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 1000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": true
+          }
+        },
+        {
+          "index": 2,
+          "method": "manager.ExportProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 2000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": false
+          }
+        }
+      ]
+    },
+    "limitations": [
+      "Timing never replaces independent guarded-trial outcome and native-backup validation.",
+      "Total includes source guards and observation captures; per-method samples include callback instrumentation around the underlying calls.",
+      "Process CPU may include other active editor threads; reported clock resolution is not an accuracy guarantee.",
+      "Coarse os.time windows assume no realtime-clock adjustment and describe quantization, not precise latency."
+    ]
+  },
+  "sourceSha256": "cc8e7e13667f9f3331bba2394ca6c86235a21f62c778ca4250b689577beefc94",
+  "templateSource": "phase-0/resolve-timed-guarded-command.lua",
+  "templateSha256": "878b492db344b6f463ae9733d694b612ddb4c045412fd914ae187cd421c8fd6e",
+  "clockSource": "phase-0/resolve-operation-clock.lua",
+  "clockSourceSha256": "20b01c6caabefd809acb588a9987abddcc64316fcc7d13c28c1b716c8c00e954",
+  "baseSource": "src/companion/resolve-internal.lua",
+  "baseSourceSha256": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+  "hostReaderSource": "phase-0/evidence-sources/prepare-timed-guarded-command-observed-v1.js.txt",
+  "hostReaderSourceSha256": "9d5fe0031fe467d4fb2de941e0cc453c30699659b7fc5025cb858bb9a311c5f4",
+  "guardedCommandGenerator": "src/resolve-rename-trial.js",
+  "guardedCommandGeneratorSha256": "85406da287486d9b03dabb332c571291a1397c4089aa54e0f64571e9705e15fe",
+  "emittedFileSha256": "e31496daa960c1b2b393ce4ec2ae650b2382e3c85ba2a8639a926f0e0b2ab2de",
+  "planSha256": "ddda2ffe11f8520c692cbb75b3b75d65acc973b2afce8b534d1820ea5f3e8a8a",
+  "commandSha256": "75a1e5e6aa3c1c1fd3aa2fe1dd963c06a6a8630c8bf07035657debd84713f165",
+  "existingGuardedCommandEmbeddedUnchanged": true,
+  "nativeBackup": {
+    "archiveVerified": true,
+    "mode": 384,
+    "schemaVersion": 1,
+    "sha256": "c957154992c3dea267c590759ac273ae2f18c4a717bcc26fae58bf5522a31026",
+    "size": 53560,
+    "timelineCount": 1
+  },
+  "completionMarkerVerified": true,
+  "installedScriptRemoved": true,
+  "privatePreparedFilesRetained": true,
+  "ordinaryApplyEnabled": false,
+  "limits": [
+    "This measures backup save/export only; forced rename/rollback is a separate retained outcome.",
+    "Coarse wall windows assume no realtime-clock adjustment; CPU can include other editor threads.",
+    "Archive integrity and represented source guards do not prove complete native semantic preservation."
+  ],
+  "installedSourceVerifiedBeforeRemoval": true,
+  "hostReaderRole": "historical-reader-used-for-live-result",
+  "currentHostReaderSource": "phase-0/prepare-timed-guarded-command.js",
+  "currentHostReaderSourceSha256": "98025eb210d22053692b3500855250e6a7e3985cb1264d7c9456a49c0ea66c7c",
+  "currentReaderReverifiedHistoricalPrivateOutputs": true,
+  "renderedLuaUnchangedAfterReaderHardening": true,
+  "readerProvenanceNote": "The original host reader bytes are archived exactly. Later directory-binding and pre-chmod identity hardening changes only host readback; the executed Lua and raw native result bytes are unchanged. Existing macOS /var paths are accepted only through the exact canonical system-temp directory mapping."
+}

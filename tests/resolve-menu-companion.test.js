@@ -1,4 +1,5 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -102,7 +103,9 @@ test('generated richer Console command executes the bundled modules and complete
       function project:GetTimelineCount()return 1 end;function project:GetTimelineByIndex()return timeline end;function project:GetCurrentTimeline()return timeline end;
       local manager={};function manager:GetCurrentProject()return project end;resolve={};function resolve:GetProjectManager()return manager end;
       function resolve:GetVersionString()return '21.1.2.10' end;${command}`;
-    const output = execFileSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), luaLibrary], { input: script, encoding: 'utf8' });
+    const mockRun = runVendorLuaMock(script, {library: luaLibrary, maxBuffer: 1024 * 1024});
+    assert.equal(mockRun.status, 0, mockRun.stderr);
+    const output = mockRun.stdout;
     const { acceptConsoleOutput } = require('../src/resolve-console-transfer');
     const response = acceptConsoleOutput({ output, requestId: request.requestId, requestSha256: request.requestSha256 });
     assert.equal(response.complete, true);

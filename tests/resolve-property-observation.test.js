@@ -1,4 +1,5 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -171,24 +172,18 @@ test('vendor Lua runtime executes the read-only supplement, preserves decimal gu
       local manager={};function manager:GetCurrentProject()return project end;local resolve={};function resolve:GetProjectManager()return manager end;
       local base={capture=function()return snapshot end,encode=effects.encode,array=function()return setmetatable({},{__array=true})end};
       local observed=effects.capture(resolve,base,${propertyCaptureConfig()});print(effects.encode(observed));`;
-    const run = spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library], { input: script, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    const run = runVendorLuaMock(script, {library, maxBuffer: 4 * 1024 * 1024});
     assert.equal(run.status, 0, run.stderr);
     const observation = parseEffectObservation(run.stdout.trimEnd());
     assert.equal(observation.schemaVersion, 2); assert.equal(observation.items.length, 53);
     assert.equal(observation.items[0].properties.Pan.decimal, '1.0000000000000001e-01');
     assert(observation.items.some(item => item.propertyReadStatus === 'unavailable'));
     assert.equal(run.stdout.trimEnd(), json(observation));
-    const legacy = spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library], {
-      input: script.replace(`effects.capture(resolve,base,${propertyCaptureConfig()})`, 'effects.capture(resolve,base)'),
-      encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    const legacy = runVendorLuaMock(script.replace(`effects.capture(resolve,base,${propertyCaptureConfig()})`, 'effects.capture(resolve,base)'), {library, maxBuffer: 4 * 1024 * 1024});
     assert.equal(legacy.status, 0, legacy.stderr); assert.equal(legacy.stdout.trimEnd(), json(original));
-    const unknown = spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library], {
-      input: script.replace('return {Pan=0.1,Opacity=99.5,TransformEnabled=true}', 'return {UndocumentedSecret="Never emit this value"}'),
-      encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    const unknown = runVendorLuaMock(script.replace('return {Pan=0.1,Opacity=99.5,TransformEnabled=true}', 'return {UndocumentedSecret="Never emit this value"}'), {library, maxBuffer: 4 * 1024 * 1024});
     assert.notEqual(unknown.status, 0); assert(!unknown.stdout.includes('Never emit this value'));
-    const switched = spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library], {
-      input: script.replace('function project:GetCurrentTimeline()return timelines[1] end',
-        'function project:GetCurrentTimeline()calls=calls+1;if calls==1 then return timelines[1] end;return nil end'),
-      encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    const switched = runVendorLuaMock(script.replace('function project:GetCurrentTimeline()return timelines[1] end',
+        'function project:GetCurrentTimeline()calls=calls+1;if calls==1 then return timelines[1] end;return nil end'), {library, maxBuffer: 4 * 1024 * 1024});
     assert.notEqual(switched.status, 0);
   });

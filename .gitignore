@@ -24,5 +24,8 @@ out/
 /phase-0/compatibility-corpus/moving-bars-with-audio.mov
 /phase-0/performance-live.fcpxmld/
 
+# Private native integration backups and machine-bound experiment receipts
+/phase-0/private-integration-proof/
+
 # Native media helper built for the distribution architecture
 /src/native/bin/

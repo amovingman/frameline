@@ -1,0 +1,131 @@
+'use strict';
+const fs = require('node:fs/promises');
+const { constants } = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { createHash, randomBytes } = require('node:crypto');
+const { readInput } = require('./integration-input');
+const { parseEffectObservation } = require('../src/resolve-effect-observation');
+const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator');
+const { normalizeResolveSnapshot } = require('../src/resolve-snapshot-normalizer');
+const { compareResolveManifests } = require('../src/resolve-id-diff');
+const { validateClockDescription } = require('./prepare-operation-clock-probe');
+const sha = value => createHash('sha256').update(value).digest('hex');
+const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
+  ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+const json = value => JSON.stringify(canonical(value));
+const utility = path.join(os.homedir(), 'Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Utility');
+const basename = id => `Frameline Timed Guarded Command ${id.slice(0, 12)}.lua`;
+
+function inspectInputs(emittedBytes, planBytes, stage) {
+  if (!['backup', 'issued'].includes(stage)) throw new Error('invalid-timed-command-stage');
+  const emitted=JSON.parse(emittedBytes), plan=JSON.parse(planBytes);
+  if (!emitted || typeof emitted.command !== 'string' || Buffer.byteLength(emitted.command)>4*1024*1024
+    || emitted.experimental!==true || emitted.transactionId!==plan.id || !/^[a-f0-9]{32}$/.test(plan.id)
+    || !plan.before || !plan.after || !plan.effectGuard) throw new Error('invalid-timed-command-input');
+  validateResolveSnapshot(plan.before);validateResolveSnapshot(plan.after);
+  if (!plan.before.project_name.startsWith('Frameline ') || plan.before.project_name!==plan.after.project_name) throw new Error('disposable-project-required');
+  const count=plan.before.timelines.reduce((n,t)=>n+t.items.length,0);
+  if(count<1||count>50)throw new Error('small-timed-fixture-required');
+  const changes=compareResolveManifests(normalizeResolveSnapshot(plan.before),normalizeResolveSnapshot(plan.after)).changes;
+  if(changes.length!==1||changes[0].kind!=='item-changed'||changes[0].field!=='name'||json(changes[0])!==json(plan.change))throw new Error('one-guarded-rename-required');
+  const bytes=Buffer.from(plan.effectGuard.sourceBase64,'base64');
+  if(bytes.toString('base64')!==plan.effectGuard.sourceBase64||sha(bytes)!==plan.effectGuard.sourceSha256)throw new Error('timed-command-effect-source-changed');
+  const observation=parseEffectObservation(bytes);
+  if(observation.schemaVersion!==2||json(observation.snapshot)!==json(plan.before)
+    ||observation.items.some(item=>item.propertyReadStatus!=='captured'||Object.keys(item.properties).length===0)
+    ||observation.tracks.some(track=>track.enabled===null||track.locked===null))throw new Error('complete-represented-guard-required');
+  if(stage==='issued'&&(emitted.resultTransport!=='retained-file'||emitted.backup?.archiveVerified!==true))throw new Error('retained-verified-trial-required');
+  return {emitted,plan,count};
+}
+
+function renderTimedCommand({template,base,clock,command,record}) {
+  const sentinel='return { capture_request = capture_request }';
+  if(base.split(sentinel).length!==2)throw new Error('invalid-timed-command-base');
+  const replacements={__EXPECTED_NAME__:JSON.stringify(record.projectName),__EXPECTED_ID__:JSON.stringify(record.projectId),
+    __TRANSACTION_ID__:JSON.stringify(record.transactionId),__PROBE_ID__:JSON.stringify(record.probeId),__STAGE_LABEL__:JSON.stringify(record.stage),
+    __COMMAND_SHA__:JSON.stringify(record.commandSha256),__RESULT_PATH__:JSON.stringify(record.resultPath),__COMPLETE_PATH__:JSON.stringify(record.completePath),
+    __STARTED_PREFIX__:JSON.stringify(record.startedPrefix),__BASE_ENCODER__:base.replace(sentinel,'return {encode=encode,array=array}'),__CLOCK_SOURCE__:clock,
+    __EMITTED_COMMAND__:command};
+  let source=template;for(const[token,value]of Object.entries(replacements)){if(source.split(token).length!==2)throw new Error('invalid-timed-command-template');source=source.replace(token,()=>value);}return source;
+}
+
+async function sources(){return {template:await fs.readFile(path.join(__dirname,'resolve-timed-guarded-command.lua'),'utf8'),
+  base:await fs.readFile(path.join(__dirname,'../src/companion/resolve-internal.lua'),'utf8'),clock:await fs.readFile(path.join(__dirname,'resolve-operation-clock.lua'),'utf8')};}
+
+async function prepareTimedCommand({emittedFile,trialDirectory,stage,install=false}={}) {
+  if(!path.isAbsolute(emittedFile||'')||!path.isAbsolute(trialDirectory||'')||typeof install!=='boolean')throw new Error('invalid-timed-command-options');
+  const trialInfo=await fs.lstat(trialDirectory);if(!trialInfo.isDirectory()||trialInfo.mode&0o077)throw new Error('private-trial-required');
+  const emittedBytes=readInput(emittedFile),planBytes=readInput(path.join(trialDirectory,'prepared.json'));
+  const {emitted,plan,count}=inspectInputs(emittedBytes,planBytes,stage);
+  if(plan.backupPath!==path.join(trialDirectory,'before.drp')||emitted.backupPath!==plan.backupPath
+    ||stage==='backup'&&emitted.directory!==trialDirectory)throw new Error('timed-command-trial-scope-mismatch');
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'frameline-timed-command-'));await fs.chmod(directory,0o700);
+  const probeId=randomBytes(16).toString('hex');
+  const record={schemaVersion:1,operation:'prepare-resolve-timed-guarded-command',probeId,stage,transactionId:plan.id,
+    projectId:plan.before.project_id,projectName:plan.before.project_name,representedItemCount:count,
+    directory,trialDirectory,emittedFile,preparedPath:path.join(directory,basename(probeId)),resultPath:path.join(directory,`timing-${probeId}.json`),
+    completePath:path.join(directory,`complete-${probeId}.txt`),startedPrefix:path.join(directory,`started-${probeId}-`),
+    emittedSha256:sha(emittedBytes),planSha256:sha(planBytes),commandSha256:sha(emitted.command),experimental:true,safeToApply:false};
+  const inputs=await sources(),source=renderTimedCommand({...inputs,command:emitted.command,record});
+  record.sourceSha256=sha(source);record.templateSha256=sha(inputs.template);record.baseSourceSha256=sha(inputs.base);record.clockSourceSha256=sha(inputs.clock);
+  record.installedPath=install?path.join(utility,basename(probeId)):null;
+  await fs.writeFile(record.preparedPath,source,{flag:'wx',mode:0o600});
+  if(install){const info=await fs.lstat(utility);if(!info.isDirectory()||await fs.realpath(utility)!==utility)throw new Error('invalid-timing-install-directory');await fs.writeFile(record.installedPath,source,{flag:'wx',mode:0o600});}
+  await fs.writeFile(path.join(directory,'preparation.json'),JSON.stringify(record,null,2)+'\n',{flag:'wx',mode:0o600});
+  return record;
+}
+
+const allowedMethods=new Set(['item.SetName','manager.SaveProject','manager.ExportProject','manager.CloseProject','manager.LoadProject']);
+function exact(value,required,optional=[]){if(!value||typeof value!=='object'||Array.isArray(value)||required.some(key=>!Object.hasOwn(value,key))||Object.keys(value).some(key=>!required.includes(key)&&!optional.includes(key)))throw new Error('invalid-timing-result');}
+function measurement(value,call=false){exact(value,['wallStatus','cpuStatus','returnedNormally',...(call?['index','method']:[])],['wallNs','cpuMicros',...(call?['returnCount','firstReturnType','firstReturnBoolean']:[])]);
+  if(!['captured','unavailable-or-regressed'].includes(value.wallStatus)||!['captured','unavailable'].includes(value.cpuStatus)||typeof value.returnedNormally!=='boolean')throw new Error('invalid-timing-result');
+  for(const[field,status,valid]of [['wallNs',value.wallStatus,'captured'],['cpuMicros',value.cpuStatus,'captured']])if(status===valid?(!Number.isSafeInteger(value[field])||value[field]<0):Object.hasOwn(value,field))throw new Error('invalid-timing-result');}
+
+function quantizationWindow(measurement,clock){
+  if(clock.id!=='lua-os-time'||measurement.wallStatus!=='captured')return null;
+  return{lowerNs:Math.max(0,measurement.wallNs-1000000000),upperExclusiveNs:measurement.wallNs+1000000000,
+    assumption:'No realtime-clock adjustment during the measured call; one-second timestamp quantization only.',
+    zeroTicksMeansBelowOneSecond:measurement.wallNs===0};
+}
+
+async function readTimedResult(preparationFile){
+  const record=JSON.parse(readInput(preparationFile)),directory=path.dirname(preparationFile),uid=typeof process.getuid==='function'?process.getuid():null;
+  if(record.schemaVersion!==1||record.operation!=='prepare-resolve-timed-guarded-command'||!/^[a-f0-9]{32}$/.test(record.probeId)
+    ||path.resolve(record.directory)!==path.resolve(directory)||record.preparedPath!==path.join(record.directory,basename(record.probeId))
+    ||record.resultPath!==path.join(record.directory,`timing-${record.probeId}.json`)||record.completePath!==path.join(record.directory,`complete-${record.probeId}.txt`)
+    ||record.startedPrefix!==path.join(record.directory,`started-${record.probeId}-`))throw new Error('invalid-timing-preparation');
+  const info=await fs.lstat(directory);if(!info.isDirectory()||info.mode&0o077||uid!==null&&info.uid!==uid)throw new Error('invalid-timing-directory');
+  const emittedBytes=readInput(record.emittedFile),planBytes=readInput(path.join(record.trialDirectory,'prepared.json'));
+  const{emitted,plan}=inspectInputs(emittedBytes,planBytes,record.stage),inputs=await sources();
+  if(sha(emittedBytes)!==record.emittedSha256||sha(planBytes)!==record.planSha256||sha(emitted.command)!==record.commandSha256
+    ||plan.id!==record.transactionId||plan.before.project_id!==record.projectId||plan.before.project_name!==record.projectName
+    ||sha(inputs.template)!==record.templateSha256||sha(inputs.base)!==record.baseSourceSha256||sha(inputs.clock)!==record.clockSourceSha256)throw new Error('timing-source-changed');
+  const source=readInput(record.preparedPath);if(sha(source)!==record.sourceSha256||!source.equals(Buffer.from(renderTimedCommand({...inputs,command:emitted.command,record}))))throw new Error('timing-source-changed');
+  async function owned(filename,limit){const handle=await fs.open(filename,constants.O_RDONLY|(constants.O_NOFOLLOW||0)|(constants.O_NONBLOCK||0));try{const stat=await handle.stat();if(!stat.isFile()||stat.nlink!==1||stat.size>limit||uid!==null&&stat.uid!==uid)throw new Error('invalid-timing-output');await handle.chmod(0o600);}finally{await handle.close();}return readInput(filename);}
+  const bytes=await owned(record.resultPath,1024*1024),result=JSON.parse(bytes);
+  exact(result,['schemaVersion','operation','probeId','transactionId','stage','experimental','safeToApply','commandSha256','projectId','projectName','representedItemCount','wallClock','total','calls','commandReturnedNormally','failureCode']);
+  if((await owned(record.completePath,256)).toString('utf8')!==`FRAMELINE_TIMED_COMMAND_COMPLETE_V1:${record.probeId}\n`
+    ||result.schemaVersion!==1||result.operation!=='resolve-timed-guarded-command'||result.probeId!==record.probeId||result.transactionId!==record.transactionId
+    ||result.projectId!==record.projectId||result.projectName!==record.projectName||result.stage!==record.stage||result.commandSha256!==record.commandSha256
+    ||result.experimental!==true||result.safeToApply!==false||result.representedItemCount!==record.representedItemCount
+    ||typeof result.commandReturnedNormally!=='boolean'||result.failureCode!==(result.commandReturnedNormally?'none':'guarded-command-failed')
+    ||!Array.isArray(result.calls)||result.calls.length>128)throw new Error('invalid-timing-result');
+  validateClockDescription(result.wallClock);measurement(result.total);if(result.total.returnedNormally!==result.commandReturnedNormally)throw new Error('invalid-timing-result');
+  const session=JSON.parse(await owned(`${record.startedPrefix}session.json`,1024));exact(session,['schemaVersion','probeId','transactionId','commandSha256']);
+  if(session.schemaVersion!==1||session.probeId!==record.probeId||session.transactionId!==record.transactionId||session.commandSha256!==record.commandSha256)throw new Error('invalid-timing-session-start');
+  for(const[index,call]of result.calls.entries()){measurement(call,true);if(call.index!==index+1||!allowedMethods.has(call.method))throw new Error('invalid-timing-result');
+    if(call.returnedNormally){if(!Number.isSafeInteger(call.returnCount)||call.returnCount<0||call.returnCount>8||!['nil','boolean','number','string','table','userdata'].includes(call.firstReturnType)
+      ||(call.firstReturnType==='boolean'?typeof call.firstReturnBoolean!=='boolean':Object.hasOwn(call,'firstReturnBoolean')))throw new Error('invalid-timing-result');}
+    else if(['returnCount','firstReturnType','firstReturnBoolean'].some(key=>Object.hasOwn(call,key)))throw new Error('invalid-timing-result');
+    const started=JSON.parse(await owned(`${record.startedPrefix}${index+1}.json`,1024));exact(started,['schemaVersion','probeId','transactionId','index','method']);
+    if(started.schemaVersion!==1||started.probeId!==record.probeId||started.transactionId!==record.transactionId||started.index!==index+1||started.method!==call.method)throw new Error('invalid-timing-call-start');}
+  return{...result,resultSha256:sha(bytes),completionMarkerVerified:true,
+    coarseWallWindows:result.wallClock.id==='lua-os-time'?{total:quantizationWindow(result.total,result.wallClock),calls:result.calls.map(call=>({index:call.index,method:call.method,window:quantizationWindow(call,result.wallClock)}))}:null,
+    limitations:['Timing never replaces independent guarded-trial outcome and native-backup validation.','Total includes source guards and observation captures; per-method samples include callback instrumentation around the underlying calls.','Process CPU may include other active editor threads; reported clock resolution is not an accuracy guarantee.','Coarse os.time windows assume no realtime-clock adjustment and describe quantization, not precise latency.']};
+}
+if(require.main===module){const[operation,...args]=process.argv.slice(2);const action=operation==='prepare'&&[3,4].includes(args.length)
+  ?prepareTimedCommand({emittedFile:args[0],trialDirectory:args[1],stage:args[2],install:args[3]==='--install'})
+  :operation==='read'&&args.length===1?readTimedResult(args[0]):Promise.reject(new Error('usage'));
+  action.then(result=>process.stdout.write(JSON.stringify(result,null,2)+'\n')).catch(()=>{process.stderr.write('resolve-timed-command-failed\n');process.exitCode=1;});}
+module.exports={inspectInputs,renderTimedCommand,prepareTimedCommand,readTimedResult,quantizationWindow};

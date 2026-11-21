@@ -1,0 +1,127 @@
+'use strict';
+// Disposable fixture operations only. This is not an application write adapter.
+const fs = require('node:fs/promises');
+const { constants } = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { randomBytes, createHash } = require('node:crypto');
+const { readInput } = require('./integration-input');
+const { inspectApi, reference } = require('./inspect-resolve-api');
+const { parseEffectObservation } = require('../src/resolve-effect-observation');
+const { propertyCaptureConfig } = require('../src/resolve-property-observation');
+const { scanXml } = require('../src/fcpxml-adapter');
+const projectName = 'Frameline Integration Gate Fixture 20261120';
+const sha = value => createHash('sha256').update(value).digest('hex');
+const q = value => JSON.stringify(value);
+const utility = path.join(os.homedir(), 'Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Utility');
+
+function fileReader(filename, expected) {
+  return `do local h=assert(fusion:OpenFile(${q(filename)},1),'Fixture input unavailable');local ok,value=pcall(function()assert(h:GetFileSize()==${Buffer.byteLength(expected)},'Fixture input changed');local parts,n={},0;while n<${Buffer.byteLength(expected)} do local p=h:ReadLine();assert(type(p)=='string' and #p>0 and #p<=${Buffer.byteLength(expected)}-n,'Fixture read changed');n=n+#p;parts[#parts+1]=p end;assert(h:ReadLine()==nil,'Fixture grew');return table.concat(parts) end);local closed=pcall(function()h:Close()end);assert(ok and closed and value==${q(expected)},'Fixture input changed')end;`;
+}
+
+function resultWriter() {
+  return String.raw`local function absent(filename)local f=fusion:OpenFile(filename,1);if f then f:Close();error('Output exists')end end
+local function write_exact(filename,value)absent(filename);assert(#value<20*1024*1024,'Output too large');local h=assert(fusion:OpenFile(filename,2),'Writer unavailable');local ok=pcall(function()assert(h:WriteLine(value)==#value+1,'Write failed');assert(h:Flush()==true,'Flush failed')end);local closed=pcall(function()h:Close()end);assert(ok and closed,'Write failed');local h=assert(fusion:OpenFile(filename,1),'Readback unavailable');local ok,value2=pcall(function()assert(h:GetFileSize()==#value+1,'Readback size');local p,n={},0;while n<#value+1 do local s=h:ReadLine();assert(type(s)=='string' and #s>0 and #s<=#value+1-n,'Readback failed');p[#p+1]=s;n=n+#s end;assert(h:ReadLine()==nil,'Readback EOF');return table.concat(p)end);local closed=pcall(function()h:Close()end);assert(ok and closed and value2==value..'\n','Readback differs')end
+`;
+}
+
+async function renderLabSource({operation,input,id,paths}) {
+  if (!['initialize','capture'].includes(operation)) throw new Error('invalid-gate-lab-operation');
+  const base = (await fs.readFile(path.join(__dirname, '../src/companion/resolve-internal.lua'), 'utf8'))
+    .replace('return { capture_request = capture_request }', 'return {capture=capture,encode=encode,array=array}');
+  const effects = await fs.readFile(path.join(__dirname, '../src/companion/resolve-effects.lua'), 'utf8');
+  let action = '';
+  if (operation === 'initialize') {
+    if (!path.isAbsolute(input || '')) throw new Error('invalid-gate-lab-input');
+    const xml = readInput(input).toString('utf8'), scan = scanXml(xml);
+    if (scan.clips.length !== 50 || scan.warnings.length || scan.sequence.durationFrames !== 2400) throw new Error('unexpected-gate-lab-fixture');
+    action = `assert(p:GetTimelineCount()==0,'Fixture project is not empty');${fileReader(input, xml)}
+local timeline=assert(p:GetMediaPool():ImportTimelineFromFile(${q(input)}),'Fixture import failed');assert(p:GetTimelineCount()==1,'Unexpected imported timelines');assert(p:SetCurrentTimeline(timeline),'Timeline selection failed');assert(#(timeline:GetItemListInTrack('video',1)or{})==50,'Unexpected clip count');assert(timeline:AddTrack('video'),'Add video track failed');assert(timeline:AddTrack('video'),'Add video track failed');assert(timeline:AddTrack('audio','mono'),'Add audio track failed');assert(timeline:GetTrackCount('video')==3 and timeline:GetTrackCount('audio')==2,'Unexpected fixture tracks');for _,kind in ipairs({'video','audio'})do for n=1,timeline:GetTrackCount(kind)do assert(timeline:SetTrackName(kind,n,'Gate duplicate track'),'Track name failed')end end;`;
+  }
+  const source = `local ok,err=pcall(function()
+assert(resolve and resolve:GetVersionString()=='21.1.2.10','Unexpected Resolve');local pm=resolve:GetProjectManager();local p=assert(pm:GetCurrentProject(),'No project');assert(p:GetName()==${q(projectName)},'Wrong disposable project');local fusion=assert(resolve:Fusion(),'No Fusion');
+${resultWriter()}
+absent(${q(paths.result)});absent(${q(paths.marker)});absent(${q(paths.observation)});
+local base=(function()${base}\nend)();local effects=(function()${effects}\nend)();
+${action}
+assert(p:GetTimelineCount()==1,'Expected one fixture timeline');local observed_count=0;local t=p:GetTimelineByIndex(1);for _,kind in ipairs({'video','audio','subtitle'})do for n=1,t:GetTrackCount(kind)do observed_count=observed_count+#(t:GetItemListInTrack(kind,n)or{})end end;assert(observed_count==50,'Expected exactly fifty fixture items');
+local before=effects.capture(resolve,base,${propertyCaptureConfig()});local bytes=effects.encode(before);
+${operation === 'initialize' ? `absent(${q(paths.backup)});absent(${q(paths.xml)});assert(pm:SaveProject(),'Fixture save failed');assert(pm:ExportProject(${q(projectName)},${q(paths.backup)},false),'Fixture export failed');assert(p:GetCurrentTimeline():Export(${q(paths.xmlBundle)},resolve.EXPORT_FCPXML_1_10,resolve.EXPORT_NONE),'XML export failed');` : ''}
+assert(effects.encode(effects.capture(resolve,base,${propertyCaptureConfig()}))==bytes,'Represented state changed');write_exact(${q(paths.observation)},bytes);
+local result=effects.encode({schemaVersion=1,operation='resolve-gate-lab',stage=${q(operation)},id=${q(id)},experimental=true,safeToApply=false,projectId=before.snapshot.project_id,itemCount=#before.items,trackCount=#before.tracks,observationBytes=#bytes});write_exact(${q(paths.result)},result);write_exact(${q(paths.marker)},${q(`FRAMELINE_GATE_LAB_COMPLETE_V1:${id}`)});print('FRAMELINE_GATE_LAB_COMPLETE_V1:${id}')end);if not ok then print('FRAMELINE_GATE_LAB_FAILED_V1:${id}:'..tostring(err))end`;
+  return source;
+}
+
+async function prepareLab({ operation = 'capture', input = null, install = false } = {}) {
+  if (!['initialize', 'capture'].includes(operation) || typeof install !== 'boolean') throw new Error('invalid-gate-lab-operation');
+  inspectApi(readInput(reference));
+  const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-gate-lab-'))); await fs.chmod(directory, 0o700);
+  const id = randomBytes(16).toString('hex');
+  const paths = { result: path.join(directory, 'result.json'), marker: path.join(directory, 'complete.txt'),
+    observation: path.join(directory, 'observation.json'), backup: path.join(directory, 'baseline.drp'), xml: path.join(directory, 'baseline.fcpxmld', 'Info.fcpxml'), xmlBundle: path.join(directory, 'baseline.fcpxmld') };
+  const source = await renderLabSource({operation,input,id,paths});
+  const name = `Frameline Gate Lab ${id.slice(0,12)}.lua`, sourcePath = path.join(directory, name);
+  await fs.writeFile(sourcePath, source, { flag: 'wx', mode: 0o600 });
+  const record = { schemaVersion: 1, operation, id, directory, sourcePath, sourceSha256: sha(source), paths, projectName,
+    input, inputSha256: input ? sha(readInput(input)) : null, installedPath: install ? path.join(utility, name) : null };
+  if (install) {
+    const info = await fs.lstat(utility); if (!info.isDirectory() || await fs.realpath(utility) !== utility) throw new Error('invalid-lab-install-directory');
+    await fs.writeFile(record.installedPath, source, { flag: 'wx', mode: 0o600 });
+  }
+  await fs.writeFile(path.join(directory, 'preparation.json'), JSON.stringify(record, null, 2)+'\n', { flag: 'wx', mode: 0o600 });
+  return record;
+}
+
+async function readLab(preparationFile, {input = null} = {}) {
+  const record = JSON.parse(readInput(preparationFile));
+  if (record.schemaVersion !== 1 || !['initialize','capture'].includes(record.operation) || !/^[a-f0-9]{32}$/.test(record.id) || record.projectName !== projectName
+    || path.dirname(preparationFile) !== record.directory || record.sourcePath !== path.join(record.directory,`Frameline Gate Lab ${record.id.slice(0,12)}.lua`)) throw new Error('invalid-lab-record');
+  const info = await fs.lstat(record.directory); if (!info.isDirectory() || info.mode & 0o077 || info.uid !== process.getuid()) throw new Error('invalid-lab-directory');
+  if (await fs.realpath(record.directory) !== record.directory) throw new Error('lab-directory-not-canonical');
+  const outputNames = { result:'result.json',marker:'complete.txt',observation:'observation.json',backup:'baseline.drp',
+    xml:'baseline.fcpxmld/Info.fcpxml',xmlBundle:'baseline.fcpxmld' };
+  if (!record.paths || Object.keys(record.paths).sort().join(',') !== Object.keys(outputNames).sort().join(',')
+    || Object.entries(outputNames).some(([name, relative]) => record.paths[name] !== path.join(record.directory, relative))) throw new Error('invalid-lab-output');
+  async function verifyAncestors(filename) {
+    if (await fs.realpath(record.directory) !== record.directory) throw new Error('lab-directory-not-canonical');
+    const relative = path.relative(record.directory, path.dirname(filename));
+    if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('invalid-lab-output');
+    let current = record.directory;
+    for (const segment of relative.split(path.sep).filter(Boolean)) {
+      current = path.join(current, segment);
+      const ancestor = await fs.lstat(current);
+      if (!ancestor.isDirectory() || ancestor.isSymbolicLink() || await fs.realpath(current) !== current) throw new Error('lab-symlink-ancestor');
+    }
+  }
+  const knownInput = record.input || input;
+  if (record.operation==='initialize' && (!knownInput || sha(readInput(knownInput))!==record.inputSha256)) throw new Error('lab-input-binding-missing');
+  const source = readInput(record.sourcePath);
+  if (sha(source) !== record.sourceSha256 || source.toString('utf8')!==await renderLabSource({...record,input:knownInput})) throw new Error('lab-source-changed');
+  for (const name of ['result', 'marker', 'observation', ...(record.operation==='initialize'?['backup','xml']:[])]) {
+    await verifyAncestors(record.paths[name]);
+    const h = await fs.open(record.paths[name], constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+      const s = await h.stat(), named = await fs.lstat(record.paths[name]);
+      if (!s.isFile() || s.nlink!==1 || s.uid!==process.getuid() || !named.isFile() || s.dev!==named.dev || s.ino!==named.ino) throw new Error('invalid-lab-output');
+      await verifyAncestors(record.paths[name]);
+      await h.chmod(0o600);
+    } finally { await h.close(); }
+  }
+  if (readInput(record.paths.marker).toString('utf8') !== `FRAMELINE_GATE_LAB_COMPLETE_V1:${record.id}\n`) throw new Error('lab-not-complete');
+  const raw = readInput(record.paths.observation), observation = parseEffectObservation(raw), result=JSON.parse(readInput(record.paths.result));
+  if (Object.keys(result).sort().join(',')!=='experimental,id,itemCount,observationBytes,operation,projectId,safeToApply,schemaVersion,stage,trackCount'
+    ||result.schemaVersion!==1||result.operation!=='resolve-gate-lab'||result.experimental!==true
+    ||observation.items.length!==50||observation.tracks.length!==5||observation.snapshot.timelines.length!==1
+    ||observation.snapshot.project_name !== projectName || result.id !== record.id || result.stage !== record.operation
+    || result.safeToApply !== false || result.projectId !== observation.snapshot.project_id || result.itemCount!==observation.items.length
+    || result.trackCount!==observation.tracks.length || result.observationBytes!==raw.length-1) throw new Error('lab-result-mismatch');
+  return { record, result, observation, observationSha256: sha(raw) };
+}
+
+if (require.main === module) {
+  const [op, ...args]=process.argv.slice(2);
+  const task = op==='prepare' ? prepareLab({ operation:args[0], input:args[1]==='-'?null:args[1], install:args.includes('--install') })
+    : op==='read' && [1,2].includes(args.length) ? readLab(args[0],{input:args[1]}).then(({result,observationSha256})=>({...result,observationSha256})) : Promise.reject(new Error('usage'));
+  task.then(value=>process.stdout.write(JSON.stringify(value,null,2)+'\n')).catch(()=>{process.stderr.write('gate-lab-failed\n');process.exitCode=1;});
+}
+module.exports={prepareLab,readLab,resultWriter,fileReader,projectName,renderLabSource};

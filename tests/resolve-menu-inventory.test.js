@@ -1,11 +1,11 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { spawnSync } = require('node:child_process');
 const { renderInventory, prepareInventory, readInventoryResult } = require('../phase-0/prepare-menu-inventory');
 const { reference } = require('../phase-0/inspect-resolve-api');
 const { validateResolveSnapshot } = require('../src/resolve-snapshot-validator');
@@ -54,7 +54,7 @@ test('vendor Lua full capture verifies two identical represented reads and refus
       resolve={};function resolve:GetVersionString()return '21.1.2.10' end;function resolve:GetProjectManager()return manager end
       function resolve:Fusion()return fusion end;`;
     const suffix = `print('MOCK_RESULT:'..(files[${JSON.stringify(binding.resultPath)}] or 'absent'));print('MOCK_COMPLETE:'..(files[${JSON.stringify(binding.completePath)}] or 'absent'));`;
-    const run = script => spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library], { input: script, encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    const run = script => runVendorLuaMock(script, {library: library, maxBuffer: 1024 * 1024});
     const good = run(`${prefix}\n${source}\n${source}\n${suffix}`);
     assert.equal(good.status, 0, good.stderr);
     assert(good.stdout.includes(`FRAMELINE_MENU_INVENTORY_OK_V1:${binding.probeId}`));

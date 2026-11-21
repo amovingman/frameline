@@ -1,6 +1,7 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const {createHash}=require('node:crypto'),{spawnSync}=require('node:child_process');
+const {createHash}=require('node:crypto');
 const {renderDiagnostic,readDiagnostic}=require('../phase-0/prepare-menu-inventory-diagnostic');
 const template=fs.readFileSync(path.join(__dirname,'../phase-0/resolve-menu-inventory.lua'),'utf8');
 const base=fs.readFileSync(path.join(__dirname,'../src/companion/resolve-internal.lua'),'utf8');
@@ -30,7 +31,7 @@ test('vendor Lua diagnostic preserves stage evidence and classifies snapshot fai
     resolve={};function resolve:GetVersionString()return '21.1.2.10' end;function resolve:GetProjectManager()return manager end;function resolve:Fusion()return fusion end;`;
   const report=path.join(binding.directory,`diagnostic-${binding.probeId}.json`),raw=path.join(binding.directory,`error-${binding.probeId}.txt`);
   const suffix=`print('MOCK_DIAGNOSTIC:'..(files[${JSON.stringify(report)}]or 'absent'));print('MOCK_RAW_PRESENT:'..tostring(files[${JSON.stringify(raw)}]~=nil));`;
-  const run=script=>spawnSync('python3',[path.join(__dirname,'../phase-0/run-lua-observation-mock.py'),library],{input:script,encoding:'utf8',maxBuffer:1024*1024});
+  const run=script=>runVendorLuaMock(script, {library: library, maxBuffer: 1024*1024});
   const good=run(prefix+'\n'+source+'\n'+suffix);assert.equal(good.status,0,good.stderr);
   const parse=out=>JSON.parse(out.split('\n').find(line=>line.startsWith('MOCK_DIAGNOSTIC:')).slice('MOCK_DIAGNOSTIC:'.length));
   assert.equal(parse(good.stdout).status,'complete');assert.equal(parse(good.stdout).stage,'complete');

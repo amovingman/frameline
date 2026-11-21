@@ -1,0 +1,518 @@
+{
+  "schemaVersion": 1,
+  "operation": "resolve-native-track-challenge",
+  "probeId": "9c8ffaa7ed1ed101f71339cfb2bfabf8",
+  "status": "restored",
+  "representedStateRestored": true,
+  "resultSha256": "15bcde8f20413bccfa0782c4e72300ed37f913313ec76568134cd06e439f3571",
+  "sourceSha256": "62968c76199d2215e778353476a5b261b5e59f7d93fa9a5310039f1c577005ec",
+  "backupSha256": "9037c6c36d3421da38bd888ef9fdb6ab56abbbf69a3bc642bcee0407819b498d",
+  "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+  "trackCount": 5,
+  "graphs": {
+    "before": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "safeToApply": false,
+      "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+      "archive": {
+        "sha256": "ae36cba753959bdab15be5c0fb7b8a11dc16af709d24a0462af04c3e96bae0a5",
+        "size": 53454
+      },
+      "timelines": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "nativeSequenceId": "e7021e37-bed0-4baa-bfc8-d8d65efba7d1",
+          "tracks": [
+            {
+              "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 3,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 1,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": [
+                "02b90b50-7253-4545-9ba9-534e50baca76",
+                "083820f6-d9aa-495d-8629-6345d9946f7e",
+                "0aef15e9-2a8d-4220-853a-661e8a2aef33",
+                "1a364a54-f19b-4ec3-aa19-3ea8790b7d57",
+                "2193cba6-65f4-4296-a2c8-da7f413862e4",
+                "254dcbf6-c662-44f1-accb-dac23645776f",
+                "25744955-f59d-4278-8263-76426cfe87e7",
+                "2bf7cf39-9543-43da-882a-496a246b0152",
+                "37cf5650-0092-4c3e-a3a0-348a0d6ce636",
+                "393c70d0-9823-41ff-98f4-f3f26d11ebea",
+                "3ad5ee59-a7a8-47f5-a396-78e0d36ebb7a",
+                "3efd4b95-40ec-466a-aa1f-4a4ca2153b3c",
+                "41bf5cad-d8bb-4d5d-8da1-f24daec9351c",
+                "4399b1e6-8b59-4d4d-8017-73ff66ef058d",
+                "520f09ba-31fa-4b21-be59-f5d502ed7ba8",
+                "5db7ad1e-1fd7-49f0-b093-baa284eed17a",
+                "5ff7b80e-c9e8-4088-b3e3-b07fc62e2724",
+                "60ef9c77-6a74-4550-9c0f-0de228cfa1a7",
+                "6c6425bc-961a-4265-8d64-e2fd6ff9ed41",
+                "6e300670-9cc8-4fbd-abf9-44b7519696d8",
+                "7dc4e9d8-6c8c-407a-9256-7518e9623abb",
+                "7e4d3d9a-a4dd-49b1-aeac-38415e1b1d7b",
+                "7f0b6b20-995e-4d1d-bfd3-a4a8e6759121",
+                "83b99c4e-1b6b-49f3-aef5-40da039059c8",
+                "87819e51-df17-4037-836e-eed19ac5b926",
+                "879cbd25-de4d-4204-bc8b-e2b39e5fb95c",
+                "8a8ddb51-2bed-4251-8342-2e95801671c7",
+                "9080d0f0-c11d-4322-bc4a-707eb0246ea6",
+                "9697f76b-b5a5-41fa-a3c4-b9855cb028a8",
+                "9e66bfdb-db59-488d-9528-dc134b0eeff7",
+                "a3969c07-1a8e-45a6-a9fe-72cbde3bc92b",
+                "a5e2229e-21a7-4207-81f3-1231f7e8e387",
+                "a7d7862c-d6e6-46e9-8ee3-8a3d93203db3",
+                "abc4807c-3b17-47dc-9e93-3ac91ba65715",
+                "adb17d90-b756-431b-834e-229d119f2447",
+                "b507ebd5-782c-467f-9236-6eb3b571dc2d",
+                "b9b553fa-fb09-4f46-9206-3f02584c6904",
+                "bb417f77-9028-4b61-8973-e393e1ca62ac",
+                "c6aadc57-bec9-46b0-96cd-44b9186bcb67",
+                "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+                "cec0b0a3-2293-487b-a7cf-dcbfcc5ff0a4",
+                "d0c2d6c5-0378-4761-be85-6627bc3c863c",
+                "d633c320-39a3-4a27-bc44-7f740f393808",
+                "d7f5477e-ff56-446b-9d38-04f1e385dea3",
+                "db3277d6-41f0-424d-a8e0-f19abdc73445",
+                "db91c940-99ba-4794-94e1-7105caaa4e50",
+                "e04621fd-8c90-41a0-97ca-c5593f71551c",
+                "eb12d62f-26a1-40c9-8fdd-b6461c2290ad",
+                "f1dcc5a9-924a-43b8-a327-e0653bcebdbc",
+                "f2a916d7-a25b-4d6f-bac2-6b412be734df"
+              ]
+            },
+            {
+              "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "audio",
+              "nativeOrdinal": 1,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "audio",
+              "nativeOrdinal": 2,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "ebccb2e6-6309-4750-bf8c-7012db202f10",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 2,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            }
+          ]
+        }
+      ],
+      "stableTrackIdentityProven": false,
+      "apiTrackBindingProven": false,
+      "limitations": [
+        "Native serialization is undocumented; DbIds are observed native identifiers only.",
+        "Native vector ordinals are locations, never API index mappings.",
+        "Empty API tracks require an independent controlled binding experiment.",
+        "No native fields, opaque data, referenced media or editor preservation are validated."
+      ],
+      "snapshotSha256": "4225b35c4a1fce6677a81bc7239345f40ba4de3d207b199ce4a0922a22618a35",
+      "apiBindings": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 1,
+          "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+          "status": "exact-item-parentage-witness",
+          "itemCount": 50
+        }
+      ],
+      "unboundEmptyApiTracks": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 2
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 3
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "audio",
+          "index": 1
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "audio",
+          "index": 2
+        }
+      ],
+      "bindingMethod": "explicit-native-item-parentage",
+      "challengeNonce": null
+    },
+    "challenged": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "safeToApply": false,
+      "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+      "archive": {
+        "sha256": "a37531c8d098f49aa8d58edd5c306cf121aeadfa001e961e5ae131181f12716c",
+        "size": 53544
+      },
+      "timelines": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "nativeSequenceId": "e7021e37-bed0-4baa-bfc8-d8d65efba7d1",
+          "tracks": [
+            {
+              "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 3,
+              "nameSha256": "faef2c6d15e7adfc096dcaa110216d224a38e0f0e8510089352ed8d79193a4c7",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 1,
+              "nameSha256": "4b498b6b330515baf03e67dc61956f69f7bf7e7eed0a15c1c6a7de6ffcdd2fc6",
+              "itemIds": [
+                "02b90b50-7253-4545-9ba9-534e50baca76",
+                "083820f6-d9aa-495d-8629-6345d9946f7e",
+                "0aef15e9-2a8d-4220-853a-661e8a2aef33",
+                "1a364a54-f19b-4ec3-aa19-3ea8790b7d57",
+                "2193cba6-65f4-4296-a2c8-da7f413862e4",
+                "254dcbf6-c662-44f1-accb-dac23645776f",
+                "25744955-f59d-4278-8263-76426cfe87e7",
+                "2bf7cf39-9543-43da-882a-496a246b0152",
+                "37cf5650-0092-4c3e-a3a0-348a0d6ce636",
+                "393c70d0-9823-41ff-98f4-f3f26d11ebea",
+                "3ad5ee59-a7a8-47f5-a396-78e0d36ebb7a",
+                "3efd4b95-40ec-466a-aa1f-4a4ca2153b3c",
+                "41bf5cad-d8bb-4d5d-8da1-f24daec9351c",
+                "4399b1e6-8b59-4d4d-8017-73ff66ef058d",
+                "520f09ba-31fa-4b21-be59-f5d502ed7ba8",
+                "5db7ad1e-1fd7-49f0-b093-baa284eed17a",
+                "5ff7b80e-c9e8-4088-b3e3-b07fc62e2724",
+                "60ef9c77-6a74-4550-9c0f-0de228cfa1a7",
+                "6c6425bc-961a-4265-8d64-e2fd6ff9ed41",
+                "6e300670-9cc8-4fbd-abf9-44b7519696d8",
+                "7dc4e9d8-6c8c-407a-9256-7518e9623abb",
+                "7e4d3d9a-a4dd-49b1-aeac-38415e1b1d7b",
+                "7f0b6b20-995e-4d1d-bfd3-a4a8e6759121",
+                "83b99c4e-1b6b-49f3-aef5-40da039059c8",
+                "87819e51-df17-4037-836e-eed19ac5b926",
+                "879cbd25-de4d-4204-bc8b-e2b39e5fb95c",
+                "8a8ddb51-2bed-4251-8342-2e95801671c7",
+                "9080d0f0-c11d-4322-bc4a-707eb0246ea6",
+                "9697f76b-b5a5-41fa-a3c4-b9855cb028a8",
+                "9e66bfdb-db59-488d-9528-dc134b0eeff7",
+                "a3969c07-1a8e-45a6-a9fe-72cbde3bc92b",
+                "a5e2229e-21a7-4207-81f3-1231f7e8e387",
+                "a7d7862c-d6e6-46e9-8ee3-8a3d93203db3",
+                "abc4807c-3b17-47dc-9e93-3ac91ba65715",
+                "adb17d90-b756-431b-834e-229d119f2447",
+                "b507ebd5-782c-467f-9236-6eb3b571dc2d",
+                "b9b553fa-fb09-4f46-9206-3f02584c6904",
+                "bb417f77-9028-4b61-8973-e393e1ca62ac",
+                "c6aadc57-bec9-46b0-96cd-44b9186bcb67",
+                "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+                "cec0b0a3-2293-487b-a7cf-dcbfcc5ff0a4",
+                "d0c2d6c5-0378-4761-be85-6627bc3c863c",
+                "d633c320-39a3-4a27-bc44-7f740f393808",
+                "d7f5477e-ff56-446b-9d38-04f1e385dea3",
+                "db3277d6-41f0-424d-a8e0-f19abdc73445",
+                "db91c940-99ba-4794-94e1-7105caaa4e50",
+                "e04621fd-8c90-41a0-97ca-c5593f71551c",
+                "eb12d62f-26a1-40c9-8fdd-b6461c2290ad",
+                "f1dcc5a9-924a-43b8-a327-e0653bcebdbc",
+                "f2a916d7-a25b-4d6f-bac2-6b412be734df"
+              ]
+            },
+            {
+              "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "audio",
+              "nativeOrdinal": 1,
+              "nameSha256": "3ff0ee52e43b658d1245804e399ac40f831270fe180bcf911fd0956e6b99e2c4",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "audio",
+              "nativeOrdinal": 2,
+              "nameSha256": "99785d707f89b4dcfe2ddfd3c0b0502caac08a17238a8835de2327ae4ffb726a",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "ebccb2e6-6309-4750-bf8c-7012db202f10",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 2,
+              "nameSha256": "48f6f8ea3b3f121620cb19a12420722e4c55c81e2fbd9ae1ea2cae9d892678dc",
+              "itemIds": []
+            }
+          ]
+        }
+      ],
+      "stableTrackIdentityProven": false,
+      "apiTrackBindingProven": false,
+      "limitations": [
+        "Native serialization is undocumented; DbIds are observed native identifiers only.",
+        "Native vector ordinals are locations, never API index mappings.",
+        "Empty API tracks require an independent controlled binding experiment.",
+        "No native fields, opaque data, referenced media or editor preservation are validated."
+      ],
+      "snapshotSha256": "7979b29d824df12e8479853456584a25244b3639f4dc6bd110d6829f70de876f",
+      "apiBindings": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 1,
+          "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+          "status": "controlled-name-challenge",
+          "itemCount": 50
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 2,
+          "nativeTrackId": "ebccb2e6-6309-4750-bf8c-7012db202f10",
+          "status": "controlled-name-challenge",
+          "itemCount": 0
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 3,
+          "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+          "status": "controlled-name-challenge",
+          "itemCount": 0
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "audio",
+          "index": 1,
+          "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+          "status": "controlled-name-challenge",
+          "itemCount": 0
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "audio",
+          "index": 2,
+          "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+          "status": "controlled-name-challenge",
+          "itemCount": 0
+        }
+      ],
+      "unboundEmptyApiTracks": [],
+      "bindingMethod": "temporary-unique-name-challenge",
+      "challengeNonce": "9c8ffaa7ed1ed101f71339cfb2bfabf8"
+    },
+    "restored": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "safeToApply": false,
+      "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+      "archive": {
+        "sha256": "f08f1e7c9bf604aafad1b246835e32d7b131c36e43c6e81b7b63c6e2878de09e",
+        "size": 53440
+      },
+      "timelines": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "nativeSequenceId": "e7021e37-bed0-4baa-bfc8-d8d65efba7d1",
+          "tracks": [
+            {
+              "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 3,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 1,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": [
+                "02b90b50-7253-4545-9ba9-534e50baca76",
+                "083820f6-d9aa-495d-8629-6345d9946f7e",
+                "0aef15e9-2a8d-4220-853a-661e8a2aef33",
+                "1a364a54-f19b-4ec3-aa19-3ea8790b7d57",
+                "2193cba6-65f4-4296-a2c8-da7f413862e4",
+                "254dcbf6-c662-44f1-accb-dac23645776f",
+                "25744955-f59d-4278-8263-76426cfe87e7",
+                "2bf7cf39-9543-43da-882a-496a246b0152",
+                "37cf5650-0092-4c3e-a3a0-348a0d6ce636",
+                "393c70d0-9823-41ff-98f4-f3f26d11ebea",
+                "3ad5ee59-a7a8-47f5-a396-78e0d36ebb7a",
+                "3efd4b95-40ec-466a-aa1f-4a4ca2153b3c",
+                "41bf5cad-d8bb-4d5d-8da1-f24daec9351c",
+                "4399b1e6-8b59-4d4d-8017-73ff66ef058d",
+                "520f09ba-31fa-4b21-be59-f5d502ed7ba8",
+                "5db7ad1e-1fd7-49f0-b093-baa284eed17a",
+                "5ff7b80e-c9e8-4088-b3e3-b07fc62e2724",
+                "60ef9c77-6a74-4550-9c0f-0de228cfa1a7",
+                "6c6425bc-961a-4265-8d64-e2fd6ff9ed41",
+                "6e300670-9cc8-4fbd-abf9-44b7519696d8",
+                "7dc4e9d8-6c8c-407a-9256-7518e9623abb",
+                "7e4d3d9a-a4dd-49b1-aeac-38415e1b1d7b",
+                "7f0b6b20-995e-4d1d-bfd3-a4a8e6759121",
+                "83b99c4e-1b6b-49f3-aef5-40da039059c8",
+                "87819e51-df17-4037-836e-eed19ac5b926",
+                "879cbd25-de4d-4204-bc8b-e2b39e5fb95c",
+                "8a8ddb51-2bed-4251-8342-2e95801671c7",
+                "9080d0f0-c11d-4322-bc4a-707eb0246ea6",
+                "9697f76b-b5a5-41fa-a3c4-b9855cb028a8",
+                "9e66bfdb-db59-488d-9528-dc134b0eeff7",
+                "a3969c07-1a8e-45a6-a9fe-72cbde3bc92b",
+                "a5e2229e-21a7-4207-81f3-1231f7e8e387",
+                "a7d7862c-d6e6-46e9-8ee3-8a3d93203db3",
+                "abc4807c-3b17-47dc-9e93-3ac91ba65715",
+                "adb17d90-b756-431b-834e-229d119f2447",
+                "b507ebd5-782c-467f-9236-6eb3b571dc2d",
+                "b9b553fa-fb09-4f46-9206-3f02584c6904",
+                "bb417f77-9028-4b61-8973-e393e1ca62ac",
+                "c6aadc57-bec9-46b0-96cd-44b9186bcb67",
+                "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+                "cec0b0a3-2293-487b-a7cf-dcbfcc5ff0a4",
+                "d0c2d6c5-0378-4761-be85-6627bc3c863c",
+                "d633c320-39a3-4a27-bc44-7f740f393808",
+                "d7f5477e-ff56-446b-9d38-04f1e385dea3",
+                "db3277d6-41f0-424d-a8e0-f19abdc73445",
+                "db91c940-99ba-4794-94e1-7105caaa4e50",
+                "e04621fd-8c90-41a0-97ca-c5593f71551c",
+                "eb12d62f-26a1-40c9-8fdd-b6461c2290ad",
+                "f1dcc5a9-924a-43b8-a327-e0653bcebdbc",
+                "f2a916d7-a25b-4d6f-bac2-6b412be734df"
+              ]
+            },
+            {
+              "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "audio",
+              "nativeOrdinal": 1,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "audio",
+              "nativeOrdinal": 2,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            },
+            {
+              "nativeTrackId": "ebccb2e6-6309-4750-bf8c-7012db202f10",
+              "nativeContainerId": "2e491763-c8f0-4b2a-9cb1-b880af166572",
+              "kind": "video",
+              "nativeOrdinal": 2,
+              "nameSha256": "1c5a8cd488c305f1c91786e5746299f4f6c9ee0e261129ab66685bf6b5cde635",
+              "itemIds": []
+            }
+          ]
+        }
+      ],
+      "stableTrackIdentityProven": false,
+      "apiTrackBindingProven": false,
+      "limitations": [
+        "Native serialization is undocumented; DbIds are observed native identifiers only.",
+        "Native vector ordinals are locations, never API index mappings.",
+        "Empty API tracks require an independent controlled binding experiment.",
+        "No native fields, opaque data, referenced media or editor preservation are validated."
+      ],
+      "snapshotSha256": "4225b35c4a1fce6677a81bc7239345f40ba4de3d207b199ce4a0922a22618a35",
+      "apiBindings": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 1,
+          "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+          "status": "exact-item-parentage-witness",
+          "itemCount": 50
+        }
+      ],
+      "unboundEmptyApiTracks": [
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 2
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "video",
+          "index": 3
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "audio",
+          "index": 1
+        },
+        {
+          "timelineId": "d0a4d58f-43aa-47c8-928a-6424b86d07ac",
+          "type": "audio",
+          "index": 2
+        }
+      ],
+      "bindingMethod": "explicit-native-item-parentage",
+      "challengeNonce": null
+    }
+  },
+  "nativeTrackIdsRetainedAcrossNameChallenge": true,
+  "emptyTrackChallengeBindings": 4,
+  "stableTrackIdentityProven": false,
+  "indexShiftPersistenceProven": false,
+  "deleteRecreateNegativeControlProven": false,
+  "safeToApply": false,
+  "ordinaryApplySupported": false,
+  "fullNativePreservationProven": false,
+  "observedOn": "2026-11-20",
+  "newLiveEditorRun": true,
+  "scope": "Fresh50-picture-item disposable fixture; five duplicate-name tracks including four empty tracks; supported name/save/close/reopen/restoration only",
+  "compression": "gzip",
+  "resultFile": "phase-0/native-track-challenge-live-result.json.gz",
+  "compressedSha256": "32d8df2d213449c4f91875b93ee851019fa73483ce84b335905ebf16a54428ab",
+  "resultBytes": 366910,
+  "sourceHashes": {
+    "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+    "phase-0/resolve-native-track-challenge.lua": "d98cf614b51110b891386b8c27554a4d55687abb2184c9748b13fd42a9a4b2b4",
+    "phase-0/prepare-native-track-challenge.js": "6a5cf1fb8bb815c2693dbd3e6db57078088fc73aefe7d0a2a6555faf98c3019c",
+    "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+    "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+    "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27"
+  },
+  "apiNativeBindingsUse": "Controlled transient same-nonce names establish API-location to native-UUID binding. Durable comparisons use UUIDs, never names or ordinals as identity.",
+  "privateNativeBackupsRetained": true,
+  "privatePreparedSourceRetained": true,
+  "installedTestScriptRemoved": true,
+  "limitations": [
+    "Native graph format is undocumented; parser only reads explicit IDs and relations.",
+    "All represented item properties/effect metadata/track states restored; full native semantic preservation remains unproven.",
+    "No native archive bytes are patched.",
+    "This record does not close index-shift, delete/recreate, cross-device or broad identity/apply gates."
+  ],
+  "installedSourceVerifiedBeforeRemoval": true,
+  "durablePrivateProof": "phase-0/private-integration-proof/track-identity",
+  "durablePrivateReceiptSha256": "2d24b1e1071ed21d2699ec66c3f07c98990d9d658ff931d8c103310c46360aff",
+  "privateCopiesAreReplayAuthority": false
+}

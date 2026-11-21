@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "readOnly": false,
+  "safeToApply": false,
+  "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+  "projectName": "Frameline Integration Gate Fixture 20261120",
+  "itemCount": 50,
+  "failedAttempts": [
+    {
+      "label": "initial",
+      "file": "phase-0/item-state-evidence/initial-failure.json",
+      "sha256": "4da20e0758945d49287a58373278289e2cc7ccbf2743ba79bf7ea04eedbd9867",
+      "result": {
+        "errorCode": "state-changed",
+        "operation": "resolve-item-state-menu-failure",
+        "readOnly": true,
+        "requestId": "49e99ea88de839ff5985c73d757be801",
+        "safeToApply": false,
+        "schemaVersion": 1,
+        "stage": "capture"
+      },
+      "renderedSourceSha256": "fd98969fa894cd6b8c83e7456bce6788ac3b6c19e9868b78b88dabc9d9731396",
+      "sourceHashes": {
+        "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+        "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+        "src/companion/resolve-item-state.lua": "f87181430d3f6c393e2539db39aa3c812d037effb4344317b4b5dad32a768d57",
+        "phase-0/resolve-item-state-menu.lua": "63879e968ff64201194a121f95632374af1f6dc33adcb8dd4402cf2cac3d37d6"
+      },
+      "privatePreparedSourceRetained": true,
+      "sourceBindings": {
+        "src/companion/resolve-internal.lua": "src/companion/resolve-internal.lua",
+        "src/companion/resolve-effects.lua": "src/companion/resolve-effects.lua",
+        "src/companion/resolve-item-state.lua": "phase-0/item-state-history/initial-before-page-guard.lua",
+        "phase-0/resolve-item-state-menu.lua": "phase-0/item-state-history/initial-menu-template.lua"
+      }
+    },
+    {
+      "label": "page-aware",
+      "file": "phase-0/item-state-evidence/page-aware-failure.json",
+      "sha256": "198fd3c70895fa7ae267437eb830ea30d44fa2113d28f9864ba4c8828965888c",
+      "result": {
+        "errorCode": "item-state-diverged",
+        "operation": "resolve-item-state-menu-failure",
+        "readOnly": true,
+        "requestId": "724a33e57ab99dc6ee60f833b079ddbb",
+        "safeToApply": false,
+        "schemaVersion": 1,
+        "stage": "capture"
+      },
+      "renderedSourceSha256": "d84748b72ce6c6e0fc0f97dbdb649909c7925678058b0bb75e223e492d6f7a74",
+      "sourceHashes": {
+        "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+        "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+        "src/companion/resolve-item-state.lua": "346d53684759a694fb3193be49407e43768d00d2b3cc20906ac15f3fd6043132",
+        "phase-0/resolve-item-state-menu.lua": "ebd4172a835dce39a2b2c1fe81849cc4255ccfe6cb17ae07994cc001cac64a9a"
+      },
+      "privatePreparedSourceRetained": true,
+      "sourceBindings": {
+        "src/companion/resolve-internal.lua": "src/companion/resolve-internal.lua",
+        "src/companion/resolve-effects.lua": "src/companion/resolve-effects.lua",
+        "src/companion/resolve-item-state.lua": "phase-0/item-state-history/page-aware-before-order.lua",
+        "phase-0/resolve-item-state-menu.lua": "phase-0/resolve-item-state-menu.lua"
+      }
+    }
+  ],
+  "diagnostic": {
+    "file": "phase-0/item-state-evidence/divergent-diagnostic.json.gz",
+    "sha256": "676a1a6eefeb2f9dcb6a7ddb0e978331d81ec51c28e10304a1948e8a037c2626",
+    "compressedSha256": "fa7a2c2a3873235e5a37cc1574774e42ed71e7927819bb35efa3eb3868df9425",
+    "bytes": 289815,
+    "requestId": "65d630192b6b4e26749d4ccfd1e6c5a7",
+    "renderedSourceSha256": "a1652e6c738a9e1be4fa30482265d1081bdcef44f0543a33657fd7f79bfa4b0f",
+    "legacyItemStateSource": "phase-0/item-state-history/page-aware-before-order.lua",
+    "legacyItemStateSourceSha256": "346d53684759a694fb3193be49407e43768d00d2b3cc20906ac15f3fd6043132",
+    "itemStateDifferenceCount": 98,
+    "differencesByField": {
+      "outputBlanking": 49,
+      "usesTimelineOutputBlanking": 49
+    },
+    "snapshotChanges": [],
+    "capturePageChange": null,
+    "activeTimelineChange": null,
+    "stableObservationAccepted": false
+  },
+  "orderedBaseline": {
+    "file": "phase-0/item-state-evidence/ordered-baseline.json.gz",
+    "sha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+    "compressedSha256": "eb63b489ee2993416f225f04292d0e2437e8c5e372570bd9c37bb9ae1f5f4df9",
+    "bytes": 44372,
+    "requestId": "6d00cb7c51159fa69edba14995103ecc",
+    "renderedSourceSha256": "14162204fb07b77ea0ab8e7cf36dea4c600af7eac730edeec0de4fefe56d9fdf",
+    "sourceHashes": {
+      "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+      "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+      "src/companion/resolve-item-state.lua": "aac0fffc28f026f7dd665cd73d9da4a4d61e6e319e4a4375055bfe3a20dfca1e",
+      "phase-0/resolve-item-state-menu.lua": "ebd4172a835dce39a2b2c1fe81849cc4255ccfe6cb17ae07994cc001cac64a9a"
+    },
+    "completionMarkerSha256": "2de2071f0d3c6c346238c469fd70be2a578eff305d45d208b5d3c99dcd25f2c0",
+    "coverage": {
+      "itemCount": 50,
+      "reads": {
+        "clipEnabled": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "speed": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "Percentage": 50,
+            "PitchCorrection": 0,
+            "StretchKeyframesToFit": 0,
+            "RippleTimeline": 0
+          }
+        },
+        "fades": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "FadeIn": 50,
+            "FadeOut": 50
+          }
+        },
+        "outputBlanking": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "Top": 0,
+            "Bottom": 0,
+            "Left": 0,
+            "Right": 0
+          }
+        },
+        "usesTimelineOutputBlanking": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "fusionCompCount": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "firstColorLayerNodeCount": {
+          "captured": 50,
+          "unavailable": 0
+        }
+      },
+      "completeEditorStateObserved": false,
+      "colorGraphScope": "first-layer-count-only",
+      "capturePage": "color",
+      "colorGraphReadPolicy": "color-page-only",
+      "readOrderPolicy": "color-graph-before-item-state"
+    },
+    "stableObservationAccepted": true
+  },
+  "richBaseline": {
+    "file": "phase-0/item-state-evidence/baseline-rich.json.gz",
+    "sha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "compressedSha256": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174",
+    "bytes": 91556
+  },
+  "readOrderPolicy": "color-graph-before-item-state",
+  "completeEditorStateObserved": false,
+  "losslessRoundTripProven": false,
+  "limits": [
+    "Read recipe/context dependency is observed; unavailable blanking values were not replaced by defaults.",
+    "The combined getter probe navigated the UI; exact individual attribution is not proven.",
+    "General effect parameters, nested contents, complete graph data and opaque native fields remain unobserved."
+  ],
+  "enabledProof": {
+    "schemaVersion": 1,
+    "experimental": true,
+    "safeToApply": false,
+    "ordinaryApplyEnabled": false,
+    "sourceGenerator": "phase-0/prepare-item-enabled-proof.js",
+    "sourceGeneratorSha256": "f70e5cc6835364eacfaad1c75475f7ab7caba182fdf339b0edad858b53a6e233",
+    "phases": [
+      {
+        "mode": "disable",
+        "status": "disabled",
+        "requestId": "24cbef67809b90d853b01db14633b910",
+        "targetItemId": "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+        "enabled": false,
+        "file": "phase-0/item-state-evidence/enabled-disable.json.gz",
+        "sha256": "90262c4db61c967c26cedfefeedd9bdc6b6b2008f4855910488d0f8b213a44e8",
+        "compressedSha256": "08b2cb272980513b290e11d5943df61bae8dacf30cef22c49b7916f1b9c5f3fa",
+        "bytes": 44373,
+        "resultFile": "phase-0/item-state-evidence/enabled-disable-result.json",
+        "resultSha256": "8d99f67a5c5e1e6d4b7a0b0ecba6020d7a3b322c36e0e72fb74471488471b451",
+        "richObservationSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+        "renderedSourceSha256": "cd1c2a475b3e4aabb70ab1a75a563fffc79384f24c91031d105a8661295d7d85",
+        "sourceHashes": {
+          "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+          "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+          "src/companion/resolve-item-state.lua": "aac0fffc28f026f7dd665cd73d9da4a4d61e6e319e4a4375055bfe3a20dfca1e",
+          "phase-0/resolve-item-state-menu.lua": "ebd4172a835dce39a2b2c1fe81849cc4255ccfe6cb17ae07994cc001cac64a9a"
+        },
+        "beforeBackup": {
+          "schemaVersion": 1,
+          "sha256": "6d8c8f3df3a3b615a6e960c51d7dd421f190b8f5e56c43aaa97546dad330e2b3",
+          "size": 53578,
+          "mode": 384,
+          "timelineCount": 1,
+          "archiveVerified": true
+        },
+        "postStateBackup": {
+          "schemaVersion": 1,
+          "sha256": "0a8fffc23137b480c91631b0e2b55eccb8d920c1dc060a54419a8fc3e7cc167e",
+          "size": 53490,
+          "mode": 384,
+          "timelineCount": 1,
+          "archiveVerified": true
+        },
+        "sourceExtraSha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+        "sourceRichSha256": "4225b35c4a1fce6677a81bc7239345f40ba4de3d207b199ce4a0922a22618a35",
+        "startedMarkerSha256": "e5668daff2271c8ce5c746c090a0b3cf2d9b0fbabfd72f08d4f69344e88512af",
+        "completionMarkerSha256": "0477e68d6cafea844ea960d9c1f568d13915d9fbccf2ad788ae8fe7b4c557135",
+        "nativeBackupFilesRetainedPrivately": true,
+        "privatePreparedSourceRetained": true,
+        "installedScriptRemoved": true,
+        "richResult": {
+          "file": "phase-0/item-state-evidence/enabled-disable-rich.json.gz",
+          "sha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+          "compressedSha256": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174",
+          "bytes": 91556
+        }
+      },
+      {
+        "mode": "restore",
+        "status": "restored",
+        "requestId": "5bcfd42757c3138b631d87de5444c7bb",
+        "targetItemId": "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+        "enabled": true,
+        "file": "phase-0/item-state-evidence/enabled-restore.json.gz",
+        "sha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+        "compressedSha256": "eb63b489ee2993416f225f04292d0e2437e8c5e372570bd9c37bb9ae1f5f4df9",
+        "bytes": 44372,
+        "resultFile": "phase-0/item-state-evidence/enabled-restore-result.json",
+        "resultSha256": "6631a514f68d9a3df806b49f08798881de90b8c662ebe7a2527b516ba9bf6645",
+        "richObservationSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+        "renderedSourceSha256": "01c72265911b0fb4fba707f2ace174a57e9f92b61e12791001cd65accb3b1f67",
+        "sourceHashes": {
+          "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+          "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+          "src/companion/resolve-item-state.lua": "aac0fffc28f026f7dd665cd73d9da4a4d61e6e319e4a4375055bfe3a20dfca1e",
+          "phase-0/resolve-item-state-menu.lua": "ebd4172a835dce39a2b2c1fe81849cc4255ccfe6cb17ae07994cc001cac64a9a"
+        },
+        "beforeBackup": {
+          "schemaVersion": 1,
+          "sha256": "0a8fffc23137b480c91631b0e2b55eccb8d920c1dc060a54419a8fc3e7cc167e",
+          "size": 53490,
+          "mode": 384,
+          "timelineCount": 1,
+          "archiveVerified": true
+        },
+        "postStateBackup": {
+          "schemaVersion": 1,
+          "sha256": "095841d8cb845bee1c39490c67967438aacf1c58d25bac4fb70952bf80aa3700",
+          "size": 53492,
+          "mode": 384,
+          "timelineCount": 1,
+          "archiveVerified": true
+        },
+        "sourceExtraSha256": "90262c4db61c967c26cedfefeedd9bdc6b6b2008f4855910488d0f8b213a44e8",
+        "sourceRichSha256": "4225b35c4a1fce6677a81bc7239345f40ba4de3d207b199ce4a0922a22618a35",
+        "startedMarkerSha256": "33a551b4bf12969b0c19a648f16dfc4403869b2881923e81a15e858abdfdf1ad",
+        "completionMarkerSha256": "a5b7f1c6436a32570b9487a8149088b781b70f6066d7329fed3ea47f05ed68f2",
+        "nativeBackupFilesRetainedPrivately": true,
+        "privatePreparedSourceRetained": true,
+        "installedScriptRemoved": true,
+        "richResult": {
+          "file": "phase-0/item-state-evidence/enabled-restore-rich.json.gz",
+          "sha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+          "compressedSha256": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174",
+          "bytes": 91556
+        }
+      }
+    ],
+    "exactRepresentedRestorationVerified": true,
+    "generalLosslessPreservationProven": false,
+    "readOnly": false,
+    "nativeOperationCalls": {
+      "SetClipEnabled": 2,
+      "SaveProject": 2,
+      "CloseProject": 2,
+      "LoadProject": 2,
+      "ExportProject": 2
+    }
+  },
+  "scope": "Read-only capture/diagnosis followed by two controlled disposable clip-enabled write phases",
+  "readOnlyCaptureMutationApiCalls": 0,
+  "privateRetention": {
+    "directory": "phase-0/private-integration-proof/item-state",
+    "preparationDirectories": 6,
+    "retainedSourceAndEvidenceFiles": 54,
+    "nativeArchives": 4,
+    "luaSources": 9,
+    "manifest": "manifest.json",
+    "cleanupReceipt": "cleanup-receipt.json",
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "auditCopiesOnly": true,
+    "originalPreparationsUnchanged": true
+  },
+  "installedProbeScriptsRemoved": 6
+}

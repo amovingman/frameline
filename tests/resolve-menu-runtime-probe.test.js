@@ -1,4 +1,5 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -41,7 +42,7 @@ test('actual vendor Lua executes the menu probe without a project write and refu
       resolve={};function resolve:GetVersionString()return '21.1.2.10' end;function resolve:GetProjectManager()return manager end
       function resolve:Fusion()return fusion end;`;
     const suffix = `print('MOCK_RESULT:'..(files[${JSON.stringify(binding.resultPath)}] or 'absent'));print('MOCK_COMPLETE:'..(files[${JSON.stringify(binding.completePath)}] or 'absent'));`;
-    const run = script => spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), library], { input: script, encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    const run = script => runVendorLuaMock(script, {library: library, maxBuffer: 1024 * 1024});
     const successful = run(`${prefix}\n${source}\n${source}\n${suffix}`);
     assert.equal(successful.status, 0, successful.stderr);
     assert(successful.stdout.includes(`FRAMELINE_MENU_PROBE_OK_V1:${binding.probeId}`));

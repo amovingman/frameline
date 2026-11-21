@@ -1,0 +1,525 @@
+{
+  "schemaVersion": 1,
+  "readOnly": true,
+  "safeToApply": false,
+  "ordinaryApplyEnabled": false,
+  "releaseSupported": false,
+  "fullNativePreservationProven": false,
+  "historicalAuditSha256": "48834c7009cd8f1672bb9e7c7da6fc304511e93179dbd6ee3d1fcfb642d20e3d",
+  "performance": {
+    "schemaVersion": 1,
+    "gateId": "representative-scan-write-reopen",
+    "measurementEvidenceComplete": true,
+    "readOnly": true,
+    "safeToApply": false,
+    "fullPreservation": false,
+    "releaseSupported": false,
+    "scope": "Personal installed Resolve Free 21.1.2/build 21.1.20010; one 50-item disposable reviewed rename/save/reopen/rollback with existing larger scan evidence separate.",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "itemCount": 50,
+    "trackCount": 5,
+    "returnedPropertyValues": 1600,
+    "exactRepresentedRestoration": true,
+    "scan": {
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceBytes": 31876,
+      "pairs": 3,
+      "firstScan": {
+        "minimumMs": 27.348709000000014,
+        "maximumMs": 41.77125000000001
+      },
+      "cachedRescan": {
+        "minimumMs": 1.171625000000006,
+        "maximumMs": 1.5065830000000062
+      },
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "sourceUnchanged": true
+    },
+    "wallClock": {
+      "id": "lua-os-time",
+      "monotonic": false,
+      "reportedResolutionNs": 1000000000,
+      "status": "captured-coarse"
+    },
+    "backup": {
+      "cpuMicros": 730370,
+      "wallWindow": {
+        "lowerNs": 0,
+        "upperExclusiveNs": 2000000000,
+        "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+        "zeroTicksMeansBelowOneSecond": false
+      },
+      "nativeArchive": {
+        "archiveVerified": true,
+        "mode": 384,
+        "schemaVersion": 1,
+        "sha256": "c957154992c3dea267c590759ac273ae2f18c4a717bcc26fae58bf5522a31026",
+        "size": 53560,
+        "timelineCount": 1
+      }
+    },
+    "renameAndRollback": {
+      "cpuMicros": 2349874,
+      "wallWindow": {
+        "lowerNs": 2000000000,
+        "upperExclusiveNs": 4000000000,
+        "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+        "zeroTicksMeansBelowOneSecond": false
+      },
+      "callCount": 8,
+      "outcome": "rolled-back"
+    },
+    "sampledRss": {
+      "sampleCount": 84,
+      "elapsedMs": 8989.036625,
+      "firstKiB": 111552,
+      "lastKiB": 637712,
+      "maximumObservedKiB": 653008,
+      "truePeak": false
+    },
+    "sourceHashes": {
+      "phase-0/resolve-operation-clock-live-result.json": "2d1875a0271dd984861cb04a9e3d05853f68519f1d344e1239d4b3e5c5f6a141",
+      "phase-0/resolve-operation-backup-live-result.json": "d82994fcf03f52c7faf50b5f9366950075a52f57314bfa2b779c19dfa2cbe408",
+      "phase-0/resolve-operation-rename-live-result.json": "513550cf6c94c42190b06195fb37b076315c1d7ffc0acce255385c0306638907",
+      "phase-0/resolve-operation-backup-live-observation.json": "bca577ff8e3fe8cb63280c3842c2dd6c6cc17ebcd43935e672c7c94ac975181c",
+      "phase-0/resolve-operation-rename-live-observation.json": "fdedf3f1ad341930eb6899de3c3e86e08eebea80d020954aa20b0975439599e1",
+      "phase-0/resolve-timed-guarded-command.lua": "878b492db344b6f463ae9733d694b612ddb4c045412fd914ae187cd421c8fd6e",
+      "phase-0/resolve-operation-clock.lua": "20b01c6caabefd809acb588a9987abddcc64316fcc7d13c28c1b716c8c00e954",
+      "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+      "phase-0/evidence-sources/prepare-timed-guarded-command-observed-v1.js.txt": "9d5fe0031fe467d4fb2de941e0cc453c30699659b7fc5025cb858bb9a311c5f4",
+      "src/resolve-rename-trial.js": "85406da287486d9b03dabb332c571291a1397c4089aa54e0f64571e9705e15fe",
+      "phase-0/prepare-timed-guarded-command.js": "98025eb210d22053692b3500855250e6a7e3985cb1264d7c9456a49c0ea66c7c",
+      "phase-0/resolve-operation-clock-live-observation.json": "dcdfe8c4aebe36c05301d3ef92158bd670eda5e48e416e5cec6d2e3ea0ed98fc",
+      "phase-0/evidence-sources/prepare-operation-clock-probe-observed-v1.js.txt": "81e124e48163a9993bde30b308d3402ea15e58cd575cf9f4f0c830d194893cb9",
+      "phase-0/prepare-operation-clock-probe.js": "d411304fb1fc3fbd8285fcd0316515490d4e8c5f971c898665f45cf4a619405d",
+      "phase-0/resolve-operation-rename-portable-audit.json.gz": "7689dfbd453b6574121a8104c6305f2bf532b7ec57b2795d5dd1a1c047be38f7",
+      "phase-0/resolve-operation-baseline-observation.json.gz": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174",
+      "phase-0/resolve-operation-rename-rss.json": "b39de995870a15987c90f9a8c2600c9b57068371d61f85967ead9bc6bfdd4a03",
+      "phase-0/sample-resolve-rss.js": "74bdc2b215327539d49ccb856bde6945ee894e63d5e25a451cb1f68e9db53843",
+      "phase-0/resolve-operation-scan-live-observation.json": "3fe73a29923b3ce4c2e067e937d68bb00ccd9e3b8d3df1a844d8bba2f5b83416",
+      "phase-0/resolve-operation-fixture-init-live-result.json": "a62557057a12e79e156a984b8812ea471c1f484b2f43bbdc2c17469c116a3183",
+      "phase-0/evidence-sources/gate-lab-session-observed-v1.js.txt": "596b959ac2435391f8dce68e4541f4de69fc891fd694cb2ee43d299bfc38e0e5",
+      "phase-0/gate-lab-session.js": "b830b8d00c116f5c69af3a4a597113fb541fe70a9af1353c8e6a9bafa76d6e89",
+      "phase-0/resolve-operation-fixture-input.fcpxml.gz": "8ea376d0a549bb72aae931afd15b980b908fb332345f9154784629907fa61e35",
+      "phase-0/resolve-operation-fixture-export.fcpxml.gz": "2ee61ee2c635da7ac0e61d108f46d86fa9fc83282844e640f6ccc1237335c5e3",
+      "src/fcpxml-scan-controller.js": "f1950bba5109e4b26183ebaf785c30a32aceaccc0404f2f9e597c8e7a1be71c7",
+      "src/fcpxml-scan-worker.js": "bc86f75683d10ec1f0dedbf262913333023e6d7464fff4f442bc0c74544c4826",
+      "src/fcpxml-scan-core.js": "e14c22e6dd7b2dafa2fcf7fcf4f1d26505bda68eb9a60d153ea99f14eac823b8",
+      "phase-0/profile-gate-fixture-scan.js": "90925f914b8e98acafbd19ed784071a18c2d766bb83f39e0881cd3ffaad19f24"
+    },
+    "limitations": [
+      "Wall windows are one-second quantization estimates conditional on no realtime-clock adjustment; no high-resolution native wall clock is claimed.",
+      "RSS is sampled process-wide over a window including setup/publication, not a true peak or per-call allocation.",
+      "Missing sequence-pattern media references remain missing; this is not media readiness.",
+      "Measurement proof does not prove complete enumeration, stable track/export identity, native semantic preservation, ordinary apply or release support."
+    ]
+  },
+  "nativeTrackIdentity": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "safeToApply": false,
+    "operation": "audit-native-track-name-proof",
+    "resultSha256": "15bcde8f20413bccfa0782c4e72300ed37f913313ec76568134cd06e439f3571",
+    "nativeGraphFactsSha256": "f75eb9fde263dcbe70870f07e9db155a51d9d224eaadc30e62ee8be55cd49bcd",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "itemCount": 50,
+    "nativeTrackCount": 5,
+    "controlledEmptyTrackBindings": 4,
+    "representedStateRestored": true,
+    "nativeTrackIdsRetainedAcrossNameSaveReopen": true,
+    "rawObservationProofRecomputed": true,
+    "publicNativeGraphConsistencyVerified": true,
+    "nativeGraphsRecomputedFromArchives": false,
+    "nativeArchiveSourcesPrivate": true,
+    "sourceHashes": {
+      "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+      "phase-0/resolve-native-track-challenge.lua": "d98cf614b51110b891386b8c27554a4d55687abb2184c9748b13fd42a9a4b2b4",
+      "phase-0/prepare-native-track-challenge.js": "6a5cf1fb8bb815c2693dbd3e6db57078088fc73aefe7d0a2a6555faf98c3019c",
+      "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+      "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+      "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27"
+    },
+    "stableTrackIdentityProven": false,
+    "indexShiftPersistenceProven": false,
+    "deleteRecreateNegativeControlProven": false,
+    "fullNativePreservationProven": false,
+    "ordinaryApplySupported": false,
+    "limitations": [
+      "Private native archive hashes and observed graph facts are pinned; their original archive bytes are not committed.",
+      "Public graph consistency is recomputed, not independently reconstructed from private native archives.",
+      "This proves only the named disposable name/save/reopen challenge; broader identity and write gates stay open."
+    ]
+  },
+  "nativeTrackTopology": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "safeToApply": false,
+    "operation": "audit-native-track-topology-proof",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "itemCount": 50,
+    "finalTrackCount": 5,
+    "stages": [
+      {
+        "operation": "append-empty-video",
+        "trackCount": 6,
+        "rawResultHashes": {
+          "topology": "ae19b3d8081f10449a1f5b026056dbd93fb268b3450fe5f6a063a67270940c4d",
+          "challenge": "f43b16262c6a295239bc2a8d50ba8f8848677594cbd1cac8fcd8e460f74e314b"
+        },
+        "nativeGraphFactsSha256": "74b11f2539ea8ceaf92c3b6a6c43217c04013ae8d46f78127c34591938db7422",
+        "addedNativeTrackIds": [
+          "9950ea6e-7c1c-4281-9c49-1beb75543769"
+        ],
+        "removedNativeTrackIds": [],
+        "retainedTracks": [
+          {
+            "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+            "type": "video",
+            "apiIndexBefore": 3,
+            "apiIndexAfter": 3,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+            "type": "video",
+            "apiIndexBefore": 1,
+            "apiIndexAfter": 1,
+            "itemCount": 50
+          },
+          {
+            "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+            "type": "audio",
+            "apiIndexBefore": 1,
+            "apiIndexAfter": 1,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+            "type": "audio",
+            "apiIndexBefore": 2,
+            "apiIndexAfter": 2,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "ebccb2e6-6309-4750-bf8c-7012db202f10",
+            "type": "video",
+            "apiIndexBefore": 2,
+            "apiIndexAfter": 2,
+            "itemCount": 0
+          }
+        ],
+        "observedNativeTrackIds": [
+          "5690d038-9896-4252-83e1-1aab62c25289",
+          "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+          "9950ea6e-7c1c-4281-9c49-1beb75543769",
+          "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+          "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+          "ebccb2e6-6309-4750-bf8c-7012db202f10"
+        ],
+        "retiredNativeTrackIds": [],
+        "indexShiftObservedByControlledBindings": false,
+        "deleteRecreateNegativeControlVerified": false,
+        "allFiftyPictureItemsPreserved": true,
+        "stableTrackIdentityProven": false,
+        "ordinaryApplySupported": false
+      },
+      {
+        "operation": "delete-empty-video-2",
+        "trackCount": 5,
+        "rawResultHashes": {
+          "topology": "2d01b514837a016638f0c949e9618f109fe6b2da9e8d5dc768dc0a348f9d3ae9",
+          "challenge": "abbd5ea82ea1803856399103d003c0a26091123e0589deb9c56c24057edddccb"
+        },
+        "nativeGraphFactsSha256": "9a15118857eb4c19791430a9a4f0271167bee0b435fec9a3080265cf7a229252",
+        "addedNativeTrackIds": [],
+        "removedNativeTrackIds": [
+          "ebccb2e6-6309-4750-bf8c-7012db202f10"
+        ],
+        "retainedTracks": [
+          {
+            "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+            "type": "video",
+            "apiIndexBefore": 3,
+            "apiIndexAfter": 2,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+            "type": "video",
+            "apiIndexBefore": 1,
+            "apiIndexAfter": 1,
+            "itemCount": 50
+          },
+          {
+            "nativeTrackId": "9950ea6e-7c1c-4281-9c49-1beb75543769",
+            "type": "video",
+            "apiIndexBefore": 4,
+            "apiIndexAfter": 3,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+            "type": "audio",
+            "apiIndexBefore": 1,
+            "apiIndexAfter": 1,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+            "type": "audio",
+            "apiIndexBefore": 2,
+            "apiIndexAfter": 2,
+            "itemCount": 0
+          }
+        ],
+        "observedNativeTrackIds": [
+          "5690d038-9896-4252-83e1-1aab62c25289",
+          "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+          "9950ea6e-7c1c-4281-9c49-1beb75543769",
+          "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+          "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+          "ebccb2e6-6309-4750-bf8c-7012db202f10"
+        ],
+        "retiredNativeTrackIds": [
+          "ebccb2e6-6309-4750-bf8c-7012db202f10"
+        ],
+        "indexShiftObservedByControlledBindings": true,
+        "deleteRecreateNegativeControlVerified": false,
+        "allFiftyPictureItemsPreserved": true,
+        "stableTrackIdentityProven": false,
+        "ordinaryApplySupported": false
+      },
+      {
+        "operation": "recreate-empty-video-3",
+        "trackCount": 5,
+        "rawResultHashes": {
+          "topology": "1ee8bc446f7d430636f7a63c96873076015242563276f3be0c7ade4164ecddc1",
+          "challenge": "d022b9d494a8b3129821a5fff7510af8079dca4a3884b1893809a9d2b83423db"
+        },
+        "nativeGraphFactsSha256": "32041663b216f260f5685984c0af7f504093e614711eb59a73adb125154a9c8e",
+        "addedNativeTrackIds": [
+          "d196e846-3ce4-4ece-af4a-98690db4ce0a"
+        ],
+        "removedNativeTrackIds": [
+          "9950ea6e-7c1c-4281-9c49-1beb75543769"
+        ],
+        "retainedTracks": [
+          {
+            "nativeTrackId": "5690d038-9896-4252-83e1-1aab62c25289",
+            "type": "video",
+            "apiIndexBefore": 2,
+            "apiIndexAfter": 2,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+            "type": "video",
+            "apiIndexBefore": 1,
+            "apiIndexAfter": 1,
+            "itemCount": 50
+          },
+          {
+            "nativeTrackId": "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+            "type": "audio",
+            "apiIndexBefore": 1,
+            "apiIndexAfter": 1,
+            "itemCount": 0
+          },
+          {
+            "nativeTrackId": "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+            "type": "audio",
+            "apiIndexBefore": 2,
+            "apiIndexAfter": 2,
+            "itemCount": 0
+          }
+        ],
+        "observedNativeTrackIds": [
+          "5690d038-9896-4252-83e1-1aab62c25289",
+          "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+          "9950ea6e-7c1c-4281-9c49-1beb75543769",
+          "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+          "bca61e3f-7ad5-4206-810e-ae0b86f79e9f",
+          "d196e846-3ce4-4ece-af4a-98690db4ce0a",
+          "ebccb2e6-6309-4750-bf8c-7012db202f10"
+        ],
+        "retiredNativeTrackIds": [
+          "9950ea6e-7c1c-4281-9c49-1beb75543769",
+          "ebccb2e6-6309-4750-bf8c-7012db202f10"
+        ],
+        "indexShiftObservedByControlledBindings": false,
+        "deleteRecreateNegativeControlVerified": true,
+        "allFiftyPictureItemsPreserved": true,
+        "stableTrackIdentityProven": false,
+        "ordinaryApplySupported": false
+      }
+    ],
+    "retainedOriginalNativeTrackIds": [
+      "5690d038-9896-4252-83e1-1aab62c25289",
+      "992e9b3a-9bab-4ea0-9b1a-3dd7c46114d7",
+      "b340ccc1-172d-48d1-a0b6-30dbbf1d8c1a",
+      "bca61e3f-7ad5-4206-810e-ae0b86f79e9f"
+    ],
+    "newFinalNativeTrackIds": [
+      "d196e846-3ce4-4ece-af4a-98690db4ce0a"
+    ],
+    "retiredNativeTrackIds": [
+      "9950ea6e-7c1c-4281-9c49-1beb75543769",
+      "ebccb2e6-6309-4750-bf8c-7012db202f10"
+    ],
+    "controlledNameSaveReopenProofVerified": true,
+    "controlledApiUuidIndexShiftVerified": true,
+    "deleteRecreateNegativeControlVerified": true,
+    "noObservedUuidReuse": true,
+    "representedFinalObservationMatchesInitial": true,
+    "finalDuplicateNameLayoutRestored": true,
+    "allFiftyPictureItemsPreserved": true,
+    "publicNativeGraphDeltaConsistencyVerified": true,
+    "nativeGraphsReconstructedFromArchives": false,
+    "nativeArchiveSourcesPrivate": true,
+    "stableTrackIdentityProven": false,
+    "fullNativePreservationProven": false,
+    "ordinaryApplySupported": false,
+    "limitations": [
+      "These are controlled proofs on one backed-up synthetic project and the exact installed build.",
+      "Raw API observations and pinned public native graph facts are recomputed; private native archives are retained separately.",
+      "UUIDs, not duplicate labels or native ordinals, identify retained and retired tracks.",
+      "Broader editor/native semantics, cross-device identity and ordinary apply remain unproven."
+    ]
+  },
+  "additionalItemState": {
+    "schemaVersion": 1,
+    "readOnly": true,
+    "safeToApply": false,
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "failedCaptureCount": 2,
+    "diagnosticAcceptedAsStable": false,
+    "diagnosticChanges": 98,
+    "diagnosticChangesByField": {
+      "outputBlanking": 49,
+      "usesTimelineOutputBlanking": 49
+    },
+    "richBeforeAfterMatchesBaseline": true,
+    "orderedCaptureAccepted": true,
+    "orderedSourceSha256": "1d051df28bb9b2260e24c48847710ea07958ef5c74a9b54b28736d7554f0772f",
+    "coverage": {
+      "itemCount": 50,
+      "reads": {
+        "clipEnabled": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "speed": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "Percentage": 50,
+            "PitchCorrection": 0,
+            "StretchKeyframesToFit": 0,
+            "RippleTimeline": 0
+          }
+        },
+        "fades": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "FadeIn": 50,
+            "FadeOut": 50
+          }
+        },
+        "outputBlanking": {
+          "captured": 50,
+          "unavailable": 0,
+          "returnedKeys": {
+            "Top": 0,
+            "Bottom": 0,
+            "Left": 0,
+            "Right": 0
+          }
+        },
+        "usesTimelineOutputBlanking": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "fusionCompCount": {
+          "captured": 50,
+          "unavailable": 0
+        },
+        "firstColorLayerNodeCount": {
+          "captured": 50,
+          "unavailable": 0
+        }
+      },
+      "completeEditorStateObserved": false,
+      "colorGraphScope": "first-layer-count-only",
+      "capturePage": "color",
+      "colorGraphReadPolicy": "color-page-only",
+      "readOrderPolicy": "color-graph-before-item-state"
+    },
+    "enabledProof": {
+      "schemaVersion": 1,
+      "readOnly": false,
+      "experimental": true,
+      "safeToApply": false,
+      "targetItemId": "ccb4c9a5-2189-4b81-82c9-bf099c49eec1",
+      "disabledDifferenceCount": 1,
+      "disabledField": "clipEnabled",
+      "snapshotDifferenceCount": 0,
+      "richOutcomesMatchBaseline": true,
+      "exactRepresentedBytesRestored": true,
+      "freshRestoreBackupMatchesDisabledExport": true,
+      "privateNativeArchiveReceiptsRetained": true,
+      "generalLosslessPreservationProven": false,
+      "ordinaryApplyEnabled": false
+    },
+    "completeEditorStateObserved": false,
+    "losslessRoundTripProven": false,
+    "limitation": "This verifies an observed read recipe and typed field coverage, not opaque native preservation or ordinary apply."
+  },
+  "gates": [
+    {
+      "id": "complete-timeline-enumeration",
+      "status": "blocked",
+      "evidence": "Mixed API capture: 3 video, 49 audio, 1 transition items, 1 reciprocal linked pair. Supplements observe 1 effect type ID and 43 returned item property keys plus track enabled/locked state; effect parameters, persistent effect identity, nested content, and complete XML coverage remain unresolved."
+    },
+    {
+      "id": "release-version-corpus",
+      "status": "not-required",
+      "evidence": "Public distribution is outside personal-project scope. The installed Free 21.1.2 build has local fixtures; broader release support is not claimed."
+    },
+    {
+      "id": "stable-clip-and-track-identity",
+      "status": "blocked",
+      "evidence": "Controlled native name/save/reopen and topology challenges retain track UUIDs through index shifts and distinguish same-index recreation, including empty duplicate-name tracks. A general read-only API/export identity binding remains unproven.",
+      "evidenceSha256": "dca9a58ccacdabd06319186e26566282da70735a994c7cbd70a56841bb3e7a97"
+    },
+    {
+      "id": "representative-scan-write-reopen",
+      "status": "complete",
+      "evidence": "Source-bound same-fixture scans, native backup and reviewed rename/save/reopen/rollback timings, independently verified represented restoration, and sampled editor RSS.",
+      "scope": "Personal installed Resolve Free 21.1.2/build 21.1.20010; one 50-item disposable reviewed rename/save/reopen/rollback with existing larger scan evidence separate.",
+      "evidenceSha256": "52ed940c0371a83fea68d6ade0d61184d76d0fc4667fd6f0d0475d67640dd169"
+    },
+    {
+      "id": "lossless-editor-fields",
+      "status": "blocked",
+      "evidence": "Typed reads cover seven additional item-state families on 50 items and detect a saved/reopened enabled-state change invisible to the older rich capture, followed by exact restoration. Failed captures expose getter-context dependence. General write guards and complete native field coverage remain unproven.",
+      "evidenceSha256": "f9dabb5e24d644c2846fbb860653547626a2a4e4e83d56ef024d55cfdb0089cc"
+    }
+  ],
+  "newlyCompletedGateIds": [
+    "representative-scan-write-reopen"
+  ],
+  "limitations": [
+    "Only the personal-scope measurement gate is completed by this report.",
+    "The historical editor-choice decision remains intact; enumeration, stable identity and native preservation still block ordinary writes.",
+    "Wall windows are one-second quantization estimates conditional on no realtime-clock adjustment; no high-resolution native wall clock is claimed.",
+    "RSS is sampled process-wide over a window including setup/publication, not a true peak or per-call allocation.",
+    "Missing sequence-pattern media references remain missing; this is not media readiness.",
+    "Measurement proof does not prove complete enumeration, stable track/export identity, native semantic preservation, ordinary apply or release support."
+  ]
+}

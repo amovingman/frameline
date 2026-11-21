@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "newLiveEditorRun": true,
+  "experimental": true,
+  "safeToApply": false,
+  "resultFile": "phase-0/resolve-operation-rename-live-result.json",
+  "resultSha256": "513550cf6c94c42190b06195fb37b076315c1d7ffc0acce255385c0306638907",
+  "result": {
+    "calls": [
+      {
+        "cpuMicros": 5750,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 1,
+        "method": "item.SetName",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 0,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 204971,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 2,
+        "method": "manager.SaveProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 0,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 176571,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 3,
+        "method": "manager.CloseProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 1000000000,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 431302,
+        "cpuStatus": "captured",
+        "firstReturnType": "userdata",
+        "index": 4,
+        "method": "manager.LoadProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 1000000000,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 936,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 5,
+        "method": "item.SetName",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 0,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 123340,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 6,
+        "method": "manager.SaveProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 0,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 110343,
+        "cpuStatus": "captured",
+        "firstReturnBoolean": true,
+        "firstReturnType": "boolean",
+        "index": 7,
+        "method": "manager.CloseProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 0,
+        "wallStatus": "captured"
+      },
+      {
+        "cpuMicros": 390644,
+        "cpuStatus": "captured",
+        "firstReturnType": "userdata",
+        "index": 8,
+        "method": "manager.LoadProject",
+        "returnCount": 1,
+        "returnedNormally": true,
+        "wallNs": 1000000000,
+        "wallStatus": "captured"
+      }
+    ],
+    "commandReturnedNormally": true,
+    "commandSha256": "b50c2c19ad0a8a6069d0121083a4b73912a023caf5bdd47bb07280047c4992e1",
+    "experimental": true,
+    "failureCode": "none",
+    "operation": "resolve-timed-guarded-command",
+    "probeId": "8a21be8075173501f36e1e5950b36fe9",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "projectName": "Frameline Integration Gate Fixture 20261120",
+    "representedItemCount": 50,
+    "safeToApply": false,
+    "schemaVersion": 1,
+    "stage": "issued",
+    "total": {
+      "cpuMicros": 2349874,
+      "cpuStatus": "captured",
+      "returnedNormally": true,
+      "wallNs": 3000000000,
+      "wallStatus": "captured"
+    },
+    "transactionId": "30290ba16229ba1e306769620cc6a46a",
+    "wallClock": {
+      "id": "lua-os-time",
+      "monotonic": false,
+      "reportedResolutionNs": 1000000000,
+      "status": "captured-coarse"
+    },
+    "resultSha256": "513550cf6c94c42190b06195fb37b076315c1d7ffc0acce255385c0306638907",
+    "completionMarkerVerified": true,
+    "coarseWallWindows": {
+      "total": {
+        "lowerNs": 2000000000,
+        "upperExclusiveNs": 4000000000,
+        "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+        "zeroTicksMeansBelowOneSecond": false
+      },
+      "calls": [
+        {
+          "index": 1,
+          "method": "item.SetName",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 1000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": true
+          }
+        },
+        {
+          "index": 2,
+          "method": "manager.SaveProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 1000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": true
+          }
+        },
+        {
+          "index": 3,
+          "method": "manager.CloseProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 2000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": false
+          }
+        },
+        {
+          "index": 4,
+          "method": "manager.LoadProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 2000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": false
+          }
+        },
+        {
+          "index": 5,
+          "method": "item.SetName",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 1000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": true
+          }
+        },
+        {
+          "index": 6,
+          "method": "manager.SaveProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 1000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": true
+          }
+        },
+        {
+          "index": 7,
+          "method": "manager.CloseProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 1000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": true
+          }
+        },
+        {
+          "index": 8,
+          "method": "manager.LoadProject",
+          "window": {
+            "lowerNs": 0,
+            "upperExclusiveNs": 2000000000,
+            "assumption": "No realtime-clock adjustment during the measured call; one-second timestamp quantization only.",
+            "zeroTicksMeansBelowOneSecond": false
+          }
+        }
+      ]
+    },
+    "limitations": [
+      "Timing never replaces independent guarded-trial outcome and native-backup validation.",
+      "Total includes source guards and observation captures; per-method samples include callback instrumentation around the underlying calls.",
+      "Process CPU may include other active editor threads; reported clock resolution is not an accuracy guarantee.",
+      "Coarse os.time windows assume no realtime-clock adjustment and describe quantization, not precise latency."
+    ]
+  },
+  "sourceSha256": "9064419fa7d94615039e6b71fc6b1fd697ab4dea61afe415b10da697fe4381f0",
+  "templateSource": "phase-0/resolve-timed-guarded-command.lua",
+  "templateSha256": "878b492db344b6f463ae9733d694b612ddb4c045412fd914ae187cd421c8fd6e",
+  "clockSource": "phase-0/resolve-operation-clock.lua",
+  "clockSourceSha256": "20b01c6caabefd809acb588a9987abddcc64316fcc7d13c28c1b716c8c00e954",
+  "baseSource": "src/companion/resolve-internal.lua",
+  "baseSourceSha256": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+  "hostReaderSource": "phase-0/evidence-sources/prepare-timed-guarded-command-observed-v1.js.txt",
+  "hostReaderSourceSha256": "9d5fe0031fe467d4fb2de941e0cc453c30699659b7fc5025cb858bb9a311c5f4",
+  "guardedCommandGenerator": "src/resolve-rename-trial.js",
+  "guardedCommandGeneratorSha256": "85406da287486d9b03dabb332c571291a1397c4089aa54e0f64571e9705e15fe",
+  "emittedFileSha256": "65ee7ab4c18360db8eb2171079d35c2ad2fc603b34f48c97e19111da9f820a7a",
+  "planSha256": "ddda2ffe11f8520c692cbb75b3b75d65acc973b2afce8b534d1820ea5f3e8a8a",
+  "commandSha256": "b50c2c19ad0a8a6069d0121083a4b73912a023caf5bdd47bb07280047c4992e1",
+  "existingGuardedCommandEmbeddedUnchanged": true,
+  "independentTrial": {
+    "status": "rolled-back",
+    "mode": "forced-rollback",
+    "transactionId": "30290ba16229ba1e306769620cc6a46a",
+    "resultTransport": "retained-file",
+    "validation": "observed-fields-only",
+    "sourceSha256": "5b8d1fa68c403a5463da9f72e49dd15564e095e874fa624d06003e68bec97143",
+    "incomingSha256": "eb17c8dbe0e59f868db9b441cf79e0b499b3eb883cb86d618b188f23d96bd662",
+    "resultingSnapshotSha256": "7c85319d315dbb5a948225f9b79b05670f8c5aff7b6c5b0a2f667fc0f352080a",
+    "effectObservation": {
+      "resultingSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+      "sourceSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+      "validation": "observed-effect-metadata-only"
+    },
+    "backup": {
+      "archiveVerified": true,
+      "mode": 384,
+      "schemaVersion": 1,
+      "sha256": "c957154992c3dea267c590759ac273ae2f18c4a717bcc26fae58bf5522a31026",
+      "size": 53560,
+      "timelineCount": 1
+    },
+    "review": {
+      "auditHash": "544a1df7f4c21d57f542849206a524e9a51198e375f7cb972d9ca0d7016a8479",
+      "choices": [],
+      "planHash": "3a56440582b606cc55608133382df2a6e7f6f3ce027a098f5c7c41e67b5d967e",
+      "sourceBindings": {
+        "hashes": {
+          "base": "5b8d1fa68c403a5463da9f72e49dd15564e095e874fa624d06003e68bec97143",
+          "incoming": "eb17c8dbe0e59f868db9b441cf79e0b499b3eb883cb86d618b188f23d96bd662",
+          "local": "5b8d1fa68c403a5463da9f72e49dd15564e095e874fa624d06003e68bec97143"
+        },
+        "readOnly": true,
+        "safeToApply": false,
+        "schemaVersion": 1
+      }
+    },
+    "privateOutcomeRecordSha256": "b26a0ddd1ce35d4529482951b60e50235479bb57b4fcf98471d1dae8706bd8db"
+  },
+  "portableAudit": {
+    "file": "phase-0/resolve-operation-rename-portable-audit.json.gz",
+    "rawSha256": "032e6d020caac7555efa3ad149d43eaadbf6f85ec35a10da5bc7b06f3969ddd2",
+    "compressedSha256": "7689dfbd453b6574121a8104c6305f2bf532b7ec57b2795d5dd1a1c047be38f7"
+  },
+  "baselineObservation": {
+    "file": "phase-0/resolve-operation-baseline-observation.json.gz",
+    "rawSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "compressedSha256": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174"
+  },
+  "representedRestoration": {
+    "exactRichBytesMatch": true,
+    "sourceSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "resultSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "itemCount": 50,
+    "trackCount": 5,
+    "propertyValueCount": 1600,
+    "returnedPropertyKeyUnion": 32,
+    "completeNativePreservationProven": false
+  },
+  "resources": {
+    "file": "phase-0/resolve-operation-rename-rss.json",
+    "sha256": "b39de995870a15987c90f9a8c2600c9b57068371d61f85967ead9bc6bfdd4a03",
+    "metric": "BSD-ps-rss-KiB",
+    "status": "completion-marker-observed",
+    "sampleCount": 84,
+    "elapsedMs": 8989.036625,
+    "firstKiB": 111552,
+    "lastKiB": 637712,
+    "maximumObservedKiB": 653008,
+    "completionMarkerSha256": "8832278673d756e1abd37681ff5774b4f15d8747e8e62e0d25c948d387e1fc68",
+    "samplerSource": "phase-0/sample-resolve-rss.js",
+    "samplerSourceSha256": "74bdc2b215327539d49ccb856bde6945ee894e63d5e25a451cb1f68e9db53843",
+    "scope": "Process-wide sampled RSS window including setup and result handoff; not an operation allocation or true peak."
+  },
+  "completionMarkerVerified": true,
+  "installedScriptRemoved": true,
+  "privatePreparedFilesRetained": true,
+  "ordinaryApplyEnabled": false,
+  "limits": [
+    "Only this reviewed50-item name change and intentional rollback were measured.",
+    "Coarse wall windows assume no realtime-clock adjustment; process CPU may include other editor threads.",
+    "Represented properties, effect metadata and track states were restored, not all native fields.",
+    "Native backup remains private; archive integrity does not establish native semantic equivalence.",
+    "RSS samples are process-wide and the sampling window includes setup and result publication."
+  ],
+  "installedSourceVerifiedBeforeRemoval": true,
+  "hostReaderRole": "historical-reader-used-for-live-result",
+  "currentHostReaderSource": "phase-0/prepare-timed-guarded-command.js",
+  "currentHostReaderSourceSha256": "98025eb210d22053692b3500855250e6a7e3985cb1264d7c9456a49c0ea66c7c",
+  "currentReaderReverifiedHistoricalPrivateOutputs": true,
+  "renderedLuaUnchangedAfterReaderHardening": true,
+  "readerProvenanceNote": "The original host reader bytes are archived exactly. Later directory-binding and pre-chmod identity hardening changes only host readback; the executed Lua and raw native result bytes are unchanged. Existing macOS /var paths are accepted only through the exact canonical system-temp directory mapping."
+}

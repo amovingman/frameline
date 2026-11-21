@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-11-20",
+  "readOnly": true,
+  "safeToApply": false,
+  "newLiveEditorRun": true,
+  "operation": "native-menu-operation-clock-proof",
+  "resultFile": "phase-0/resolve-operation-clock-live-result.json",
+  "resultSha256": "2d1875a0271dd984861cb04a9e3d05853f68519f1d344e1239d4b3e5c5f6a141",
+  "result": {
+    "emptyCallSample": {
+      "cpuMicros": 18,
+      "cpuStatus": "captured",
+      "returnedNormally": true,
+      "wallNs": 0,
+      "wallStatus": "captured"
+    },
+    "operation": "resolve-operation-clock-probe",
+    "probeId": "073012d424433c30110b55dff5dd114b",
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "projectName": "Frameline Integration Gate Fixture 20261120",
+    "readOnly": true,
+    "resolveVersion": "21.1.2.10",
+    "safeToApply": false,
+    "schemaVersion": 1,
+    "wallClock": {
+      "id": "lua-os-time",
+      "monotonic": false,
+      "reportedResolutionNs": 1000000000,
+      "status": "captured-coarse"
+    }
+  },
+  "sourceSha256": "9d64641905d68417db9d00956a3699612fc31fa76756140c2cfde219775adf09",
+  "clockSource": "phase-0/resolve-operation-clock.lua",
+  "clockSourceSha256": "20b01c6caabefd809acb588a9987abddcc64316fcc7d13c28c1b716c8c00e954",
+  "baseSource": "src/companion/resolve-internal.lua",
+  "baseSourceSha256": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+  "hostReaderSource": "phase-0/evidence-sources/prepare-operation-clock-probe-observed-v1.js.txt",
+  "hostReaderSourceSha256": "81e124e48163a9993bde30b308d3402ea15e58cd575cf9f4f0c830d194893cb9",
+  "clockAbiReferences": {
+    "macOSSdkTimeSha256": "a3dceadf2c95133018af363187829ca072d85a93d69f9682a2e4fb993902f28d",
+    "macOSSdkTimespecSha256": "3314f260a6b3ce09c02df185ba2253577b2a268dac05d3cad55f76bb3e8019e8",
+    "macOSSdkArmTypesSha256": "4f0bde85f9a41cc7d30fff22ebd7e8f4eb206a55a926eda012a2e7481e3524fa"
+  },
+  "completionMarkerSha256": "abe63f1f93b8293fc00d8340c50bed27748be9ffdc6fe8719dacabefb0125469",
+  "completionMarkerVerified": true,
+  "installedScriptRemoved": true,
+  "privateFilesRetained": true,
+  "projectMutationCalls": 0,
+  "limitations": [
+    "The actual menu runtime used coarse os.time despite monotonic FFI working in the vendor-library mock.",
+    "Zero ticks do not mean zero elapsed time; no high-resolution wall measurement is claimed.",
+    "No editor operation was measured by this capability-only probe."
+  ],
+  "installedSourceVerifiedBeforeRemoval": true,
+  "hostReaderRole": "historical-reader-used-for-live-result",
+  "currentHostReaderSource": "phase-0/prepare-operation-clock-probe.js",
+  "currentHostReaderSourceSha256": "d411304fb1fc3fbd8285fcd0316515490d4e8c5f971c898665f45cf4a619405d",
+  "currentReaderReverifiedHistoricalPrivateOutputs": true,
+  "renderedLuaUnchangedAfterReaderHardening": true,
+  "readerProvenanceNote": "The original host reader bytes are archived exactly. Later directory-binding and pre-chmod identity hardening changes only host readback; the executed Lua and raw native result bytes are unchanged. Existing macOS /var paths are accepted only through the exact canonical system-temp directory mapping."
+}

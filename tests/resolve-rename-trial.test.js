@@ -1,4 +1,5 @@
 'use strict';
+const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -55,8 +56,7 @@ test('issued commands reject completed or partially recorded outcomes in a fresh
         ${filesystem ? "bmd={fileexists=function(filename) local f=io.open(filename,'rb');if not f then return false end;f:close();return true end};" : 'bmd=nil;'}
         local ok,err=pcall(function() ${issued.command} end);
         assert(not ok and tostring(err):find(${JSON.stringify(expected)},1,true),tostring(err));assert(calls==${calls});`;
-      return spawnSync('python3', [path.join(__dirname, '../phase-0/run-lua-observation-mock.py'), luaLibrary],
-        { input: script, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+      return runVendorLuaMock(script, {library: luaLibrary, maxBuffer: 4 * 1024 * 1024});
     }
     // This mock reads the actual transaction filesystem. Each invocation starts
     // a new Lua VM, with no process-local consumed table or open editor project.

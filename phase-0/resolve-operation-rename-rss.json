@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 1,
+  "readOnly": true,
+  "safeToApply": false,
+  "metric": "BSD-ps-rss-KiB",
+  "intervalMs": 100,
+  "elapsedMs": 8989.036625,
+  "status": "completion-marker-observed",
+  "samples": [
+    {
+      "elapsedMs": 0.001583000000000112,
+      "rssKiB": 111552
+    },
+    {
+      "elapsedMs": 106.57737500000002,
+      "rssKiB": 111456
+    },
+    {
+      "elapsedMs": 210.650083,
+      "rssKiB": 109792
+    },
+    {
+      "elapsedMs": 315.635333,
+      "rssKiB": 49392
+    },
+    {
+      "elapsedMs": 419.19841699999995,
+      "rssKiB": 49328
+    },
+    {
+      "elapsedMs": 522.549042,
+      "rssKiB": 51152
+    },
+    {
+      "elapsedMs": 627.3774999999999,
+      "rssKiB": 51200
+    },
+    {
+      "elapsedMs": 738.483333,
+      "rssKiB": 51216
+    },
+    {
+      "elapsedMs": 849.621,
+      "rssKiB": 51200
+    },
+    {
+      "elapsedMs": 960.4422079999999,
+      "rssKiB": 51520
+    },
+    {
+      "elapsedMs": 1069.959042,
+      "rssKiB": 51552
+    },
+    {
+      "elapsedMs": 1179.270667,
+      "rssKiB": 49952
+    },
+    {
+      "elapsedMs": 1282.711375,
+      "rssKiB": 49952
+    },
+    {
+      "elapsedMs": 1386.901333,
+      "rssKiB": 50272
+    },
+    {
+      "elapsedMs": 1496.330792,
+      "rssKiB": 50304
+    },
+    {
+      "elapsedMs": 1606.750083,
+      "rssKiB": 50240
+    },
+    {
+      "elapsedMs": 1726.354958,
+      "rssKiB": 50272
+    },
+    {
+      "elapsedMs": 1837.731583,
+      "rssKiB": 50976
+    },
+    {
+      "elapsedMs": 1948.075667,
+      "rssKiB": 50976
+    },
+    {
+      "elapsedMs": 2067.725292,
+      "rssKiB": 51008
+    },
+    {
+      "elapsedMs": 2178.713333,
+      "rssKiB": 51008
+    },
+    {
+      "elapsedMs": 2288.2759170000004,
+      "rssKiB": 51056
+    },
+    {
+      "elapsedMs": 2393.9660830000003,
+      "rssKiB": 51056
+    },
+    {
+      "elapsedMs": 2505.8805420000003,
+      "rssKiB": 51040
+    },
+    {
+      "elapsedMs": 2615.051542,
+      "rssKiB": 51040
+    },
+    {
+      "elapsedMs": 2725.3904580000003,
+      "rssKiB": 51040
+    },
+    {
+      "elapsedMs": 2836.781292,
+      "rssKiB": 51072
+    },
+    {
+      "elapsedMs": 2946.2588330000003,
+      "rssKiB": 51072
+    },
+    {
+      "elapsedMs": 3056.602542,
+      "rssKiB": 51088
+    },
+    {
+      "elapsedMs": 3164.6767080000004,
+      "rssKiB": 51088
+    },
+    {
+      "elapsedMs": 3275.6570420000003,
+      "rssKiB": 51088
+    },
+    {
+      "elapsedMs": 3395.4842080000003,
+      "rssKiB": 51120
+    },
+    {
+      "elapsedMs": 3506.1912920000004,
+      "rssKiB": 51120
+    },
+    {
+      "elapsedMs": 3619.227542,
+      "rssKiB": 51136
+    },
+    {
+      "elapsedMs": 3729.256042,
+      "rssKiB": 51184
+    },
+    {
+      "elapsedMs": 3840.0600000000004,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 3949.1345420000002,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4058.944125,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4169.547042,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4278.384333,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4394.25025,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4505.5478330000005,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4614.5385830000005,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4725.0195,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4836.019125,
+      "rssKiB": 49360
+    },
+    {
+      "elapsedMs": 4945.5025000000005,
+      "rssKiB": 49376
+    },
+    {
+      "elapsedMs": 5055.888542000001,
+      "rssKiB": 49392
+    },
+    {
+      "elapsedMs": 5166.0620420000005,
+      "rssKiB": 49392
+    },
+    {
+      "elapsedMs": 5278.848167,
+      "rssKiB": 83936
+    },
+    {
+      "elapsedMs": 5383.203042,
+      "rssKiB": 104176
+    },
+    {
+      "elapsedMs": 5486.06825,
+      "rssKiB": 147440
+    },
+    {
+      "elapsedMs": 5589.358042,
+      "rssKiB": 334448
+    },
+    {
+      "elapsedMs": 5696.54925,
+      "rssKiB": 413920
+    },
+    {
+      "elapsedMs": 5810.544375,
+      "rssKiB": 446128
+    },
+    {
+      "elapsedMs": 5913.833708,
+      "rssKiB": 458816
+    },
+    {
+      "elapsedMs": 6018.599792,
+      "rssKiB": 490480
+    },
+    {
+      "elapsedMs": 6129.249125,
+      "rssKiB": 541424
+    },
+    {
+      "elapsedMs": 6232.289042,
+      "rssKiB": 555296
+    },
+    {
+      "elapsedMs": 6337.193708,
+      "rssKiB": 571760
+    },
+    {
+      "elapsedMs": 6442.554083,
+      "rssKiB": 586576
+    },
+    {
+      "elapsedMs": 6549.665292000001,
+      "rssKiB": 590640
+    },
+    {
+      "elapsedMs": 6655.990292,
+      "rssKiB": 595568
+    },
+    {
+      "elapsedMs": 6759.029875,
+      "rssKiB": 590336
+    },
+    {
+      "elapsedMs": 6864.6855000000005,
+      "rssKiB": 594768
+    },
+    {
+      "elapsedMs": 6970.408958,
+      "rssKiB": 633040
+    },
+    {
+      "elapsedMs": 7081.233083,
+      "rssKiB": 629056
+    },
+    {
+      "elapsedMs": 7190.171042,
+      "rssKiB": 614336
+    },
+    {
+      "elapsedMs": 7291.810417000001,
+      "rssKiB": 605904
+    },
+    {
+      "elapsedMs": 7396.448708,
+      "rssKiB": 616448
+    },
+    {
+      "elapsedMs": 7501.318,
+      "rssKiB": 586592
+    },
+    {
+      "elapsedMs": 7605.143292000001,
+      "rssKiB": 604928
+    },
+    {
+      "elapsedMs": 7708.835542,
+      "rssKiB": 615920
+    },
+    {
+      "elapsedMs": 7812.770458,
+      "rssKiB": 604096
+    },
+    {
+      "elapsedMs": 7918.325958,
+      "rssKiB": 618048
+    },
+    {
+      "elapsedMs": 8025.579417,
+      "rssKiB": 624624
+    },
+    {
+      "elapsedMs": 8131.97475,
+      "rssKiB": 618000
+    },
+    {
+      "elapsedMs": 8243.591125,
+      "rssKiB": 602144
+    },
+    {
+      "elapsedMs": 8350.718083,
+      "rssKiB": 615200
+    },
+    {
+      "elapsedMs": 8458.450292,
+      "rssKiB": 646256
+    },
+    {
+      "elapsedMs": 8566.041208,
+      "rssKiB": 652816
+    },
+    {
+      "elapsedMs": 8672.829792,
+      "rssKiB": 653008
+    },
+    {
+      "elapsedMs": 8780.046875,
+      "rssKiB": 643920
+    },
+    {
+      "elapsedMs": 8883.266125,
+      "rssKiB": 644192
+    },
+    {
+      "elapsedMs": 8986.549083,
+      "rssKiB": 637712
+    }
+  ],
+  "firstKiB": 111552,
+  "lastKiB": 637712,
+  "maximumObservedKiB": 653008,
+  "limitations": [
+    "Sampled resident memory is not peak footprint or per-operation allocation.",
+    "The editor was already running; shared caches and other editor work can affect these process-wide samples.",
+    "Marker presence is only a sampling stop signal; the operation result must be independently verified."
+  ]
+}
