@@ -34,6 +34,8 @@ Development uses small, disposable synthetic fixtures. The [demo](DEMO.md) exerc
 
 **Service experiments.** The optional self-hosted HTTPS service includes account sessions, project roles, encrypted records, immutable history, compare-and-swap branch updates, and idempotent requests. Desktop controls provide sign-in, reviewed metadata push/fetch, comments, branch approvals, and explicit resumable media transfers with content verification. These workflows have disposable local HTTPS and desktop evidence. No managed cloud service is deployed, and service-derived review does not authorize native Apply. See [service setup](SERVICE_HOST.md), [desktop history sync](DESKTOP_SERVICE_SYNC.md), and [media transfers](DESKTOP_MEDIA_TRANSFERS.md).
 
+**Cloud revision backup.** A separate command-line tool uploads exported revision bundles to an owner-configured AWS S3 bucket, lists their content hashes, and downloads verified bundles to new local files. Inspection and an exact hash are required before upload. This small portfolio extension has a simulated demo and a real AWS SDK/local HTTPS test; a live AWS bucket has not been exercised. It excludes media, native databases, automatic sync, and automatic import. See [cloud backup](CLOUD_BACKUP.md).
+
 ## Evidence on Hand
 
 [The README](README.md) introduces the working paths and engineering choices. [The roadmap](ROADMAP.md) preserves the completed scoped implementation record; former public-release and expansion requirements are future ideas. [System design](SYSTEM_DESIGN.md) documents the architecture and its original goals. The current application lives in `src/`.

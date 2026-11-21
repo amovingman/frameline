@@ -82,7 +82,10 @@
     "audit:personal-compatibility": "node scripts/audit-personal-compatibility.cjs",
     "test:personal-hardening": "node --test --test-concurrency=4 tests/local-migration-drill.test.js tests/personal-performance.test.js tests/personal-compatibility*.test.js tests/operation-health.test.js tests/observability-desktop-evidence.test.js tests/observed-source-provenance.test.js tests/logger.test.js tests/desktop-diagnostics.test.js",
     "demo": "node scripts/portfolio-demo.cjs",
-    "test:demo": "node --test tests/portfolio-demo.test.js"
+    "test:demo": "node --test tests/portfolio-demo.test.js",
+    "cloud:backup": "node src/cloud-backup-cli.js",
+    "demo:cloud-backup": "node scripts/demo-cloud-backup.cjs",
+    "test:cloud-backup": "node --test tests/cloud-backup*.test.js"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",
@@ -94,6 +97,7 @@
     "electron@41.10.7": true
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1175.0",
     "fast-xml-parser": "^5.12.0"
   }
 }

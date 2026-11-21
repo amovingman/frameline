@@ -6,6 +6,8 @@ Frameline is a résumé portfolio project: a GitHub repository that shows how a 
 
 The completed prototype includes read-only FCPXML scanning, immutable local history and branches, three-way review, source-bound native checkpoints, verified backups, and recovery. It also contains self-hosted collaboration and media-transfer experiments. Those experiments remain available as engineering examples; running a hosted service is not part of the portfolio walkthrough.
 
+The owner also requested a small cloud extension: manual AWS S3 upload, listing, and verified download of exported revision bundles. It is a separate command-line tool with an account-free simulated demo. It excludes media transfer, automatic sync, native project backup, and automatic history import. Real use requires the owner's own bucket and AWS credentials; the default portfolio walkthrough still needs neither. See [cloud backup](CLOUD_BACKUP.md).
+
 The editor-backed evidence targets **DaVinci Resolve Free 21.1.2, build 21.1.20010, on macOS**. Native Apply is limited to one reviewed existing video clip Name in the supported closed local project profile. It requires the documented identity, backup, preservation, editor-validation, and recovery checks. General timeline merging, arbitrary native edits, and other editor versions are not supported. See [the compatibility guide](PERSONAL_COMPATIBILITY.md) and [safe Apply](SAFE_APPLY.md).
 
 The required implementation roadmap is complete within those boundaries. The portfolio presents that work through a concise [README](README.md), a [fixture demo](DEMO.md), clear [setup instructions](SETUP.md), and checks a reviewer can run from a fresh checkout. Existing limitations stay visible rather than becoming new feature commitments.

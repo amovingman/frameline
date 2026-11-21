@@ -106,3 +106,13 @@ Public proof receipts describe the native experiments. Their raw databases, priv
 | A native audit reports missing retained evidence | Read its public receipt and use the public tests; that audit cannot be reproduced from Git alone. |
 
 The optional self-hosted service has its own [setup guide](SERVICE_HOST.md). It is unnecessary for the local portfolio demo.
+
+## Optional S3 backups
+
+The [cloud backup guide](CLOUD_BACKUP.md) covers manual upload, listing, and verified download of exported revision bundles. It uses your AWS profile and a private bucket; no Frameline service is needed. Try the production backup code with simulated storage first:
+
+```sh
+npm run demo:cloud-backup
+```
+
+`npm run test:cloud-backup` also exercises the real AWS SDK against a local HTTPS protocol fixture. These tests need loopback networking, with no cloud account or credentials.

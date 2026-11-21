@@ -23,6 +23,7 @@ The demo runs the real scanner, revision store, and comparison code against synt
 - **Makes changes reviewable.** Compare sequence metadata and media inventories; use three-way review for captured Resolve fields and authenticated native checkpoints.
 - **Treats edits as recoverable transactions.** Bind review to exact source bytes, verify a backup, check the result in Resolve, and retain recovery state across restarts.
 - **Separates media from history.** Audit original and proxy references locally. The optional HTTPS service adds explicit, resumable media transfers with content verification and project permissions.
+- **Backs up revision bundles to S3.** Inspect, upload, list, and download metadata backups through a small command-line tool. Downloads are hash-verified and never replace an existing local file. [Cloud backup guide](CLOUD_BACKUP.md).
 
 ![Native checkpoint conflict review in Frameline](phase-0/native-pull-desktop/prepare-1440.png)
 
@@ -48,7 +49,13 @@ FCPXML **1.10** scanning covers the first sequence's top-level picture clips and
 
 Native editor checks target **DaVinci Resolve Free 21.1.2, build 21.1.20010, on macOS**. The proven Apply operation changes one existing video clip's Name in a verified, closed local project, with editor readback and restoration. It does not establish general timeline editing, lossless SDK Save, other editor versions, or cross-device identity. See [exact compatibility](PERSONAL_COMPATIBILITY.md) and [Safe Apply](SAFE_APPLY.md).
 
-The service runs locally or on a self-managed host; no public cloud deployment or signed installer is provided. Public launch work, more editors, real-time co-editing, and cloud rendering are outside the [portfolio scope](PROJECT_SCOPE.md).
+The service runs locally or on a self-managed host; no public Frameline service or signed installer is provided. Manual S3 backup is a separate optional tool, with a credential-free demo:
+
+```sh
+npm run demo:cloud-backup
+```
+
+That demo uses simulated storage with the production backup code. Connecting a real bucket uses your own AWS setup. Public launch work, more editors, real-time co-editing, and cloud rendering are outside the [portfolio scope](PROJECT_SCOPE.md).
 
 ## Run the checks
 

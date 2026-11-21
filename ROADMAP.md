@@ -1,6 +1,6 @@
 # Frameline product roadmap
 
-This roadmap records the work behind Frameline, a résumé portfolio project for versioning video-editing decisions. The required implementation checklist is complete at the documented prototype scope: **183 completed entries, with no required items left open**. These entries describe bounded capabilities and their evidence, not support for every editor or project format.
+This roadmap records the work behind Frameline, a résumé portfolio project for versioning video-editing decisions. The required implementation checklist is complete at the documented prototype scope: **184 completed entries, with no required items left open**. These entries describe bounded capabilities and their evidence, not support for every editor or project format.
 
 ## Current portfolio scope
 
@@ -288,6 +288,10 @@ The following completed items are scoped to one reviewed existing video clip Nam
 - [x] **Accessibility:** keyboard operation, visible focus, clear status text, and readable contrast. The whole-app audit covers 13 current workflow states, 781 actual accessibility-tree control checks, 296 retained-control names, and 2,070 computed text-contrast checks, plus trusted keyboard, focus, reduced-motion, status, and 360–1440px layout checks. Copy recovery adds distinct accessible reveal names and focused paging. The documented scope is Chromium accessibility-tree/native-keyboard testing, without a VoiceOver speech claim. See `ACCESSIBILITY_AUDIT.md`.
 - [x] **Observability — local owner workflow:** closed event/error catalogs prevent arbitrary strings and opaque credentials from entering logs. Reviewed diagnostics optionally include safe current workflow/recovery gauges and bounded session busy periods, with explicit consent, exact-byte export, stale-review refusal and restart reset. Pending native publication is distinct from verified completion; no telemetry or pilot collection is enabled. Two current shipped Electron processes and privacy/lifecycle tests pass. See [OBSERVABILITY.md](OBSERVABILITY.md).
 - [x] **Compatibility — declared personal target:** publish an operation-specific matrix for the exact installed Free build and FCPXML 1.10/native profiles, prerequisites, evidence and refusal boundaries. Current macOS 15.6.1/build 24G90/arm64 observation is separate from historical proofs that recorded only macOS; runtime gates are not misrepresented as patch-version gates. Recognition grants no execution or release authority, and public/cross-version release support remains deferred. See [PERSONAL_COMPATIBILITY.md](PERSONAL_COMPATIBILITY.md).
+
+## Portfolio extension — manual cloud backups
+
+- [x] Add explicit AWS S3 upload, paginated listing, and verified download of exported revision bundles through a command-line tool. Reviewed SHA-256 identities, conditional object creation, bounded validation, private new-file publication, and safe retry protect the supported path. A credential-free simulated demo and real AWS SDK/local HTTPS tests exercise the workflow; no live bucket was used. Media, native databases, automatic sync, and automatic import remain excluded. See [CLOUD_BACKUP.md](CLOUD_BACKUP.md).
 
 ## Future ideas outside the portfolio scope
 
