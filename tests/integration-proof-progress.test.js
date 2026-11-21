@@ -6,14 +6,15 @@ const path = require('node:path');
 const { auditIntegrationProgress } = require('../phase-0/integration-proof-progress');
 const { auditIntegrationGates } = require('../phase-0/integration-gates');
 
-test('current proof closes only verified personal measurements and retains the historical decision', () => {
+test('current proof closes verified personal measurements and finite identity while retaining the historical decision', () => {
   const report = auditIntegrationProgress();
   const { historical, ...summary } = report;
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(__dirname, '../phase-0/integration-proof-progress-observation.json'))), summary);
   assert.deepEqual(historical, auditIntegrationGates());
-  assert.deepEqual(report.newlyCompletedGateIds, ['representative-scan-write-reopen']);
+  assert.deepEqual(report.newlyCompletedGateIds, ['representative-scan-write-reopen', 'stable-clip-and-track-identity']);
   assert.equal(report.gates.find(gate => gate.id === 'representative-scan-write-reopen').status, 'complete');
-  for (const gate of report.historical.gates.filter(gate => gate.id !== 'representative-scan-write-reopen')) {
+  assert.equal(report.gates.find(gate => gate.id === 'stable-clip-and-track-identity').status, 'complete');
+  for (const gate of report.historical.gates.filter(gate => !report.newlyCompletedGateIds.includes(gate.id))) {
     assert.equal(report.gates.find(current => current.id === gate.id).status, gate.status);
   }
   for (const flag of ['safeToApply', 'ordinaryApplyEnabled', 'releaseSupported', 'fullNativePreservationProven']) assert.equal(report[flag], false);
@@ -37,4 +38,10 @@ test('current proof closes only verified personal measurements and retains the h
   assert.equal(report.nodeAnnotationProof.gradeParameterPreservationProven, false);
   assert.equal(report.nativeFieldControl.fullNativePreservationProven, false);
   assert.equal(report.identityAuthorityDecision.fcpxmlWriteAuthority, false);
+  assert.equal(report.blindIdentity.status, 'complete');
+  assert.equal(report.blindIdentity.stableClipIdentityProven, true);
+  assert.equal(report.blindIdentity.stableTrackIdentityProven, true);
+  assert.equal(report.blindIdentity.personalScopeEvidenceComplete, true);
+  assert.equal(report.blindIdentity.fullNativePreservationProven, false);
+  assert.equal(report.blindIdentity.ordinaryApplySupported, false);
 });

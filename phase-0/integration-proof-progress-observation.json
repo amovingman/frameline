@@ -494,9 +494,10 @@
     },
     {
       "id": "stable-clip-and-track-identity",
-      "status": "blocked",
-      "evidence": "A fresh challenge-free read-only capture/export interval rebinds all five tracks against 21 independently calibrated associations. It requires the unchanged calibrated identity graph; general empty-track binding remains unproven. API UUIDs locate experimental clip writes; FCPXML is read-only.",
-      "evidenceSha256": "d7d96200376a7fc6517069cb7aeb18b101ef8e0d054a3a468391b385ece44db8"
+      "status": "complete",
+      "scope": "Personal installed Resolve Free21.1.2/build21.1.20010 (API21.1.2.10), normal flat video and mono audio, source-verified saved/reopened checkpoints only.",
+      "evidence": "Three verified saved/reopened checkpoint predictions match 24 independent native name-challenge bindings, including duplicate-name empty video/audio tracks. All 52 clip UUIDs persist through a rename/move and save/reopen; native track UUIDs persist through index shifts, while same-slot recreation produces a fresh UUID. The exact-build flat video/mono-audio profile requires source-bound save/reopen provenance and complete independent API location witnesses; current unsaved binding is unproven and FCPXML remains read-only.",
+      "evidenceSha256": "dc7ef619d74fb8bf073cb1bf95f81349fd24afacb42fa8050c87df86a7d2385a"
     },
     {
       "id": "representative-scan-write-reopen",
@@ -885,17 +886,151 @@
   },
   "identityAuthorityDecision": {
     "file": "RESOLVE_IDENTITY_AUTHORITY.md",
-    "sha256": "4d270574a3d4e8e15e59f900053946756dc46a5d2021b31d565b3b43f7815306",
+    "sha256": "0a652ea325bace640f42445ba8107f64299a55f16219ea09897cdd151d7a155f",
     "clipWriteLocator": "live-api-project-timeline-item-uuid",
     "fcpxmlWriteAuthority": false,
     "ordinaryApplyEnabled": false
   },
+  "blindIdentity": {
+    "schemaVersion": 1,
+    "operation": "audit-native-blind-identity-evidence",
+    "readOnly": true,
+    "status": "complete",
+    "gateId": "stable-clip-and-track-identity",
+    "personalScopeEvidenceComplete": true,
+    "stableClipIdentityProven": true,
+    "stableTrackIdentityProven": true,
+    "profile": "resolve-free-21.1.2.10-video-audio-v1",
+    "scope": "Personal installed Resolve Free21.1.2/build21.1.20010 (API21.1.2.10), normal flat video and mono audio, source-verified saved/reopened checkpoints only.",
+    "projectId": "8c9fbf0d-cad5-4de8-ae9e-1950929fc213",
+    "savedCheckpointScopeOnly": true,
+    "currentUnsavedStateBindingProven": false,
+    "independentBlindCases": 3,
+    "independentTrackAssociations": 24,
+    "uniqueObservedNativeTrackIds": 10,
+    "itemsPerCase": [
+      52,
+      52,
+      52
+    ],
+    "apiLocationWitnessesPerCase": [
+      52,
+      52,
+      52
+    ],
+    "emptyTracksPerCase": [
+      5,
+      4,
+      4
+    ],
+    "actualFreeBuildVerifiedEveryCase": true,
+    "allPredictionsFrozenBeforeIndependentChallengeSourceVerified": true,
+    "clipPersistence": {
+      "schemaVersion": 1,
+      "operation": "native-api-identity-persistence-acceptance",
+      "readOnly": true,
+      "profile": "resolve-free-21.1.2.10-video-audio-v1",
+      "projectId": "8c9fbf0d-cad5-4de8-ae9e-1950929fc213",
+      "retainedClipCount": 52,
+      "renamedClipCount": 1,
+      "movedClipCount": 1,
+      "retainedTrackCount": 7,
+      "retainedTracksWithNewIndex": 2,
+      "removedEmptyTrackId": "e05a1f6c-1d62-4279-ad8c-1969c3df8303",
+      "recreatedEmptyTrackId": "5bf4ab0a-c83b-48b2-8384-daae61cbbac4",
+      "recreationUsesFreshIdentity": true,
+      "identityEqualsNameOrIndex": false,
+      "clipWriteLocator": "API-project-timeline-item-UUID",
+      "safeToApply": false,
+      "ordinaryApplySupported": false
+    },
+    "emptyTrackRecreation": {
+      "schemaVersion": 1,
+      "operation": "native-track-topology-stage-acceptance",
+      "stage": "replace-empty",
+      "readOnly": true,
+      "profile": "resolve-free-21.1.2.10-video-audio-v1",
+      "projectId": "8c9fbf0d-cad5-4de8-ae9e-1950929fc213",
+      "removedTrackId": "5bf4ab0a-c83b-48b2-8384-daae61cbbac4",
+      "addedTrackId": "cf90f94c-c8ce-4422-a44f-6d25830ad190",
+      "retainedTrackCount": 7,
+      "retainedTracksWithNewIndex": 0,
+      "clipIdentitySetUnchanged": true,
+      "allRetainedItemParentageUnchanged": true,
+      "safeToApply": false,
+      "ordinaryApplySupported": false
+    },
+    "abaFreshIdentity": {
+      "schemaVersion": 1,
+      "readOnly": true,
+      "projectId": "8c9fbf0d-cad5-4de8-ae9e-1950929fc213",
+      "recreatedNativeTrackId": "cf90f94c-c8ce-4422-a44f-6d25830ad190",
+      "allEarlierObservedTrackIdentityCount": 9,
+      "identityReusedFromEarlierCase": false,
+      "safeToApply": false
+    },
+    "interruptedOriginalStageRetained": true,
+    "interruptedOriginalStageCompletionProven": false,
+    "orderOnlyDiagnosticRecomputed": true,
+    "sourceBoundSaveReopenContinuationVerified": true,
+    "repeatedOriginalMutators": false,
+    "unsavedIntermediateExports": [
+      {
+        "stage": "before",
+        "archive": {
+          "sha256": "0ed93c4d44d2c9143bca09194e709634ee1e4d1e02620657e2d25383756713ee",
+          "size": 55668
+        },
+        "trackCount": 8,
+        "identityFactsMatchPriorSavedCheckpoint": true
+      },
+      {
+        "stage": "appended",
+        "archive": {
+          "sha256": "85bf97702b56d1d7d1db4b0907ff21e19ce03c4000656055053313f01bc07397",
+          "size": 55645
+        },
+        "trackCount": 8,
+        "identityFactsMatchPriorSavedCheckpoint": true
+      },
+      {
+        "stage": "deleted",
+        "archive": {
+          "sha256": "e573667bfd9379fd7b00d624bcb96a4de36164777e80d7eb24782c1577d8b70a",
+          "size": 55659
+        },
+        "trackCount": 8,
+        "identityFactsMatchPriorSavedCheckpoint": true
+      }
+    ],
+    "unsavedIntermediateExportsUsedForMutationProof": false,
+    "publicRawAndSourceHashesVerified": true,
+    "nativeGraphsReconstructedFromArchives": false,
+    "issuedNativeSourcesReconstructed": false,
+    "privateSourceSequencingEvidence": "Pinned generators/templates, raw successful main-path results, markers and host source-reconstruction receipts.",
+    "nativeArchivesRetainedPrivately": true,
+    "ordinaryApplySupported": false,
+    "safeToApply": false,
+    "fullNativePreservationProven": false,
+    "releaseSupported": false,
+    "limitations": [
+      "Identity is established for retained saved/reopened checkpoints. A later unsaved empty-track replacement can be invisible to API rich state and stale native exports.",
+      "Current vector indexes locate explicit native UUIDs within the tested exact-build profile; ordinals, names and media IDs are never persistent identities.",
+      "Native serialization is undocumented; unsupported profiles, versions, nested structures and missing location witnesses refuse.",
+      "Public checks recompute pinned parsed native facts and actual raw API results; private DRP/issued-program bytes are retained, not publicly reconstructed.",
+      "The interrupted source and before-save export disagreements remain evidence; no missing success result or intermediate live API capture is invented.",
+      "Stable IDs do not prove enumeration, opaque native preservation, atomic capture, power-loss durability or ordinary Apply."
+    ]
+  },
   "newlyCompletedGateIds": [
-    "representative-scan-write-reopen"
+    "representative-scan-write-reopen",
+    "stable-clip-and-track-identity"
   ],
   "limitations": [
-    "Only the personal-scope measurement gate is completed by this report.",
-    "The historical editor-choice decision remains intact; enumeration, stable identity and native preservation still block ordinary writes.",
+    "The measurement and finite identity gates are completed for their declared personal scopes.",
+    "The historical editor-choice decision remains intact; complete enumeration and native preservation still block ordinary writes.",
+    "Identity support is limited to the exact Free build and observed normal flat video/mono-audio structures; concurrent track writes and XML identity mapping remain unproven.",
+    "Unsaved exports can retain stale native UUIDs; the supported reader binds verified saved/reopened checkpoints only, not current unsaved editor state.",
     "Wall windows are one-second quantization estimates conditional on no realtime-clock adjustment; no high-resolution native wall clock is claimed.",
     "RSS is sampled process-wide over a window including setup/publication, not a true peak or per-call allocation.",
     "Missing sequence-pattern media references remain missing; this is not media readiness.",

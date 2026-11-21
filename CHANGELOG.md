@@ -2,6 +2,8 @@
 
 ## Unreleased — experimental local build
 
+- Completed the stable clip/track ID roadmap item for the exact installed Free build and normal flat video/mono-audio saved checkpoints. Three blind native challenges verify 24 bindings; all 52 clip UUIDs persist through rename/move/save/reopen, retained track UUIDs survive index shifts, and same-slot recreation yields a fresh ID. The [saved-only mapper](phase-0/RESOLVE_NATIVE_IDENTITY_PROFILE.md) requires source-bound checkpoint provenance because unsaved exports can retain stale IDs. Ordinary Apply, complete enumeration and native preservation remain blocked.
+
 - Continued the [integration proof](INTEGRATION_GATE_RESEARCH.md) with a challenge-free calibrated native/API join, explicit API UUID write authority, a separate seven-field guarded rename and backed rollback, color-node slot reads and a cosmetic same-count annotation control. Localized native opaque-field records retain read-only export differences without normalizing them away. General identity, complete enumeration, preservation and ordinary Apply remain unproven.
 
 - Completed the personal-scope [scan/write/reopen measurement gate](INTEGRATION_GATE_RESEARCH.md) with a verified 50-item native backup, guarded rename/save/reopen/rollback, exact represented restoration, same-fixture scan/cache runs and sampled Resolve RSS. A separate current audit preserves the historical integration decision. Native track-ID challenges and additional field captures narrow the remaining proof gaps; ordinary Apply remains disabled.

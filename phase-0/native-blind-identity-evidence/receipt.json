@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "operation": "native-blind-identity-completion-evidence",
+  "readOnly": false,
+  "auditIsReadOnly": true,
+  "profile": "resolve-free-21.1.2.10-video-audio-v1",
+  "projectId": "8c9fbf0d-cad5-4de8-ae9e-1950929fc213",
+  "caseLabels": [
+    "initial",
+    "changed",
+    "recreated"
+  ],
+  "files": {
+    "initialCapture": {
+      "file": "phase-0/native-blind-identity-evidence/initial-capture.json.gz",
+      "sha256": "a3c6f1066d5aeb85f8cddb0eb2488ba475ae2a0910868c61d956f4afafa0b6c6",
+      "bytes": 393750,
+      "compressedSha256": "f89a85db389f20a06122a3b6567d131e952cbce6b589829088c16ffcd61b887e"
+    },
+    "initialCaptureMarker": {
+      "file": "phase-0/native-blind-identity-evidence/initial-capture-marker.txt",
+      "sha256": "a79eb2e364dd36ae8ab7873ef4b57e0bf3dee272ad8134d3360ed3e79e312c1a",
+      "bytes": 67
+    },
+    "initialPrediction": {
+      "file": "phase-0/native-blind-identity-evidence/initial-prediction.json",
+      "sha256": "146e9a0b8efc35405942d583abe7f873f3097277a0d71deea3bc811300573a16",
+      "bytes": 5253
+    },
+    "initialChallenge": {
+      "file": "phase-0/native-blind-identity-evidence/initial-challenge.json.gz",
+      "sha256": "bf1e10a9bddc327ca36ac12adc36c1efe70f5755cba37a013fd6cd57044eff0e",
+      "bytes": 375537,
+      "compressedSha256": "f073e1d95cce9b7f72007ee7de2ba85735303a21ef2f13ab697298280ea76f22"
+    },
+    "initialChallengeMarker": {
+      "file": "phase-0/native-blind-identity-evidence/initial-challenge-marker.txt",
+      "sha256": "dd9bb33d39b624b49a85581cd4abe85c504510ce584f4e29e009e424ee7f4cc7",
+      "bytes": 78
+    },
+    "changedCapture": {
+      "file": "phase-0/native-blind-identity-evidence/changed-capture.json.gz",
+      "sha256": "bf1f5c90222e762fee6bec542e889ae2dfa139807a32f167e97df61c1f7219c9",
+      "bytes": 393822,
+      "compressedSha256": "2c23177fcb09089d24a525326f7fbc6105012555694727dfd44ad640d8f9e432"
+    },
+    "changedCaptureMarker": {
+      "file": "phase-0/native-blind-identity-evidence/changed-capture-marker.txt",
+      "sha256": "99f9529e02af8c28a068a75c110c53d39414c1dba65ed62167f81876b6559b56",
+      "bytes": 67
+    },
+    "changedPrediction": {
+      "file": "phase-0/native-blind-identity-evidence/changed-prediction.json",
+      "sha256": "f0734209b178e2f77e993e72ef6b8c8fe6c0a87e1eafb1f018985619b9b188e0",
+      "bytes": 5251
+    },
+    "changedChallenge": {
+      "file": "phase-0/native-blind-identity-evidence/changed-challenge.json.gz",
+      "sha256": "48b1a16ef55c54e8d36c859c61658ef74731c1a1868f1747d59a9998e78f7f72",
+      "bytes": 375613,
+      "compressedSha256": "b74ab7a6163349904ea4cc78c0fa2a871c16b2f99ec03e416f705e0698502f23"
+    },
+    "changedChallengeMarker": {
+      "file": "phase-0/native-blind-identity-evidence/changed-challenge-marker.txt",
+      "sha256": "d1b6d68b2c0a244ba8d89f874dcaa1ccc7c5e09e2f32bcd36c6a9f74d160d07c",
+      "bytes": 78
+    },
+    "recreatedCapture": {
+      "file": "phase-0/native-blind-identity-evidence/recreated-capture.json.gz",
+      "sha256": "d7886881663e49c2775b4cd989ec755968ea91ab3cf5b0f7433efc8a9e49ec3f",
+      "bytes": 393822,
+      "compressedSha256": "0683c60f33be57eaf4cdd561337fd6ea2221becf57db429eec0469be45c93c0a"
+    },
+    "recreatedCaptureMarker": {
+      "file": "phase-0/native-blind-identity-evidence/recreated-capture-marker.txt",
+      "sha256": "af6e0ef51701b62c209571a8b93f2c6e5a3e43b77e25d170e22e6bb00d8cd292",
+      "bytes": 67
+    },
+    "recreatedPrediction": {
+      "file": "phase-0/native-blind-identity-evidence/recreated-prediction.json",
+      "sha256": "9d910210443b9486f1d2a9ce7e6692f0e0a51f19d4d02f83a7664c59f4514541",
+      "bytes": 5251
+    },
+    "recreatedChallenge": {
+      "file": "phase-0/native-blind-identity-evidence/recreated-challenge.json.gz",
+      "sha256": "fb7819321a1ae996db4a37522ab48fe4085728c26361f03d16b6557bcaee77f3",
+      "bytes": 375613,
+      "compressedSha256": "bba25cfa224bae9b85beb1d5637ac8296e89e7626cdeaa78584431f6433e50da"
+    },
+    "recreatedChallengeMarker": {
+      "file": "phase-0/native-blind-identity-evidence/recreated-challenge-marker.txt",
+      "sha256": "f5ef7ed920688f191de351ae1cb7493b91dd6074455730acfb9e655880accfd2",
+      "bytes": 78
+    },
+    "interruptedStarted": {
+      "file": "phase-0/native-blind-identity-evidence/interrupted-started.txt",
+      "sha256": "f728e11b113392bec6ac6fd9d5d62af610c3b50086b8fd90eeab22d7b14506a0",
+      "bytes": 65
+    },
+    "diagnostic": {
+      "file": "phase-0/native-blind-identity-evidence/diagnostic.json.gz",
+      "sha256": "2787f7077d82fac0d12a5eb5b37b790b31cc160e3bf0fdbd6770e4e2ee4437ad",
+      "bytes": 393822,
+      "compressedSha256": "25843953dbf2ba37e8a7a7a9c76608d5fb0b274aa3118d277afe2ae8c195db75"
+    },
+    "diagnosticMarker": {
+      "file": "phase-0/native-blind-identity-evidence/diagnostic-marker.txt",
+      "sha256": "a74451aa91a272c906ee9c6aa72fc6cbe7a2ae7af56151a177d197197c4db4e7",
+      "bytes": 67
+    },
+    "continuation": {
+      "file": "phase-0/native-blind-identity-evidence/continuation.json.gz",
+      "sha256": "60eac34fc2f302f3d30ca65a0992c4ffc7c6d44cdef44d9aacaeda3053d763ef",
+      "bytes": 187809,
+      "compressedSha256": "5da12ae45852b77ec497ed703e85d0047342297a9d0be08181c03adbdd838d0c"
+    },
+    "continuationStarted": {
+      "file": "phase-0/native-blind-identity-evidence/continuation-started.txt",
+      "sha256": "c5625b21835e7c32a75c29d5f4a482e0373dafb190ebbfa0c17c2b448a1f0a07",
+      "bytes": 70
+    },
+    "continuationMarker": {
+      "file": "phase-0/native-blind-identity-evidence/continuation-marker.txt",
+      "sha256": "39a7bf47270f4192bde11f76eff372541242553b3a9c3df0679fadb9a6cfd215",
+      "bytes": 71
+    },
+    "recreationStage": {
+      "file": "phase-0/native-blind-identity-evidence/recreation-stage.json.gz",
+      "sha256": "f28c34300f9706070c22ca4ad244b455d90114ba00aaf0b9f389f9085230cec0",
+      "bytes": 187616,
+      "compressedSha256": "5ed7d637735f8f1a5f0186a24feb120dc389bf62f057b4d2e59a86a3f09249df"
+    },
+    "recreationStarted": {
+      "file": "phase-0/native-blind-identity-evidence/recreation-started.txt",
+      "sha256": "55e90de720b48cb71f761f2f2494985a09abf7da7b2ffa83be592520a1cb6a6b",
+      "bytes": 65
+    },
+    "recreationMarker": {
+      "file": "phase-0/native-blind-identity-evidence/recreation-marker.txt",
+      "sha256": "5fe51739cd1bf21208a94cd7542fbaaf46d83983457fb6db08a406fdd9810475",
+      "bytes": 66
+    },
+    "facts": {
+      "file": "phase-0/native-blind-identity-evidence/retained-facts.json.gz",
+      "sha256": "beeb18d9d7f88857f2f79dcfe0d98e2d32ed8cd34084ccd5bb310a04e35f34b7",
+      "bytes": 543240,
+      "compressedSha256": "f30b0142c121da7928c4532e9fef808fd6576a4b9a170d4c6caebf75e003f0f3"
+    }
+  },
+  "sourceHashes": {
+    "phase-0/prepare-native-blind-capture.js": "ae184faeaf7c88a1c90169481c72f2ddbffc86ce818ce7064d648e112e1537c5",
+    "phase-0/native-track-location-binding.js": "272fc301fe394d6f0818cbd260677ae4e06b72912ce757186ba7941d62cc2c44",
+    "phase-0/resolve-native-location-graph.py": "3edc2b655cdc394da3d1bfc6a1c6c1a14c0f56b4db12617b2eedefe0978ce217",
+    "phase-0/resolve-native-track-identity.py": "932727d321b09f06504a92ffb856c5d2981457271eefd4be95605a5d3babbaac",
+    "phase-0/compare-native-resolve-exports.py": "89c80a83177fcc4755a2b8a6efdb95f2f2351f23822deef4615194e83fe3ba24",
+    "phase-0/gate-lab-session.js": "b830b8d00c116f5c69af3a4a597113fb541fe70a9af1353c8e6a9bafa76d6e89",
+    "src/companion/resolve-internal.lua": "d7119a4c7ce89ea38bbb888621dc20ebd2fecb450ae6e45e89e3d4f70e710d1b",
+    "src/companion/resolve-effects.lua": "043aac9b30c6889a7ad669c7fca646ae928d2731b40647a60dc076a11ed44ab1",
+    "src/companion/resolve-api-locations.lua": "68bbd469d49012f54940c98737e38af05283ed16830cee9035749020de4e22ac",
+    "src/resolve-api-location-observation.js": "82c2fbc7558f66f96418f4ee22ef42702362f2daa467bcfc77732a302759e316",
+    "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27",
+    "phase-0/prepare-native-blind-challenge.js": "991eda9cdcade30417bc2f8bc9241952c3b6d7f13bae1278220fc0b1923a910f",
+    "phase-0/resolve-native-track-challenge.lua": "d98cf614b51110b891386b8c27554a4d55687abb2184c9748b13fd42a9a4b2b4",
+    "phase-0/prepare-native-blind-perturb.js": "d126b9bc879dee1f58a445876256f854ed0e456c2ada009892e87d56aa74d703",
+    "phase-0/prepare-native-blind-continuation.js": "32d4daeba7f22a380ad21d646c64d040955b563413ebf2749b797086e4be77bd",
+    "phase-0/prepare-native-blind-diagnostic.js": "14652b2d22740485fd338aa3c0e44b2642cde1e050e500f413f373869169bdc6",
+    "phase-0/native-track-identity-acceptance.js": "1263908622bfd9e931ea4204ff3665145c64dff7e1c80940e4d88813da77fad2",
+    "phase-0/native-blind-saved-endpoint.js": "98a37223d10aafa861f1af8aecae10d9186ee1d86856e2857e94b0e646f9943c",
+    "src/resolve-effect-observation.js": "1c9a8e5cef19496759b6f3ae80241292df21759beb219445286b11f9c3422101",
+    "src/resolve-snapshot-validator.js": "58314ac3910f5db8413f164f9b8a4f83be93a893549612a6809425f5fe1363f2",
+    "phase-0/supported-native-track-binding.js": "a27bb279c042a1d9d79a02b9f7932d9ac7b13df81ed3173080f50b80929f7eba"
+  },
+  "savedCheckpointScopeOnly": true,
+  "currentUnsavedStateBindingProven": false,
+  "ordinaryApplySupported": false,
+  "safeToApply": false,
+  "fullNativePreservationProven": false,
+  "nativeArchivesPrivate": true,
+  "issuedNativeSourcesPrivate": true,
+  "originalInterruptedStageRetained": true,
+  "intermediateExportsUsedForMutationProof": false,
+  "privateRetention": {
+    "directory": "phase-0/private-integration-proof/identity-blind",
+    "retainedFiles": 134,
+    "retainedBytes": 14527226,
+    "manifestSha256": "0693c4269bc92d450823e8e5f8771763012866a4a10003af4fb2a5e2a977133e",
+    "cleanupReceiptSha256": "f1b765f5792117ba8e029fc4d5bb21dff2800ef8628eb171287d33d23f2c6e75",
+    "retentionReceiptSha256": "191e2b84599e5cdf2a182dab716365727622874168f52be25866dc336aa70fdd",
+    "installedMenusRemoved": 8,
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "copiesAreReplayAuthority": false
+  }
+}
