@@ -8,6 +8,11 @@ out/
 .env
 .env.*
 !.env.example
+/.aws/
+/cloud-backup.json
+/cloud-backup.local.json
+/cloud-backup-config.json
+/service-config*.json
 
 # Downloaded repositories and local skill/tool installations
 /agent-skills-main/
