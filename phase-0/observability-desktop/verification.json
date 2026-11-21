@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-21T19:47:47.353Z",
+  "scope": "Two actual shipped Electron main/preload/renderer processes, real worker FCPXML scan and authenticated scan-recovery journal, exact existing diagnostics review/consent/export flow. Native pull and media relink lifecycle states are callback fixtures only, with no native publication, editor admission, media transfer or telemetry claim.",
+  "codeHashes": {
+    "src/main.js": "fa028c0e573a876b5d4cfc9841cc1a909e248af3e7c4995e789195995717db55",
+    "src/preload.js": "5e25bcaa8b22612df9a4f8953ea13d7bb79881f12112e3ba31efef5bb07c21b5",
+    "src/index.html": "e0de22c05af22b999ab8eb00040bef1466fe5bd66ada560d0f10fe25a11a5d1c",
+    "src/setup-support-renderer.js": "a33cf7d55b7cdfce84e24ca9aaa6281d771bc06cb2b055e097ebbd1d07d708bf",
+    "src/renderer.js": "a97fbbdd2552f95d6a2991d3d01aaf8a071fb88b28a86b87d749f0b714ff5711",
+    "src/logger.js": "5c3da522b2b511160326221aa25182e4dbf0217c185030c8624225592233469b",
+    "src/observability-catalog.js": "2f437f7ccb39163b1adf601afa96d8549946e80475ccec201531bdc1cf3713c3",
+    "src/operation-health.js": "05c7cb3ab44e7469684d5828fdb2d2c6dc54d53bc903bd5925a15b90572572e4",
+    "src/diagnostics-report.js": "8918575a4faa0da8f2594b59c7c6c8f3ee8d5c20bdc6366ebce37854436c7a84",
+    "src/desktop-diagnostics.js": "2a0c2b6531d5fb248bafd721ccf8b421b01f3b9b4e16fd22726028c68011df85",
+    "src/adapter-metrics.js": "f941aa4751f3359458627f8621bfc82840ed60dc15b927857b6fbb9fb90c83c3",
+    "scripts/verify-observability-desktop.cjs": "fd0bb79a2a1ba41b7db07298591a9e7364693a7cb1f34893e9110e0cae80d265"
+  },
+  "checks": [
+    "current main observer callbacks feed reviewed diagnostics",
+    "actual worker scan metrics and retained scan health",
+    "native publication pending is not verified success",
+    "changed health revokes prior review before save dialog",
+    "session health option excludes all workflow details",
+    "explicit consent required before exact reviewed bytes export",
+    "private export mode and no paths names identities opaque credentials or raw logs",
+    "known event/error catalog and unknown-error fallback in process output",
+    "session metrics reset on another actual process",
+    "desktop and narrow layout without overflow",
+    "source export unchanged and zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "scan-and-export",
+      "actualWorkerScan": true,
+      "scanHealthVerified": true,
+      "nativePendingFixtureNotSuccess": true,
+      "changedReviewRefusedBeforeDialog": true,
+      "optionalHealthExcluded": true,
+      "exactReviewedBytesExported": true,
+      "privateMode": true,
+      "rendererErrors": 0,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390
+        }
+      ]
+    },
+    {
+      "stage": "restart",
+      "scanSessionAttempts": 0,
+      "nativeFixtureNotPersisted": true,
+      "noAutomaticSourceReopen": true,
+      "rendererErrors": 0
+    }
+  ]
+}

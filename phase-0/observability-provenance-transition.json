@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "operation": "historical-native-observability-transition",
+  "observedAt": "2026-11-21T19:51:39.352Z",
+  "historicalCommit": "65a43a9",
+  "scope": "Exact historical native execution sources retained. Current main differs only by the seven exact operation-health insertion strings, index differs only by the diagnostics checkbox label, and three auditors differ only by their exact shared source-check composition. Fresh current desktop observations and integration rechecks supplement historical SDK execution; they do not replace it.",
+  "freshNativeSdkExecution": false,
+  "effectAndCoreSourcesChanged": false,
+  "nativeWriteAuthority": false,
+  "historicalSourceHashes": {
+    "src/main.js": "58aab4363f7766addbdbe0523954cd3081aee2b6e0153a754ff76758f49fb096",
+    "src/index.html": "383086580dbbc2e7d1211bcc6b274854455dd4be2430f65103eba1be87ce287b",
+    "scripts/audit-native-pull.cjs": "f78bafd84a294165df37aafd125bb4d89e1bf513d84ebb91538010d48ec6ae0b",
+    "scripts/audit-native-result-live.cjs": "d7c254e7b148db220b99b633297e6f24b770ee2018c26b7c3729d973484f4d3c",
+    "scripts/audit-media-relink.cjs": "405a7951d7ba8bfd885e6ededeca8dc7125fcb88b7d2c0d5c0a63d18a301a2d4"
+  },
+  "currentSourceHashes": {
+    "src/main.js": "fa028c0e573a876b5d4cfc9841cc1a909e248af3e7c4995e789195995717db55",
+    "src/preload.js": "5e25bcaa8b22612df9a4f8953ea13d7bb79881f12112e3ba31efef5bb07c21b5",
+    "src/index.html": "e0de22c05af22b999ab8eb00040bef1466fe5bd66ada560d0f10fe25a11a5d1c",
+    "src/setup-support-renderer.js": "a33cf7d55b7cdfce84e24ca9aaa6281d771bc06cb2b055e097ebbd1d07d708bf",
+    "src/renderer.js": "a97fbbdd2552f95d6a2991d3d01aaf8a071fb88b28a86b87d749f0b714ff5711",
+    "src/logger.js": "5c3da522b2b511160326221aa25182e4dbf0217c185030c8624225592233469b",
+    "src/observability-catalog.js": "2f437f7ccb39163b1adf601afa96d8549946e80475ccec201531bdc1cf3713c3",
+    "src/operation-health.js": "05c7cb3ab44e7469684d5828fdb2d2c6dc54d53bc903bd5925a15b90572572e4",
+    "src/diagnostics-report.js": "8918575a4faa0da8f2594b59c7c6c8f3ee8d5c20bdc6366ebce37854436c7a84",
+    "src/desktop-diagnostics.js": "2a0c2b6531d5fb248bafd721ccf8b421b01f3b9b4e16fd22726028c68011df85",
+    "src/adapter-metrics.js": "f941aa4751f3359458627f8621bfc82840ed60dc15b927857b6fbb9fb90c83c3",
+    "scripts/verify-observability-desktop.cjs": "fd0bb79a2a1ba41b7db07298591a9e7364693a7cb1f34893e9110e0cae80d265",
+    "scripts/audit-native-pull.cjs": "9ba79d8f3412e08a24f357fe70a05ea05b8c50e0f36907c690781aa32b498d0c",
+    "scripts/audit-native-result-live.cjs": "bf8be7c157657a7321990a5bcf5ccefa5724b8c5eeb363e85a4e0a5e4a856e2e",
+    "scripts/audit-media-relink.cjs": "b0bf542e4445b872f5ed894681f284330c6e3bcd99ac57fad5167332afb67e5a",
+    "scripts/observed-source-provenance.cjs": "004cda216b8902f3f77b6f2aa224ce88e92bf4068329fd54fb9346e6a8a99f5e",
+    "scripts/record-observability-transition.cjs": "81dc9619ad44356eb5a7a94da1ab9713eb52d7413d6abb547b0a7735eed51ecc"
+  },
+  "observabilityProof": {
+    "file": "phase-0/observability-desktop/verification.json",
+    "sha256": "0c9d96392457221892a15110d1ed30997f2dbbd27f1abfa842262e5f166a3d84"
+  },
+  "currentIntegrationProofs": {
+    "phase-0/native-pull-desktop/verification.json": {
+      "sha256": "46b88e5a63d2e730b2682ecbeeeea9d55ac5d4e0ed87d066228c5071d37d6d6a",
+      "producer": "scripts/verify-native-pull.cjs",
+      "producerSha256": "fd7628245a031722228bbb82fc867f78fef99bdd1779ba1b40747e223398a54a"
+    },
+    "phase-0/native-result-audit-desktop/verification.json": {
+      "sha256": "79831e9e0f7629be8d13bcbaa264b03e798868b82c38bc1506d2a2c6dfc51731",
+      "producer": "scripts/verify-native-result-audit.cjs",
+      "producerSha256": "d1a70849f7b7363204702da6f851f683b24d00856aa023dbf82b5042ebb6d97f"
+    },
+    "phase-0/media-relink-desktop/verification.json": {
+      "sha256": "d9a03f2fc6a0392d49192365a874eedc061ee1b6b7619ddc94c36f07dd4df955",
+      "producer": "scripts/verify-media-relink.cjs",
+      "producerSha256": "28823f5f7ac0073a9e582d54323c713b782e0af56e680f149e96342b831ad11c"
+    },
+    "phase-0/local-integrity-desktop/verification.json": {
+      "sha256": "d77bbff857e79ab69d7d75dd6157ee75bd26e056ad4638b21a77ed7fb4895359",
+      "producer": "scripts/verify-local-integrity.cjs",
+      "producerSha256": "7bf0563f577612bfa3236cf452d71c8bf9a48ac68de313706d04e56c18c7a474"
+    },
+    "phase-0/integrated-crash-recovery/verification.json": {
+      "sha256": "45e09ebafae6d210540601b6cefb440f1c3af3f421209dbca51a792b5158d2c9",
+      "producer": "scripts/verify-integrated-crash-recovery.cjs",
+      "producerSha256": "6ad940d9e7af84a50a6289e37f6824bf918f248d29ea37295fb27c21e24a6ca5"
+    }
+  }
+}

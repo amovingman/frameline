@@ -1,5 +1,6 @@
 const { createHash } = require('node:crypto');
 const { KNOWN_ERRORS } = require('./adapter-metrics');
+const { sanitizeOperationHealth } = require('./operation-health');
 const SAFE_ERRORS = new Set([...KNOWN_ERRORS, 'scan-failed', 'metadata-invalid', 'metadata-unavailable',
   'metadata-storage-uncertain', 'metadata-lock-timeout', 'workspace-busy']);
 const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -13,10 +14,10 @@ function diagnosticsOptions(input = {}) {
 
 // Build a new allowlisted object. Never serialize input objects, free-form error
 // messages, logs, URLs, identifiers or paths, even when they look like safe codes.
-function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = null, runtime = {}, options } = {}) {
+function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = null, operationHealth = null, runtime = {}, options } = {}) {
   if (!version(appVersion) || !state || !syncState) throw Object.assign(new Error('diagnostics-input-invalid'), { code: 'diagnostics-input-invalid' });
   const included = diagnosticsOptions(options);
-  const report = { schemaVersion: 2, product: 'Frameline', appVersion,
+  const report = { schemaVersion: 3, product: 'Frameline', appVersion,
     runtime: {
       platform: ['darwin', 'win32', 'linux'].includes(runtime.platform) ? runtime.platform : 'unknown',
       architecture: ['arm64', 'x64', 'ia32', 'arm'].includes(runtime.architecture) ? runtime.architecture : 'unknown',
@@ -44,6 +45,7 @@ function createDiagnosticsReport({ appVersion, state, syncState, adapterUsage = 
       ['errorCodes', Object.fromEntries([...SAFE_ERRORS].filter(code => Object.hasOwn(adapterUsage.errorCodes || {}, code)
         && count(adapterUsage.errorCodes[code]) !== null).map(code => [code, adapterUsage.errorCodes[code]]))]
     ]) : null;
+  if (included.includeAdapter) report.operationHealth = sanitizeOperationHealth(operationHealth);
   const bytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
   return { report, sha256: createHash('sha256').update(bytes).digest('hex'), bytes };
 }

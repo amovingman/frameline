@@ -48,6 +48,8 @@ const { fingerprint } = require('./project-api-contracts');
 const { createAccessControl } = require('./access-control');
 const { createDesktopDiagnostics } = require('./desktop-diagnostics');
 const { createAdapterMetrics } = require('./adapter-metrics');
+const { createOperationHealth } = require('./operation-health');
+const operationHealth = createOperationHealth();
 const { createResolveTrialSession } = require('./resolve-trial-session');
 const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
 const { createDesktopClosedProjectApply } = require('./desktop-closed-project-apply');
@@ -292,6 +294,7 @@ function publishServiceState(state) {
   Promise.resolve(desktopProjectActivity?.selectionChanged()).catch(() => {});
 }
 function publishAssetTransferState(state) {
+  operationHealth.observe('assetTransfers', state);
   for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('asset-transfer:state', state);
 }
 function publishProjectActivityState(state) {
@@ -382,7 +385,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
   });
   scanRestartRecovery = createDesktopScanRecovery({ directory: path.join(app.getPath('userData'), 'scan-recovery'),
-    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('scan-recovery:state', state); } });
+    onChange: state => { operationHealth.observe('scanRecovery', state); for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('scan-recovery:state', state); } });
   const scan = scanRestartRecovery.wrapScan(measuredScan, { getContext: () => projectSession.getState() });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
     scan, verifySource: (sourcePath, hash) => projectScanner.verifySource(sourcePath, hash) }, localMetadataStore);
@@ -548,7 +551,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     getRoles: () => { const s = nativeCheckpoints.getState(); return { baseCheckpointId: s.baseCheckpointId, incomingCheckpointId: s.incomingCheckpointId }; },
     canStart: () => { const trial = resolveTrialSession.getState(); return !mediaRelink?.isReviewLocked() && !localIntegrity?.isBusy() && !nativeCheckpoints.isBusy() && !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !resolveBusy && !resolveServicePreview && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
     reveal: filename => shell.showItemInFolder(filename),
-    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-pull:state', state); } });
+    onChange: state => { operationHealth.observe('nativePull', state); for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-pull:state', state); } });
   ipcMain.handle('native-pull:state', () => nativePull.action('initialize'));
   ipcMain.handle('native-pull:prepare', () => nativePull.action('prepare'));
   ipcMain.handle('native-pull:choose', (_event, id, changeId, choice) => nativePull.action('choose', id, changeId, choice));
@@ -583,7 +586,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     selectDestination: async () => { const p = await dialog.showSaveDialog({ title: 'Save relinked FCPXML as a new review copy', defaultPath: 'relinked-review.fcpxml', filters: [{ name: 'FCPXML', extensions: ['fcpxml'] }] }); return p.canceled || !p.filePath ? null : { directory: path.dirname(p.filePath), filename: path.basename(p.filePath) }; },
     reveal: filename => shell.showItemInFolder(filename),
     canStart: () => { const trial = resolveTrialSession.getState(); return !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !nativePull.isReviewLocked() && !nativeCheckpoints.isBusy() && !localIntegrity?.isBusy() && !resolveBusy && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
-    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('media-relink:state', state); } });
+    onChange: state => { operationHealth.observe('mediaRelink', state); for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('media-relink:state', state); } });
   ipcMain.handle('media-relink:state', () => mediaRelink.action('initialize'));
   ipcMain.handle('media-relink:capture', () => mediaRelink.action('capture'));
   ipcMain.handle('media-relink:choose', (_event, id, referenceId) => mediaRelink.action('choose', id, referenceId));
@@ -595,7 +598,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     listIntents: () => nativePull.listRetainedIntents(), readTransaction: id => nativePull.readRetainedTransaction(id),
     verifyResult: async (id, direction) => (await resultAuditService.detail(id, { direction })).available === true,
     canRun: () => !nativePull.isBusy() && !nativeReviewCopy.getState().busy && !closedProjectApply.getState().busy && !nativeCheckpoints.isBusy() && !mediaRelink.isBusy() && projectSession.getState().scanStatus !== 'scanning',
-    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('local-integrity:state', state); } });
+    onChange: state => { operationHealth.observe('localIntegrity', state); for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('local-integrity:state', state); } });
   ipcMain.handle('local-integrity:state', () => localIntegrity.getState());
   ipcMain.handle('local-integrity:run', () => localIntegrity.run());
   logger.info('app.ready', { version: app.getVersion() });
@@ -640,7 +643,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     return state;
   };
   const diagnostics = createDesktopDiagnostics({ getInput: () => ({ appVersion: app.getVersion(), state: projectSession.getState(),
-    syncState: latestServiceState || { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot(),
+    syncState: latestServiceState || { connected: false, operations: syncQueue.inspect() }, adapterUsage: adapterMetrics.snapshot(), operationHealth: operationHealth.snapshot(),
     runtime: { platform: process.platform, architecture: process.arch, electron: process.versions.electron,
       chromium: process.versions.chrome, node: process.versions.node, packaged: app.isPackaged } }),
     chooseDestination: async () => {

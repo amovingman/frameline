@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "operation": "owner-installed-build-compatibility-corpus",
+  "personalSupportRange": [
+    {
+      "editor": "DaVinci Resolve",
+      "edition": "Free",
+      "editorVersion": "21.1.2",
+      "editorBuild": "21.1.20010",
+      "platform": "darwin"
+    }
+  ],
+  "currentHostObservation": {
+    "observedAt": "2026-11-21T19:53:10.022Z",
+    "target": {
+      "editor": "DaVinci Resolve",
+      "edition": "Free",
+      "editorVersion": "21.1.2",
+      "editorBuild": "21.1.20010",
+      "platform": "darwin"
+    },
+    "host": {
+      "osVersion": "15.6.1",
+      "osBuild": "24G90",
+      "architecture": "arm64"
+    },
+    "installedInfoSha256": "d0bf021ca5832bb521ca8ff478bcd10b5f1a8091681d411ae0fa113be00c7a97",
+    "readOnly": true,
+    "historicalProofHostPatchEstablished": false
+  },
+  "releaseSupportRange": null,
+  "releaseVersionCoverageProven": false,
+  "releaseSupported": false,
+  "safeToApply": false,
+  "executionAuthority": false,
+  "operations": [
+    {
+      "operation": "fcpxml-picture-scan",
+      "format": "FCPXML",
+      "formatVersion": "1.10",
+      "profile": "first-sequence-top-level-picture",
+      "mutationScope": "read-only",
+      "limitation": "Exact frames and warnings; nested content, audio and additional lanes remain omitted."
+    },
+    {
+      "operation": "native-checkpoint-review",
+      "format": "Resolve Project.db",
+      "formatVersion": "private-sqlite-profile",
+      "profile": "saved-flat-native-checkpoint",
+      "mutationScope": "read-only",
+      "limitation": "Complete stored census and authenticated saved UUID/generation joins; unsaved state is not bound."
+    },
+    {
+      "operation": "native-name-apply",
+      "format": "Resolve Project.db",
+      "formatVersion": "private-sqlite-profile",
+      "profile": "one-existing-video-name",
+      "mutationScope": "guarded-original-name-cell",
+      "limitation": "One existing video Name; closed source, exact backup, complete preservation and editor validation required."
+    },
+    {
+      "operation": "native-name-review-copy",
+      "format": "Resolve Project.db",
+      "formatVersion": "private-sqlite-profile",
+      "profile": "one-existing-video-name",
+      "mutationScope": "new-native-review-copy",
+      "limitation": "Verified same-machine library copy; unchanged media references do not prove portability."
+    },
+    {
+      "operation": "native-name-pull",
+      "format": "Resolve Project.db",
+      "formatVersion": "private-sqlite-profile",
+      "profile": "one-existing-video-name",
+      "mutationScope": "guarded-original-name-cell",
+      "limitation": "Full three-way classification, explicit conflict choices, at most one effective Name edit and recoverable Apply."
+    },
+    {
+      "operation": "native-result-history",
+      "format": "Resolve Project.db",
+      "formatVersion": "private-sqlite-profile",
+      "profile": "validated-native-name-result",
+      "mutationScope": "read-only",
+      "limitation": "Historical exact choices and result bindings; exports grant neither Apply nor restore authority."
+    },
+    {
+      "operation": "fcpxml-proxy-review-copy",
+      "format": "FCPXML",
+      "formatVersion": "1.10",
+      "profile": "flat-picture-original-proxy",
+      "mutationScope": "new-xml-and-derived-project-only",
+      "limitation": "Exact original/proxy references and frames in a new derived review; no existing-project SDK Save or lossless import claim."
+    }
+  ],
+  "exports": [
+    {
+      "id": "editor-export-1",
+      "kind": "editor-export",
+      "format": "FCPXML",
+      "formatVersion": "1.10",
+      "editor": {
+        "editor": "DaVinci Resolve",
+        "edition": "Free",
+        "editorVersion": "21.1.2",
+        "editorBuild": "21.1.20010",
+        "platform": "darwin"
+      },
+      "file": "phase-0/compatibility-corpus/resolve-structure-live.fcpxmld/Info.fcpxml",
+      "compression": "none",
+      "storedSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "sourceSha256": "9f63b62306672623b042e40646fac3359262153b90ecae0118ef252a7f492ed9",
+      "sourceBytes": 6171,
+      "expected": {
+        "clips": 1,
+        "media": 1,
+        "durationFrames": 241,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned",
+          "Content attached to a gap, including additional tracks, is not scanned"
+        ]
+      },
+      "provenance": "phase-0/compatibility-corpus/README.md",
+      "provenanceSha256": "0519f235936aea2d4fb239f1a879b47c2fc789b1f03fc383c8494f9aaa65fcd3",
+      "nativeRestorePoint": false
+    },
+    {
+      "id": "editor-export-2",
+      "kind": "editor-export",
+      "format": "FCPXML",
+      "formatVersion": "1.10",
+      "editor": {
+        "editor": "DaVinci Resolve",
+        "edition": "Free",
+        "editorVersion": "21.1.2",
+        "editorBuild": "21.1.20010",
+        "platform": "darwin"
+      },
+      "file": "phase-0/large-projects/corpus/small-editor.fcpxml.gz",
+      "compression": "gzip",
+      "storedSha256": "bbb0c388fec9f1d6b2d29e4a87717340762b8a48afb81cd68e8cc2ae1b0b52ee",
+      "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+      "sourceBytes": 31076,
+      "expected": {
+        "clips": 50,
+        "media": 50,
+        "durationFrames": 2400,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned"
+        ]
+      },
+      "provenance": "phase-0/large-projects/verification.json",
+      "provenanceSha256": "ec2dc58f10739bb42e15a0efe324d499f338c4f63f27c0c84bcd57d5b22bb4d8",
+      "nativeRestorePoint": false
+    },
+    {
+      "id": "editor-export-3",
+      "kind": "editor-export",
+      "format": "FCPXML",
+      "formatVersion": "1.10",
+      "editor": {
+        "editor": "DaVinci Resolve",
+        "edition": "Free",
+        "editorVersion": "21.1.2",
+        "editorBuild": "21.1.20010",
+        "platform": "darwin"
+      },
+      "file": "phase-0/large-projects/corpus/typical-editor.fcpxml.gz",
+      "compression": "gzip",
+      "storedSha256": "23711822ba0d1fa79951cbf38a61e06dbb35b9dd448bbd9d8fffb1f5026224b0",
+      "sourceSha256": "3f294791423cab66a6308335e66a4abce20be01cf9f594c8b8d1e2375edc4cf6",
+      "sourceBytes": 305937,
+      "expected": {
+        "clips": 500,
+        "media": 500,
+        "durationFrames": 24000,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned"
+        ]
+      },
+      "provenance": "phase-0/large-projects/verification.json",
+      "provenanceSha256": "ec2dc58f10739bb42e15a0efe324d499f338c4f63f27c0c84bcd57d5b22bb4d8",
+      "nativeRestorePoint": false
+    },
+    {
+      "id": "editor-export-4",
+      "kind": "editor-export",
+      "format": "FCPXML",
+      "formatVersion": "1.10",
+      "editor": {
+        "editor": "DaVinci Resolve",
+        "edition": "Free",
+        "editorVersion": "21.1.2",
+        "editorBuild": "21.1.20010",
+        "platform": "darwin"
+      },
+      "file": "phase-0/large-projects/corpus/large-editor.fcpxml.gz",
+      "compression": "gzip",
+      "storedSha256": "816acb6e61c9f6cbd05bc33531c36b305c8127bc545ce5a0da9b6cb929703450",
+      "sourceSha256": "f3ddec7340ac8825986e454a75d330d24c189a6cde266b80745788de6828fcd6",
+      "sourceBytes": 6136857,
+      "expected": {
+        "clips": 10000,
+        "media": 1,
+        "durationFrames": 120000,
+        "warnings": [
+          "Nested clip content, including audio and effects, is not scanned"
+        ]
+      },
+      "provenance": "phase-0/large-projects/verification.json",
+      "provenanceSha256": "ec2dc58f10739bb42e15a0efe324d499f338c4f63f27c0c84bcd57d5b22bb4d8",
+      "nativeRestorePoint": false
+    }
+  ],
+  "nativeProjects": [
+    {
+      "id": "closed-native-name-baseline",
+      "kind": "saved-native-database",
+      "format": "Resolve Project.db",
+      "editor": {
+        "editor": "DaVinci Resolve",
+        "edition": "Free",
+        "editorVersion": "21.1.2",
+        "editorBuild": "21.1.20010",
+        "platform": "darwin"
+      },
+      "historicalOsPatch": "unrecorded",
+      "provenance": "closed-checkpoint-open-readback-and-restoration",
+      "sdkSavePreservationProven": false,
+      "sourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+      "sourceBytes": 2945024,
+      "census": {
+        "logicalSha256": "4454b66565b4db13d774888f548d768fe3ca75528f157160a34e96ee8dca8a32",
+        "schemaSha256": "bdfd8fc3f1940cc29f0cd34dfb8d1b2da75517d50f48909a48ebb25117c2fb43",
+        "counts": {
+          "cellsIncludingRowid": 9788,
+          "rows": 540,
+          "schemaObjects": 596,
+          "tables": 146
+        },
+        "allPersistentTablesCovered": true,
+        "allSchemaObjectsCovered": true,
+        "excludedApplicationColumnCount": 0
+      },
+      "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+      "projectNameSha256": "a0f80243f9d9df23d661447074edb978b79c5ffc9db78c41c23a844a6b13e063",
+      "proof": {
+        "receipt": "phase-0/native-result-live-proof.json",
+        "receiptSha256": "f76e3da6989bfb46c7052bf2322afcfbcb16c0c3c3dfe043915808ccf8dae89e",
+        "transactionId": "cc6690a4-7af6-4ed2-aaf6-1decc189c373",
+        "nativeProofSha256": "de163702edbc176fef62f9ef619e1cc9fd37dbcf4a45bc31becfa1fa26b37a3f",
+        "authenticatedEvents": 13,
+        "retainedNativeFile": "phase-0/private-integration-proof/native-result-20261121/live/legacy-transactions/cc6690a4-7af6-4ed2-aaf6-1decc189c373/backup-qMBUy3/source.db"
+      }
+    },
+    {
+      "id": "editor-saved-proxy-review",
+      "kind": "saved-native-database",
+      "format": "Resolve Project.db",
+      "editor": {
+        "editor": "DaVinci Resolve",
+        "edition": "Free",
+        "editorVersion": "21.1.2",
+        "editorBuild": "21.1.20010",
+        "platform": "darwin"
+      },
+      "historicalOsPatch": "unrecorded",
+      "provenance": "sdk-save-reopen-three-admissions",
+      "representedPictureOccurrences": 50,
+      "losslessNativeImportProven": false,
+      "sourceSha256": "56243d76e648a8cd511aaaa7c51d34f41f86fdd600a84394d8f05e603875b994",
+      "sourceBytes": 2908160,
+      "census": {
+        "logicalSha256": "85a0d5c6854c3e94f895c2fb8862d9cf2822a493dbf3a309d32396e4f4894d09",
+        "schemaSha256": "bdfd8fc3f1940cc29f0cd34dfb8d1b2da75517d50f48909a48ebb25117c2fb43",
+        "counts": {
+          "cellsIncludingRowid": 4685,
+          "rows": 274,
+          "schemaObjects": 596,
+          "tables": 146
+        },
+        "allPersistentTablesCovered": true,
+        "allSchemaObjectsCovered": true,
+        "excludedApplicationColumnCount": 0
+      },
+      "projectId": "17ceffae-6c49-47c0-b204-e704fa64634f",
+      "projectNameSha256": "b52e520da69ffe1d11234d52261c8effd1eb399b6926921c619e6880668dcaa2",
+      "proof": {
+        "receipt": "phase-0/media-relink-live-proof.json",
+        "receiptSha256": "e21072ad4a1d593c0bf1852837798f1f7db1d6b92fbb90a98e98e2d869170f65",
+        "intentId": "534bfb9d-9e23-44e9-9d5f-2da68bb06c3c",
+        "nativeProofSha256": "c976231bd4184d077a35af45d68225084980a10f1d2cec3f9a0c1654e5c8a2aa",
+        "authenticatedEvents": 21,
+        "retainedNativeFile": "phase-0/private-integration-proof/media-relink-20261121/derived-Project.db"
+      }
+    }
+  ],
+  "sourceHashes": {
+    "src/personal-compatibility.js": "6694733203b6358656ae15874138078312d83ef3cb900da201a1e1b403b3f519",
+    "scripts/audit-personal-compatibility.cjs": "6617b864ff58619c3350937a514111c47a754071fa3766df18630940b7897fd0",
+    "src/fcpxml-scan-core.js": "be16266c1c9372ff464337bfc2b9a8a9323f1982011beb053bc98c0e2fbfd092",
+    "src/fcpxml-adapter.js": "559809970ae4f42304774911691505ddc3b8f9a8238082fd373d51f35a67307f",
+    "src/scan-manifest.js": "d162b006b1d78750d1c46aeb1b0afd299cd419c98f775d7f635a7baccf8830cb",
+    "src/closed-project-native-store.js": "cf741ef7878a47197ae32f4302e100c772d590682dea4d2ca5f22a2c0d903ed2",
+    "src/native-project-identity.js": "7c0d5d4023a86fc28544e306b7a2a9c0a4320934529d04598cf289373e589588",
+    "src/native/resolve/resolve-native-sqlite-snapshot.py": "35bc1c7c324f63e7066cf77c22627a3a56a93e66c3427e14cd0bc0aa8a5c82d6",
+    "src/native/resolve/resolve-native-identity.py": "0d19c4fbb40c338d61386c4a1f3f24bdb20d621b773e3e2b298c314e3adf2f61",
+    "src/closed-project-apply-transaction.js": "7e2c16cf738f2edefea8a404f6da932c810c1ac3653fc08e3efbb6fec9dfadd8",
+    "src/closed-project-apply-plan.js": "aea97a514ed26c9142bc319d7d956c45dc7c711f41778542fce8e057f5f146b5",
+    "src/media-relink-service.js": "c7fa0520a48d7375d9cfa4c4f41c0f211fbdbf8ea39d3ea74213853550bf93e2",
+    "src/media-relink-import.js": "fc8ced46ea6bbf6729cde5f8a22d0baec8441538fcfc5e3cce9361740c7154e4",
+    "src/companion/media-relink-import.lua": "c125e92faa46ca7cb42ea12bfb8a14d72c0acf35ee495b3f479816541270a4b9",
+    "src/companion/media-relink-private-json.lua": "62d9ab2c482aa6a9abf36bbed3409ade7ea13f798df23df2fe63b2cc272b87c6"
+  }
+}

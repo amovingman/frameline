@@ -8,7 +8,10 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const sha = value => createHash('sha256').update(value).digest('hex');
 
-function revisitEditorChoice() {
+const HISTORICAL_SUPPORT_MATRIX = 'phase-0/evidence-sources/support-matrix-observed-20261119.md.txt';
+const HISTORICAL_SUPPORT_MATRIX_SHA256 = 'c25547538522d64b236cc1deff140eb04304534397ff1e32d7c521a1b331ca9b';
+
+function revisitEditorChoice(read = fs.readFileSync) {
   // Recompute named live-evidence hashes. Missing, altered or incompatible
   // evidence aborts the decision rather than turning an old observation into proof.
   const audit = auditFirstEditor();
@@ -21,7 +24,15 @@ function revisitEditorChoice() {
     || audit.observations.nativeContent.semanticEquivalenceProven !== false) throw new Error('editor-reassessment-evidence-invalid');
   const evidenceFiles = ['PROJECT_SCOPE.md', 'phase-0/project-scope.json', 'src/compatibility-contract.js', 'phase-0/audit-first-editor.js', 'phase-0/INTEGRATION_ASSESSMENT.md',
     'phase-0/FIRST_EDITOR_READINESS.md', 'phase-0/SUPPORT_MATRIX.md', 'phase-0/external-api-observation.json'];
-  const evidence = Object.fromEntries(evidenceFiles.map(file => [file, sha(fs.readFileSync(path.join(__dirname, '..', file)))]));
+  const evidence = Object.fromEntries(evidenceFiles.map(file => {
+    // This reproduces the historical November19 decision. The current personal
+    // matrix documents later proven operations and must not replace old facts.
+    const bytes = read(path.join(__dirname, '..', file === 'phase-0/SUPPORT_MATRIX.md' ? HISTORICAL_SUPPORT_MATRIX : file));
+    const hash = sha(bytes);
+    if (file === 'phase-0/SUPPORT_MATRIX.md' && hash !== HISTORICAL_SUPPORT_MATRIX_SHA256)
+      throw new Error('editor-reassessment-historical-support-matrix-changed');
+    return [file, hash];
+  }));
   const report = {
     schemaVersion: 1, decisionDate: '2026-11-19', decision: 'stop-release-retain-read-only-experiment',
     decisionCompleted: true, releaseSupported: false, safeToApply: false,

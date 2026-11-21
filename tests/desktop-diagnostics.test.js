@@ -71,7 +71,7 @@ test('diagnostics only export allowed runtime values, counts and known error cod
 
 test('optional project and adapter details are absent when excluded, without losing runtime support data', () => {
   const { report } = createDiagnosticsReport({ ...input(), options: { includeProject: false, includeAdapter: false } });
-  for (const field of ['selectedFormat', 'scanStatus', 'scanErrorCode', 'scanManifestVersion', 'pictureClipCount', 'mediaReferenceCount', 'revisionCount', 'adapterUsage']) {
+  for (const field of ['selectedFormat', 'scanStatus', 'scanErrorCode', 'scanManifestVersion', 'pictureClipCount', 'mediaReferenceCount', 'revisionCount', 'adapterUsage', 'operationHealth']) {
     assert.equal(Object.hasOwn(report, field), false, field);
   }
   assert.equal(report.runtime.electron, '41.10.7');
@@ -302,4 +302,16 @@ test('atomic publication only receives fully written and synced reviewed bytes',
   assert.equal((await controller.exportReviewed(approve(preview))).saved, true);
   assert.equal(linked, true);
   assert.deepEqual(await fs.readdir(directory), ['report.json']);
+});
+
+test('operation health is optional under session performance and a changed health state revokes reviewed export',async t=>{
+ const {createOperationHealth}=require('../src/operation-health'),health=createOperationHealth();
+ health.observe('nativePull',{retained:[{state:'pending-editor-validation'}]});
+ const fixtureState=await fixture(t);fixtureState.state.operationHealth=health.snapshot();
+ const review=fixtureState.controller.preview();assert.equal(review.report.operationHealth.workflows.nativePull.statusCounts.pendingValidation,1);
+ health.observe('nativePull',{retained:[{state:'completed'}]});fixtureState.state.operationHealth=health.snapshot();
+ assert.deepEqual(await fixtureState.controller.exportReviewed(fixtureState.approve(review)),{saved:false,error:'diagnostics-changed'});assert.equal(fixtureState.dialogs(),0);
+ const excluded=fixtureState.controller.preview({includeAdapter:false});assert.equal(Object.hasOwn(excluded.report,'operationHealth'),false);
+ health.observe('nativePull',{retained:[{state:'rolled-back'}]});fixtureState.state.operationHealth=health.snapshot();
+ assert.equal((await fixtureState.controller.exportReviewed(fixtureState.approve(excluded))).saved,true);
 });

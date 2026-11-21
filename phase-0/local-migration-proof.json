@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "operation": "verified-personal-local-migration-drill",
+  "scope": "Owner-only manual code/metadata upgrade and separate-workspace restoration; actual historical schema4 reader with current Node/npm dependencies and current schema5 reader. No signed installer, binary activation, automatic update, hosted deployment or machine power-loss claim.",
+  "privateRetentionDirectory": "phase-0/private-integration-proof/frameline-local-migration-teS6Sk",
+  "manifestSha256": "b7d259d7f7b9a4471a0a9cef71026ec530b18dea89de75894e59d4cd8a1028df",
+  "sourceHashes": {
+    "scripts/audit-local-migrations.cjs": "72e5474ce256605cf96fbef16a1d0a59f46252f0e1f791fbc3281242949778ee",
+    "scripts/local-migration-common.cjs": "1a3acd7add8dfbb14dbdf37ce161466b7546835c08868503d59f8d1c25836575",
+    "scripts/verify-local-migrations.cjs": "101b1392fee3130b06e75d31e05c371cc04cd6aa18ab573a634cc2b286aa866e",
+    "src/compatibility-contract.js": "3ed81b7c047426f47ec35f9f70176fa38c455c2bc53ddeebb71ca7008fb6be50",
+    "src/fcpxml-adapter.js": "559809970ae4f42304774911691505ddc3b8f9a8238082fd373d51f35a67307f",
+    "src/fcpxml-scan-controller.js": "dc14ad68b60a2f63f94e50dea0c22163365aa83d15341e1bb4a25f9af832134d",
+    "src/fcpxml-scan-core.js": "be16266c1c9372ff464337bfc2b9a8a9323f1982011beb053bc98c0e2fbfd092",
+    "src/fcpxml-scan-worker.js": "d026906faee4a829ace504e52a07fd72faf092b1a068f847b1448355e0c45766",
+    "src/local-metadata.js": "a074b6fea355c42cc38c62e4da924995721cbc7f8e27a7f9db76fda91eb65802",
+    "src/metadata-lock.js": "a886af07f95df86fd807a55e4c01b03a9367e30ea65ac5a5d7cec2c181264db8",
+    "src/project-api-contracts.js": "8bf31e3192a2693eb370698ee5cd8718cd614b4668c6f81cc957364bd44732e0",
+    "src/resolve-conflict-rules.js": "fc23fbe21ad64da9e8a2d95d4c5ac48c0d65b804f94dc11269857117f0730a2d",
+    "src/resolve-effect-observation.js": "1c9a8e5cef19496759b6f3ae80241292df21759beb219445286b11f9c3422101",
+    "src/resolve-id-diff.js": "3824a8e53f523a0659d06fd2358378b52e16a1df66f82a11641eb509116f7c62",
+    "src/resolve-observation-three-way.js": "3cb6889d41fbb8f40b9a0ec2f87d4d392fb82553388525fa36b465bc72eff35f",
+    "src/resolve-observation-values.js": "f55322d23786835dd666b036ea894db2a23fb7330041522d8df6eda681a0a429",
+    "src/resolve-plan-policy.js": "688d44d1ae68ddf5e77a21b6a9c5cc3dcdde3e093d171b2f2c77ef2ee8cb32a4",
+    "src/resolve-portable-trial-audit.js": "ab45da74ae472293658ec6f1627ab3a329fabdf947a6336a2a87a32713703190",
+    "src/resolve-preview-plan.js": "467ce266c24f3d684e5b935a3e1d4fa0a41327f4aac0cb9816f585b0926ddac9",
+    "src/resolve-preview-source.js": "adc6e05b100472e73960787f6abd454887fc69cfa35efdfd59b5a0855392af0f",
+    "src/resolve-property-contract.json": "b60f612f96ee27862a8bbf49026a893ab3b8c9f91b60d6272708274c6168db27",
+    "src/resolve-property-observation.js": "00d93204b98394bf98b4d988f147415472e1bab79c534a30aa58bc7fa9368b68",
+    "src/resolve-rename-review.js": "ed74e4ed192c54781340999331a7e830263c69c0eef612437396cbb879962fd4",
+    "src/resolve-review-decisions.js": "c2c7faf8cf6866fb9146dd734ab96f9b13514920fb4d05d19673e188b6a3c350",
+    "src/resolve-revision-manifest.js": "f18d02eff7f62b5fa01affb2fe3a66ae3fb6d9466c22e3398dfdb9042564d252",
+    "src/resolve-snapshot-bindings.js": "47c67036b1608906d4a6317d0296c2e3e151bd177b7a980880c803f2e4014560",
+    "src/resolve-snapshot-normalizer.js": "f72a96e1708adba33b7138f1fb9fed437dd152fd9c394653d7e50f01e7fdfda3",
+    "src/resolve-snapshot-validator.js": "58314ac3910f5db8413f164f9b8a4f83be93a893549612a6809425f5fe1363f2",
+    "src/resolve-three-way-classifier.js": "5ebcf0a48bfa1416ef17b2161e5ab86782a5e6d34a1f7f376291e73870c8aa92",
+    "src/revision-manifest.js": "28db3438fff5af379c154d52d6e52475ca4500c00f217ebc50f12d0c434db6a5",
+    "src/revision-transfer.js": "41e28b615a8dab6584f67ba71012ed464325dac92e798a42e7074aa8f4b0cb9a",
+    "src/scan-manifest.js": "d162b006b1d78750d1c46aeb1b0afd299cd419c98f775d7f635a7baccf8830cb",
+    "src/service-sync-base.js": "99dd137660177d7539e40b6035d0036d6227335709c28a56f353d22fbe6bd38c"
+  },
+  "historicalReader": {
+    "commit": "71219f13e7b94c916b07ef400591b5fca9968171",
+    "archiveSha256": "4b3183fe0be7a2f333cb7a658ce07c71128794ed21935e85286f0e1c2669ff80",
+    "sourceFiles": 9,
+    "maximumSchema": 4
+  },
+  "processCount": 11,
+  "processes": [
+    {
+      "stage": "bootstrap-old",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "upgrade",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "old-refuses",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "write-new",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "before",
+      "code": null,
+      "signal": "SIGKILL"
+    },
+    {
+      "stage": "before-reopen",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "after",
+      "code": null,
+      "signal": "SIGKILL"
+    },
+    {
+      "stage": "after-reopen",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "restore-old",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "future-refuses",
+      "code": 0,
+      "signal": null
+    },
+    {
+      "stage": "legacy-upgrade",
+      "code": 0,
+      "signal": null
+    }
+  ],
+  "observedRuntime": {
+    "node": "24.21.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "fastXmlParser": "5.12.0",
+    "parserEntrySha256": "1ab9465fc14111a7505d34469114cb3f964e4ee86002ac82a13527e120e39eea",
+    "packageLockSha256": "8024dfb52a51ecfdd890463345273f3d770e8df7dbebc3524f624bf50c2b23f2"
+  },
+  "sourceSha256": "68462c74e365d9e339b1d3a049891277cbeb5fc6d9185835fe167a7fb314e91b",
+  "metadataUpgrade": {
+    "from": 4,
+    "to": 5,
+    "projects": 1,
+    "revisionsPreserved": 3,
+    "branchesPreserved": 2,
+    "legacySyncBasesPreserved": true,
+    "noServiceBaseGuessed": true,
+    "originalBackupSha256": "f7beb8188b814d08a6d6fcf7a63a1a002e2a544e1ec48ff4e2f1f60609d93a33"
+  },
+  "interruptedMigrations": [
+    {
+      "point": "backup-published-before-primary",
+      "signal": "SIGKILL",
+      "observedPrimarySchema": 4,
+      "recoveredSchema": 5,
+      "originalBackupSha256": "f7beb8188b814d08a6d6fcf7a63a1a002e2a544e1ec48ff4e2f1f60609d93a33",
+      "immutableRecordCount": 3
+    },
+    {
+      "point": "primary-replaced-before-acknowledgment",
+      "signal": "SIGKILL",
+      "observedPrimarySchema": 5,
+      "recoveredSchema": 5,
+      "originalBackupSha256": "f7beb8188b814d08a6d6fcf7a63a1a002e2a544e1ec48ff4e2f1f60609d93a33",
+      "immutableRecordCount": 3
+    }
+  ],
+  "downgradeRefusal": {
+    "readerMaximumSchema": 4,
+    "primarySchema": 5,
+    "validBackupSchema": 4,
+    "error": "metadata-newer-version",
+    "canonicalFilesUnchanged": true
+  },
+  "postUpgradeWrite": {
+    "revisionCount": 4,
+    "oldRecordHashesPreserved": true,
+    "alternateBranchUnchanged": true
+  },
+  "separateWorkspaceRestoration": {
+    "restoredSchema": 4,
+    "originalGraphAndBytesRestored": true,
+    "newerWorkspacePreserved": true
+  },
+  "futureSchemaRefusal": {
+    "primarySchema": 6,
+    "validBackupSchema": 4,
+    "error": "metadata-newer-version",
+    "canonicalFilesUnchanged": true
+  },
+  "legacyProjectIdMigration": {
+    "from": 1,
+    "to": 5,
+    "projectIdPreserved": true
+  },
+  "installerUpgradeProven": false,
+  "automaticUpdatesEnabled": false,
+  "rollbackOverwritesCurrentWorkspace": false
+}

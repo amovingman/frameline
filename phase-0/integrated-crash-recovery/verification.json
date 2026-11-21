@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-11-21T19:09:51.060Z",
+  "observedAt": "2026-11-21T19:49:58.401Z",
   "scope": "Five real Electron processes, shipped main/preload/renderers, actual worker FCPXML scan, authenticated scan/native intent journals, real certificate-verified loopback HTTPS asset service and chunks, and real SQLite candidate/atomic Apply/restore. Three SIGKILL deaths bypass orderly shutdown. Fixture picker/account/vault/TLS CA and native hardware/readback inputs are disposable. This does not claim live Resolve admission or machine power-loss durability.",
   "codeHashes": {
-    "src/main.js": "58aab4363f7766addbdbe0523954cd3081aee2b6e0153a754ff76758f49fb096",
+    "src/main.js": "fa028c0e573a876b5d4cfc9841cc1a909e248af3e7c4995e789195995717db55",
     "src/renderer.js": "a97fbbdd2552f95d6a2991d3d01aaf8a071fb88b28a86b87d749f0b714ff5711",
     "src/preload.js": "5e25bcaa8b22612df9a4f8953ea13d7bb79881f12112e3ba31efef5bb07c21b5",
-    "src/index.html": "383086580dbbc2e7d1211bcc6b274854455dd4be2430f65103eba1be87ce287b",
+    "src/index.html": "e0de22c05af22b999ab8eb00040bef1466fe5bd66ada560d0f10fe25a11a5d1c",
     "src/styles.css": "0f8377fdb4170dee29a698b057d1bf2ddf1d209188cba76e713fb2341cf23aa9",
     "src/desktop-scan-recovery.js": "ab5e1292d081f7f75f8efabe3c5628d126e5d3ce6ddfc0713aaa03ec058d43e1",
     "src/owned-transfer-staging.js": "d44d00b68841e0f34fc438dd9aca2e15e1f13947434b0983c1b7a7dc6978e95f",
@@ -63,8 +63,8 @@
       "uploadAcknowledgedChunks": [
         0
       ],
-      "assetId": "sha256:fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
-      "sourceSha256": "fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
+      "assetId": "sha256:38c9c8b6e2199687eedd001dd3411ee56f52c3e7bcea9ac4c7aa38dabcb0ec4d",
+      "sourceSha256": "38c9c8b6e2199687eedd001dd3411ee56f52c3e7bcea9ac4c7aa38dabcb0ec4d",
       "scanStarts": 1,
       "exit": {
         "signal": "SIGKILL"
@@ -73,17 +73,17 @@
     {
       "stage": "upload-recover-apply-crash",
       "uploaded": {
-        "id": "8177f998-7716-4546-8f54-2312f17f2ba9",
-        "completedAt": 1795288187836,
-        "assetId": "sha256:fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
-        "sourceSha256": "fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
+        "id": "18b32887-19ba-4bbe-98f1-a80ceb865589",
+        "completedAt": 1795290595197,
+        "assetId": "sha256:38c9c8b6e2199687eedd001dd3411ee56f52c3e7bcea9ac4c7aa38dabcb0ec4d",
+        "sourceSha256": "38c9c8b6e2199687eedd001dd3411ee56f52c3e7bcea9ac4c7aa38dabcb0ec4d",
         "uploadedMissingChunks": [
           1,
           2
         ]
       },
-      "transactionId": "7e29edeb-a259-4050-8f89-a617c1986894",
-      "planId": "79dbc8722386fa1c4b2d669cd7b311f7ed51663ae9c9bbc7c3fb8f3536207b93",
+      "transactionId": "31bd5d3e-72b6-4060-8a53-c1a2a4c2f8c8",
+      "planId": "dac55be91497d950e022f0bb1eaae3d9749c0f805e64c241e6d5a18316d925c4",
       "publicationDirection": "apply",
       "publishedSha256": "0cc7bba7f955008f1f4b90bd85a6669c14817cf1eed392c312498b2ef72741d8",
       "publications": 1,
@@ -108,8 +108,8 @@
     },
     {
       "stage": "apply-recover-restore",
-      "intentId": "4c795bc8-79f1-42ac-979a-7ef42f9e976a",
-      "transactionId": "7e29edeb-a259-4050-8f89-a617c1986894",
+      "intentId": "0e42711d-e146-4918-9c91-261935414764",
+      "transactionId": "31bd5d3e-72b6-4060-8a53-c1a2a4c2f8c8",
       "restoredSha256": "2d3eb78779d932cc3cff4b340b616a9921289d448dd9b44a80e06aeccb97a658",
       "publications": 1,
       "putChunks": [],
@@ -120,9 +120,9 @@
     },
     {
       "stage": "final-restart",
-      "uploadId": "8177f998-7716-4546-8f54-2312f17f2ba9",
-      "uploadCompletedAt": 1795288187836,
-      "nativeIntentId": "4c795bc8-79f1-42ac-979a-7ef42f9e976a",
+      "uploadId": "18b32887-19ba-4bbe-98f1-a80ceb865589",
+      "uploadCompletedAt": 1795290595197,
+      "nativeIntentId": "0e42711d-e146-4918-9c91-261935414764",
       "nativeState": "rolled-back",
       "noAutomaticPublication": true,
       "noAutomaticMediaTransfer": true,

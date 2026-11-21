@@ -17,8 +17,8 @@
   "stages": [
     {
       "stage": "apply-history",
-      "intentId": "cba5f90e-665a-43b9-b775-197b86f11d16",
-      "auditHash": "9d4d640c47da425f0fb6a852cd677b1aa36d3d061917ab99146d041acf9bbcf3",
+      "intentId": "118800e6-0e22-4a98-9d60-d777ef17ade4",
+      "auditHash": "96403019e711ff60570af629aab3755ce07c39a43b6b377f094388497f9a2eb6",
       "direction": "apply",
       "explicitChoices": 2,
       "pathFreePublicState": true,
@@ -45,8 +45,8 @@
     },
     {
       "stage": "restore-history",
-      "intentId": "cba5f90e-665a-43b9-b775-197b86f11d16",
-      "auditHash": "e0acd0fb3da161ef20edfd59bd75ed1790a56868758d55bcab3824632f334dba",
+      "intentId": "118800e6-0e22-4a98-9d60-d777ef17ade4",
+      "auditHash": "ed2eef699f5ffae2a3954c76d377ba363c016f1189c102f03aad0682421df56d",
       "direction": "rollback",
       "explicitChoices": 2,
       "pathFreePublicState": true,
