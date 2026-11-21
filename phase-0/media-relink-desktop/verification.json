@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two real Electron processes with shipped main/preload/renderer/controller, authenticated durable relink intents, streamed real-file role fingerprints and exclusive byte-range FCPXML copy publication. Pickers supply disposable paths. Native Resolve import is independently proven with real moving original/proxy media; this UI fixture makes no decoding claim.",
+  "checks": [
+    "50 repeated picture occurrences and separate original/proxy declarations",
+    "camera-original choice rejects proxy bytes before planning",
+    "source names rendered as text",
+    "paths remain in trusted main only",
+    "captured class/size/SHA authority survives original-folder movement",
+    "exact 3-attribute patch with opaque XML preserved",
+    "plan-bound acknowledgment cleared on restart",
+    "no automatic publication on restart",
+    "same signed intent and plan recovered by second process",
+    "explicit publication produces new verified copy without source/media writes",
+    "global review lock prevents competing native operations",
+    "1440px and 600px responsive layouts",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "prepare",
+      "intentId": "06c8c3e5-3a0a-4c82-acee-967fc818cde4",
+      "planId": "2fa2307718e8d348bd6e7c6b3b1efd1b237111bf55713a455768da7e55229467",
+      "sourceHash": "94d7f9672630c603280e0f3df71c27e3372b8998a4d341173acdb779446d05f3",
+      "candidateHash": "682a1aaaacd43c475d5eac3f8e7105d3d14512aacda101e3e0f12d33a2a6a15f",
+      "sourceUnchanged": true,
+      "pathFreePublicState": true,
+      "reviewState": "prepared",
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "publish",
+      "intentId": "06c8c3e5-3a0a-4c82-acee-967fc818cde4",
+      "planId": "2fa2307718e8d348bd6e7c6b3b1efd1b237111bf55713a455768da7e55229467",
+      "sourceHash": "94d7f9672630c603280e0f3df71c27e3372b8998a4d341173acdb779446d05f3",
+      "candidateHash": "682a1aaaacd43c475d5eac3f8e7105d3d14512aacda101e3e0f12d33a2a6a15f",
+      "sourceUnchanged": true,
+      "pathFreePublicState": true,
+      "reviewState": "validated",
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    }
+  ]
+}

@@ -153,7 +153,9 @@ const scanRecovery = {
   'malformed-xml': 'The export contains malformed XML. Export the timeline again from Resolve, then choose the new file.',
   'unsupported-structure': 'No supported top-level picture sequence was found. Export a timeline with a primary picture track from Resolve, then choose the new file.',
   'unsupported-fcpxml-version': 'This export is not FCPXML 1.10. Export the timeline from the tested Resolve 21.1.2 build, then choose the new file.',
-  'unsupported-timing': 'This timeline contains timing that does not align to whole frames. Check clip timing in Resolve and export again.',
+  'unsupported-timing': 'This timeline contains timing outside the supported exact whole-frame range. Check clip timing in Resolve and export again.',
+  'ambiguous-resource-id': 'Two export resources use the same ID. Export a fresh FCPXML timeline from Resolve; Frameline cannot safely choose which resource was intended.',
+  'ambiguous-original-media': 'The export gives conflicting camera-original references. Resolve those references in the editor and export again; a proxy will not be substituted.',
   'invalid-manifest': 'Frameline could not verify the scan results. Rescan or choose a new export. The project file was not changed.',
   'metadata-unavailable': 'Frameline could not save local project metadata. Check free disk space and folder permissions, then rescan. The export was not changed.',
   'workspace-unavailable': 'Revision storage is unavailable or has been replaced. Reconnect the original workspace folder at its saved location, then choose the project again.',
@@ -2836,6 +2838,10 @@ document.getElementById('branch-review-request-form').addEventListener('submit',
 });
 for (const view of ['requests', 'candidates']) document.getElementById(`branch-review-${view}-more`).addEventListener('click', () => runBranchReviewAction('refreshBranchReview', { view }));
 window.desktop?.onBranchReviewState?.(state => renderBranchReviewState(state));
+window.addEventListener('frameline:project-recovered', event => {
+  renderAppState(event.detail);
+  window.dispatchEvent(new CustomEvent('frameline:project-chosen', { detail: event.detail }));
+});
 window.desktop?.getAppState?.().then(renderAppState).catch(() => {});
 if (window.desktop?.getServiceState) {
   window.desktop.onServiceState?.(renderServiceState);
@@ -4071,6 +4077,7 @@ document.addEventListener('closed-apply-state', () => renderResolveState(resolve
 document.addEventListener('native-copy-state', () => renderResolveState(resolveState));
 document.addEventListener('native-checkpoint-state', () => renderResolveState(resolveState));
 document.addEventListener('native-pull-state', () => renderResolveState(resolveState));
+document.addEventListener('media-relink-state', () => renderResolveState(resolveState));
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
 window.desktop?.onResolveReviewState?.(state => {
   resolveReviewEventGeneration++; resolveReviewEventState = state;
@@ -4081,7 +4088,7 @@ var resolveTrialState = null;
 var resolveTrialBusy = false;
 var resolveTrialModeDraft = 'forced-rollback';
 function activeResolveTrial() {
-  return (typeof window !== 'undefined' && (window.closedApplyLocked || window.nativeCopyLocked || window.nativeCheckpointBusy || window.nativePullLocked)) || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
+  return (typeof window !== 'undefined' && (window.closedApplyLocked || window.nativeCopyLocked || window.nativeCheckpointBusy || window.nativePullLocked || window.mediaRelinkLocked)) || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
     'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialState?.phase);
 }
 function renderRetainedResolveTrials() {

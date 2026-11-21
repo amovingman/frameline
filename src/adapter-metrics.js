@@ -1,6 +1,6 @@
 const KNOWN_ERRORS = new Set(['scan-cancelled', 'unsupported-format', 'file-unavailable', 'file-access-denied',
   'file-busy', 'file-too-large', 'malformed-xml', 'unsupported-structure', 'unsupported-fcpxml-version',
-  'unsupported-timing', 'revision-source-changed', 'scan-worker-unavailable', 'scan-progress-failed', 'scan-disposed', 'scan-queue-full']);
+  'unsupported-timing', 'ambiguous-resource-id', 'ambiguous-original-media', 'revision-source-changed', 'scan-worker-unavailable', 'scan-progress-failed', 'scan-disposed', 'scan-queue-full']);
 
 // Session-local aggregate only. No source paths, media names, or network sink.
 function createAdapterMetrics({ now = () => Date.now() } = {}) {

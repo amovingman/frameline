@@ -1,4 +1,5 @@
 'use strict';
+const { createOwnedTransferStaging } = require('./owned-transfer-staging');
 const fs = require('node:fs/promises');
 const { constants } = require('node:fs');
 const path = require('node:path');
@@ -156,14 +157,9 @@ async function privateBytes(filename, limit, expectedSize = null) {
   } catch (error) { if (error.code === 'ENOENT') throw error; throw fail('asset-cache-corrupt'); }
   finally { await handle?.close().catch(() => {}); }
 }
-async function atomicPrivate(filename, bytes) {
-  const temporary = path.join(path.dirname(filename), `.checkpoint-${randomUUID()}.tmp`); let replacing = false;
-  try {
-    const handle = await fs.open(temporary, 'wx', 0o600);
-    try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
-    replacing = true; await fs.rename(temporary, filename); await syncDirectory(path.dirname(filename));
-  } catch (error) { throw fail(replacing ? 'asset-local-io-uncertain' : 'asset-local-io-failed'); }
-  finally { await fs.rm(temporary, { force: true }).catch(() => {}); }
+async function atomicPrivate(filename, bytes, staging) {
+  try { await staging.replacePrivate(filename, bytes); }
+  catch (error) { throw fail(error.publicationMayHaveOccurred?'asset-local-io-uncertain':'asset-local-io-failed'); }
 }
 function validateCheckpoint(value, binding) {
   if (!exact(value, ['schemaVersion', 'projectId', 'assetId', 'size', 'chunkSize', 'chunks', 'hashes']) || value.schemaVersion !== 1
@@ -182,8 +178,8 @@ async function existingDestination(destination, metadata, signal, onProgress) {
   } catch (error) { if (error.code === 'asset-cancelled' || error.code === 'asset-progress-failed') throw error; throw fail('asset-destination-exists'); }
   finally { await source?.handle.close().catch(() => {}); }
 }
-async function downloadAssetFile({ client, projectId, assetId, destination, workDirectory, signal, onProgress, maxBytesPerSecond = null } = {}) {
-  let release, temporary, output, published = false;
+async function downloadAssetFile({ client, projectId, assetId, destination, workDirectory, signal, onProgress, maxBytesPerSecond = null, onStagingCheckpoint = async () => {} } = {}) {
+  let release, temporary, output, assembly, published = false;
   try {
     settings(signal, onProgress, maxBytesPerSecond);
     if (!client || !['getAsset', 'readChunk'].every(name => typeof client[name] === 'function') || typeof projectId !== 'string' || !ID.test(projectId) || !asset(assetId)) throw fail('asset-request-invalid');
@@ -198,7 +194,8 @@ async function downloadAssetFile({ client, projectId, assetId, destination, work
     const stat = await fs.lstat(work);
     if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700 || destination === work
       || destination.startsWith(`${work}${path.sep}`) || work.startsWith(`${destination}${path.sep}`)) throw fail('asset-file-invalid');
-    try { release = await acquireMetadataLock(work, 0); } catch { throw fail('asset-transfer-busy'); }
+    try { release = await acquireMetadataLock(work, 100); } catch { throw fail('asset-transfer-busy'); }
+    const staging = createOwnedTransferStaging({ directory: path.join(work, '.transfer-staging'), onCheckpoint: onStagingCheckpoint });
     const binding = { projectId, assetId, size: metadata.size, chunkSize: metadata.chunkSize, chunks: metadata.chunks };
     const checkpointFile = path.join(work, 'checkpoint.json'); let checkpoint;
     try {
@@ -206,9 +203,9 @@ async function downloadAssetFile({ client, projectId, assetId, destination, work
       checkpoint = validateCheckpoint(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)), binding);
     } catch (error) {
       if (error.code !== 'ENOENT') throw fail('asset-checkpoint-invalid');
-      if ((await fs.readdir(work)).some(name => name !== 'metadata.lock')) throw fail('asset-checkpoint-invalid');
+      for(const name of await fs.readdir(work))if(!['metadata.lock', '.transfer-staging'].includes(name)&&!await staging.reservedTemporary(path.join(work,name),[checkpointFile]))throw fail('asset-checkpoint-invalid');
       checkpoint = { schemaVersion: 1, ...binding, hashes: Array(metadata.chunks).fill(null) };
-      await atomicPrivate(checkpointFile, Buffer.from(JSON.stringify(checkpoint)));
+      await atomicPrivate(checkpointFile, Buffer.from(JSON.stringify(checkpoint)), staging);
     }
     let received = 0;
     for (let index = 0; index < metadata.chunks; index++) {
@@ -221,12 +218,12 @@ async function downloadAssetFile({ client, projectId, assetId, destination, work
         const result = await client.readChunk(projectId, assetId, index, { signal });
         if (!result || !Buffer.isBuffer(result.bytes) || result.bytes.length !== size || result.chunks !== metadata.chunks || result.totalBytes !== metadata.size
           || typeof result.checksum !== 'string' || !SHA.test(result.checksum) || sha(result.bytes) !== result.checksum) throw fail('asset-response-invalid');
-        await atomicPrivate(filename, result.bytes); checkpoint.hashes[index] = result.checksum;
-        await atomicPrivate(checkpointFile, Buffer.from(JSON.stringify(checkpoint)));
+        await atomicPrivate(filename, result.bytes, staging); checkpoint.hashes[index] = result.checksum;
+        await atomicPrivate(checkpointFile, Buffer.from(JSON.stringify(checkpoint)), staging);
       }
       received += size; await progress(onProgress, 'downloading', received, metadata.size, signal);
     }
-    check(signal); temporary = path.join(parent, `.frameline-asset-${randomUUID()}.tmp`); output = await fs.open(temporary, 'wx', 0o600);
+    check(signal); assembly = await staging.begin({ targetPath: destination, kind: 'download-assembly', expectedSha256: assetId.slice(7), expectedBytes: metadata.size }); temporary = assembly.temporaryPath; output = assembly.handle;
     const digest = createHash('sha256'); let written = 0; await progress(onProgress, 'writing', 0, metadata.size, signal);
     for (let index = 0; index < metadata.chunks; index++) {
       const size = Math.min(metadata.chunkSize, Math.max(0, metadata.size - index * metadata.chunkSize));
@@ -237,10 +234,11 @@ async function downloadAssetFile({ client, projectId, assetId, destination, work
       written += size; await progress(onProgress, 'writing', written, metadata.size, signal);
     }
     if (written !== metadata.size || `sha256:${digest.digest('hex')}` !== assetId) throw fail('asset-identity-mismatch');
-    await output.sync(); await output.close(); output = null; await progress(onProgress, 'verifying', written, metadata.size, signal);
+    await assembly.ready(); output = null; await progress(onProgress, 'verifying', written, metadata.size, signal);
     let alreadyPresent = false;
-    try { await fs.link(temporary, destination); published = true; }
+    try { await assembly.publish('link'); published = true; }
     catch (error) {
+      if(error.publicationMayHaveOccurred){published=true;throw fail('asset-local-io-uncertain');}
       if (error.code !== 'EEXIST') throw error;
       if (!await existingDestination(destination, metadata, signal, onProgress)) throw fail('asset-destination-exists'); alreadyPresent = true;
     }
@@ -249,7 +247,7 @@ async function downloadAssetFile({ client, projectId, assetId, destination, work
   } catch (error) { throw safe(signal?.aborted && !published ? fail('asset-cancelled') : error); }
   finally {
     await output?.close().catch(() => {});
-    if (temporary) await fs.rm(temporary, { force: true }).catch(() => {});
+    if (assembly) await assembly.cleanup().catch(() => {});
     if (release) { try { await release(); } catch { /* No caller data or checkpoint is removed on a lock release failure. */ } }
   }
 }

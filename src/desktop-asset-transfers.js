@@ -8,6 +8,7 @@ const { acquireMetadataLock } = require('./metadata-lock');
 const { fingerprint } = require('./project-api-contracts');
 const { validateIdentity, validatePolicy, validateUsage, validateAvailability, validClasses, MAX_ASSET_BYTES } = require('./asset-http-transport');
 const defaultEngine = require('./asset-file-transfer');
+const { createOwnedTransferStaging } = require('./owned-transfer-staging');
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/, SHA = /^[a-f0-9]{64}$/, ASSET = /^sha256:[a-f0-9]{64}$/;
 const CLASSES = new Set(['original', 'proxy', 'audio', 'graphics', 'other']);
@@ -38,11 +39,13 @@ const SCOPE_FIELDS = ['originHash', 'accountId', 'localProjectId', 'localBranch'
 function validScope(value) { return exact(value, SCOPE_FIELDS) && SHA.test(value.originHash || '') && SCOPE_FIELDS.slice(1).every(key => typeof value[key] === 'string' && ID.test(value[key])); }
 const scopeKey = value => value ? fingerprint(value) : null;
 
-function createDesktopAssetTransfers({ directory, connection, getSelection, onChange = () => {}, engine = defaultEngine } = {}) {
+function createDesktopAssetTransfers({ directory, connection, getSelection, onChange = () => {}, engine = defaultEngine, onStagingCheckpoint = async () => {} } = {}) {
   if (!filename(directory) || !connection || typeof connection.getState !== 'function' || typeof connection.getAssetClient !== 'function'
     || typeof getSelection !== 'function' || typeof onChange !== 'function'
     || !['inspectAssetFile', 'uploadAssetFile', 'downloadAssetFile'].every(key => typeof engine[key] === 'function')) throw fail('asset-transfer-input-invalid');
   const journal = path.join(directory, 'transfers.json'), marker = path.join(directory, 'initialized.json');
+  const staging = createOwnedTransferStaging({ directory: path.join(directory, '.transfer-staging'), onCheckpoint: onStagingCheckpoint });
+  let stagingRecovery = { status: 'not-inspected', entries: [], retainedCount: 0 }, stagingRecoveryKey = null;
   let version = 0, active = null, preparation = null, review = null, error = null, starting = false, closed = false, uncertain = false, journalObserved = false;
   const tasks = new Set(), notifications = new Set(), metadata = new Set();
   let storage = { key: null, status: 'idle', policy: null, usage: null, error: null }, availability = null, storageRequest = 0, availabilityRequest = 0;
@@ -100,7 +103,8 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
     } catch (failure) {
       if (failure.code === 'ENOENT' && !journalObserved) {
         const entries = await fs.readdir(directory).catch(problem => { if (problem.code === 'ENOENT') return []; throw fail('asset-transfer-journal-invalid'); });
-        if (entries.every(name => name === 'metadata.lock')) return { schemaVersion: 1, jobs: [] };
+        let initialOnly=true;for(const name of entries)if(!['metadata.lock', '.transfer-staging'].includes(name)&&!await staging.reservedTemporary(path.join(directory,name),[journal,marker]))initialOnly=false;
+        if(initialOnly)return { schemaVersion: 1, jobs: [] };
       }
       throw fail('asset-transfer-journal-invalid');
     }
@@ -113,11 +117,11 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
       await privateDirectory(); release = await acquireMetadataLock(directory); const value = await read();
       async function publish(target, document) {
         const bytes = Buffer.from(JSON.stringify(document)); if (bytes.length > 4 * 1024 * 1024) throw fail('asset-transfer-capacity-exceeded');
-        temporary = path.join(directory, `.transfers-${randomUUID()}.tmp`);
-        const handle = await fs.open(temporary, 'wx', 0o600); try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
-        replacing = true; await fs.rename(temporary, target);
-        const parent = await fs.open(directory, constants.O_RDONLY | (constants.O_NOFOLLOW || 0)); try { await parent.sync(); } finally { await parent.close(); }
-        replacing = false; temporary = null;
+        const stage = await staging.begin({ targetPath: target, kind: 'private-replacement', expectedSha256: require('node:crypto').createHash('sha256').update(bytes).digest('hex'), expectedBytes: bytes.length });
+        try {
+          await stage.handle.writeFile(bytes); await stage.ready();
+          replacing = true; await stage.publish('rename'); replacing = false;
+        } finally { await stage.cleanup(); }
       }
       // Publish an empty journal and marker before the first job. Missing state
       // can then never silently reset observed work on this or a later launch.
@@ -176,7 +180,7 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
       review: shownReview, jobs, error: error || failure,
       storage: { status: storage.key === ctx?.key ? storage.status : 'idle', policy: storage.key === ctx?.key ? clone(storage.policy) : null,
         usage: storage.key === ctx?.key ? clone(storage.usage) : null, canManage: !!ctx?.canManage, error: storage.key === ctx?.key ? storage.error : null },
-      availability: availability && ctx && availability.key === ctx.key ? clone(availability.value) : null };
+      availability: availability && ctx && availability.key === ctx.key ? clone(availability.value) : null, stagingRecovery: stagingRecoveryKey === (ctx?.key || null) ? clone(stagingRecovery) : { status: 'not-inspected', entries: [], retainedCount: 0 } };
   }
   function notify() {
     if (closed) return;
@@ -463,10 +467,12 @@ function createDesktopAssetTransfers({ directory, connection, getSelection, onCh
   }); }
   function clearReview() { return control(async () => { review = null; const run = preparation; if (run) run.controller.abort();
     if (run?.promise) await run.promise; notify(); return getState(); }); }
+  function recoverStaging() { return control(async () => { const result=await staging.recover();const ctx=await context();for(const job of (await read()).jobs.filter(j=>j.direction==='download'&&scopeKey(j.scope)===ctx?.key)){const cache=createOwnedTransferStaging({directory:path.join(directory,'work',job.id,'.transfer-staging')});try{const recovered=await cache.recover();result.entries.push(...recovered.entries.map(e=>({...e,jobId:job.id})));result.retainedCount+=recovered.retainedCount;}catch{result.entries.push({id:null,jobId:job.id,status:'unverified-retained',canDiscard:false});}}stagingRecoveryKey=ctx?.key||null;stagingRecovery={status:'ready',...result};return getState(); }); }
+  function discardStaging(id) { return control(async () => { if (active || preparation || starting) throw fail('asset-transfer-busy');if(stagingRecoveryKey!==((await context())?.key||null))throw fail('asset-selection-changed');const entry=stagingRecovery.entries.find(e=>e.id===id&&e.canDiscard);if(!entry)throw fail('asset-transfer-unavailable');if(entry.jobId){const ctx=await context(),job=(await read()).jobs.find(j=>j.id===entry.jobId&&j.direction==='download'&&scopeKey(j.scope)===ctx?.key);if(!job)throw fail('asset-transfer-unavailable');await createOwnedTransferStaging({directory:path.join(directory,'work',job.id,'.transfer-staging')}).discard(id);}else await staging.discard(id);stagingRecovery={status:'ready',...await staging.recover()};return getState(); }); }
   async function dispose() { closed = true; preparation?.controller.abort(); if (active) { active.reason = 'asset-transfer-interrupted'; active.controller.abort(); }
     for (const request of metadata) request.controller.abort();
     while (tasks.size || notifications.size) { await Promise.allSettled([...tasks, ...notifications]); } }
   return { getState, prepareUpload, confirmUpload, startDownload, resume, cancel, clearReview, refreshStorage, savePolicy, checkAvailability, setArchived,
-    selectionChanged: lifecycle, connectionChanged: lifecycle, dispose };
+    selectionChanged: lifecycle, connectionChanged: lifecycle, recoverStaging, discardStaging, dispose };
 }
 module.exports = { createDesktopAssetTransfers, safeAssetTransferError };

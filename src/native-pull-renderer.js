@@ -25,7 +25,7 @@
       window.nativePullLocked = locked;
       document.dispatchEvent(new CustomEvent('native-pull-state', { detail: { locked } }));
     }
-    node('prepare').disabled = running || !s?.initialized || s?.reviewLocked || !rolesReady || window.closedApplyLocked || window.nativeCopyLocked || window.nativeCheckpointBusy;
+    node('prepare').disabled = Boolean(running || !s?.initialized || s?.reviewLocked || !rolesReady || window.closedApplyLocked || window.nativeCopyLocked || window.nativeCheckpointBusy || window.mediaRelinkLocked);
     node('status').textContent = s?.error || (running ? 'Verifying and retaining this action…' : intent?.stale ? 'The project or media condition changed. Earlier choices were cleared; review this recalculated plan.' : intent ? `Retained plan: ${intent.state.replaceAll('-', ' ')}${intent.resultingRevision ? ' · validated revision recorded' : ''}.` : 'Choose related native checkpoints above, then prepare a pull plan.');
     const retained = node('retained'); retained.replaceChildren(text('option', 'Choose a retained plan')); retained.firstChild.value = '';
     for (const r of s?.retained || []) { const o = text('option', `${r.intentId.slice(0, 8)} · ${r.state.replaceAll('-', ' ')}`); o.value = r.intentId; retained.append(o); }
@@ -86,6 +86,6 @@
   node('ack').addEventListener('change', () => render(state)); node('retained').addEventListener('change', () => { if (node('retained').value) { offset = 0; run('select', node('retained').value); } });
   node('previous').addEventListener('click', () => { offset = Math.max(0, offset - 20); render(state); }); node('next').addEventListener('click', () => { offset += 20; render(state); });
   document.addEventListener('native-checkpoint-state', e => { rolesReady = e.detail?.rolesReady === true; render(state); });
-  for (const event of ['closed-apply-state', 'native-copy-state']) document.addEventListener(event, () => render(state));
+  for (const event of ['closed-apply-state', 'native-copy-state', 'media-relink-state']) document.addEventListener(event, () => render(state));
   api?.onNativePullState?.(render); api?.getNativePullState?.().then(render).catch(() => render({ error: 'Retained pull plans could not be read.' }));
 })();

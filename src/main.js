@@ -55,6 +55,11 @@ const { createDesktopNativeReviewCopy } = require('./desktop-native-review-copy'
 const { createClosedProjectCheckpointStore } = require('./closed-project-checkpoint-store');
 const { createDesktopNativeCheckpoints } = require('./desktop-native-checkpoints');
 const { createDesktopNativePull } = require('./desktop-native-pull');
+const { createNativeResultAuditService } = require('./native-result-audit');
+const { createDesktopNativeResultAudit } = require('./desktop-native-result-audit');
+const { createDesktopScanRecovery } = require('./desktop-scan-recovery');
+const { createDesktopMediaRelink } = require('./desktop-media-relink');
+const { createLocalIntegrityVerifier } = require('./local-integrity-verifier');
 
 let projectSession;
 let projectScanner;
@@ -73,6 +78,10 @@ let closedProjectApply;
 let nativeReviewCopy;
 let nativeCheckpoints;
 let nativePull;
+let nativeResultAudit;
+let scanRestartRecovery;
+let mediaRelink;
+let localIntegrity;
 let resolveHistoryTransfer;
 let resolveSourcePaths = null;
 let resolveHistoryRevisionIds = null;
@@ -236,7 +245,7 @@ async function currentResolveSources() {
 }
 
 async function runResolveAction(action) {
-  if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || (nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked())) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
+  if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || (nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy()))) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
   const trial = resolveTrialSession?.getState();
   if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
@@ -355,7 +364,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     projectScanProgress = value;
     for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('project:scan-progress', value);
   };
-  const scan = adapterMetrics.wrapScan(async (sourcePath, options = {}) => {
+  const measuredScan = adapterMetrics.wrapScan(async (sourcePath, options = {}) => {
     const generation = ++projectScanGeneration, scanId = randomUUID();
     const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
     try {
@@ -364,6 +373,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
         if (!['reading', 'parsing', 'inventory', 'media', 'complete'].includes(progress.phase)) return;
         publishScanProgress({ scanId, phase: progress.phase, bytesRead: count(progress.bytesRead), totalBytes: count(progress.totalBytes),
           checked: count(progress.checked), total: count(progress.total), cacheHit: progress.cacheHit === true });
+        return options.onProgress?.(progress);
       } });
     } catch (error) {
       if (generation === projectScanGeneration) publishScanProgress({ scanId,
@@ -371,6 +381,9 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
       throw error;
     }
   });
+  scanRestartRecovery = createDesktopScanRecovery({ directory: path.join(app.getPath('userData'), 'scan-recovery'),
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('scan-recovery:state', state); } });
+  const scan = scanRestartRecovery.wrapScan(measuredScan, { getContext: () => projectSession.getState() });
   projectSession = createProjectSession({ ...fcpxmlProjectAdapter,
     scan, verifySource: (sourcePath, hash) => projectScanner.verifySource(sourcePath, hash) }, localMetadataStore);
   desktopMediaJobs = createDesktopMediaJobs({ directory: path.join(app.getPath('userData'), 'media-jobs'),
@@ -480,7 +493,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     } });
   closedProjectApply = createDesktopClosedProjectApply({ directory: path.join(app.getPath('userData'), 'closed-project-apply'),
     getVerifiedReview: async () => {
-      if ((nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked()) || nativeReviewCopy?.isReviewLocked() || resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
+      if ((nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy())) || nativeReviewCopy?.isReviewLocked() || resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
       return resolveReviewSession.getVerifiedReview(await currentResolveSources());
     },
     chooseSource: async () => {
@@ -493,12 +506,12 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle('closed-apply:activity-more', () => closedProjectApply.action('activity-more'));
   for (const method of ['apply', 'validate', 'recover', 'rollback', 'inspect', 'cancel', 'prepare-check', 'read-check', 'reveal']) {
     ipcMain.handle(`closed-apply:${method}`, (_event, id) => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id)
-      ? (nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked()) ? { ...closedProjectApply.getState(), error: 'Finish the native checkpoint read before changing the project.' } : closedProjectApply.action(method, id) : closedProjectApply.getState());
+      ? (nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy())) ? { ...closedProjectApply.getState(), error: 'Finish the native checkpoint read before changing the project.' } : closedProjectApply.action(method, id) : closedProjectApply.getState());
   }
   nativeReviewCopy = createDesktopNativeReviewCopy({ directory: path.join(app.getPath('userData'), 'native-review-copies'),
     getVerifiedReview: async () => {
       const trial = resolveTrialSession.getState();
-      if ((nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked()) || closedProjectApply.isReviewLocked() || resolveBusy || resolveServicePreview || trial.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase)) throw new Error('copy-review-locked');
+      if ((nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy())) || closedProjectApply.isReviewLocked() || resolveBusy || resolveServicePreview || trial.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase)) throw new Error('copy-review-locked');
       return resolveReviewSession.getVerifiedReview(await currentResolveSources());
     },
     getSyncBase: async editorProjectId => {
@@ -510,36 +523,81 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     },
     chooseSource: async () => { const p = await dialog.showOpenDialog({ title: 'Choose the original closed Resolve Project.db', properties: ['openFile'], filters: [{ name: 'Resolve database', extensions: ['db'] }] }); return p.canceled ? null : p.filePaths[0]; },
     chooseDestination: async () => { const p = await dialog.showOpenDialog({ title: 'Choose a different connected Resolve disk library', properties: ['openDirectory'] }); return p.canceled ? null : p.filePaths[0]; },
-    canStart: () => !(nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked()) && !closedProjectApply.isReviewLocked() && !resolveBusy,
+    canStart: () => !(nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy())) && !closedProjectApply.isReviewLocked() && !resolveBusy,
     reveal: filename => shell.showItemInFolder(filename),
     openEditor: async () => { const result = await shell.openPath('/Applications/DaVinci Resolve/DaVinci Resolve.app'); if (result) throw new Error('copy-editor-launch-failed'); },
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-copy:state', state); } });
   ipcMain.handle('native-copy:state', () => nativeReviewCopy.action('initialize'));
   ipcMain.handle('native-copy:prepare', () => nativeReviewCopy.action('prepare'));
-  for (const method of ['publish', 'prepare-check', 'read-check', 'validate', 'recover', 'inspect', 'reveal', 'open', 'read-open', 'cancel']) ipcMain.handle(`native-copy:${method}`, (_event, id) => (nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked()) ? { ...nativeReviewCopy.getState(), error: 'Finish the native checkpoint read before changing the project.' } : nativeReviewCopy.action(method, id));
+  for (const method of ['publish', 'prepare-check', 'read-check', 'validate', 'recover', 'inspect', 'reveal', 'open', 'read-open', 'cancel']) ipcMain.handle(`native-copy:${method}`, (_event, id) => (nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy())) ? { ...nativeReviewCopy.getState(), error: 'Finish the native checkpoint read before changing the project.' } : nativeReviewCopy.action(method, id));
   const checkpointCopyReader = { inspect: id => nativeReviewCopy.readRetainedCopy(id), listTransactionIds: () => nativeReviewCopy.listRetainedCopyIds() };
   const checkpointStore = createClosedProjectCheckpointStore({ directory: path.join(app.getPath('userData'), 'native-checkpoints'),
     verifyCopyLineage: async ({ transactionId }) => checkpointCopyReader.inspect(transactionId) });
   nativeCheckpoints = createDesktopNativeCheckpoints({ store: checkpointStore,
     chooseSource: async () => { const p = await dialog.showOpenDialog({ title: 'Capture a closed Resolve Project.db checkpoint', properties: ['openFile'], filters: [{ name: 'Resolve database', extensions: ['db'] }] }); return p.canceled ? null : p.filePaths[0]; },
-    canRead: () => { const trial = resolveTrialSession.getState(); return !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !nativePull?.isReviewLocked() && !resolveBusy && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
+    canRead: () => { const trial = resolveTrialSession.getState(); return !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !(nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy()) && !resolveBusy && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
     listReviewCopies: async () => { const records = []; for (const id of await checkpointCopyReader.listTransactionIds()) records.push(await checkpointCopyReader.inspect(id)); return records; },
     readReviewCopy: id => checkpointCopyReader.inspect(id),
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-checkpoints:state', state); } });
   ipcMain.handle('native-checkpoints:state', () => nativeCheckpoints.action('initialize'));
-  ipcMain.handle('native-checkpoints:capture', () => nativePull?.isReviewLocked() ? { ...nativeCheckpoints.getState(), error: 'Finish the retained pull plan before changing native checkpoint review.' } : nativeCheckpoints.action('capture'));
-  ipcMain.handle('native-checkpoints:compare', () => nativePull?.isReviewLocked() ? { ...nativeCheckpoints.getState(), error: 'Finish the retained pull plan before changing native checkpoint review.' } : nativeCheckpoints.action('compare'));
+  ipcMain.handle('native-checkpoints:capture', () => (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy()) ? { ...nativeCheckpoints.getState(), error: 'Finish the retained pull plan before changing native checkpoint review.' } : nativeCheckpoints.action('capture'));
+  ipcMain.handle('native-checkpoints:compare', () => (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy()) ? { ...nativeCheckpoints.getState(), error: 'Finish the retained pull plan before changing native checkpoint review.' } : nativeCheckpoints.action('compare'));
   ipcMain.handle('native-checkpoints:refresh', () => nativeCheckpoints.action('refresh'));
-  for (const method of ['set-base', 'set-incoming', 'import-copy', 'page']) ipcMain.handle(`native-checkpoints:${method}`, (_event, value) => nativePull?.isReviewLocked() && method !== 'page' ? { ...nativeCheckpoints.getState(), error: 'Finish the retained pull plan before changing native checkpoint review.' } : nativeCheckpoints.action(method, value));
+  for (const method of ['set-base', 'set-incoming', 'import-copy', 'page']) ipcMain.handle(`native-checkpoints:${method}`, (_event, value) => (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy()) && method !== 'page' ? { ...nativeCheckpoints.getState(), error: 'Finish the retained pull plan before changing native checkpoint review.' } : nativeCheckpoints.action(method, value));
   nativePull = createDesktopNativePull({ directory: path.join(app.getPath('userData'), 'native-pulls'), store: checkpointStore,
     getRoles: () => { const s = nativeCheckpoints.getState(); return { baseCheckpointId: s.baseCheckpointId, incomingCheckpointId: s.incomingCheckpointId }; },
-    canStart: () => { const trial = resolveTrialSession.getState(); return !nativeCheckpoints.isBusy() && !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !resolveBusy && !resolveServicePreview && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
+    canStart: () => { const trial = resolveTrialSession.getState(); return !mediaRelink?.isReviewLocked() && !localIntegrity?.isBusy() && !nativeCheckpoints.isBusy() && !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !resolveBusy && !resolveServicePreview && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
     reveal: filename => shell.showItemInFolder(filename),
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-pull:state', state); } });
   ipcMain.handle('native-pull:state', () => nativePull.action('initialize'));
   ipcMain.handle('native-pull:prepare', () => nativePull.action('prepare'));
   ipcMain.handle('native-pull:choose', (_event, id, changeId, choice) => nativePull.action('choose', id, changeId, choice));
   for (const method of ['refresh', 'apply', 'recover', 'validate', 'rollback', 'cancel', 'select', 'prepare-check', 'read-check', 'reveal']) ipcMain.handle(`native-pull:${method}`, (_event, id) => nativePull.action(method, id));
+  const resultAuditService = createNativeResultAuditService({
+    listIntents: () => nativePull.listRetainedIntents(), readIntent: id => nativePull.readRetainedIntent(id),
+    readTransaction: id => nativePull.readRetainedTransaction(id), readCheckpoint: id => checkpointStore.readCheckpoint(id),
+    isAncestor: (base, next) => checkpointStore.isAncestor(base, next) });
+  nativeResultAudit = createDesktopNativeResultAudit({ service: resultAuditService,
+    saveAudit: async result => {
+      const hash = require('node:crypto').createHash('sha256').update(result.bytes).digest('hex');
+      const review = await dialog.showMessageBox({ type: 'question', title: 'Review native result audit', message: 'Save this verified result audit?',
+        detail: `The audit includes project and revision IDs, source hashes, field values and conflict decisions. Paths, native database bytes and private host keys are excluded. Standalone hash verification cannot authorize Apply.\n\nSHA-256: ${hash}`,
+        buttons: ['Save audit', 'Cancel'], defaultId: 1, cancelId: 1 });
+      if (review.response !== 0) return { cancelled: true };
+      const chosen = await dialog.showSaveDialog({ title: 'Save reviewed native result audit', defaultPath: result.suggestedName, filters: [{ name: 'Native result audit', extensions: ['json'] }] });
+      if (chosen.canceled || !chosen.filePath) return { cancelled: true };
+      const verifiedAgain = await resultAuditService.exportAudit(result.summary.intentId, { direction: result.summary.direction });
+      if (!result.bytes.equals(verifiedAgain.bytes)) throw new Error('native-result-audit-changed');
+      const h = await fs.open(chosen.filePath, 'wx', 0o600); try { await h.writeFile(result.bytes); await h.sync(); } finally { await h.close(); }
+      return { saved: true };
+    }, onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-result-audit:state', state); } });
+  ipcMain.handle('native-result-audit:state', () => nativeResultAudit.action('refresh'));
+  ipcMain.handle('native-result-audit:refresh', () => nativeResultAudit.action('refresh'));
+  ipcMain.handle('native-result-audit:select', (_event, intentId, direction) => nativeResultAudit.action('select', { intentId, direction }));
+  ipcMain.handle('native-result-audit:page', (_event, offset) => nativeResultAudit.action('page', { offset }));
+  ipcMain.handle('native-result-audit:list-page', (_event, offset) => nativeResultAudit.action('list-page', { offset }));
+  ipcMain.handle('native-result-audit:export', () => nativeResultAudit.action('export'));
+  mediaRelink = createDesktopMediaRelink({ directory: path.join(app.getPath('userData'), 'media-relinks'),
+    getSelection: () => { const s = projectSession.getState(); return selectedProjectPath && s.scanStatus === 'ready' && s.scan ? { sourcePath: selectedProjectPath, sourceHash: s.scan.sourceHash } : null; },
+    selectCandidate: async ({ assetClass }) => { const p = await dialog.showOpenDialog({ title: `Choose the same ${assetClass === 'proxy' ? 'proxy' : 'camera-original'} media bytes`, properties: ['openFile'] }); return p.canceled ? null : p.filePaths[0]; },
+    selectDestination: async () => { const p = await dialog.showSaveDialog({ title: 'Save relinked FCPXML as a new review copy', defaultPath: 'relinked-review.fcpxml', filters: [{ name: 'FCPXML', extensions: ['fcpxml'] }] }); return p.canceled || !p.filePath ? null : { directory: path.dirname(p.filePath), filename: path.basename(p.filePath) }; },
+    reveal: filename => shell.showItemInFolder(filename),
+    canStart: () => { const trial = resolveTrialSession.getState(); return !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !nativePull.isReviewLocked() && !nativeCheckpoints.isBusy() && !localIntegrity?.isBusy() && !resolveBusy && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('media-relink:state', state); } });
+  ipcMain.handle('media-relink:state', () => mediaRelink.action('initialize'));
+  ipcMain.handle('media-relink:capture', () => mediaRelink.action('capture'));
+  ipcMain.handle('media-relink:choose', (_event, id, referenceId) => mediaRelink.action('choose', id, referenceId));
+  ipcMain.handle('media-relink:publish', (_event, id, planId) => mediaRelink.action('publish', id, planId));
+  for (const method of ['prepare', 'recover', 'reveal', 'prepare-import', 'read-import', 'validate-import', 'retire-import', 'cancel', 'select']) ipcMain.handle(`media-relink:${method}`, (_event, id) => mediaRelink.action(method, id));
+  localIntegrity = createLocalIntegrityVerifier({ workDirectory: path.join(app.getPath('userData'), 'integrity-checks'), artifactRoots: [path.join(app.getPath('userData'), 'native-pulls')],
+    getSelection: async () => { const s = projectSession.getState(); if (!selectedProjectPath || s.scanStatus !== 'ready') return null; const current = await projectSession.readComparisonSource(); return { projectId: current.localProjectId, branch: current.branch, headId: current.headId, manifest: current.manifest }; },
+    getHistory: s => localMetadataStore.exportRevisionsReadOnly(s.projectId), listCheckpoints: () => checkpointStore.list(), readCheckpoint: id => checkpointStore.readCheckpoint(id),
+    listIntents: () => nativePull.listRetainedIntents(), readTransaction: id => nativePull.readRetainedTransaction(id),
+    verifyResult: async (id, direction) => (await resultAuditService.detail(id, { direction })).available === true,
+    canRun: () => !nativePull.isBusy() && !nativeReviewCopy.getState().busy && !closedProjectApply.getState().busy && !nativeCheckpoints.isBusy() && !mediaRelink.isBusy() && projectSession.getState().scanStatus !== 'scanning',
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('local-integrity:state', state); } });
+  ipcMain.handle('local-integrity:state', () => localIntegrity.getState());
+  ipcMain.handle('local-integrity:run', () => localIntegrity.run());
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:scan-progress', () => projectScanProgress);
@@ -753,6 +811,8 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   }));
   ipcMain.handle('asset-transfer:resume', (_event, id) => assetTransferAction(() => desktopAssetTransfers.resume(id)));
   ipcMain.handle('asset-transfer:cancel', (_event, id) => assetTransferAction(() => desktopAssetTransfers.cancel(id)));
+  ipcMain.handle('asset-transfer:recover-staging', () => assetTransferAction(() => desktopAssetTransfers.recoverStaging()));
+  ipcMain.handle('asset-transfer:discard-staging', (_event, id) => assetTransferAction(() => desktopAssetTransfers.discardStaging(id)));
   ipcMain.handle('asset-transfer:refresh-storage', () => assetTransferAction(() => desktopAssetTransfers.refreshStorage()));
   ipcMain.handle('asset-transfer:save-policy', (_event, input) => assetTransferAction(() => desktopAssetTransfers.savePolicy(input)));
   ipcMain.handle('asset-transfer:availability', (_event, id) => assetTransferAction(() => desktopAssetTransfers.checkAvailability(id)));
@@ -771,7 +831,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
-  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || (nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked()))
+  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || (nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy())))
     ? { ...resolveTrialSession.getState(), error: 'Finish or recover the active Apply before using a rename drill.' } : action(...args));
   ipcMain.handle('resolve-trial:state', () => resolveTrialSession.initialize());
   handleResolveTrial('resolve-trial:discover', (_event, append) => resolveTrialSession.refreshDiscovery(append));
@@ -798,7 +858,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     catch { return { ...resolveTrialSession.getState(), error: 'The retained backup could not be verified. Keep the trial records for recovery.' }; }
   });
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
-    if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || (nativeCheckpoints?.isBusy() || nativePull?.isReviewLocked())) return { ready: false, error: 'Finish or recover the active Apply first.' };
+    if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || (nativeCheckpoints?.isBusy() || (nativePull?.isReviewLocked() || mediaRelink?.isReviewLocked() || localIntegrity?.isBusy()))) return { ready: false, error: 'Finish or recover the active Apply first.' };
     companionPending = null;
     companionVerifiedSnapshot = null;
     resolveCaptureGeneration++; desktopResolveServiceSync.captureChanged();
@@ -1208,7 +1268,9 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
       logger.info('project.selection-cancelled');
       return projectSession.getState();
     }
-    const selectedPath = result.filePaths[0];
+    return selectProjectForDesktop(result.filePaths[0]);
+  });
+  async function selectProjectForDesktop(selectedPath) {
     selectedProjectPath = null;
     await mediaJobsSelectionChanged();
     desktopRevisionSync.selectionChanged();
@@ -1230,6 +1292,16 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
     desktopRevisionSync.selectionChanged();
     return finishOnboarding(state);
+  }
+  ipcMain.handle('scan-recovery:state', async () => { try { return await scanRestartRecovery.initialize(); } catch { return { ...scanRestartRecovery.getState(), error: 'scan-recovery-unverified' }; } });
+  ipcMain.handle('scan-recovery:cancel', async (_event, id) => { try { await scanRestartRecovery.cancel(id); return scanRestartRecovery.getState(); } catch { return { ...scanRestartRecovery.getState(), error: 'scan-recovery-unverified' }; } });
+  ipcMain.handle('scan-recovery:restart', async (_event, id) => {
+    try {
+      if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id) || projectSession.getState().scanStatus === 'scanning') throw new Error('scan-recovery-unavailable');
+      const choice = await dialog.showOpenDialog({ title: 'Reselect the interrupted timeline export', properties: ['openFile', 'treatPackageAsDirectory'], filters: [{ name: 'Resolve timeline export', extensions: ['fcpxml', 'fcpxmld'] }] });
+      if (!choice.canceled && choice.filePaths[0]) { const restart = await scanRestartRecovery.authorizeRestart(id, choice.filePaths[0]); await selectProjectForDesktop(restart.sourcePath); }
+      return scanRestartRecovery.getState();
+    } catch { return { ...scanRestartRecovery.getState(), error: 'scan-recovery-unverified' }; }
   });
   ipcMain.handle('project:rescan', async () => {
     const sourcePath = selectedProjectPath;

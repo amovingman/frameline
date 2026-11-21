@@ -24,8 +24,10 @@ function fileErrorCode(error) {
 
 function rational(value) {
   const match = /^(\d+)(?:\/(\d+))?s$/.exec(String(value ?? ''));
-  if (!match || match[2] === '0') throw new ScanError('unsupported-timing');
-  return [BigInt(match[1]), BigInt(match[2] || 1)];
+  if (!match) throw new ScanError('unsupported-timing');
+  const denominator = BigInt(match[2] || 1);
+  if (denominator === 0n) throw new ScanError('unsupported-timing');
+  return [BigInt(match[1]), denominator];
 }
 
 function frames(value, frameDuration) {
@@ -48,7 +50,11 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
 
   const resources = new Map();
   for (const [kind, nodes] of Object.entries(root.resources)) {
-    for (const node of asArray(nodes)) if (node?.id) resources.set(String(node.id), { ...node, kind });
+      for (const node of asArray(nodes)) if (node?.id) {
+        const id = String(node.id);
+        if (resources.has(id)) throw new ScanError('ambiguous-resource-id');
+        resources.set(id, { ...node, kind });
+      }
   }
   const projects = asArray(root.library.event).flatMap(event => asArray(event.project));
   const project = projects.find(candidate => candidate.sequence);
@@ -98,8 +104,18 @@ function buildInventory(xml, sourceHash = createHash('sha256').update(xml).diges
     const offsetFrames = frames(node.offset ?? '0s', frameDuration);
     const durationFrames = frames(node.duration, frameDuration);
     const sourceInFrames = frames(node.start ?? '0s', frameDuration);
-    const mediaRep = asArray(asset['media-rep']).find(rep => rep.kind === 'original-media') || asArray(asset['media-rep'])[0];
+    if (!Number.isSafeInteger(offsetFrames + durationFrames)
+      || !Number.isSafeInteger(sourceInFrames + durationFrames)) throw new ScanError('unsupported-timing');
+    const representations = asArray(asset['media-rep']);
+    const originals = representations.filter(rep => rep.kind === 'original-media');
+    if (originals.length > 1 || originals[0]?.src && asset.src && originals[0].src !== asset.src) {
+      throw new ScanError('ambiguous-original-media');
+    }
+    const mediaRep = originals[0];
     const source = mediaRep?.src || asset.src || null;
+    if (!source && representations.some(rep => rep.kind === 'proxy-media')) {
+      warnings.add('Proxy-only media does not establish camera-original availability');
+    }
     const mediaKey = source || `resource:${assetRef}`;
     if (!referencedAssets.has(mediaKey)) referencedAssets.set(mediaKey, { name: displayName(asset.name || 'Unnamed asset'), source });
     clips.push({

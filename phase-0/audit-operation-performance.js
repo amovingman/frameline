@@ -19,7 +19,8 @@ const pins={
   'phase-0/resolve-operation-backup-live-result.json':'d82994fcf03f52c7faf50b5f9366950075a52f57314bfa2b779c19dfa2cbe408',
   'phase-0/resolve-operation-rename-live-result.json':'513550cf6c94c42190b06195fb37b076315c1d7ffc0acce255385c0306638907',
   'phase-0/resolve-operation-rename-rss.json':'b39de995870a15987c90f9a8c2600c9b57068371d61f85967ead9bc6bfdd4a03',
-  'phase-0/resolve-operation-scan-live-observation.json':'3fe73a29923b3ce4c2e067e937d68bb00ccd9e3b8d3df1a844d8bba2f5b83416'
+  'phase-0/resolve-operation-scan-live-observation.json':'d4ce32af743c1b4eb5ca7bd2f44d97a6118c88f2231c69c16fc25cd6652d59ec',
+  'phase-0/evidence-sources/resolve-operation-scan-observed-20261120.json.txt':'3fe73a29923b3ce4c2e067e937d68bb00ccd9e3b8d3df1a844d8bba2f5b83416'
 };
 const rawAuditSha='032e6d020caac7555efa3ad149d43eaadbf6f85ec35a10da5bc7b06f3969ddd2';
 const rawBaselineSha='e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af';
@@ -85,6 +86,10 @@ function auditOperationPerformance(read=file=>readInput(path.join(root,file))){
     requireProof(issuedRecord.resources.samplerSource==='phase-0/sample-resolve-rss.js'&&sha(bytes('phase-0/sample-resolve-rss.js'))===issuedRecord.resources.samplerSourceSha256);
     requireProof(issuedRecord.resources.completionMarkerSha256===sha(Buffer.from(`FRAMELINE_TIMED_COMMAND_COMPLETE_V1:${issued.probeId}\n`)));
     const scan=json('phase-0/resolve-operation-scan-live-observation.json'),binding=scan.fixtureBinding;
+    const historicalScan=json('phase-0/evidence-sources/resolve-operation-scan-observed-20261120.json.txt');
+    requireProof(scan.currentRescan===true&&scan.historicalObservation?.file==='phase-0/evidence-sources/resolve-operation-scan-observed-20261120.json.txt'
+      &&scan.historicalObservation.sha256===pins[scan.historicalObservation.file]&&same(binding,historicalScan.fixtureBinding)
+      &&scan.sourceSha256===historicalScan.sourceSha256&&scan.sourceBytes===historicalScan.sourceBytes);
     requireProof(scan.sourceSha256===sourceXmlSha&&scan.iterations===3&&scan.results.length===6&&scan.sourceUnchanged===true&&scan.safeToApply===false);
     requireProof(binding.projectId===issued.projectId&&binding.observationSha256===rawBaselineSha&&binding.itemCount===50&&binding.trackCount===5&&binding.completionMarkerVerified===true);
     requireProof(binding.nativeResultFile==='phase-0/resolve-operation-fixture-init-live-result.json');

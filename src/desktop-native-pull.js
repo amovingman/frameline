@@ -67,6 +67,9 @@ function createDesktopNativePull({directory,store,getRoles,canStart=()=>true,rev
   finally{busy=false;}
   return changed();
  }
- return{action,getState,isBusy:()=>busy||session.isBusy?.()===true,isReviewLocked:()=>busy||session.isReviewLocked?.()===true};
+ return{action,getState,isBusy:()=>busy||session.isBusy?.()===true,isReviewLocked:()=>busy||session.isReviewLocked?.()===true,
+  // Trusted main-process history readers. No preload exposes these records.
+  readRetainedIntent:id=>session.readIntent(id),listRetainedIntents:()=>session.list(),
+  readRetainedTransaction:id=>execution.inspect(id)};
 }
 module.exports={createDesktopNativePull};

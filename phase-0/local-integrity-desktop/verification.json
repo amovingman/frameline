@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two real Electron processes exercise shipped main/preload/History verification UI with actual immutable FCPXML revision DAG, exact frame manifest, authenticated native checkpoints and identity generations, two validated native result audits and actual strict SQLite backup/candidate comparison. Native fixture setup uses synthetic hardware/publication/editor observations. Native authority and artifacts are created directly under the app userData/native-pulls root; none are substituted from an external store. Deliberate fixture-only corruption tests metadata with a valid backup, restore points and candidates; the product performs no repair or source write. No live Resolve claim.",
+  "checks": [
+    "two immutable revisions and branch ancestry",
+    "exact FCPXML frame-coordinate manifest",
+    "all checkpoint bytes and native identity generations",
+    "deterministic complete stored comparisons across real restart",
+    "authenticated transaction and both result audit decisions",
+    "real original backup and all-other-field comparison",
+    "canonical source files and retained authority unchanged by verification",
+    "corrupted metadata primary, original backup and candidate fail closed without repair",
+    "path-free verification state and no execution authority",
+    "1440px and 600px positive visible History panel bounds",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "verify",
+      "status": "verified",
+      "checks": {
+        "immutable-history-records": {
+          "status": "verified",
+          "count": 2
+        },
+        "branch-ancestry": {
+          "status": "verified",
+          "count": 1
+        },
+        "exact-frame-coordinates": {
+          "status": "verified",
+          "count": 2
+        },
+        "authenticated-checkpoints": {
+          "status": "verified",
+          "count": 3
+        },
+        "persistent-native-identities": {
+          "status": "verified",
+          "count": 15
+        },
+        "deterministic-stored-comparison": {
+          "status": "verified",
+          "count": 201
+        },
+        "authenticated-native-transactions": {
+          "status": "verified",
+          "count": 1
+        },
+        "verified-restore-points": {
+          "status": "verified",
+          "count": 1
+        },
+        "all-other-fields-preserved": {
+          "status": "verified",
+          "count": 1
+        },
+        "native-editor-results": {
+          "status": "verified",
+          "count": 2
+        }
+      },
+      "checksSha256": "aed3d0adb7e24225ec375c9d663d179bb607cf9999efc99f1cf637fb28ae7bcf",
+      "sourceProjectUnchanged": true,
+      "sourceExportUnchanged": true,
+      "retainedAuthorityUnchangedByVerification": true,
+      "corruptions": [],
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "restart-and-corrupt",
+      "status": "verified",
+      "checks": {
+        "immutable-history-records": {
+          "status": "verified",
+          "count": 2
+        },
+        "branch-ancestry": {
+          "status": "verified",
+          "count": 1
+        },
+        "exact-frame-coordinates": {
+          "status": "verified",
+          "count": 2
+        },
+        "authenticated-checkpoints": {
+          "status": "verified",
+          "count": 3
+        },
+        "persistent-native-identities": {
+          "status": "verified",
+          "count": 15
+        },
+        "deterministic-stored-comparison": {
+          "status": "verified",
+          "count": 201
+        },
+        "authenticated-native-transactions": {
+          "status": "verified",
+          "count": 1
+        },
+        "verified-restore-points": {
+          "status": "verified",
+          "count": 1
+        },
+        "all-other-fields-preserved": {
+          "status": "verified",
+          "count": 1
+        },
+        "native-editor-results": {
+          "status": "verified",
+          "count": 2
+        }
+      },
+      "checksSha256": "aed3d0adb7e24225ec375c9d663d179bb607cf9999efc99f1cf637fb28ae7bcf",
+      "sourceProjectUnchanged": true,
+      "sourceExportUnchanged": true,
+      "retainedAuthorityUnchangedByVerification": true,
+      "corruptions": [
+        {
+          "artifact": "backup",
+          "error": "integrity-artifact-changed",
+          "unchangedAfterFailedVerification": true,
+          "repairedByProduct": false
+        },
+        {
+          "artifact": "candidate",
+          "error": "integrity-artifact-changed",
+          "unchangedAfterFailedVerification": true,
+          "repairedByProduct": false
+        },
+        {
+          "artifact": "metadata-primary",
+          "error": "integrity-record-unverified",
+          "validBackupPreserved": true,
+          "unchangedAfterFailedVerification": true,
+          "repairedByProduct": false
+        }
+      ],
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two real Electron processes use shipped main/preload/renderer and authenticated native result readers. Actual SQLite Name transactions retain two explicit conflicts (take-incoming Name, keep-local Flags), independently validated apply and rollback records, exact checkpoint bytes and immutable journals. Hardware, publication and editor observations are synthetic and confined to a disposable fixture. No live Resolve claim.",
+  "checks": [
+    "both resulting revision histories expose exact retained decisions",
+    "source/checkpoint/report/audit bindings independently recomputed",
+    "no validated result for a blocked intention",
+    "read-only history and exports do not change project bytes",
+    "explicit review and save dialog export",
+    "canonical portable digest and internal decision verification",
+    "portable export has no Apply or restore authority",
+    "authenticated history survives a real process restart",
+    "path-free public state and safe text rendering",
+    "1440px and 600px layouts without horizontal overflow",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "apply-history",
+      "intentId": "cba5f90e-665a-43b9-b775-197b86f11d16",
+      "auditHash": "9d4d640c47da425f0fb6a852cd677b1aa36d3d061917ab99146d041acf9bbcf3",
+      "direction": "apply",
+      "explicitChoices": 2,
+      "pathFreePublicState": true,
+      "sourceUnchangedByHistory": true,
+      "portableIntegrityVerified": true,
+      "portableAuthenticatedOriginProven": false,
+      "exportDialogs": [
+        "review",
+        "save"
+      ],
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "restore-history",
+      "intentId": "cba5f90e-665a-43b9-b775-197b86f11d16",
+      "auditHash": "e0acd0fb3da161ef20edfd59bd75ed1790a56868758d55bcab3824632f334dba",
+      "direction": "rollback",
+      "explicitChoices": 2,
+      "pathFreePublicState": true,
+      "sourceUnchangedByHistory": true,
+      "portableIntegrityVerified": true,
+      "portableAuthenticatedOriginProven": false,
+      "exportDialogs": [
+        "review",
+        "save"
+      ],
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    }
+  ]
+}

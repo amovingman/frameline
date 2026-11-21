@@ -9,7 +9,7 @@ const { MAX_XML_BYTES, ScanError, fileErrorCode, buildInventory } = require('./f
 const { validateScanManifest } = require('./scan-manifest');
 const cache = new Map(); let cacheBytes = 0; const acks = new Map();
 const allowedErrors = new Set(['unsupported-format', 'file-access-denied', 'file-busy', 'file-unavailable', 'file-too-large',
-  'revision-source-changed', 'malformed-xml', 'unsupported-structure', 'unsupported-fcpxml-version', 'unsupported-timing', 'invalid-manifest']);
+  'revision-source-changed', 'malformed-xml', 'unsupported-structure', 'unsupported-fcpxml-version', 'unsupported-timing', 'ambiguous-resource-id', 'ambiguous-original-media', 'invalid-manifest']);
 const same = (a, b) => ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs', 'birthtimeMs'].every(key => a[key] === b[key]);
 async function checkMedia(source) {
   if (!source) return 'unknown';

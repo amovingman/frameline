@@ -38,7 +38,7 @@ async function profileFixtureScan({selectedPath,iterations=3,expectedSha256,sign
       }
     }finally{await scanner.dispose();}
   }
-  return{schemaVersion:1,operation:'resolve-gate-fixture-worker-profile',readOnly:true,safeToApply:false,observedOn:'2026-11-20',
+  return{schemaVersion:1,operation:'resolve-gate-fixture-worker-profile',readOnly:true,safeToApply:false,observedOn:new Date().toISOString().slice(0,10),
     sourceSha256,sourceBytes:original.length,iterations,runtime:{node:process.versions.node,platform:process.platform,arch:process.arch},
     results,sourceUnchanged:readInput(xmlPath).equals(original),
     sourceCodeHashes:Object.fromEntries(await Promise.all(['src/fcpxml-scan-controller.js','src/fcpxml-scan-worker.js','src/fcpxml-scan-core.js','phase-0/profile-gate-fixture-scan.js']

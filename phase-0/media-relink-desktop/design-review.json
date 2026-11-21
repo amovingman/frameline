@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "scope": "Media relink panel in existing graphite/Plex desktop interface",
+  "skill": "Impeccable",
+  "inspectionRounds": 2,
+  "checks": {
+    "desktopSidebarLongNamesWrap": true,
+    "originalProxyRolesDistinct": true,
+    "exactPlanConsentVisible": true,
+    "sourceRenderedAsText": true,
+    "actionStatesReadable": true,
+    "narrowLayoutNoHorizontalOverflow": true,
+    "buttonsWrapAndRemainLegible": true,
+    "existingNativeScopeExplicit": true
+  },
+  "advisory": "The detector flagged #313135; this is the existing --line token fallback, retained for consistency.",
+  "screenshots": {
+    "prepare-1440.png": "8827ae9737b886a94ba18c04160f9d888fbad0befd51f73d4b6299efd916a21e",
+    "prepare-600.png": "89faee213dcb7b0a26279c44bb1b84d4dd1ebc027ea4fcfe1832d3a1d72ceb46",
+    "publish-1440.png": "b54c6aebb3bf3779f3886d6c5ae414064195540e06c54d40b4c6a4cca5fa0ff1",
+    "publish-600.png": "86f0adb0d5ba13182fe7e18f6d246e2b5c4ad1dedede5089162baf798ab0de80"
+  }
+}

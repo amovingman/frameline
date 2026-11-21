@@ -25,12 +25,12 @@
       "sourceBytes": 31876,
       "pairs": 3,
       "firstScan": {
-        "minimumMs": 27.348709000000014,
-        "maximumMs": 41.77125000000001
+        "minimumMs": 30.046249999999986,
+        "maximumMs": 37.932541
       },
       "cachedRescan": {
-        "minimumMs": 1.171625000000006,
-        "maximumMs": 1.5065830000000062
+        "minimumMs": 1.099125000000015,
+        "maximumMs": 1.4399159999999966
       },
       "warnings": [
         "Nested clip content, including audio and effects, is not scanned"
@@ -101,16 +101,17 @@
       "phase-0/resolve-operation-baseline-observation.json.gz": "52541691abb1b4349c5aa9289903d2f19594d70b8bbf902b42bafe5ee0419174",
       "phase-0/resolve-operation-rename-rss.json": "b39de995870a15987c90f9a8c2600c9b57068371d61f85967ead9bc6bfdd4a03",
       "phase-0/sample-resolve-rss.js": "74bdc2b215327539d49ccb856bde6945ee894e63d5e25a451cb1f68e9db53843",
-      "phase-0/resolve-operation-scan-live-observation.json": "3fe73a29923b3ce4c2e067e937d68bb00ccd9e3b8d3df1a844d8bba2f5b83416",
+      "phase-0/resolve-operation-scan-live-observation.json": "d4ce32af743c1b4eb5ca7bd2f44d97a6118c88f2231c69c16fc25cd6652d59ec",
+      "phase-0/evidence-sources/resolve-operation-scan-observed-20261120.json.txt": "3fe73a29923b3ce4c2e067e937d68bb00ccd9e3b8d3df1a844d8bba2f5b83416",
       "phase-0/resolve-operation-fixture-init-live-result.json": "a62557057a12e79e156a984b8812ea471c1f484b2f43bbdc2c17469c116a3183",
       "phase-0/evidence-sources/gate-lab-session-observed-v1.js.txt": "596b959ac2435391f8dce68e4541f4de69fc891fd694cb2ee43d299bfc38e0e5",
       "phase-0/gate-lab-session.js": "b830b8d00c116f5c69af3a4a597113fb541fe70a9af1353c8e6a9bafa76d6e89",
       "phase-0/resolve-operation-fixture-input.fcpxml.gz": "8ea376d0a549bb72aae931afd15b980b908fb332345f9154784629907fa61e35",
       "phase-0/resolve-operation-fixture-export.fcpxml.gz": "2ee61ee2c635da7ac0e61d108f46d86fa9fc83282844e640f6ccc1237335c5e3",
-      "src/fcpxml-scan-controller.js": "f1950bba5109e4b26183ebaf785c30a32aceaccc0404f2f9e597c8e7a1be71c7",
-      "src/fcpxml-scan-worker.js": "bc86f75683d10ec1f0dedbf262913333023e6d7464fff4f442bc0c74544c4826",
-      "src/fcpxml-scan-core.js": "e14c22e6dd7b2dafa2fcf7fcf4f1d26505bda68eb9a60d153ea99f14eac823b8",
-      "phase-0/profile-gate-fixture-scan.js": "90925f914b8e98acafbd19ed784071a18c2d766bb83f39e0881cd3ffaad19f24"
+      "src/fcpxml-scan-controller.js": "dc14ad68b60a2f63f94e50dea0c22163365aa83d15341e1bb4a25f9af832134d",
+      "src/fcpxml-scan-worker.js": "d026906faee4a829ace504e52a07fd72faf092b1a068f847b1448355e0c45766",
+      "src/fcpxml-scan-core.js": "be16266c1c9372ff464337bfc2b9a8a9323f1982011beb053bc98c0e2fbfd092",
+      "phase-0/profile-gate-fixture-scan.js": "c555035f056b02319d8d4ad682d6c853c7b784eaf4d998d9b88d494ee3e98468"
     },
     "limitations": [
       "Wall windows are one-second quantization estimates conditional on no realtime-clock adjustment; no high-resolution native wall clock is claimed.",
@@ -505,7 +506,7 @@
       "status": "complete",
       "evidence": "Source-bound same-fixture scans, native backup and reviewed rename/save/reopen/rollback timings, independently verified represented restoration, and sampled editor RSS.",
       "scope": "Personal installed Resolve Free 21.1.2/build 21.1.20010; one 50-item disposable reviewed rename/save/reopen/rollback with existing larger scan evidence separate.",
-      "evidenceSha256": "52ed940c0371a83fea68d6ade0d61184d76d0fc4667fd6f0d0475d67640dd169"
+      "evidenceSha256": "9c978e8eb6b977957c5d1d077a9a6af1edd892b706b59d37549111e8759f5378"
     },
     {
       "id": "lossless-editor-fields",

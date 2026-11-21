@@ -7,6 +7,9 @@
   <title>Frameline — Launch film</title>
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./media-jobs.css">
+  <link rel="stylesheet" href="./native-result-audit.css">
+  <link rel="stylesheet" href="./media-relink.css">
+  <link rel="stylesheet" href="./local-verification.css">
   <link rel="stylesheet" href="./product-truth.css">
   <link rel="stylesheet" href="./publication-review.css">
   <link rel="stylesheet" href="./accessibility.css">
@@ -20,6 +23,10 @@
   <script defer src="./native-review-copy-renderer.js"></script>
   <script defer src="./native-checkpoints-renderer.js"></script>
   <script defer src="./native-pull-renderer.js"></script>
+  <script defer src="./native-result-audit-renderer.js"></script>
+  <script defer src="./media-relink-renderer.js"></script>
+  <script defer src="./restart-recovery-renderer.js"></script>
+  <script defer src="./local-integrity-renderer.js"></script>
   <script defer src="./resolve-policy-renderer.js"></script>
   <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
@@ -54,6 +61,7 @@
         <details id="copy-recovery-details"><summary id="copy-recovery-summary">Review retained copies</summary><div id="copy-recovery-entries"></div><div class="resolve-toolbar"><button id="copy-recovery-previous" type="button" hidden>Earlier retained copies</button><button id="copy-recovery-more" type="button" hidden>More retained copies</button></div></details>
       </section>
       <div id="resolve-recovery-reminder" class="resolve-recovery-reminder" hidden><p id="resolve-recovery-reminder-text" role="status"></p><button id="resolve-recovery-review" type="button">Review retained drills</button></div>
+      <details id="restart-recovery-panel" class="local-verification" hidden><summary>Interrupted work</summary><p id="restart-recovery-status" role="status" aria-live="polite">Reading retained work…</p><div id="restart-recovery-scans"></div><div id="restart-recovery-transfers"></div><div class="resolve-toolbar"><button id="restart-recovery-staging" type="button">Inspect transfer staging</button></div><div id="restart-recovery-stages"></div><p>Restarting a scan reads the selected export again. Transfers resume only after matching the account and project. Native Apply recovery remains in Resolve preview; no operation resumes automatically.</p></details>
       <section id="first-run" class="first-run" aria-labelledby="first-run-title" hidden>
         <div><h2 id="first-run-title">Start with a timeline export</h2><p id="first-run-editor-help">Choose the experimental Resolve Free 21.1.2 integration on macOS, then an FCPXML 1.10 export. The scan is read only.</p><p>Choose where Frameline keeps revision history. Project files and media stay in their current locations.</p></div>
         <form id="first-run-form">
@@ -262,6 +270,8 @@
 
       <section id="view-history" class="view" aria-label="History">
         <div class="secondary-hero"><span>Launch film / main</span><h1>Revision history</h1><p>Four sample revisions. The latest is incoming; v0.3 is your current cut.</p></div>
+        <section id="local-integrity-panel" class="resolve-companion local-verification" aria-labelledby="local-integrity-title"><h2 id="local-integrity-title">Verify retained local records</h2><p>Check immutable history, native checkpoint identities, retained restore points and exact field preservation. Historical checks do not verify the current open editor or authorize Apply. No records are repaired or removed.</p><button id="local-integrity-run" type="button">Verify local records</button><p id="local-integrity-status" role="status" aria-live="polite">No verification run.</p><dl id="local-integrity-checks"></dl></section>
+        <section id="native-result-audit-panel" class="resolve-companion native-checkpoints" aria-labelledby="native-result-audit-title"><h2 id="native-result-audit-title">Native result audit</h2><p>Verified conflict decisions retained with each validated Name result.</p><div class="resolve-toolbar"><button id="native-result-audit-refresh" type="button">Refresh result history</button></div><p id="native-result-audit-status" role="status"></p><div id="native-result-audit-records"></div><nav class="resolve-toolbar"><button id="native-result-audit-list-previous" type="button">Previous results</button><span id="native-result-audit-list-range"></span><button id="native-result-audit-list-next" type="button">Next results</button></nav><div id="native-result-audit-detail" hidden><p id="native-result-audit-summary"></p><p id="native-result-audit-bindings"></p><div id="native-result-audit-decisions"></div><nav class="resolve-toolbar"><button id="native-result-audit-previous" type="button">Previous decisions</button><span id="native-result-audit-range"></span><button id="native-result-audit-next" type="button">Next decisions</button></nav><div class="resolve-toolbar"><button id="native-result-audit-export" type="button" disabled>Review and save audit</button></div><p id="native-result-audit-export-status" role="status"></p></div></section>
         <div id="branch-controls" class="branch-controls" hidden><label for="branch-switch">Current branch</label><select id="branch-switch" aria-label="Current branch"></select><form id="branch-form"><label for="branch-name">New branch</label><input id="branch-name" name="branchName" type="text" maxlength="40" pattern="[a-z0-9][a-z0-9._-]{0,39}" required placeholder="e.g. alternate-cut" autocomplete="off"><button type="submit">Create branch</button></form><div class="transfer-actions"><button id="export-revisions" type="button">Export backup</button><button id="import-revisions" type="button">Import backup</button></div></div>
         <section id="relink-panel" class="relink-panel" hidden aria-label="Relink moved export"><p>A saved revision matches this export. Choose its history to keep the same local project ID after moving the file. The old path will get a new ID if opened again.</p><div><select id="relink-source" aria-label="History to relink"></select><button id="relink-action" type="button">Relink history</button></div></section>
         <form id="revision-form" class="revision-form" hidden><label for="revision-message">Save this scan as a revision</label><div><input id="revision-message" name="message" type="text" maxlength="120" required placeholder="What changed in this cut?" autocomplete="off"><button id="save-revision" type="submit">Save revision</button></div><p>The current FCPXML export is checked before saving. This does not edit it.</p></form>
@@ -411,7 +421,7 @@
         <div class="secondary-section"><div class="section-head"><h2>Revision log</h2><span>Newest first</span></div><div id="history-list" class="history-list"></div><section id="revision-detail" class="revision-detail" aria-labelledby="revision-detail-title" hidden><h3 id="revision-detail-title" tabindex="-1">Revision details</h3><div id="revision-detail-body"></div></section><p class="view-footnote">This history is illustrative. Revision data will come from the project service.</p></div>
       </section>
 
-      <section id="view-media" class="view" aria-label="Media"><div class="secondary-hero"><span>Launch film / Sequence 01</span><h1>Project media</h1><p>Four assets referenced by the sample cut. No local media has been scanned.</p></div>
+      <section id="view-media" class="view" aria-label="Media"><div class="secondary-hero"><span>Launch film / Sequence 01</span><h1>Project media</h1><p>Four assets referenced by the sample cut. No local media has been scanned.</p></div><section id="media-relink-panel" aria-label="Relink media into a copy"></section>
         <section id="media-jobs-panel" class="media-jobs-panel" aria-labelledby="media-jobs-title">
           <h2 id="media-jobs-title">Background jobs</h2>
           <p>Hash and check local media, or generate optional thumbnails, proxy files and a timeline storyboard. Originals and revision data stay separate from the local preview cache. Nothing here uploads media.</p>

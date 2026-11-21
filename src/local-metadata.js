@@ -539,6 +539,74 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000, storage = f
     });
   }
 
+  // Verification must not invoke transact(): its normal startup path may
+  // recover a backup or migrate metadata. This reader accepts only a stable,
+  // current primary and existing immutable records, without creating a lock.
+  async function exportRevisionsReadOnly(projectId) {
+    await pending;
+    if (uncertain) throw new MetadataError('metadata-storage-uncertain');
+    if (typeof projectId !== 'string' || !/^[a-f0-9-]{36}$/.test(projectId)) throw new MetadataError('metadata-project-missing');
+    const base = path.resolve(directory), primary = path.join(base, FILE_NAME);
+    const same = (a, b) => ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].every(key => a[key] === b[key]);
+    async function existingDirectory(folder) {
+      const stat = await fs.lstat(folder);
+      if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid()
+        || stat.mode & 0o022 || await fs.realpath(folder) !== folder) throw new MetadataError('metadata-readonly-unsafe-directory');
+    }
+    async function existingFile(file, limit) {
+      if (await fs.realpath(file) !== file) throw new MetadataError('metadata-readonly-unsafe-file');
+      const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      try {
+        const before = await handle.stat({ bigint: true });
+        if (!before.isFile() || before.nlink !== 1n || Number(before.uid) !== process.getuid()
+          || Number(before.mode) & 0o077 || before.size <= 0n || before.size > BigInt(limit)) throw new MetadataError('metadata-readonly-unsafe-file');
+        const bytes = await handle.readFile(), after = await handle.stat({ bigint: true }), named = await fs.lstat(file, { bigint: true });
+        if (!same(before, after) || !same(before, named) || bytes.length !== Number(before.size)
+          || named.isSymbolicLink() || !Buffer.from(bytes.toString('utf8')).equals(bytes)) throw new MetadataError('metadata-readonly-changed');
+        return { bytes, identity: before };
+      } finally { await handle.close(); }
+    }
+    try {
+      await existingDirectory(base);
+      const initial = await existingFile(primary, 16 * 1024 * 1024);
+      let metadata;
+      try { metadata = JSON.parse(initial.bytes); } catch { throw new MetadataError('metadata-invalid'); }
+      if (metadata?.schemaVersion !== 5) throw new MetadataError('metadata-readonly-current-schema-required');
+      validateMetadata(metadata);
+      const project = Object.values(metadata.projects).find(item => item.id === projectId);
+      if (!project) throw new MetadataError('metadata-project-missing');
+      if (project.revisions.length > 1000) throw new MetadataError('metadata-readonly-capacity');
+      const records = [], files = [];
+      let totalBytes = initial.bytes.length;
+      if (project.revisions.length) {
+        await existingDirectory(path.join(base, 'revisions'));
+        await existingDirectory(path.join(base, 'revisions', projectId));
+      }
+      for (const summary of project.revisions) {
+        const file = path.join(base, 'revisions', projectId, `${summary.id}.json`), captured = await existingFile(file, 32 * 1024 * 1024);
+        totalBytes += captured.bytes.length;
+        if (totalBytes > 128 * 1024 * 1024) throw new MetadataError('metadata-readonly-capacity');
+        const bytes = captured.bytes.toString('utf8'), record = verifyRecord(summary, bytes);
+        if (projectKind(project) !== (record.manifest.format === 'resolve-api-observation' ? 'resolve-api' : 'export')
+          || projectKind(project) === 'resolve-api' && project.editorProjectId !== record.manifest.snapshot.project_id) throw new MetadataError('revision-corrupt');
+        records.push({ summary, bytes }); files.push({ file, identity: captured.identity });
+      }
+      const bundle = { format: 'frameline-revisions', version: projectKind(project) === 'resolve-api' ? 2 : 1,
+        projectId, branches: project.branches, records };
+      validateTransferBundle(bundle);
+      for (const file of files) {
+        const now = await fs.lstat(file.file, { bigint: true });
+        if (!same(file.identity, now) || now.isSymbolicLink()) throw new MetadataError('metadata-readonly-changed');
+      }
+      const final = await existingFile(primary, 16 * 1024 * 1024);
+      if (!same(initial.identity, final.identity) || !initial.bytes.equals(final.bytes)) throw new MetadataError('metadata-readonly-changed');
+      return structuredClone(bundle);
+    } catch (error) {
+      if (error instanceof MetadataError || error.code === 'revision-transfer-invalid') throw error;
+      throw new MetadataError(error.code === 'ENOENT' ? 'metadata-readonly-primary-or-record-missing' : 'metadata-unavailable');
+    }
+  }
+
   function importRevisions(projectId, bundle) {
     return transact(async metadata => {
       const incoming = validateTransferBundle(bundle);
@@ -584,7 +652,7 @@ function createLocalMetadataStore(directory, { lockTimeoutMs = 5000, storage = f
   }
 
   return { getProjectId, getResolveProjectId, listResolveProjects, getResolveRevisionGraph, listRevisions, getBranchState, getSyncBase, recordSyncBase,
-    getServiceSyncBase, recordServiceSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, importRevisions };
+    getServiceSyncBase, recordServiceSyncBase, listRelinkCandidates, relinkProject, createBranch, switchBranch, saveRevision, getRevision, exportRevisions, exportRevisionsReadOnly, importRevisions };
 }
 
 module.exports = { MetadataError, createLocalMetadataStore };

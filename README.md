@@ -86,3 +86,11 @@ The scoped local **Apply reviewed rename** workflow is documented in [SAFE_APPLY
 [Native checkpoint review](NATIVE_CHECKPOINT_REVIEW.md) retains authenticated library-qualified identity sidecars and compares complete stored fields from a recorded base, a freshly verified local project and related incoming history.
 
 [Native pull plans](NATIVE_PULL.md) bind the full checkpoint comparison, source hashes and explicit conflict choices to the proven single video clip Name writer. Stale review is recalculated, interrupted preparation is recoverable, and native Apply and restoration have separate editor validation.
+
+[Proxy-safe relinking](MEDIA_RELINK.md) captures original/proxy identities before media moves, verifies same-class replacements and creates a new FCPXML copy by changing only reviewed source attributes. An optional one-use import creates a separate derived Resolve review project and checks all clip roles and frame positions through save/reopen and final closed-file validation. Existing native projects and original XML/media stay unchanged.
+
+History’s [native result audits](NATIVE_RESULT_AUDIT.md) reconstruct the exact decisions, affected values and source bindings for each validated Name Apply and restoration. Reviewed portable exports contain no database or backup payload and grant no write authority. A separate four-check native conflict proof restores the original fixture exactly.
+
+[Interrupted work](CRASH_RECOVERY.md) adds explicit export reselection and fresh scan restart, matching-scope verified chunk resume, and guarded inspection of owned staging. Five shipped desktop processes survive three actual process deaths during scanning, acknowledged upload and atomic Name publication; native recovery reconciles without replay and restores the original.
+
+History’s [Verify retained local records](PERSONAL_SAFETY_AND_CORRECTNESS.md) checks immutable history, exact frame manifests, native identity generations, retained backup/candidate bytes and result audits. It reports corrupt or changing records without repairing them. Native IDs remain scoped to saved checkpoints; FCPXML occurrence identity across exports remains unresolved.

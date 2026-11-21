@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-21T19:09:51.060Z",
+  "scope": "Five real Electron processes, shipped main/preload/renderers, actual worker FCPXML scan, authenticated scan/native intent journals, real certificate-verified loopback HTTPS asset service and chunks, and real SQLite candidate/atomic Apply/restore. Three SIGKILL deaths bypass orderly shutdown. Fixture picker/account/vault/TLS CA and native hardware/readback inputs are disposable. This does not claim live Resolve admission or machine power-loss durability.",
+  "codeHashes": {
+    "src/main.js": "58aab4363f7766addbdbe0523954cd3081aee2b6e0153a754ff76758f49fb096",
+    "src/renderer.js": "a97fbbdd2552f95d6a2991d3d01aaf8a071fb88b28a86b87d749f0b714ff5711",
+    "src/preload.js": "5e25bcaa8b22612df9a4f8953ea13d7bb79881f12112e3ba31efef5bb07c21b5",
+    "src/index.html": "383086580dbbc2e7d1211bcc6b274854455dd4be2430f65103eba1be87ce287b",
+    "src/styles.css": "0f8377fdb4170dee29a698b057d1bf2ddf1d209188cba76e713fb2341cf23aa9",
+    "src/desktop-scan-recovery.js": "ab5e1292d081f7f75f8efabe3c5628d126e5d3ce6ddfc0713aaa03ec058d43e1",
+    "src/owned-transfer-staging.js": "d44d00b68841e0f34fc438dd9aca2e15e1f13947434b0983c1b7a7dc6978e95f",
+    "src/desktop-asset-transfers.js": "f37dd4cb89c3451d063a868e0d7b2552a50a4b854fd1e40e8a66994a8c643702",
+    "src/asset-file-transfer.js": "f15d2834d85fd3e1eb49852b18f7eb4081b86ce72e81b980726653f0258f1063",
+    "src/adapter-metrics.js": "f941aa4751f3359458627f8621bfc82840ed60dc15b927857b6fbb9fb90c83c3",
+    "src/fcpxml-scan-controller.js": "dc14ad68b60a2f63f94e50dea0c22163365aa83d15341e1bb4a25f9af832134d",
+    "src/fcpxml-scan-core.js": "be16266c1c9372ff464337bfc2b9a8a9323f1982011beb053bc98c0e2fbfd092",
+    "src/fcpxml-scan-worker.js": "d026906faee4a829ace504e52a07fd72faf092b1a068f847b1448355e0c45766",
+    "src/scan-manifest.js": "d162b006b1d78750d1c46aeb1b0afd299cd419c98f775d7f635a7baccf8830cb",
+    "src/native-pull-session.js": "362846fee4943800f501f54d6aff76964ea79ffd901174bd4407b85220d0efc0",
+    "src/native-pull-execution.js": "5d832c0acd2e9d603b16e80454ff4444283a30e9eeda9f91e997f6289cef1982",
+    "src/desktop-native-pull.js": "4285565213b0bdf3fd500f50937e1aa93aa47c0012e05bab630d9550717d3ee0",
+    "src/restart-recovery-renderer.js": "baf19fb2af9465b471b6c06727aaf1ac5b092831795d3580775f386e47b684b0",
+    "scripts/verify-integrated-crash-recovery.cjs": "6ad940d9e7af84a50a6289e37f6824bf918f248d29ea37295fb27c21e24a6ca5"
+  },
+  "checks": [
+    "worker-scan death retains restart inventory without source reopening",
+    "explicit matching native reselection starts complete fresh scan",
+    "confirmed upload death retains server-acknowledged chunks",
+    "restart performs no automatic media transfer",
+    "matching-scope resume rehashes source and skips acknowledged chunk",
+    "atomic native publication death is reconciled without replay",
+    "fresh source-bound editor check and post-close validation required",
+    "separately validated restoration returns exact original bytes",
+    "completed receipts survive another restart",
+    "canonical export/media/native originals preserved",
+    "path-free recovery state and no renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "scan-crash",
+      "phase": "parsing",
+      "scanStarts": 1,
+      "exportSha256": "b8671b548e96efc8abc166a36d7e066aa79ee151e7659213ad84162b01d0e5bd",
+      "exit": {
+        "signal": "SIGKILL"
+      }
+    },
+    {
+      "stage": "scan-recover-upload-crash",
+      "scanRecovered": true,
+      "scanUiRecovered": true,
+      "scanRecoveryLayouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600
+        }
+      ],
+      "uploadAcknowledgedChunks": [
+        0
+      ],
+      "assetId": "sha256:fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
+      "sourceSha256": "fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
+      "scanStarts": 1,
+      "exit": {
+        "signal": "SIGKILL"
+      }
+    },
+    {
+      "stage": "upload-recover-apply-crash",
+      "uploaded": {
+        "id": "8177f998-7716-4546-8f54-2312f17f2ba9",
+        "completedAt": 1795288187836,
+        "assetId": "sha256:fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
+        "sourceSha256": "fcde1c98c17e0905f7c5ebdb330044f2c6546b677a28081824de6c11279fc9b1",
+        "uploadedMissingChunks": [
+          1,
+          2
+        ]
+      },
+      "transactionId": "7e29edeb-a259-4050-8f89-a617c1986894",
+      "planId": "79dbc8722386fa1c4b2d669cd7b311f7ed51663ae9c9bbc7c3fb8f3536207b93",
+      "publicationDirection": "apply",
+      "publishedSha256": "0cc7bba7f955008f1f4b90bd85a6669c14817cf1eed392c312498b2ef72741d8",
+      "publications": 1,
+      "putChunks": [
+        1,
+        2
+      ],
+      "uploadRecoveryLayouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600
+        }
+      ],
+      "applyAcknowledgedInUi": true,
+      "exit": {
+        "signal": "SIGKILL"
+      }
+    },
+    {
+      "stage": "apply-recover-restore",
+      "intentId": "4c795bc8-79f1-42ac-979a-7ef42f9e976a",
+      "transactionId": "7e29edeb-a259-4050-8f89-a617c1986894",
+      "restoredSha256": "2d3eb78779d932cc3cff4b340b616a9921289d448dd9b44a80e06aeccb97a658",
+      "publications": 1,
+      "putChunks": [],
+      "rendererErrors": 0,
+      "exit": {
+        "code": 0
+      }
+    },
+    {
+      "stage": "final-restart",
+      "uploadId": "8177f998-7716-4546-8f54-2312f17f2ba9",
+      "uploadCompletedAt": 1795288187836,
+      "nativeIntentId": "4c795bc8-79f1-42ac-979a-7ef42f9e976a",
+      "nativeState": "rolled-back",
+      "noAutomaticPublication": true,
+      "noAutomaticMediaTransfer": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600
+        }
+      ],
+      "rendererErrors": 0,
+      "exit": {
+        "code": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "operation": "resolve-gate-fixture-worker-profile",
+  "readOnly": true,
+  "safeToApply": false,
+  "observedOn": "2026-11-20",
+  "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+  "sourceBytes": 31876,
+  "iterations": 3,
+  "runtime": {
+    "node": "24.21.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "results": [
+    {
+      "iteration": 1,
+      "mode": "first-scan",
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceUnchanged": true,
+      "clips": 50,
+      "media": 50,
+      "durationFrames": 2400,
+      "frameDuration": "1/24s",
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "elapsedMs": 41.77125000000001,
+      "processCpuMicros": {
+        "user": 54935,
+        "system": 9592
+      },
+      "processRssBeforeBytes": 60211200,
+      "processRssAfterBytes": 86425600,
+      "cacheHit": false,
+      "phases": [
+        "reading",
+        "parsing",
+        "inventory",
+        "media",
+        "complete"
+      ],
+      "manifestSha256": "89d23624625150eefa2b26fb90dd1a63372b905b34bd3f8b467eca786317a895"
+    },
+    {
+      "iteration": 1,
+      "mode": "cached-rescan",
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceUnchanged": true,
+      "clips": 50,
+      "media": 50,
+      "durationFrames": 2400,
+      "frameDuration": "1/24s",
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "elapsedMs": 1.5065830000000062,
+      "processCpuMicros": {
+        "user": 4080,
+        "system": 545
+      },
+      "processRssBeforeBytes": 86622208,
+      "processRssAfterBytes": 88522752,
+      "cacheHit": true,
+      "phases": [
+        "reading",
+        "inventory",
+        "media",
+        "complete"
+      ],
+      "manifestSha256": "89d23624625150eefa2b26fb90dd1a63372b905b34bd3f8b467eca786317a895"
+    },
+    {
+      "iteration": 2,
+      "mode": "first-scan",
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceUnchanged": true,
+      "clips": 50,
+      "media": 50,
+      "durationFrames": 2400,
+      "frameDuration": "1/24s",
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "elapsedMs": 27.348709000000014,
+      "processCpuMicros": {
+        "user": 41233,
+        "system": 2641
+      },
+      "processRssBeforeBytes": 85639168,
+      "processRssAfterBytes": 90996736,
+      "cacheHit": false,
+      "phases": [
+        "reading",
+        "parsing",
+        "inventory",
+        "media",
+        "complete"
+      ],
+      "manifestSha256": "89d23624625150eefa2b26fb90dd1a63372b905b34bd3f8b467eca786317a895"
+    },
+    {
+      "iteration": 2,
+      "mode": "cached-rescan",
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceUnchanged": true,
+      "clips": 50,
+      "media": 50,
+      "durationFrames": 2400,
+      "frameDuration": "1/24s",
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "elapsedMs": 1.3337919999999883,
+      "processCpuMicros": {
+        "user": 2832,
+        "system": 584
+      },
+      "processRssBeforeBytes": 90996736,
+      "processRssAfterBytes": 91226112,
+      "cacheHit": true,
+      "phases": [
+        "reading",
+        "inventory",
+        "media",
+        "complete"
+      ],
+      "manifestSha256": "89d23624625150eefa2b26fb90dd1a63372b905b34bd3f8b467eca786317a895"
+    },
+    {
+      "iteration": 3,
+      "mode": "first-scan",
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceUnchanged": true,
+      "clips": 50,
+      "media": 50,
+      "durationFrames": 2400,
+      "frameDuration": "1/24s",
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "elapsedMs": 27.51362499999999,
+      "processCpuMicros": {
+        "user": 41530,
+        "system": 2538
+      },
+      "processRssBeforeBytes": 90456064,
+      "processRssAfterBytes": 94928896,
+      "cacheHit": false,
+      "phases": [
+        "reading",
+        "parsing",
+        "inventory",
+        "media",
+        "complete"
+      ],
+      "manifestSha256": "89d23624625150eefa2b26fb90dd1a63372b905b34bd3f8b467eca786317a895"
+    },
+    {
+      "iteration": 3,
+      "mode": "cached-rescan",
+      "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "sourceUnchanged": true,
+      "clips": 50,
+      "media": 50,
+      "durationFrames": 2400,
+      "frameDuration": "1/24s",
+      "warnings": [
+        "Nested clip content, including audio and effects, is not scanned"
+      ],
+      "mediaAvailability": {
+        "missing": 50
+      },
+      "elapsedMs": 1.171625000000006,
+      "processCpuMicros": {
+        "user": 2465,
+        "system": 543
+      },
+      "processRssBeforeBytes": 94928896,
+      "processRssAfterBytes": 95502336,
+      "cacheHit": true,
+      "phases": [
+        "reading",
+        "inventory",
+        "media",
+        "complete"
+      ],
+      "manifestSha256": "89d23624625150eefa2b26fb90dd1a63372b905b34bd3f8b467eca786317a895"
+    }
+  ],
+  "sourceUnchanged": true,
+  "sourceCodeHashes": {
+    "src/fcpxml-scan-controller.js": "f1950bba5109e4b26183ebaf785c30a32aceaccc0404f2f9e597c8e7a1be71c7",
+    "src/fcpxml-scan-worker.js": "bc86f75683d10ec1f0dedbf262913333023e6d7464fff4f442bc0c74544c4826",
+    "src/fcpxml-scan-core.js": "e14c22e6dd7b2dafa2fcf7fcf4f1d26505bda68eb9a60d153ea99f14eac823b8",
+    "phase-0/profile-gate-fixture-scan.js": "90925f914b8e98acafbd19ed784071a18c2d766bb83f39e0881cd3ffaad19f24"
+  },
+  "limitations": [
+    "Wall time is Node performance.now elapsed time for the actual production worker; fresh samples include worker startup.",
+    "Availability is checked as referenced by the actual editor export; no media is regenerated or relinked.",
+    "Node CPU/RSS include its worker threads, not editor CPU/RSS or a true memory peak.",
+    "Scanner coverage is bounded picture content; warnings and unresolved identities remain unchanged."
+  ],
+  "fixtureBinding": {
+    "projectId": "dd82cbdf-ff6f-4bbb-8648-ffa52dcd68ff",
+    "itemCount": 50,
+    "trackCount": 5,
+    "observationSha256": "e171ed4dd9ff1d346a80c0e566d810a947ec360292036d7e3fca0403e2d0f1af",
+    "producerSource": "phase-0/evidence-sources/gate-lab-session-observed-v1.js.txt",
+    "producerSourceSha256": "596b959ac2435391f8dce68e4541f4de69fc891fd694cb2ee43d299bfc38e0e5",
+    "renderedSourceSha256": "b8135dc74c36bb83a088d50d092fbeff112ffc89cd5956237d0c8db00a913538",
+    "nativeResultSha256": "a62557057a12e79e156a984b8812ea471c1f484b2f43bbdc2c17469c116a3183",
+    "nativeCompletionMarkerSha256": "eb459ec369bd12d103a9a9176bfbe7643e873c478379457b9018b42c439d541f",
+    "completionMarkerVerified": true,
+    "input": {
+      "file": "phase-0/resolve-operation-fixture-input.fcpxml.gz",
+      "rawSha256": "1a0edebc9166f6ff4750945f78d77a447d1e8db43623b9c57a15cb19026f0421",
+      "compressedSha256": "8ea376d0a549bb72aae931afd15b980b908fb332345f9154784629907fa61e35",
+      "sourceBytes": 16804
+    },
+    "export": {
+      "file": "phase-0/resolve-operation-fixture-export.fcpxml.gz",
+      "rawSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
+      "compressedSha256": "2ee61ee2c635da7ac0e61d108f46d86fa9fc83282844e640f6ccc1237335c5e3",
+      "sourceBytes": 31876
+    },
+    "nativeBaselineArchive": {
+      "schemaVersion": 1,
+      "sha256": "9037c6c36d3421da38bd888ef9fdb6ab56abbbf69a3bc642bcee0407819b498d",
+      "size": 53531,
+      "mode": 384,
+      "timelineCount": 1,
+      "archiveVerified": true
+    },
+    "limitation": "This source-bound disposable export receipt does not establish stable API-to-XML object identity; generated temporary media URLs are retained only in the untouched FCPXML corpus.",
+    "nativeResultFile": "phase-0/resolve-operation-fixture-init-live-result.json",
+    "producerRole": "historical-executed-producer",
+    "currentReaderSource": "phase-0/gate-lab-session.js",
+    "currentReaderSourceSha256": "b830b8d00c116f5c69af3a4a597113fb541fe70a9af1353c8e6a9bafa76d6e89",
+    "renderedLuaUnchangedAfterReaderHardening": true,
+    "provenanceNote": "Exact observed producer source is archived at its original hash. Current host reader separately rejects XML/directory ancestor links and does not replace the historical producer bytes."
+  }
+}

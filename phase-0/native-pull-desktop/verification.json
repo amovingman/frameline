@@ -20,8 +20,8 @@
   "stages": [
     {
       "stage": "prepare",
-      "intentId": "139e4ef4-7c4d-487e-9491-aa5d2b5e0f46",
-      "retainedPlanId": "0deb62ee4524df5eb2ebe60f729088b40046194265cc27c839949aef26c9cad8",
+      "intentId": "43d7c64e-9a65-426d-b4d3-daa7dbd0d206",
+      "retainedPlanId": "7d923bc16eb78dcb00d92c36023545510782b2d59e52cbfb0c40b6c5be429294",
       "currentSourceSha256": "0a22ff0735f3163b590c28940407d2b1a8f7181ae5243608342da5bb6b184035",
       "reviewState": "ready",
       "retainedChoices": 2,
@@ -44,9 +44,9 @@
     },
     {
       "stage": "recover",
-      "intentId": "139e4ef4-7c4d-487e-9491-aa5d2b5e0f46",
-      "retainedPlanId": "0deb62ee4524df5eb2ebe60f729088b40046194265cc27c839949aef26c9cad8",
-      "refreshedPlanId": "626882a258ed7d27781fec1d52f31f95590eff5af8d0171f4d57e2728cc20de9",
+      "intentId": "43d7c64e-9a65-426d-b4d3-daa7dbd0d206",
+      "retainedPlanId": "7d923bc16eb78dcb00d92c36023545510782b2d59e52cbfb0c40b6c5be429294",
+      "refreshedPlanId": "781a037c8cee8390ae9d57c6d913882a9524838e4086fa605eda1fc2e9a33b30",
       "currentSourceSha256": "c6cbbfe405aa8b9299f523b3a30af70faa5aa66054818a1ed487b601a6f7c903",
       "reviewState": "cancelled",
       "retainedChoices": 2,

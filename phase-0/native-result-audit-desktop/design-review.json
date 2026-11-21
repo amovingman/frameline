@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "scope": "Native result audit and retained local verification components in the existing Frameline History view.",
+  "skill": "design-taste-frontend",
+  "direction": "Matched the existing neutral dark shell, Plex Sans typography and restrained control accent; no component direction redraw.",
+  "questions": [
+    "Which exact conflict decisions produced this validated native result?",
+    "Do the retained revision, checkpoint and restore-point bytes still verify?"
+  ],
+  "sourceLint": {
+    "files": [
+      "src/native-result-audit-renderer.js",
+      "src/native-result-audit.css",
+      "src/local-integrity-renderer.js",
+      "src/local-verification.css"
+    ],
+    "failures": 0,
+    "warnings": 0
+  },
+  "browserInspector": {
+    "completed": false,
+    "reason": "No Chrome, Edge or Chromium executable is available for the skill inspector. Actual Electron screenshots and measured layout bounds were reviewed using the documented fallback."
+  },
+  "visualReview": {
+    "widths": [
+      1440,
+      600
+    ],
+    "visiblePanelWidths": [
+      1176,
+      568
+    ],
+    "horizontalOverflow": false,
+    "rendererErrors": 0,
+    "findings": [
+      "Applied and restored result records remain distinct, and restoration explicitly identifies the retained choices as the original Apply review.",
+      "Exact common-base, local, incoming and selected values stay together and wrap inside the narrow panel.",
+      "Verification labels and counts match the independently verified evidence; no current editor or execution authority is implied.",
+      "The inherited shell, shared left edges, neutral surfaces and field typography remain consistent.",
+      "Result action buttons wrap with an 8px gap; final 600px confirmation shows separated controls without horizontal overflow."
+    ]
+  },
+  "data": "Disposable synthetic SQLite and FCPXML fixtures; no customer project or live Resolve observation is represented by the desktop screenshots. The separate authenticated native receipt documents the live four-cycle proof."
+}

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-21T19:27:12.367Z",
+  "scope": "Owner-only Resolve Free 21.1.2 build21.1.20010 macOS; byte-preserved FCPXML1.10 flat-picture relinking and one new derived review project with explicit original/proxy roles, synthetic moving media and 50 repeated picture occurrences. No general native relinking, cross-device portability, native-lossless import, Studio, concurrent-writer exclusion or existing-project SDK Save claim.",
+  "intentId": "534bfb9d-9e23-44e9-9d5f-2da68bb06c3c",
+  "planId": "074345acfa88233ffadb02d6034b5d1ac8c05a59cfea58bdb8a51514862dfa99",
+  "sourceSha256": "933ca7c978cd079003d355e78d3b78261b25f89e9c6798884602049f10b2f3b0",
+  "copySha256": "da476e1d496eb83f2ef54bc281aaaf940eb91b332e2a4545a3c40164834745aa",
+  "importProofSha256": "c976231bd4184d077a35af45d68225084980a10f1d2cec3f9a0c1654e5c8a2aa",
+  "nativeSha256": "56243d76e648a8cd511aaaa7c51d34f41f86fdd600a84394d8f05e603875b994",
+  "clipCount": 50,
+  "referenceClasses": [
+    "original",
+    "proxy"
+  ],
+  "changedReferences": 2,
+  "changedAttributes": 3,
+  "allOtherXmlBytesPreserved": true,
+  "hostAdmissions": 3,
+  "savedReopened": true,
+  "existingNativeProjectWritten": false,
+  "losslessNativeImportProven": false,
+  "nativeWriteAuthority": false,
+  "protectedNativeCount": 1,
+  "protectedNativeHashes": [
+    "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c"
+  ],
+  "privateRetentionDirectory": "phase-0/private-integration-proof/media-relink-20261121",
+  "manifestSha256": "e74fb492ff75f3a7afd5c075664a9c42e4d90bbd3ad4850e9b26ee0c62667e59",
+  "desktopProof": "phase-0/media-relink-desktop/verification.json",
+  "sourceHashes": {
+    "src/media-relink-xml.js": "8a0b83256f529d196d74d86963af17824dfb07aa5540d789d6becb8cb4266251",
+    "src/media-relink-service.js": "c7fa0520a48d7375d9cfa4c4f41c0f211fbdbf8ea39d3ea74213853550bf93e2",
+    "src/media-relink-import.js": "fc8ced46ea6bbf6729cde5f8a22d0baec8441538fcfc5e3cce9361740c7154e4",
+    "src/media-relink-empty-workspace.js": "2336a8d879d1dfd1ae72381e87a0e19596875501b07962e3390bd633b60c8f84",
+    "src/media-relink-derived-output.js": "b7150b36cf3792f82e2ce9373a91591408fc5a92cf4212fcd1ddbb371e435807",
+    "src/companion/media-relink-import.lua": "c125e92faa46ca7cb42ea12bfb8a14d72c0acf35ee495b3f479816541270a4b9",
+    "src/companion/media-relink-private-json.lua": "62d9ab2c482aa6a9abf36bbed3409ade7ea13f798df23df2fe63b2cc272b87c6",
+    "src/desktop-media-relink.js": "d29dffa4ca9e61f91dea399a959bc0ac595b875272e0e97a7afd9ed9aaceaff6",
+    "src/media-relink-renderer.js": "047c832afe2545c6e64e8a2a6a8e2c94ea8753bc921de50edd2d41395cd3ab38",
+    "src/media-relink.css": "5a47071a877353d698b57f89d042cca4bce76f9540877a6be41e18274fa41b95",
+    "src/main.js": "58aab4363f7766addbdbe0523954cd3081aee2b6e0153a754ff76758f49fb096",
+    "src/preload.js": "5e25bcaa8b22612df9a4f8953ea13d7bb79881f12112e3ba31efef5bb07c21b5",
+    "src/index.html": "383086580dbbc2e7d1211bcc6b274854455dd4be2430f65103eba1be87ce287b",
+    "src/styles.css": "0f8377fdb4170dee29a698b057d1bf2ddf1d209188cba76e713fb2341cf23aa9",
+    "scripts/verify-media-relink.cjs": "28823f5f7ac0073a9e582d54323c713b782e0af56e680f149e96342b831ad11c",
+    "scripts/audit-media-relink.cjs": "405a7951d7ba8bfd885e6ededeca8dc7125fcb88b7d2c0d5c0a63d18a301a2d4"
+  }
+}

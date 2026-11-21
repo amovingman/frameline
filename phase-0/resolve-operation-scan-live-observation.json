@@ -3,7 +3,7 @@
   "operation": "resolve-gate-fixture-worker-profile",
   "readOnly": true,
   "safeToApply": false,
-  "observedOn": "2026-11-20",
+  "observedOn": "2026-11-21",
   "sourceSha256": "c95d98f5debbf247df581fdf29d55ad514abd971bd76dfd0b49bcc53a052cc1c",
   "sourceBytes": 31876,
   "iterations": 3,
@@ -28,13 +28,13 @@
       "mediaAvailability": {
         "missing": 50
       },
-      "elapsedMs": 41.77125000000001,
+      "elapsedMs": 37.932541,
       "processCpuMicros": {
-        "user": 54935,
-        "system": 9592
+        "user": 43592,
+        "system": 6042
       },
-      "processRssBeforeBytes": 60211200,
-      "processRssAfterBytes": 86425600,
+      "processRssBeforeBytes": 63586304,
+      "processRssAfterBytes": 82690048,
       "cacheHit": false,
       "phases": [
         "reading",
@@ -60,13 +60,13 @@
       "mediaAvailability": {
         "missing": 50
       },
-      "elapsedMs": 1.5065830000000062,
+      "elapsedMs": 1.4399159999999966,
       "processCpuMicros": {
-        "user": 4080,
-        "system": 545
+        "user": 1723,
+        "system": 549
       },
-      "processRssBeforeBytes": 86622208,
-      "processRssAfterBytes": 88522752,
+      "processRssBeforeBytes": 82903040,
+      "processRssAfterBytes": 83034112,
       "cacheHit": true,
       "phases": [
         "reading",
@@ -91,13 +91,13 @@
       "mediaAvailability": {
         "missing": 50
       },
-      "elapsedMs": 27.348709000000014,
+      "elapsedMs": 32.09183300000001,
       "processCpuMicros": {
-        "user": 41233,
-        "system": 2641
+        "user": 44190,
+        "system": 2743
       },
-      "processRssBeforeBytes": 85639168,
-      "processRssAfterBytes": 90996736,
+      "processRssBeforeBytes": 79085568,
+      "processRssAfterBytes": 85065728,
       "cacheHit": false,
       "phases": [
         "reading",
@@ -123,13 +123,13 @@
       "mediaAvailability": {
         "missing": 50
       },
-      "elapsedMs": 1.3337919999999883,
+      "elapsedMs": 1.099125000000015,
       "processCpuMicros": {
-        "user": 2832,
-        "system": 584
+        "user": 2243,
+        "system": 301
       },
-      "processRssBeforeBytes": 90996736,
-      "processRssAfterBytes": 91226112,
+      "processRssBeforeBytes": 85098496,
+      "processRssAfterBytes": 85147648,
       "cacheHit": true,
       "phases": [
         "reading",
@@ -154,13 +154,13 @@
       "mediaAvailability": {
         "missing": 50
       },
-      "elapsedMs": 27.51362499999999,
+      "elapsedMs": 30.046249999999986,
       "processCpuMicros": {
-        "user": 41530,
-        "system": 2538
+        "user": 42131,
+        "system": 2250
       },
-      "processRssBeforeBytes": 90456064,
-      "processRssAfterBytes": 94928896,
+      "processRssBeforeBytes": 85278720,
+      "processRssAfterBytes": 90308608,
       "cacheHit": false,
       "phases": [
         "reading",
@@ -186,13 +186,13 @@
       "mediaAvailability": {
         "missing": 50
       },
-      "elapsedMs": 1.171625000000006,
+      "elapsedMs": 1.198666000000003,
       "processCpuMicros": {
-        "user": 2465,
-        "system": 543
+        "user": 1596,
+        "system": 497
       },
-      "processRssBeforeBytes": 94928896,
-      "processRssAfterBytes": 95502336,
+      "processRssBeforeBytes": 90308608,
+      "processRssAfterBytes": 90341376,
       "cacheHit": true,
       "phases": [
         "reading",
@@ -205,10 +205,10 @@
   ],
   "sourceUnchanged": true,
   "sourceCodeHashes": {
-    "src/fcpxml-scan-controller.js": "f1950bba5109e4b26183ebaf785c30a32aceaccc0404f2f9e597c8e7a1be71c7",
-    "src/fcpxml-scan-worker.js": "bc86f75683d10ec1f0dedbf262913333023e6d7464fff4f442bc0c74544c4826",
-    "src/fcpxml-scan-core.js": "e14c22e6dd7b2dafa2fcf7fcf4f1d26505bda68eb9a60d153ea99f14eac823b8",
-    "phase-0/profile-gate-fixture-scan.js": "90925f914b8e98acafbd19ed784071a18c2d766bb83f39e0881cd3ffaad19f24"
+    "src/fcpxml-scan-controller.js": "dc14ad68b60a2f63f94e50dea0c22163365aa83d15341e1bb4a25f9af832134d",
+    "src/fcpxml-scan-worker.js": "d026906faee4a829ace504e52a07fd72faf092b1a068f847b1448355e0c45766",
+    "src/fcpxml-scan-core.js": "be16266c1c9372ff464337bfc2b9a8a9323f1982011beb053bc98c0e2fbfd092",
+    "phase-0/profile-gate-fixture-scan.js": "c555035f056b02319d8d4ad682d6c853c7b784eaf4d998d9b88d494ee3e98468"
   },
   "limitations": [
     "Wall time is Node performance.now elapsed time for the actual production worker; fresh samples include worker startup.",
@@ -254,5 +254,12 @@
     "currentReaderSourceSha256": "b830b8d00c116f5c69af3a4a597113fb541fe70a9af1353c8e6a9bafa76d6e89",
     "renderedLuaUnchangedAfterReaderHardening": true,
     "provenanceNote": "Exact observed producer source is archived at its original hash. Current host reader separately rejects XML/directory ancestor links and does not replace the historical producer bytes."
-  }
+  },
+  "currentRescan": true,
+  "historicalObservation": {
+    "file": "phase-0/evidence-sources/resolve-operation-scan-observed-20261120.json.txt",
+    "sha256": "3fe73a29923b3ce4c2e067e937d68bb00ccd9e3b8d3df1a844d8bba2f5b83416",
+    "role": "unaltered historical native-export scan receipt"
+  },
+  "rescanScope": "Current production worker rescanned the exact retained native-export bytes without editor access; native fixture generation and timing/save/reopen observations remain historical and unchanged."
 }

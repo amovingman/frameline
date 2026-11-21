@@ -62,6 +62,8 @@ function validateScanManifest(scan) {
       && frame(clip.offsetFrames)
       && frame(clip.durationFrames)
       && frame(clip.sourceInFrames)
+      && Number.isSafeInteger(clip.offsetFrames + clip.durationFrames)
+      && Number.isSafeInteger(clip.sourceInFrames + clip.durationFrames)
       && typeof clip.enabled === 'boolean'
       && clip.identityStatus === 'unresolved'
       && (index === 0 || scan.clips[index - 1].offsetFrames <= clip.offsetFrames))

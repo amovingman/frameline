@@ -2,7 +2,7 @@ const path = require('node:path');
 const { Worker } = require('node:worker_threads');
 const { ScanError } = require('./fcpxml-scan-core');
 const CODES = new Set(['unsupported-format', 'file-access-denied', 'file-busy', 'file-unavailable', 'file-too-large',
-  'revision-source-changed', 'malformed-xml', 'unsupported-structure', 'unsupported-fcpxml-version', 'unsupported-timing', 'invalid-manifest', 'scan-failed']);
+  'revision-source-changed', 'malformed-xml', 'unsupported-structure', 'unsupported-fcpxml-version', 'unsupported-timing', 'ambiguous-resource-id', 'ambiguous-original-media', 'invalid-manifest', 'scan-failed']);
 function createFcpXmlScanner({ maxCacheEntries = 4, maxCacheBytes = 64 * 1024 * 1024 } = {}) {
   if (!Number.isInteger(maxCacheEntries) || maxCacheEntries < 1 || maxCacheEntries > 16 || !Number.isSafeInteger(maxCacheBytes)
     || maxCacheBytes < 1024 || maxCacheBytes > 256 * 1024 * 1024) throw new ScanError('invalid-scan-options');

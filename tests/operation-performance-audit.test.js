@@ -18,7 +18,7 @@ test('bounded personal operation measurement proof recomputes native outcome, sa
 });
 
 test('changed native timing, portable audit, worker source or scan evidence fails closed',()=>{
-  for(const target of ['phase-0/resolve-operation-rename-live-result.json','phase-0/resolve-operation-rename-portable-audit.json.gz','phase-0/resolve-operation-scan-live-observation.json','src/fcpxml-scan-worker.js']){
+  for(const target of ['phase-0/resolve-operation-rename-live-result.json','phase-0/resolve-operation-rename-portable-audit.json.gz','phase-0/resolve-operation-scan-live-observation.json','phase-0/evidence-sources/resolve-operation-scan-observed-20261120.json.txt','src/fcpxml-scan-worker.js']){
     const read=file=>{const data=fs.readFileSync(path.join(root,file));return file===target?Buffer.concat([data,Buffer.from('changed')]):data;};
     assert.throws(()=>auditOperationPerformance(read),/operation-performance-evidence-invalid/);
   }

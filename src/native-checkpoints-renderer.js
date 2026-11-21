@@ -5,7 +5,7 @@
  const status=s=>({'incoming-only':'Incoming only','local-only':'Local only','already-applied':'Already applied',conflicting:'Conflicting',unchanged:'Unchanged'}[s]||s);
  function options(select,items,value,empty){select.replaceChildren();const o=text('option',empty);o.value='';select.append(o);for(const item of items){const n=text('option',item.label);n.value=item.value;select.append(n);}select.value=value||'';}
  function value(v){if(!v?.present)return'Absent';if(v.type==='null')return'NULL';if(v.display!==undefined)return v.display;return`${v.type||'Atomic stored value'}${v.bytes!==undefined?` · ${v.bytes} bytes`:''}${v.sha256?` · ${v.sha256.slice(0,12)}`:''}`;}
- function render(s){state=s;const running=busy||s?.busy||window.nativePullLocked,checkpoints=s?.checkpoints||[],report=s?.comparison,p=s?.page;
+ function render(s){state=s;const running=busy||s?.busy||window.nativePullLocked||window.mediaRelinkLocked,checkpoints=s?.checkpoints||[],report=s?.comparison,p=s?.page;
   window.nativeCheckpointBusy=Boolean(running);document.dispatchEvent(new CustomEvent('native-checkpoint-state',{detail:{busy:window.nativeCheckpointBusy,rolesReady:Boolean(s?.baseCheckpointId&&s?.incomingCheckpointId)}}));
   node('status').textContent=s?.error||(running?'Reading and verifying native checkpoint data…':report?'Comparison verified against fresh closed local bytes and retained historical checkpoints.':s?.initialized?'Capture a closed project, select its base and related incoming history, then compare.':'Reading retained checkpoints…');
   const choices=checkpoints.map(c=>({value:c.checkpointId,label:`${c.libraryName} / ${c.projectName} · ${c.sourceSha256?.slice(0,10)||'source unknown'} · checkpoint ${c.checkpointId.slice(0,8)}`}));
@@ -24,5 +24,6 @@
  node('capture').addEventListener('click',()=>run('capture'));node('refresh').addEventListener('click',()=>run('refresh'));node('compare').addEventListener('click',()=>run('compare'));node('base').addEventListener('change',()=>run('set-base',node('base').value));node('incoming').addEventListener('change',()=>run('set-incoming',node('incoming').value));node('copy').addEventListener('change',()=>{copyChoice=node('copy').value;render(state);});node('import').addEventListener('click',()=>run('import-copy',copyChoice));
  const page=offset=>run('page',{offset,...(node('filter').value==='all'?{}:{statuses:[node('filter').value]})});node('filter').addEventListener('change',()=>page(0));node('previous').addEventListener('click',()=>page(Math.max(0,(state?.page?.offset||0)-40)));node('next').addEventListener('click',()=>page((state?.page?.offset||0)+40));
  document.addEventListener('native-pull-state',()=>render(state));
+ document.addEventListener('media-relink-state',()=>render(state));
  api?.onNativeCheckpointState?.(render);api?.getNativeCheckpointState?.().then(render).catch(()=>render({error:'Retained native checkpoint history could not be read.'}));
 })();

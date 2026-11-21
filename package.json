@@ -66,7 +66,14 @@
     "audit:native-checkpoints-live": "node scripts/audit-native-checkpoints.cjs",
     "test:native-pull": "node --test --test-concurrency=4 tests/native-pull*.test.js tests/desktop-native-pull.test.js",
     "verify:native-pull": "node scripts/verify-native-pull.cjs",
-    "audit:native-pull-live": "node scripts/audit-native-pull.cjs"
+    "audit:native-pull-live": "node scripts/audit-native-pull.cjs",
+    "test:personal-gates": "node --test --test-concurrency=4 tests/*native-result*.test.js tests/*scan-recovery*.test.js tests/owned-transfer-staging.test.js tests/transfer-crash-recovery.test.js tests/integrated-crash-recovery-evidence.test.js tests/*media-relink*.test.js tests/local-integrity-verifier.test.js tests/local-metadata-readonly.test.js tests/local-verification-renderer.test.js tests/personal-correctness.test.js",
+    "verify:result-audits": "node scripts/verify-native-result-audit.cjs",
+    "audit:native-result-live": "node scripts/audit-native-result-live.cjs",
+    "verify:crash-recovery": "node scripts/verify-integrated-crash-recovery.cjs",
+    "verify:local-integrity": "node scripts/verify-local-integrity.cjs",
+    "verify:media-relink": "node scripts/verify-media-relink.cjs",
+    "audit:media-relink-live": "node scripts/audit-media-relink.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",
