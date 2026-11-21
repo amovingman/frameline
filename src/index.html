@@ -18,6 +18,7 @@
   <script defer src="./resolve-comparison-renderer.js"></script>
   <script defer src="./closed-project-apply-renderer.js"></script>
   <script defer src="./native-review-copy-renderer.js"></script>
+  <script defer src="./native-checkpoints-renderer.js"></script>
   <script defer src="./resolve-policy-renderer.js"></script>
   <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
@@ -145,6 +146,26 @@
             <button id="native-copy-reveal" type="button" hidden>Show copy location</button>
           </div>
           <details id="native-copy-history" hidden><summary>Retained review copies</summary><div id="native-copy-records"></div></details>
+        </section>
+        <section id="native-checkpoints-panel" class="resolve-companion native-checkpoints" aria-labelledby="native-checkpoints-title">
+          <h2 id="native-checkpoints-title">Native checkpoint review</h2>
+          <p>Compare complete stored fields from verified closed Resolve projects. Quit Resolve before capturing or comparing. The current local project is read again for each comparison.</p>
+          <div class="resolve-toolbar"><button id="native-checkpoints-capture" type="button" disabled>Capture closed project</button><button id="native-checkpoints-refresh" type="button">Refresh retained history</button></div>
+          <p id="native-checkpoints-status" role="status" aria-live="polite">Reading retained checkpoints…</p>
+          <div class="native-checkpoint-roles">
+            <div><label for="native-checkpoints-base">Recorded common base</label><select id="native-checkpoints-base" disabled><option value="">Capture a checkpoint</option></select></div>
+            <div><label for="native-checkpoints-incoming">Incoming retained checkpoint</label><select id="native-checkpoints-incoming" disabled><option value="">Choose related history</option></select></div>
+            <button id="native-checkpoints-compare" type="button" disabled>Compare with current local project</button>
+          </div>
+          <div class="native-checkpoint-import"><label for="native-checkpoints-copy">Verified review copy</label><select id="native-checkpoints-copy" disabled><option value="">No completed review copies</option></select><button id="native-checkpoints-import" type="button" disabled>Capture as incoming branch</button></div>
+          <p>Copies with matching editor IDs remain separate until their completed transaction proves shared ancestry. Unkeyed rows and opaque fields are compared without guessing their meaning. This review does not authorize new edits.</p>
+          <div id="native-checkpoints-comparison" hidden>
+            <p id="native-checkpoints-summary"></p><p id="native-checkpoints-coverage"></p>
+            <label for="native-checkpoints-filter">Show classified changes</label><select id="native-checkpoints-filter"><option value="all">All changes</option><option value="incoming-only">Incoming only</option><option value="local-only">Local only</option><option value="already-applied">Already applied</option><option value="conflicting">Conflicting</option></select>
+            <div id="native-checkpoints-changes" aria-label="Native stored-field changes"></div>
+            <nav class="resolve-toolbar" aria-label="Native change pages"><button id="native-checkpoints-previous" type="button">Previous changes</button><span id="native-checkpoints-range"></span><button id="native-checkpoints-next" type="button">Next changes</button></nav>
+          </div>
+          <details id="native-checkpoints-history"><summary>Retained identity checkpoints</summary><div id="native-checkpoints-ledger"></div></details>
         </section>
         <section id="resolve-service-provenance" class="resolve-service-provenance" aria-labelledby="resolve-service-provenance-title" hidden><h2 id="resolve-service-provenance-title">Service history preview</h2><p id="resolve-service-provenance-summary"></p><dl id="resolve-service-provenance-facts" class="service-base-facts"></dl><p>These are accepted historical observations of one Resolve API project. They do not establish the live branch, cross-device identity or authority to apply. Conflict choices record review intent only.</p></section>
         <section id="resolve-trial" class="resolve-companion" aria-labelledby="resolve-trial-title" hidden>

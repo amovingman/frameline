@@ -181,6 +181,7 @@ function createDesktopNativeReviewCopy({ directory, getVerifiedReview, getSyncBa
     } finally { busy = false; }
     return changed();
   }
-  return { action, getState, isReviewLocked };
+  return { action, getState, isReviewLocked,
+    readRetainedCopy: id => service.inspect(id), listRetainedCopyIds: () => service.listTransactionIds() };
 }
 module.exports = { createDesktopNativeReviewCopy };

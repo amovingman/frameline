@@ -82,3 +82,5 @@ The [preservation investigation](phase-0/RESOLVE_NATIVE_PRESERVATION.md) now acc
 The scoped local **Apply reviewed rename** workflow is documented in [SAFE_APPLY.md](SAFE_APPLY.md), including backup, editor validation, restart recovery and restoration. It supports one existing video clip Name on the installed Resolve Free 21.1.2 macOS build.
 
 [Native review copies](NATIVE_REVIEW_COPY.md) apply the same supported Name change into a separate local Resolve library while preserving the original and sync base. [Local pull activity](LOCAL_PULL_ACTIVITY.md) records verified completion and restoration without retry duplicates.
+
+[Native checkpoint review](NATIVE_CHECKPOINT_REVIEW.md) retains authenticated library-qualified identity sidecars and compares complete stored fields from a recorded base, a freshly verified local project and related incoming history.

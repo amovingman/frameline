@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two real Electron processes with shipped main/preload/renderer/controller, authenticated checkpoint sidecars, identity discovery and exact SQLite census/diff helpers. Trusted synthetic hardware observations are confined to disposable source/profile. Fixture-only SQLite writes create the independently tested local/incoming changes; production actions are read only. No live Resolve claim.",
+  "checks": [
+    "native source-picker IPC",
+    "persistent project/item app IDs across changed source bytes and restart",
+    "recorded common base, historical incoming and freshly captured current local",
+    "Name conflict and 60 exact numeric field classifications",
+    "full filtering before 40-row paging",
+    "raw text/blob path redaction with safe Name values",
+    "source bytes unchanged by capture and comparison",
+    "restart role selection and deterministic report",
+    "1440px and 600px layouts",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "capture",
+      "retainedCheckpoints": 3,
+      "projectAppId": "b86d7c10-18fa-4ac9-a263-07a39d706d1c",
+      "itemAppId": "e9b9a6a7-59a5-431a-9da6-94de82f99493",
+      "currentSourceSha256": "f25826267e12e060b8058af2905a1a263bbf2b62267c53fa84c477eab34246e6",
+      "reportSha256": "0c91afbbd5450d2e6ea6b4a912de2ce7cf396235c3dda988ee5b5ba51ea0d974",
+      "conflicts": 21,
+      "incomingOnly": 40,
+      "comparedCoordinates": 430,
+      "pathFreePublicState": true,
+      "sourceUnchangedByRead": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "recover",
+      "retainedCheckpoints": 3,
+      "projectAppId": "b86d7c10-18fa-4ac9-a263-07a39d706d1c",
+      "itemAppId": "e9b9a6a7-59a5-431a-9da6-94de82f99493",
+      "currentSourceSha256": "f25826267e12e060b8058af2905a1a263bbf2b62267c53fa84c477eab34246e6",
+      "reportSha256": "0c91afbbd5450d2e6ea6b4a912de2ce7cf396235c3dda988ee5b5ba51ea0d974",
+      "conflicts": 21,
+      "incomingOnly": 40,
+      "comparedCoordinates": 430,
+      "pathFreePublicState": true,
+      "sourceUnchangedByRead": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    }
+  ]
+}

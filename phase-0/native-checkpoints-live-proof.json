@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "operation": "native-checkpoint-review-live-proof",
+  "scope": "Closed root native projects on installed Resolve Free 21.1.2 build 21.1.20010; complete stored-cell comparison, finite native UUID profile and verified library-qualified copy ancestry; read-only",
+  "baseCheckpointId": "e8f33bad-02f7-4223-bf10-b0825d16b4db",
+  "localCheckpointId": "e8f33bad-02f7-4223-bf10-b0825d16b4db",
+  "incomingCheckpointId": "81f14f76-7809-409e-b5c0-085230803305",
+  "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+  "originalSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+  "incomingSha256": "481d4b8dfa26bb7741ef34abc9067ce0f8e717281fc0cbc2acc45b4ce0645b40",
+  "comparison": {
+    "baseCheckpointId": "e8f33bad-02f7-4223-bf10-b0825d16b4db",
+    "localCheckpointId": "e8f33bad-02f7-4223-bf10-b0825d16b4db",
+    "incomingCheckpointId": "81f14f76-7809-409e-b5c0-085230803305",
+    "currentSourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+    "localFreshlyVerified": true,
+    "incomingHistorical": true,
+    "comparedAt": "2026-11-21T15:42:40.241Z",
+    "summary": {
+      "unchanged": 11672,
+      "incoming-only": 1,
+      "local-only": 0,
+      "already-applied": 0,
+      "conflicting": 0,
+      "totalCompared": 11673,
+      "changed": 1
+    },
+    "coverage": {
+      "allPersistentTablesCompared": true,
+      "allSchemaObjectsCompared": true,
+      "allApplicationPragmasCompared": true,
+      "physicalStorageComparedSeparately": true,
+      "noApplicationColumnsExcluded": true,
+      "opaqueValuesComparedAsAtomicCells": true,
+      "unkeyedRowsMatchedAsEntities": false,
+      "atomicTableCount": 0
+    },
+    "bindings": {
+      "base": {
+        "snapshotSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+        "censusSha256": "004b05e0427fd9ab273bec3c21053c2c49a1156ad28cf882a0d10b3c0307f137",
+        "logicalSha256": "4454b66565b4db13d774888f548d768fe3ca75528f157160a34e96ee8dca8a32"
+      },
+      "local": {
+        "snapshotSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+        "censusSha256": "004b05e0427fd9ab273bec3c21053c2c49a1156ad28cf882a0d10b3c0307f137",
+        "logicalSha256": "4454b66565b4db13d774888f548d768fe3ca75528f157160a34e96ee8dca8a32"
+      },
+      "incoming": {
+        "snapshotSha256": "481d4b8dfa26bb7741ef34abc9067ce0f8e717281fc0cbc2acc45b4ce0645b40",
+        "censusSha256": "77e68f3f1f139ae66451da40320ea064ec76a4e9bb999fcee1f5b5ffc1114ae4",
+        "logicalSha256": "2521d9a2a36e4ee66ff8148b420844414899348ca261de73e51bcb224d2cf8ed"
+      }
+    },
+    "reportSha256": "21db0b2fa24b3162b00ec3b372a4f00560852015a2b50677800b5d515d5f5f3c",
+    "persistentEntityBindings": 77,
+    "readOnly": true,
+    "safeToApply": false
+  },
+  "changes": [
+    {
+      "id": "0bbb0054351884e903fa1434e5fc4cf689e835c6daf5203acf7adc8cd85dade2",
+      "scope": "keyed-field",
+      "table": "Sm2TiItem",
+      "column": "Name",
+      "primaryKeySha256": "2315ab368271e7a7f3013e0b15e3204de78ec613844a137ee1c94e30e2af313f",
+      "matching": "primary-key-uuid",
+      "status": "incoming-only",
+      "changeKind": "modified",
+      "values": {
+        "base": {
+          "present": true,
+          "type": "text",
+          "sha256": "aa9fd092d530dabe0627b0202584f7f28f9441838f60932a443495bb8a5b1df2",
+          "bytes": 35,
+          "display": "Preservation offline B 7b371efd3130"
+        },
+        "local": {
+          "present": true,
+          "type": "text",
+          "sha256": "aa9fd092d530dabe0627b0202584f7f28f9441838f60932a443495bb8a5b1df2",
+          "bytes": 35,
+          "display": "Preservation offline B 7b371efd3130"
+        },
+        "incoming": {
+          "present": true,
+          "type": "text",
+          "sha256": "8bdd063945b9c4a52c83d62a7f95eb2a56a34f04dee9def318166b93bbc2ef7a",
+          "bytes": 26,
+          "display": "Review copy D 7b371efd3130"
+        }
+      },
+      "persistentIdentity": {
+        "kind": "item",
+        "nativeId": "dd124594-a329-4d94-b79c-3bb069cb88cb",
+        "verifiedCheckpointMapping": true,
+        "roles": {
+          "base": {
+            "appId": "1cc6ebb8-b330-4600-ba79-c87aeeba6ae5",
+            "generation": 1,
+            "parentAppId": "d8303ae5-3d89-476b-b173-83f082d663a0",
+            "comparisonId": "1cc6ebb8-b330-4600-ba79-c87aeeba6ae5"
+          },
+          "local": {
+            "appId": "1cc6ebb8-b330-4600-ba79-c87aeeba6ae5",
+            "generation": 1,
+            "parentAppId": "d8303ae5-3d89-476b-b173-83f082d663a0",
+            "comparisonId": "1cc6ebb8-b330-4600-ba79-c87aeeba6ae5"
+          },
+          "incoming": {
+            "appId": "1063c720-8d4d-43ad-8170-ad710d251e87",
+            "generation": 1,
+            "parentAppId": "1c318e9c-dc14-434f-a33c-426a396ed64d",
+            "comparisonId": "1cc6ebb8-b330-4600-ba79-c87aeeba6ae5"
+          }
+        }
+      }
+    }
+  ],
+  "entityCount": 77,
+  "generatedIdsStableAcrossRestart": true,
+  "reportStableAcrossRestart": true,
+  "copyLibraryAppIdsRemainDistinct": true,
+  "sharedComparisonTokensVerified": true,
+  "sourceProjectUnchanged": true,
+  "copyProjectUnchanged": true,
+  "safeToApply": false,
+  "sourceHashes": {
+    "src/closed-project-checkpoint-store.js": "8e398e71725ca421f294f9388c69b00d1c78a429a0e185b73c299dbaea170b83",
+    "src/native-checkpoint-diff.js": "0043e99eaf4a8062c1ac160cf45178d1e2e9aeb4ba4edc2dc4a10d579571b2e3",
+    "src/desktop-native-checkpoints.js": "20bb1487ff86b09ae68432b79488ef5c90487a4825b12f1a16bce21d51fb42a7",
+    "src/native-project-identity.js": "7c0d5d4023a86fc28544e306b7a2a9c0a4320934529d04598cf289373e589588",
+    "src/native/resolve/resolve-native-identity.py": "0d19c4fbb40c338d61386c4a1f3f24bdb20d621b773e3e2b298c314e3adf2f61"
+  },
+  "privateRetentionDirectory": "phase-0/private-integration-proof/native-checkpoints-20261121"
+}

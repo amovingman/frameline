@@ -60,7 +60,10 @@
     "audit:safe-apply-live": "node scripts/audit-safe-apply-live.cjs",
     "test:review-copy": "node --test --test-concurrency=4 tests/closed-project-review-copy.test.js tests/resolve-review-copy-media.test.js tests/review-copy-editor-validation.test.js tests/review-copy-open-command.test.js tests/desktop-native-review-copy.test.js tests/native-review-copy-renderer.test.js",
     "verify:review-copy": "node scripts/verify-native-review-copy.cjs",
-    "audit:review-copy-live": "node scripts/audit-native-review-copy.cjs"
+    "audit:review-copy-live": "node scripts/audit-native-review-copy.cjs",
+    "test:native-checkpoints": "node --test --test-concurrency=4 tests/closed-project-checkpoint-store.test.js tests/native-checkpoint-diff.test.js tests/desktop-native-checkpoints.test.js tests/native-project-identity.test.js tests/native-checkpoints-renderer.test.js",
+    "verify:native-checkpoints": "node scripts/verify-native-checkpoints.cjs",
+    "audit:native-checkpoints-live": "node scripts/audit-native-checkpoints.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",

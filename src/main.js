@@ -52,6 +52,8 @@ const { createResolveTrialSession } = require('./resolve-trial-session');
 const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
 const { createDesktopClosedProjectApply } = require('./desktop-closed-project-apply');
 const { createDesktopNativeReviewCopy } = require('./desktop-native-review-copy');
+const { createClosedProjectCheckpointStore } = require('./closed-project-checkpoint-store');
+const { createDesktopNativeCheckpoints } = require('./desktop-native-checkpoints');
 
 let projectSession;
 let projectScanner;
@@ -68,6 +70,7 @@ let resolveReviewSession;
 let resolveTrialSession;
 let closedProjectApply;
 let nativeReviewCopy;
+let nativeCheckpoints;
 let resolveHistoryTransfer;
 let resolveSourcePaths = null;
 let resolveHistoryRevisionIds = null;
@@ -231,7 +234,7 @@ async function currentResolveSources() {
 }
 
 async function runResolveAction(action) {
-  if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked()) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
+  if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || nativeCheckpoints?.isBusy()) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
   const trial = resolveTrialSession?.getState();
   if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
@@ -475,7 +478,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     } });
   closedProjectApply = createDesktopClosedProjectApply({ directory: path.join(app.getPath('userData'), 'closed-project-apply'),
     getVerifiedReview: async () => {
-      if (nativeReviewCopy?.isReviewLocked() || resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
+      if (nativeCheckpoints?.isBusy() || nativeReviewCopy?.isReviewLocked() || resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
       return resolveReviewSession.getVerifiedReview(await currentResolveSources());
     },
     chooseSource: async () => {
@@ -488,12 +491,12 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle('closed-apply:activity-more', () => closedProjectApply.action('activity-more'));
   for (const method of ['apply', 'validate', 'recover', 'rollback', 'inspect', 'cancel', 'prepare-check', 'read-check', 'reveal']) {
     ipcMain.handle(`closed-apply:${method}`, (_event, id) => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id)
-      ? closedProjectApply.action(method, id) : closedProjectApply.getState());
+      ? nativeCheckpoints?.isBusy() ? { ...closedProjectApply.getState(), error: 'Finish the native checkpoint read before changing the project.' } : closedProjectApply.action(method, id) : closedProjectApply.getState());
   }
   nativeReviewCopy = createDesktopNativeReviewCopy({ directory: path.join(app.getPath('userData'), 'native-review-copies'),
     getVerifiedReview: async () => {
       const trial = resolveTrialSession.getState();
-      if (closedProjectApply.isReviewLocked() || resolveBusy || resolveServicePreview || trial.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase)) throw new Error('copy-review-locked');
+      if (nativeCheckpoints?.isBusy() || closedProjectApply.isReviewLocked() || resolveBusy || resolveServicePreview || trial.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase)) throw new Error('copy-review-locked');
       return resolveReviewSession.getVerifiedReview(await currentResolveSources());
     },
     getSyncBase: async editorProjectId => {
@@ -505,13 +508,27 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     },
     chooseSource: async () => { const p = await dialog.showOpenDialog({ title: 'Choose the original closed Resolve Project.db', properties: ['openFile'], filters: [{ name: 'Resolve database', extensions: ['db'] }] }); return p.canceled ? null : p.filePaths[0]; },
     chooseDestination: async () => { const p = await dialog.showOpenDialog({ title: 'Choose a different connected Resolve disk library', properties: ['openDirectory'] }); return p.canceled ? null : p.filePaths[0]; },
-    canStart: () => !closedProjectApply.isReviewLocked() && !resolveBusy,
+    canStart: () => !nativeCheckpoints?.isBusy() && !closedProjectApply.isReviewLocked() && !resolveBusy,
     reveal: filename => shell.showItemInFolder(filename),
     openEditor: async () => { const result = await shell.openPath('/Applications/DaVinci Resolve/DaVinci Resolve.app'); if (result) throw new Error('copy-editor-launch-failed'); },
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-copy:state', state); } });
   ipcMain.handle('native-copy:state', () => nativeReviewCopy.action('initialize'));
   ipcMain.handle('native-copy:prepare', () => nativeReviewCopy.action('prepare'));
-  for (const method of ['publish', 'prepare-check', 'read-check', 'validate', 'recover', 'inspect', 'reveal', 'open', 'read-open', 'cancel']) ipcMain.handle(`native-copy:${method}`, (_event, id) => nativeReviewCopy.action(method, id));
+  for (const method of ['publish', 'prepare-check', 'read-check', 'validate', 'recover', 'inspect', 'reveal', 'open', 'read-open', 'cancel']) ipcMain.handle(`native-copy:${method}`, (_event, id) => nativeCheckpoints?.isBusy() ? { ...nativeReviewCopy.getState(), error: 'Finish the native checkpoint read before changing the project.' } : nativeReviewCopy.action(method, id));
+  const checkpointCopyReader = { inspect: id => nativeReviewCopy.readRetainedCopy(id), listTransactionIds: () => nativeReviewCopy.listRetainedCopyIds() };
+  const checkpointStore = createClosedProjectCheckpointStore({ directory: path.join(app.getPath('userData'), 'native-checkpoints'),
+    verifyCopyLineage: async ({ transactionId }) => checkpointCopyReader.inspect(transactionId) });
+  nativeCheckpoints = createDesktopNativeCheckpoints({ store: checkpointStore,
+    chooseSource: async () => { const p = await dialog.showOpenDialog({ title: 'Capture a closed Resolve Project.db checkpoint', properties: ['openFile'], filters: [{ name: 'Resolve database', extensions: ['db'] }] }); return p.canceled ? null : p.filePaths[0]; },
+    canRead: () => { const trial = resolveTrialSession.getState(); return !closedProjectApply.isReviewLocked() && !nativeReviewCopy.isReviewLocked() && !resolveBusy && !trial.busy && !['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase); },
+    listReviewCopies: async () => { const records = []; for (const id of await checkpointCopyReader.listTransactionIds()) records.push(await checkpointCopyReader.inspect(id)); return records; },
+    readReviewCopy: id => checkpointCopyReader.inspect(id),
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-checkpoints:state', state); } });
+  ipcMain.handle('native-checkpoints:state', () => nativeCheckpoints.action('initialize'));
+  ipcMain.handle('native-checkpoints:capture', () => nativeCheckpoints.action('capture'));
+  ipcMain.handle('native-checkpoints:compare', () => nativeCheckpoints.action('compare'));
+  ipcMain.handle('native-checkpoints:refresh', () => nativeCheckpoints.action('refresh'));
+  for (const method of ['set-base', 'set-incoming', 'import-copy', 'page']) ipcMain.handle(`native-checkpoints:${method}`, (_event, value) => nativeCheckpoints.action(method, value));
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:scan-progress', () => projectScanProgress);
@@ -743,7 +760,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
-  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked())
+  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || nativeCheckpoints?.isBusy())
     ? { ...resolveTrialSession.getState(), error: 'Finish or recover the active Apply before using a rename drill.' } : action(...args));
   ipcMain.handle('resolve-trial:state', () => resolveTrialSession.initialize());
   handleResolveTrial('resolve-trial:discover', (_event, append) => resolveTrialSession.refreshDiscovery(append));
@@ -770,7 +787,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     catch { return { ...resolveTrialSession.getState(), error: 'The retained backup could not be verified. Keep the trial records for recovery.' }; }
   });
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
-    if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked()) return { ready: false, error: 'Finish or recover the active Apply first.' };
+    if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked() || nativeCheckpoints?.isBusy()) return { ready: false, error: 'Finish or recover the active Apply first.' };
     companionPending = null;
     companionVerifiedSnapshot = null;
     resolveCaptureGeneration++; desktopResolveServiceSync.captureChanged();

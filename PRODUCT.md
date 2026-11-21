@@ -46,3 +46,5 @@ A separate review-copy workflow lets the user choose a destination and filename 
 - State honestly when content is sample data or a feature is unavailable.
 
 The native review-copy workflow applies one reviewed video clip Name into a different configured local disk library, preserves the original and sync base, reports observed media availability, and validates the copy in Resolve. Copies share unchanged media references on this Mac; collection requires Resolve and a fresh capture. Apply history also shows verified local completion/restoration activity. See NATIVE_REVIEW_COPY.md and LOCAL_PULL_ACTIVITY.md.
+
+Native checkpoint review captures closed local Resolve databases into authenticated private history with persistent application IDs. Its read-only desktop three-way comparison verifies base/fork ancestry and fresh local bytes, compares all stored fields and schema, classifies changes, and displays safe values with filtering and paging. Opaque cells and unkeyed rows remain atomic. See NATIVE_CHECKPOINT_REVIEW.md.
