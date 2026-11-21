@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "operation": "authenticated-local-pull-activity-native-proof",
+  "scope": "Read-only projection of retained production native Apply and restoration; no new project/editor effect or service publication.",
+  "sourceProofSha256": "183d103a2cb7387b347363e52fe62fb6c06fe7056e7bcada28c362cca5fa3013",
+  "transactionId": "1c1f156d-4dd1-48a7-9323-8809531e7645",
+  "status": "ready",
+  "eventCount": 2,
+  "retryAndRestartIdentical": true,
+  "events": [
+    {
+      "id": "54c1771009de356bbf48a63835e3664d7dbc43b84723c20dfd2d62eb1fac6ded",
+      "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+      "actorId": "local-owner",
+      "type": "pull.restored",
+      "subjectId": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+      "at": 1795244356980,
+      "transactionId": "1c1f156d-4dd1-48a7-9323-8809531e7645",
+      "direction": "rollback",
+      "revisionId": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+      "parentSourceSha256": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b",
+      "planId": "e30a69193b316b394d850caff328f65311179ba2de887d8d3d83a296de7abfd3",
+      "editorProofSha256": "48458d0f04c123c1b2cdd2f37deddc1821052e3f9cfcbb914892265386f7b9dd",
+      "scope": "local-native-project",
+      "delivery": "local-only"
+    },
+    {
+      "id": "1d49cef7ab5ac95816796c2215e3e47d23a0c1bea9a03d4681143a8c874abed1",
+      "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+      "actorId": "local-owner",
+      "type": "pull.completed",
+      "subjectId": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b",
+      "at": 1795244265026,
+      "transactionId": "1c1f156d-4dd1-48a7-9323-8809531e7645",
+      "direction": "apply",
+      "revisionId": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b",
+      "parentSourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+      "planId": "e30a69193b316b394d850caff328f65311179ba2de887d8d3d83a296de7abfd3",
+      "editorProofSha256": "f59821499d3d046774aa8c4a240c5423ff9b84e58f110fc985edbd939bec75d6",
+      "scope": "local-native-project",
+      "delivery": "local-only"
+    }
+  ],
+  "producerSourceSha256": "da0f6f81a49437d92e1a5f7fdc53a532238d0023b5827ec0f7941ac6910d7089"
+}

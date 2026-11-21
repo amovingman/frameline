@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two real Electron processes with shipped main/preload/renderer/controller/copy service and real native SQLite helpers. Hardware observations/open/readback are trusted synthetic adapters confined to a disposable profile. No live editor claim.",
+  "checks": [
+    "review and native source/destination picker IPC",
+    "media condition acknowledgement before publication",
+    "same reviewed Name plan and all-cell candidate",
+    "original bytes/inode/timestamps and sync base unchanged",
+    "path-free UI state",
+    "separate open/read and editor validation",
+    "restart discovery and passive readback",
+    "1440px and 600px layouts",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "publish",
+      "finalState": "published-awaiting-editor",
+      "originalUnchanged": true,
+      "syncBaseUnchanged": true,
+      "pathFreePublicState": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0,
+      "copySha256": "ddf39a96101a974f0e3d04ec94c6d9da22910d1929a6e1b931a5ba0405c9a1ae"
+    },
+    {
+      "stage": "recover",
+      "finalState": "completed",
+      "originalUnchanged": true,
+      "syncBaseUnchanged": true,
+      "pathFreePublicState": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0,
+      "copySha256": "ddf39a96101a974f0e3d04ec94c6d9da22910d1929a6e1b931a5ba0405c9a1ae"
+    }
+  ]
+}

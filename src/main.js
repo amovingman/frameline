@@ -51,6 +51,7 @@ const { createAdapterMetrics } = require('./adapter-metrics');
 const { createResolveTrialSession } = require('./resolve-trial-session');
 const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
 const { createDesktopClosedProjectApply } = require('./desktop-closed-project-apply');
+const { createDesktopNativeReviewCopy } = require('./desktop-native-review-copy');
 
 let projectSession;
 let projectScanner;
@@ -66,6 +67,7 @@ let desktopSharedStorage;
 let resolveReviewSession;
 let resolveTrialSession;
 let closedProjectApply;
+let nativeReviewCopy;
 let resolveHistoryTransfer;
 let resolveSourcePaths = null;
 let resolveHistoryRevisionIds = null;
@@ -229,7 +231,7 @@ async function currentResolveSources() {
 }
 
 async function runResolveAction(action) {
-  if (closedProjectApply?.isReviewLocked()) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
+  if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked()) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
   const trial = resolveTrialSession?.getState();
   if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
@@ -473,7 +475,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     } });
   closedProjectApply = createDesktopClosedProjectApply({ directory: path.join(app.getPath('userData'), 'closed-project-apply'),
     getVerifiedReview: async () => {
-      if (resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
+      if (nativeReviewCopy?.isReviewLocked() || resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
       return resolveReviewSession.getVerifiedReview(await currentResolveSources());
     },
     chooseSource: async () => {
@@ -483,10 +485,33 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('closed-apply:state', state); } });
   ipcMain.handle('closed-apply:state', () => closedProjectApply.action('initialize'));
   ipcMain.handle('closed-apply:prepare', () => closedProjectApply.action('prepare'));
+  ipcMain.handle('closed-apply:activity-more', () => closedProjectApply.action('activity-more'));
   for (const method of ['apply', 'validate', 'recover', 'rollback', 'inspect', 'cancel', 'prepare-check', 'read-check', 'reveal']) {
     ipcMain.handle(`closed-apply:${method}`, (_event, id) => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id)
       ? closedProjectApply.action(method, id) : closedProjectApply.getState());
   }
+  nativeReviewCopy = createDesktopNativeReviewCopy({ directory: path.join(app.getPath('userData'), 'native-review-copies'),
+    getVerifiedReview: async () => {
+      const trial = resolveTrialSession.getState();
+      if (closedProjectApply.isReviewLocked() || resolveBusy || resolveServicePreview || trial.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial.phase)) throw new Error('copy-review-locked');
+      return resolveReviewSession.getVerifiedReview(await currentResolveSources());
+    },
+    getSyncBase: async editorProjectId => {
+      const project = (await localMetadataStore.listResolveProjects()).find(p => p.editorProjectId === editorProjectId);
+      if (!project) return { projectAbsent: true };
+      const graph = await localMetadataStore.getResolveRevisionGraph(project.id);
+      const syncBases = Object.fromEntries(await Promise.all(Object.keys(graph.branches).map(async branch => [branch, await localMetadataStore.getSyncBase(project.id, branch)])));
+      return { graph, syncBases };
+    },
+    chooseSource: async () => { const p = await dialog.showOpenDialog({ title: 'Choose the original closed Resolve Project.db', properties: ['openFile'], filters: [{ name: 'Resolve database', extensions: ['db'] }] }); return p.canceled ? null : p.filePaths[0]; },
+    chooseDestination: async () => { const p = await dialog.showOpenDialog({ title: 'Choose a different connected Resolve disk library', properties: ['openDirectory'] }); return p.canceled ? null : p.filePaths[0]; },
+    canStart: () => !closedProjectApply.isReviewLocked() && !resolveBusy,
+    reveal: filename => shell.showItemInFolder(filename),
+    openEditor: async () => { const result = await shell.openPath('/Applications/DaVinci Resolve/DaVinci Resolve.app'); if (result) throw new Error('copy-editor-launch-failed'); },
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('native-copy:state', state); } });
+  ipcMain.handle('native-copy:state', () => nativeReviewCopy.action('initialize'));
+  ipcMain.handle('native-copy:prepare', () => nativeReviewCopy.action('prepare'));
+  for (const method of ['publish', 'prepare-check', 'read-check', 'validate', 'recover', 'inspect', 'reveal', 'open', 'read-open', 'cancel']) ipcMain.handle(`native-copy:${method}`, (_event, id) => nativeReviewCopy.action(method, id));
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:scan-progress', () => projectScanProgress);
@@ -718,7 +743,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
-  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => closedProjectApply?.isReviewLocked()
+  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked())
     ? { ...resolveTrialSession.getState(), error: 'Finish or recover the active Apply before using a rename drill.' } : action(...args));
   ipcMain.handle('resolve-trial:state', () => resolveTrialSession.initialize());
   handleResolveTrial('resolve-trial:discover', (_event, append) => resolveTrialSession.refreshDiscovery(append));
@@ -745,7 +770,7 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     catch { return { ...resolveTrialSession.getState(), error: 'The retained backup could not be verified. Keep the trial records for recovery.' }; }
   });
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
-    if (closedProjectApply?.isReviewLocked()) return { ready: false, error: 'Finish or recover the active Apply first.' };
+    if (closedProjectApply?.isReviewLocked() || nativeReviewCopy?.isReviewLocked()) return { ready: false, error: 'Finish or recover the active Apply first.' };
     companionPending = null;
     companionVerifiedSnapshot = null;
     resolveCaptureGeneration++; desktopResolveServiceSync.captureChanged();

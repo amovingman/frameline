@@ -1,0 +1,502 @@
+{
+  "schemaVersion": 1,
+  "operation": "native-review-copy-live-proof",
+  "scope": "Installed Resolve Free 21.1.2 build 21.1.20010; owner-controlled closed root disk project; one video Name in a separate already-selected library; same-Mac stored references",
+  "transactionId": "d4db08bf-813f-468b-a405-751b59eabeb0",
+  "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+  "timelineId": "2a1dc480-6a62-4a3e-b93c-c553b33fc69b",
+  "itemId": "dd124594-a329-4d94-b79c-3bb069cb88cb",
+  "oldName": "Preservation offline B 7b371efd3130",
+  "newName": "Review copy D 7b371efd3130",
+  "state": "completed",
+  "originalSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+  "copySha256": "481d4b8dfa26bb7741ef34abc9067ce0f8e717281fc0cbc2acc45b4ce0645b40",
+  "bytes": 2945024,
+  "originalLibrary": "Local Database",
+  "destinationLibrary": "Frameline Review Copy 20261121",
+  "originalUnchanged": true,
+  "syncBaseUnchanged": true,
+  "nonemptySyncBase": "3e00b035-a35f-422f-844c-2658cdf9a562",
+  "originalHistorySha256": "1e5b44aa549d82223ec6e82dcb7e5fd374dc1aa57585ea2dbf7204491d50a7f8",
+  "finalHistorySha256": "1e5b44aa549d82223ec6e82dcb7e5fd374dc1aa57585ea2dbf7204491d50a7f8",
+  "allOtherApplicationValuesPreserved": true,
+  "cellCounts": {
+    "cellsIncludingRowid": 9788,
+    "rows": 540,
+    "schemaObjects": 596,
+    "tables": 146
+  },
+  "metadataPreserved": true,
+  "actualOpenFileBindingVerified": true,
+  "editorProofSha256": "7afd7b3b8d9fc51b5817dc876f29a4becc35ba053db8f86559c257f8dfe6c33a",
+  "openResult": {
+    "status": "opened-copy",
+    "menuName": "Frameline Open Review Copy d97d7be24a9d",
+    "sourceSha256": "77575f3c6a0ddb6d4cbe828837b87538e5aca7af6abe05c2f55b120d7fb1e151",
+    "resultSha256": "1a34a9b43bcf019cffb48338aed6a8fa4410f2a64301e23cd19ceb5e51141662",
+    "editorValidationStillRequired": true
+  },
+  "mediaPolicy": {
+    "schemaVersion": 1,
+    "policy": "unchanged-references",
+    "verified": true,
+    "sourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+    "bindingSha256": "ecfd43cba60ba2d8128bf8dfd96d17c547dae41e46d867946cf5df5a20390f93",
+    "report": {
+      "schemaVersion": 1,
+      "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+      "databaseSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+      "policy": "same-machine-unchanged-references",
+      "mediaReferenceSha256": "ce9cd99754fb43429020a155b3ea434dbc69b9e2999f2f5e56e324081513f9fe",
+      "completeMediaEnumeration": false,
+      "opaqueNativeMediaCells": 363,
+      "counts": {
+        "total": 58,
+        "available": 8,
+        "missing": 50,
+        "unknown": 0
+      },
+      "entries": [
+        {
+          "itemId": "0d155818-3360-4854-b8c5-d7beb9c04314",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "audio",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "0d7e6bca-908f-4731-a528-552d8cf4e70f",
+          "mediaId": "a14ff69c-c313-43a8-b9b9-0efe9220b1e9",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "145b9d06-b014-4e7d-9f9d-0e24802f7d52",
+          "mediaId": "747a1bc5-ffb6-4556-9d79-85abf02a19d0",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "1507a7f3-6f61-494c-8ff1-cf93aeb5da38",
+          "mediaId": "21b24d8a-9ccc-4dcb-b006-238317e34582",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "151cf0ee-f083-4163-acbb-dcc48e5d5909",
+          "mediaId": "41423271-aec8-45bd-8b6c-35e79a6e264c",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "16c3aebf-69ce-4651-b1ab-f056b6c165d3",
+          "mediaId": "75a51305-4f27-4984-a754-e8dd1145ceea",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "1a4de9b7-6daa-4784-a77a-f82f6154fcc4",
+          "mediaId": "a94ada19-d2a1-4d37-884f-28e30ac7ab11",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "20d39553-663e-40f8-a91f-490d8cb563b7",
+          "mediaId": "5c7f3c8c-6e74-4ac6-93dc-97f31cbfbe0f",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "26752e83-446a-4e38-90a4-bcc7d90fee7a",
+          "mediaId": "61158d1b-3abc-4113-9bec-b67703d97748",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "26f1c369-fc9b-4918-8f22-7dcdf0a87506",
+          "mediaId": "9d7b49f7-daf9-4c17-bfd7-6f70b20faa10",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "284d46a2-be7b-4659-9fa8-caca725a0ffc",
+          "mediaId": "c1bf81b2-d21b-4311-9d9c-db73f5b815c4",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "2f3fce7c-61ea-4607-8a1b-27052e92e7cf",
+          "mediaId": "4250ef86-b774-4af8-a3ce-767ef697712d",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "44d5d84a-c787-4f9b-81cf-4cac426f4a03",
+          "mediaId": "9601c950-7f74-4daf-8592-43ddd39657a1",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "4542d022-a300-4138-9536-b60dcb8f4170",
+          "mediaId": "2683b753-c11d-459d-8afb-ab7d01cb5630",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "45ead034-ccc1-4e3c-a142-7b5b072f5430",
+          "mediaId": "6fed53ce-bd5a-4a03-aa32-15ed6297b28e",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "4698e9d9-3444-4830-9005-35415e0c641d",
+          "mediaId": "4788b404-4c3f-46d9-bfd9-010bf086e98a",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "4a88d214-343c-4e1e-b2df-b8233c8a7a81",
+          "mediaId": "1d13bc81-52b1-4f8d-b5c4-2694ca89d40b",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "4d1b5fc9-97c8-405a-ba1c-38b547b63287",
+          "mediaId": "9a506b93-8c6d-4b76-b818-2bb09dd40a81",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "4ee7245d-c3d8-4874-b22f-f05f5b52bd95",
+          "mediaId": "0f6366f7-7f6d-4d09-9e74-061150120b93",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "52cdd47f-09a9-4644-add6-9e6d1c36eb1f",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "audio",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "56252f72-21df-4fd4-b959-c79d6810f0d7",
+          "mediaId": "4aa2499b-a620-4b5c-88e9-dc8697fa8424",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "5943f266-783b-48ad-93ac-276e28ab3a5e",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "video",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "5f938256-1b3d-4dc6-baee-535780d57dfd",
+          "mediaId": "d5083fe7-f226-4d2f-81f8-3c9cee26a55f",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "77938da4-5d89-4373-85bf-bcf671ca526b",
+          "mediaId": "69a4e5ce-a93d-4c98-877c-19c7916af486",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "7db18fc1-e634-4b33-9d6a-a5256935f4cb",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "audio",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "84492dbf-0e80-4ede-9389-e4a8d211b329",
+          "mediaId": "83ee35a3-18d6-49ca-9d84-ba7060e39b50",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "885cf96c-026d-4dd3-a599-3900bc7d1524",
+          "mediaId": "71aeb1a0-6463-4260-9335-db80f7b95555",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "89569935-7936-427c-a833-027b6c0528e2",
+          "mediaId": "c1da429e-63dd-4add-b501-535dff7fb328",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "8abd2563-d3ac-4ab1-b10d-f78404863934",
+          "mediaId": "96855079-88d6-4879-8dae-fe4497eb2ec9",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "8f893d2c-bc0a-4e0c-a0de-2ea292fdcfcd",
+          "mediaId": "9b14d6c5-f538-45b2-a462-379e15f98ba9",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "93106304-23a0-4443-bd94-93635f729b06",
+          "mediaId": "e85d9993-4268-4daf-b5c4-b2b81b229e06",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "986b4123-dab1-491c-b1ca-214e36c7db37",
+          "mediaId": "ace0268c-10b1-4530-8e5c-1194aa8b76e5",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "9ad9337e-ee76-45a0-a5aa-8d6168c6764e",
+          "mediaId": "724556a8-2386-4822-b1b7-3f7fa20ebe87",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "9d0a674b-32a1-47b5-b430-aafcb1e2d316",
+          "mediaId": "da45b14b-db83-4858-aa14-0b82ff9f0764",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "a917395d-8f95-4793-b653-2a7322c2ae9f",
+          "mediaId": "f7cc0bec-e0d7-4920-aed5-43dc3cb9e694",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "a9324909-05e0-4e84-a28e-68f5bbdee501",
+          "mediaId": "a436dfb8-9c54-4f1e-a110-9f1f8a4a4c1f",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "ac253ef5-eee7-475d-b4fa-1efd28bfb8ac",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "video",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "b2d8fe1b-b82e-48ad-8b4b-02768eff93be",
+          "mediaId": "aaebf846-2fd3-4b6c-8554-558c1851b94d",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "bbe5bfff-9727-427e-8494-69f2259cf45d",
+          "mediaId": "7e6a2526-3cef-41d4-98f2-ba09a55f4183",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "c3b4d848-79f1-444b-a68f-9cc0abe67fbe",
+          "mediaId": "96169508-f577-4a18-81ba-7a93288a8427",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "c94259d0-78ea-438a-b383-3ac09406c9ae",
+          "mediaId": "4050dd81-aa5b-4a7e-81f5-d436c91897b2",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "cc87d32d-550d-46be-88c4-f270d1049fa6",
+          "mediaId": "174fc2bc-7a90-4b75-a256-58bb492fd68b",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "cdc80069-5a1d-4c03-ab76-57f5cdb51692",
+          "mediaId": "a4bf0219-5b45-4141-badd-5cc5fc37a6ae",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "cf0dcb3e-457a-4132-b58d-9e35eef7cbc3",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "video",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "d109ace6-cace-4d6c-91d1-90ca7425b445",
+          "mediaId": "076d8b5f-6fae-4ce0-8f9c-c80c9d609418",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "d67ca4dc-cd8f-4877-85e7-19be19163fd1",
+          "mediaId": "2a4bf287-90c8-4af2-a47b-93239d4a4292",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "dd124594-a329-4d94-b79c-3bb069cb88cb",
+          "mediaId": "b6f88cd6-4c2f-43ab-9ab1-042485bc93aa",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "e23c3258-154a-48b0-b59d-bdf0c71998f2",
+          "mediaId": "f59f81d1-0ee1-4e22-a65d-86b30781f9e2",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "e699f8e8-ed10-4551-9ca3-6ba28870e26d",
+          "mediaId": "dc1bb32e-dc12-4641-8ffa-811ac32093d3",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "e721893c-8d19-4abf-90ad-bb491bd753d6",
+          "mediaId": "95100d73-71cf-4e7e-9b11-aa7e62d673b5",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "e76e6875-e1f9-41fe-8a1a-dd56f38452d1",
+          "mediaId": "c848ed94-33a1-4c2c-8ef8-3b4ab820e54e",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "e778c308-f98e-468a-8b02-f11565bfa0f7",
+          "mediaId": "ae59420c-6169-4bab-ade2-169a95a5bbed",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "f0094c01-9152-4e80-af57-b9d1e9c833b6",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "audio",
+          "state": "available",
+          "reason": "observed-regular-file"
+        },
+        {
+          "itemId": "f2907484-eb55-4cc1-a2bf-0fcf5ae9b007",
+          "mediaId": "5d974c07-c61b-4ba6-bcbb-68ab998c64aa",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "f29a2ccd-9935-4d1e-a7d7-2f33335e0267",
+          "mediaId": "cc3ddd0b-827a-4492-ab3b-e28bc6f496eb",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "f415f26d-3e80-42f4-bcc4-2748b9f8efb2",
+          "mediaId": "900f0332-ec72-464d-b204-59fafc82dcc3",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "fcd8e9de-127d-402a-9aad-50e86577af46",
+          "mediaId": "4ed5a93e-66a3-4abc-b499-e32b987665f9",
+          "kind": "video",
+          "state": "missing",
+          "reason": "explicit-reference-unavailable"
+        },
+        {
+          "itemId": "ff3f2783-6d6a-4ed8-b2ea-000a0fc9fd5b",
+          "mediaId": "14b80482-4138-49df-a208-327819368508",
+          "kind": "video",
+          "state": "available",
+          "reason": "observed-regular-file"
+        }
+      ],
+      "portability": "same-machine-references-only",
+      "mediaRelinkPerformed": false,
+      "mediaCollected": false,
+      "status": "observed-media-missing",
+      "collectionAction": "collect-in-resolve-and-recapture",
+      "message": "Some observed media references are missing. Collect or relink media in Resolve, then capture and prepare a new review copy."
+    },
+    "mediaReadiness": "observed-media-missing",
+    "preservesExistingAvailabilityConditionOnly": true,
+    "portableCopyVerified": false,
+    "collectionRequiredForPortability": true,
+    "collectionAction": "collect-in-resolve-and-recapture"
+  },
+  "resultingRevision": {
+    "revisionId": "481d4b8dfa26bb7741ef34abc9067ce0f8e717281fc0cbc2acc45b4ce0645b40",
+    "parentSourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+    "planId": "ee67b6475faeaf9a781fef716aa54beec910f849902caf5c3f3068b49ba0efcf",
+    "mode": "review-copy",
+    "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+    "destinationLibraryName": "Frameline Review Copy 20261121",
+    "proofSha256": "7afd7b3b8d9fc51b5817dc876f29a4becc35ba053db8f86559c257f8dfe6c33a",
+    "completedAt": "2026-11-21T07:36:33.687Z"
+  },
+  "concurrentWriterResistanceProven": false,
+  "sourceHashes": {
+    "src/closed-project-review-copy.js": "c8165eeae36034ff354b633ee507de8f5d5718d5955e7b0a21242b2f85eb8139",
+    "src/review-copy-editor-validation.js": "7afc2b7895fd87dd09ade74eb7dd725a7fa82504f921558648886fa3802d995f",
+    "src/review-copy-open-command.js": "c0048c9c2e45945ef3516760fb6785ece53f3a41c1e7a9c0c64021be33c653b4",
+    "src/resolve-review-copy-media.js": "45994e42d725cc44c1696ef2be2771faf2ebe6aeb26660343d7a7b328ae63cfe",
+    "src/closed-project-native-store.js": "cf741ef7878a47197ae32f4302e100c772d590682dea4d2ca5f22a2c0d903ed2",
+    "src/closed-project-apply-plan.js": "aea97a514ed26c9142bc319d7d956c45dc7c711f41778542fce8e057f5f146b5",
+    "src/closed-project-apply-source-binding.js": "d4006a050c1b8e95461eeacbab462c5f290d7be3562a0a6e7a7739e55ffbe048",
+    "src/closed-project-apply-companion.js": "91a3b6208c90d0b75e1963c838bd88936e19e88ccbb7589f27937b7fbadd0f9a"
+  },
+  "privateRetentionDirectory": "phase-0/private-integration-proof/review-copy-20261121"
+}

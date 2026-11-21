@@ -44,3 +44,5 @@ A separate review-copy workflow lets the user choose a destination and filename 
 - Explain overlapping edits and preserve local work.
 - Keep review copy and in-place pull as separate, clear choices.
 - State honestly when content is sample data or a feature is unavailable.
+
+The native review-copy workflow applies one reviewed video clip Name into a different configured local disk library, preserves the original and sync base, reports observed media availability, and validates the copy in Resolve. Copies share unchanged media references on this Mac; collection requires Resolve and a fresh capture. Apply history also shows verified local completion/restoration activity. See NATIVE_REVIEW_COPY.md and LOCAL_PULL_ACTIVITY.md.

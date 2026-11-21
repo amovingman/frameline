@@ -57,7 +57,10 @@
     "test:preservation": "node --test --test-concurrency=4 tests/*preservation*.test.js tests/native-preserving-name-writer.test.js tests/native-byte*.test.js",
     "test:safe-apply": "node --test --test-concurrency=4 tests/closed-project-*.test.js tests/desktop-closed-project-apply.test.js",
     "verify:safe-apply": "node scripts/verify-safe-apply.cjs",
-    "audit:safe-apply-live": "node scripts/audit-safe-apply-live.cjs"
+    "audit:safe-apply-live": "node scripts/audit-safe-apply-live.cjs",
+    "test:review-copy": "node --test --test-concurrency=4 tests/closed-project-review-copy.test.js tests/resolve-review-copy-media.test.js tests/review-copy-editor-validation.test.js tests/review-copy-open-command.test.js tests/desktop-native-review-copy.test.js tests/native-review-copy-renderer.test.js",
+    "verify:review-copy": "node scripts/verify-native-review-copy.cjs",
+    "audit:review-copy-live": "node scripts/audit-native-review-copy.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",

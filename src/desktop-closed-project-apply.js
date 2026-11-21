@@ -3,6 +3,7 @@ const path = require('node:path');
 const { createClosedProjectApplyAdapter } = require('./closed-project-apply-adapter');
 const { createClosedProjectApplyTransaction } = require('./closed-project-apply-transaction');
 const { createClosedProjectApplySession } = require('./closed-project-apply-session');
+const { createClosedProjectPullActivity } = require('./closed-project-pull-activity');
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const PENDING = new Set(['pending-editor-validation', 'pending-rollback-editor-validation', 'validating-editor',
   'validating-rollback', 'validation-failed', 'publication-unverified']);
@@ -45,19 +46,20 @@ function direction(record) {
 // Dependency injection belongs to the main process. IPC accepts only action
 // names and opaque retained transaction UUIDs, never native paths or proofs.
 function createDesktopClosedProjectApply({ directory, getVerifiedReview, chooseSource, reveal,
-  onChange = () => {}, adapter: injectedAdapter, transactionService } = {}) {
+  onChange = () => {}, adapter: injectedAdapter, transactionService, activity: injectedActivity } = {}) {
   if (!path.isAbsolute(directory || '') || [getVerifiedReview, chooseSource, reveal, onChange]
     .some(value => typeof value !== 'function')) throw new Error('closed-apply-desktop-invalid');
   let check = null, extraError = null, busy = false;
   const adapter = injectedAdapter || createClosedProjectApplyAdapter({ directory: path.join(directory, 'adapter'), getCurrentReview: getVerifiedReview });
   const transaction = transactionService || createClosedProjectApplyTransaction({ directory: path.join(directory, 'transactions'), adapter, verifyPlan: adapter.verifyPlan });
+  const activity = injectedActivity || createClosedProjectPullActivity({ transactionService: transaction });
   const session = createClosedProjectApplySession({ transactionService: transaction, createPlan: adapter.createPlan,
     getVerifiedReview, getSelectedNativeSource: chooseSource, onChange: () => changed() });
   function state() {
     const current = session.getState(), code = extraError || current.error;
     return { ...current, busy: busy || current.busy, reviewLocked: busy || current.reviewLocked,
       actions: Object.fromEntries(Object.entries(current.actions).map(([key, value]) => [key, value && !busy])),
-      editorCheck: check ? { ...check } : null, errorCode: code, error: code ? MESSAGES[code] || fallback : null };
+      activity: activity.getState(), editorCheck: check ? { ...check } : null, errorCode: code, error: code ? MESSAGES[code] || fallback : null };
   }
   function changed() {
     const current = state();
@@ -94,13 +96,16 @@ function createDesktopClosedProjectApply({ directory, getVerifiedReview, chooseS
   async function action(method, ...args) {
     if (busy) return { ...state(), errorCode: 'closed-apply-busy', error: MESSAGES['closed-apply-busy'] };
     busy = true; extraError = null; changed();
+    let accepted = false;
     try {
       if (!['initialize', 'prepare', 'apply', 'validate', 'recover', 'rollback', 'inspect', 'cancel',
-        'prepare-check', 'read-check', 'reveal'].includes(method)) throw new Error('closed-apply-input-invalid');
-      if (['initialize', 'prepare'].includes(method)) {
+        'prepare-check', 'read-check', 'reveal', 'activity-more'].includes(method)) throw new Error('closed-apply-input-invalid');
+      if (['initialize', 'prepare', 'activity-more'].includes(method)) {
         if (args.length) throw new Error('closed-apply-input-invalid');
       } else checkedId(args);
-      if (method === 'prepare-check') await prepareCheck(args[0]);
+      accepted = true;
+      if (method === 'activity-more') activity.loadOlder();
+      else if (method === 'prepare-check') await prepareCheck(args[0]);
       else if (method === 'read-check') await readCheck(args[0]);
       else if (method === 'reveal') {
         const record = await transaction.inspect(args[0]);
@@ -119,7 +124,12 @@ function createDesktopClosedProjectApply({ directory, getVerifiedReview, chooseS
     } catch (error) {
       const code = error.code || error.message;
       extraError = Object.hasOwn(MESSAGES, code) ? code : 'closed-apply-action-failed';
-    } finally { busy = false; }
+    } finally {
+      // Only the authenticated transaction reader supplies completion history.
+      // A projection failure cannot undo a verified Apply or invent success.
+      try { if (accepted && method !== 'activity-more') await activity.refresh(); }
+      finally { busy = false; }
+    }
     return changed();
   }
   return { getState: state, isReviewLocked: () => busy || session.isReviewLocked(), action };

@@ -17,6 +17,7 @@
   <script defer src="./renderer.js"></script>
   <script defer src="./resolve-comparison-renderer.js"></script>
   <script defer src="./closed-project-apply-renderer.js"></script>
+  <script defer src="./native-review-copy-renderer.js"></script>
   <script defer src="./resolve-policy-renderer.js"></script>
   <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
@@ -100,7 +101,7 @@
 
       <section id="view-resolve" class="view" aria-label="Resolve preview">
         <div class="masthead"><div><h1>Resolve merge preview</h1><p>Compare base, local, and incoming captures before reviewing conflicts.</p></div><span class="status ready">Review sources</span></div>
-        <div class="resolve-toolbar"><button id="resolve-choose" type="button">Choose three captures</button><button id="resolve-refresh" type="button" disabled>Refresh sources</button><button id="resolve-save" type="button" disabled>Save preview</button><button id="resolve-save-review" type="button" disabled>Save review</button><button id="closed-apply-show" type="button">Apply reviewed rename</button></div>
+        <div class="resolve-toolbar"><button id="resolve-choose" type="button">Choose three captures</button><button id="resolve-refresh" type="button" disabled>Refresh sources</button><button id="resolve-save" type="button" disabled>Save preview</button><button id="resolve-save-review" type="button" disabled>Save review</button><button id="closed-apply-show" type="button">Apply reviewed rename</button><button id="native-copy-show" type="button">Create review copy</button></div>
         <p id="resolve-notice" class="resolve-notice" role="status" aria-live="polite">Choose base, local, and incoming Resolve capture or snapshot JSON files. No timeline will be modified.</p>
         <section id="closed-apply-panel" class="resolve-companion closed-apply-panel" aria-labelledby="closed-apply-title" hidden>
           <h2 id="closed-apply-title" tabindex="-1">Apply reviewed rename</h2>
@@ -121,6 +122,29 @@
             <button id="closed-apply-reveal" type="button" hidden>Show retained backup</button>
           </div>
           <details id="closed-apply-history" hidden><summary>Retained Apply records</summary><div id="closed-apply-records"></div></details>
+        </section>
+        <section id="native-copy-panel" class="resolve-companion closed-apply-panel" aria-labelledby="native-copy-title" hidden>
+          <h2 id="native-copy-title" tabindex="-1">Review a changed copy</h2>
+          <p>Apply the reviewed video clip name to a separate local Resolve library. First create or connect that library in Resolve’s Project Manager, select it, then quit Resolve. The destination must not contain a project with the original name.</p>
+          <p>The original project, its revision history and sync base stay unchanged. The copy keeps the original project name and IDs, with its destination library recorded separately.</p>
+          <p id="native-copy-status" role="status" aria-live="polite">Checking retained review copies…</p>
+          <p id="native-copy-edit" hidden></p><p id="native-copy-media" hidden></p>
+          <label id="native-copy-media-choice" class="resolve-trial-ack" hidden><input id="native-copy-media-ack" type="checkbox"><span>Keep existing media references on this Mac, including their current missing or unknown state.</span></label>
+          <details id="native-copy-collection"><summary>Collect media in Resolve</summary><p>For a portable copy, use Resolve’s media-management or project-archive controls to collect the required source media. Confirm whether proxies are included. Reopen the collected project, capture its current state, and prepare a new review. Frameline preserves opaque media and proxy records; it cannot verify or rewrite every stored path.</p></details>
+          <p id="native-copy-editor" hidden></p><p id="native-copy-open-status" hidden></p>
+          <div class="resolve-toolbar" aria-label="Review-copy actions">
+            <button id="native-copy-prepare" type="button" disabled>Choose original and review library</button>
+            <button id="native-copy-publish" type="button" hidden>Create changed copy</button>
+            <button id="native-copy-cancel" type="button" hidden>Cancel preparation</button>
+            <button id="native-copy-open" type="button" hidden>Open copy in Resolve</button>
+            <button id="native-copy-read-open" type="button" hidden>Read open result</button>
+            <button id="native-copy-prepare-check" type="button" hidden>Prepare copy check</button>
+            <button id="native-copy-read-check" type="button" hidden>Read copy check</button>
+            <button id="native-copy-validate" type="button" hidden>Finish copy validation</button>
+            <button id="native-copy-recover" type="button" hidden>Inspect retained copy</button>
+            <button id="native-copy-reveal" type="button" hidden>Show copy location</button>
+          </div>
+          <details id="native-copy-history" hidden><summary>Retained review copies</summary><div id="native-copy-records"></div></details>
         </section>
         <section id="resolve-service-provenance" class="resolve-service-provenance" aria-labelledby="resolve-service-provenance-title" hidden><h2 id="resolve-service-provenance-title">Service history preview</h2><p id="resolve-service-provenance-summary"></p><dl id="resolve-service-provenance-facts" class="service-base-facts"></dl><p>These are accepted historical observations of one Resolve API project. They do not establish the live branch, cross-device identity or authority to apply. Conflict choices record review intent only.</p></section>
         <section id="resolve-trial" class="resolve-companion" aria-labelledby="resolve-trial-title" hidden>

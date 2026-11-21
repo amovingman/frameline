@@ -43,7 +43,7 @@ test('desktop flow holds review lock until native readback and separate closed-f
   assert.doesNotMatch(JSON.stringify(state), /\/private\/|review-source-bytes/);
   f.setOpen(true); f.checks.get(id).status = 'verified-open';
   const before = f.calls.length; state = await f.controller.action('read-check', id);
-  assert.deepEqual(f.calls.slice(before).map(call => call[0]), ['inspect', 'read-check']);
+  assert.deepEqual(f.calls.slice(before).map(call => call[0]), ['inspect', 'read-check', 'inspect']);
   assert.equal(state.editorCheck.status, 'verified-open'); assert.equal(state.reviewLocked, true);
   f.setOpen(false); state = await f.controller.action('validate', id);
   assert.equal(state.transaction.state, 'completed'); assert.equal(state.reviewLocked, false); assert.equal(state.editorCheck, null);
@@ -100,6 +100,6 @@ test('missing readback after interruption offers preparation without making a na
 test('reveal resolves the retained private backup in main and UI callback errors do not alter completion', async () => {
   const f = await applied({ onChange: () => { throw new Error('view failure'); } });
   const state = await f.controller.action('reveal', id);
-  assert.equal(state.error, null); assert.deepEqual(f.calls.at(-1), ['reveal', '/private/backup.db']);
+  assert.equal(state.error, null); assert.deepEqual(f.calls.findLast(call => call[0] === 'reveal'), ['reveal', '/private/backup.db']);
   assert.doesNotMatch(JSON.stringify(state), /\/private\//);
 });

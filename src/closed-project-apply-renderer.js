@@ -2,6 +2,16 @@
 (() => {
  const api=window.desktop,byId=id=>document.getElementById(`closed-apply-${id}`);
  let state=null,busy=false;
+ const activityDetails=document.createElement('details'),activityTitle=document.createElement('summary'),activityStatus=document.createElement('p'),activityList=document.createElement('ol'),activityMore=document.createElement('button');
+ activityDetails.id='closed-apply-activity';activityTitle.textContent='Local pull activity';activityStatus.id='closed-apply-activity-status';activityList.id='closed-apply-activity-list';activityMore.id='closed-apply-activity-more';activityMore.type='button';activityMore.textContent='Show older pull activity';
+ activityDetails.append(activityTitle,activityStatus,activityList,activityMore);byId('panel').append(activityDetails);
+ activityMore.addEventListener('click',()=>run('activity-more'));
+ function renderActivity(value,running){
+  activityDetails.hidden=!value;activityList.replaceChildren();activityMore.hidden=!value?.hasMore;activityMore.disabled=Boolean(running);
+  activityStatus.textContent=value?.status==='unavailable'?'Local pull activity could not be verified. Retained transaction records and backups remain available.':value?.status==='loading'?'Reading authenticated local pull history…':value?.total?`${value.total} verified local ${value.total===1?'outcome':'outcomes'}. These records stay on this device.`:'No verified local pulls yet.';
+  for(const event of value?.items||[]){const row=document.createElement('li'),button=document.createElement('button');button.type='button';button.disabled=Boolean(running);button.textContent=`${event.type==='pull.restored'?'Original restored':'Pull completed'} · ${new Date(event.at).toLocaleString()} · ${event.revisionId.slice(0,8)}`;button.addEventListener('click',()=>run('inspect',event.transactionId));row.append(button);activityList.append(row);}
+ }
+
  const descriptions={prepared:'Ready to apply. Resolve must stay closed. The original will be backed up before replacement.',
  'pending-editor-validation':'Rename written; validation remains. Open this project in Resolve and run the prepared check from Workspace → Scripts → Utility. While the script waits, click Read Resolve check here. After it passes, quit Resolve without saving and finish validation.',
  'pending-rollback-editor-validation':'Original restored; validation remains. Open this project in Resolve and run the restoration check. While the script waits, click Read Resolve check here. After it passes, quit Resolve without saving and finish validation.',
@@ -16,6 +26,7 @@
  function render(next){
   state=next;window.closedApplyLocked=Boolean(state?.reviewLocked||busy||state?.busy);
   const r=state?.transaction,a=state?.actions||{},running=busy||state?.busy;
+  renderActivity(state?.activity,running);
   if(state?.retained?.some(x=>!['completed','rolled-back','cancelled'].includes(x.state)))byId('panel').hidden=false;
   byId('status').textContent=state?.error||descriptions[r?.state]||(state?.initialized?'Complete the name-change review, then choose the matching closed Project.db.':'Checking retained Apply records…');
   byId('edit').hidden=!r;byId('edit').textContent=r?`${r.projectName}: “${r.edit.oldName}” → “${r.edit.newName}”`:'';
@@ -30,7 +41,7 @@
   for(const record of state?.retained||[]){const button=document.createElement('button');button.type='button';button.textContent=`${record.projectName} — ${record.state.replaceAll('-',' ')} · ${record.transactionId.slice(0,8)}`;button.disabled=Boolean(running);button.addEventListener('click',()=>run('inspect',record.transactionId));list.append(button);}
   document.dispatchEvent(new CustomEvent('closed-apply-state',{detail:{locked:window.closedApplyLocked}}));
  }
- async function run(action,id=state?.transaction?.transactionId){if(busy)return;busy=true;render(state);try{render(action==='prepare'?await api.prepareClosedApply():await api.closedApplyAction(action,id));}catch{render({...state,error:'Apply could not connect. Reopen the app to inspect retained records before continuing.'});}finally{busy=false;render(state);}}
+ async function run(action,id=state?.transaction?.transactionId){if(busy)return;busy=true;render(state);try{render(action==='prepare'?await api.prepareClosedApply():action==='activity-more'?await api.loadOlderClosedApplyActivity():await api.closedApplyAction(action,id));}catch{render({...state,error:'Apply could not connect. Reopen the app to inspect retained records before continuing.'});}finally{busy=false;render(state);}}
  byId('show').addEventListener('click',()=>{byId('panel').hidden=false;byId('title').focus();byId('panel').scrollIntoView({block:'start',behavior:'instant'});});
  for(const name of ['prepare','apply','cancel','validate','prepare-check','read-check','recover','rollback','reveal'])byId(name).addEventListener('click',()=>run(name));
  api?.onClosedApplyState?.(render);api?.getClosedApplyState?.().then(render).catch(()=>render({error:'Retained records could not be read. Reopen the app before applying.'}));
