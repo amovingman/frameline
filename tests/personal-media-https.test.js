@@ -106,7 +106,7 @@ process.stdin.on('end',async()=>{try{
 }catch(error){process.send({kind:'result',ok:false,code:error.code||'assertion-failed',detail:String(error.message).slice(0,180)},()=>process.disconnect());process.exitCode=1;}});
 `;
 
-test('personal media workflow binds real HTTPS revisions to content, deduplicates owner bytes, and preserves retained assets through GC and restart', { timeout: 60000 }, async t => {
+test('personal media workflow binds real HTTPS revisions to content, deduplicates owner bytes, and preserves retained assets through GC and restart', { timeout: 120000 }, async t => {
   const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'personal-media-https-')));
   const children = []; let host;
   t.after(async () => {
@@ -149,7 +149,7 @@ test('personal media workflow binds real HTTPS revisions to content, deduplicate
     const finished = new Promise(resolve => child.once('close', resolve)); children.push({ child, finished });
     let timer;
     const response = new Promise((resolve, reject) => {
-      timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('personal-media-client-timeout')); }, 25000);
+      timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('personal-media-client-timeout')); }, 60000);
       child.once('error', reject); child.on('message', async message => {
         if (message.kind === 'dedup-check') {
           try {

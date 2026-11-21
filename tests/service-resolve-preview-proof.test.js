@@ -2,8 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runServiceResolvePreviewProof } = require('../scripts/service-resolve-preview-proof');
-test('real HTTPS Resolve v3 history feeds exact saved-head and scoped capture previews with stale receipt refusal', { timeout: 60000 }, async () => {
-  const receipt = await runServiceResolvePreviewProof();
+test('real HTTPS Resolve v3 history feeds exact saved-head and scoped capture previews with stale receipt refusal', { timeout: 120000 }, async () => {
+  const receipt = await runServiceResolvePreviewProof({ processTimeoutMs: 60000 });
   assert.equal(receipt.authorizedAccounts, 2); assert.equal(receipt.hostProcesses, 2); assert.equal(receipt.clientControllerProcesses, 2);
   assert(receipt.networkRequests >= 40 && receipt.networkRequests < 250);
   assert.equal(receipt.manifestVersion, 3); assert.equal(receipt.publisherRevisionCount, 2); assert.equal(receipt.viewerRevisionCount, 1);

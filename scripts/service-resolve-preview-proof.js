@@ -181,7 +181,8 @@ const clientScript = String.raw`
   });
 `;
 
-async function runServiceResolvePreviewProof() {
+async function runServiceResolvePreviewProof({ processTimeoutMs = 15000 } = {}) {
+  if (!Number.isSafeInteger(processTimeoutMs) || processTimeoutMs < 1000 || processTimeoutMs > 120000) throw fail('service-host-proof-timeout-invalid');
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'frameline-service-resolve-preview-proof-'));
   const dataDirectory = path.join(directory, 'data'), configPath = path.join(directory, 'config.json');
   const certFile = path.join(directory, 'test-only-server.pem'), keyFile = path.join(directory, 'test-only-server-key.pem');
@@ -212,7 +213,7 @@ async function runServiceResolvePreviewProof() {
     });
     return record;
   }
-  async function waitForExit(record, timeoutMs = 15000) {
+  async function waitForExit(record, timeoutMs = processTimeoutMs) {
     let timer;
     try {
       await Promise.race([record.closed, new Promise((_, reject) => {

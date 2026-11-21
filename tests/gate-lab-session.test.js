@@ -1,4 +1,5 @@
 'use strict';
+const { resolveApiSkip } = require('./helpers/editor-test-requirements.cjs');
 const {runVendorLuaMock}=require('../phase-0/run-vendor-lua-mock');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {resultWriter,fileReader,prepareLab,readLab,projectName}=require('../phase-0/gate-lab-session');
@@ -36,7 +37,7 @@ test('lab preparation bounds operation and fifty-clip initialization without tou
 });
 
 
-test('lab reader binds exact source, completion, result shape and represented fixture',async()=>{
+test('lab reader binds exact source, completion, result shape and represented fixture',{skip:resolveApiSkip},async()=>{
   const record=await prepareLab({operation:'capture'});
   const preparation=path.join(record.directory,'preparation.json');
   try{
@@ -71,7 +72,7 @@ async function writeLabOutputs(record) {
   fs.writeFileSync(record.paths.marker,`FRAMELINE_GATE_LAB_COMPLETE_V1:${record.id}\n`,{mode:0o600});
 }
 
-test('lab reader refuses XML ancestor symlinks before chmoding an unrelated owned file',async()=>{
+test('lab reader refuses XML ancestor symlinks before chmoding an unrelated owned file',{skip:resolveApiSkip},async()=>{
   const os=require('node:os');const inputDir=fs.mkdtempSync(path.join(os.tmpdir(),'gate-lab-xml-ancestor-'));
   const input=path.join(inputDir,'input.fcpxml');fs.writeFileSync(input,require('node:zlib').gunzipSync(fs.readFileSync(path.join(__dirname,'../phase-0/resolve-operation-fixture-input.fcpxml.gz'))));
   const record=await prepareLab({operation:'initialize',input});
@@ -84,7 +85,7 @@ test('lab reader refuses XML ancestor symlinks before chmoding an unrelated owne
   }finally{fs.rmSync(record.directory,{recursive:true,force:true});fs.rmSync(inputDir,{recursive:true,force:true});}
 });
 
-test('lab reader rejects symlinked directory ancestry and a changed XML bundle scope',async()=>{
+test('lab reader rejects symlinked directory ancestry and a changed XML bundle scope',{skip:resolveApiSkip},async()=>{
   const os=require('node:os'),crypto=require('node:crypto');const aliasRoot=fs.mkdtempSync(path.join(os.tmpdir(),'gate-lab-alias-'));
   const record=await prepareLab({operation:'capture'}),preparation=path.join(record.directory,'preparation.json');
   try{

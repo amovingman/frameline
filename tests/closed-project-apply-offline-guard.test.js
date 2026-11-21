@@ -146,7 +146,8 @@ test('unsafe permissions are refused without chmod or mutation', async t => {
     assert.equal((await fs.stat(sourcePath)).mode & 0o7777, mode);
   }
   await fs.chmod(sourcePath, 0o600);
-  const exposed = await fs.mkdtemp('/private/tmp/frameline-exposed-');
+  const sharedTemporary = process.platform === 'darwin' ? '/private/tmp' : await fs.realpath(os.tmpdir());
+  const exposed = await fs.mkdtemp(path.join(sharedTemporary, 'frameline-exposed-'));
   t.after(() => fs.rm(exposed, { recursive: true, force: true }));
   await fs.chmod(exposed, 0o777);
   const exposedSource = path.join(exposed, 'Project.db');

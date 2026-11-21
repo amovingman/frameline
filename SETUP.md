@@ -76,7 +76,7 @@ For the wider automated suite:
 npm test
 ```
 
-The wider suite requires `python3` for synthetic native-database tests. Some suites launch child processes, create loopback HTTP/HTTPS services, or use macOS tools. Allow local loopback connections in your test environment. Tests that require the owner's ignored native evidence report explicit skips when that evidence is absent. Passing the available tests does not reproduce a live editor observation.
+The wider suite requires `python3` for synthetic native-database tests. Some suites launch child processes, create loopback HTTP/HTTPS services, or use macOS tools. Allow local loopback connections in your test environment. Tests report explicit skips when their private evidence, installed Resolve API/Lua runtime, or macOS file-attribute profile is unavailable. Portable JavaScript, synthetic database, and HTTPS checks still run. Passing the available tests does not reproduce a live editor observation.
 
 The [CI workflow](.github/workflows/ci.yml) also runs migration, security, dependency, and package-input checks. On macOS, the package check builds both native-helper architectures and requires the Swift tools:
 
