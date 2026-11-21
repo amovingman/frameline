@@ -54,7 +54,10 @@
     "audit:integration:prior": "node phase-0/integration-gates.js audit",
     "test:identity": "node --test --test-concurrency=4 tests/resolve-api-location-observation.test.js tests/native-blind-capture.test.js tests/native-blind-challenge.test.js tests/native-blind-perturb.test.js tests/native-track-identity-acceptance.test.js tests/native-location-graph.test.js tests/supported-native-track-binding.test.js tests/native-blind-identity-evidence-audit.test.js tests/native-blind-continuation.test.js tests/native-blind-saved-endpoint.test.js",
     "test:enumeration": "node --test --test-concurrency=4 tests/enumeration-fixture.test.js tests/enumeration-fixture-retry.test.js tests/enumeration-capture.test.js tests/native-timeline-inventory.test.js tests/resolve-timeline-enumeration.test.js tests/timeline-enumeration-acceptance.test.js tests/enumeration-challenge.test.js tests/enumeration-compound-probe.test.js tests/timeline-enumeration-evidence-audit.test.js tests/supported-timeline-enumeration.test.js tests/enumeration-capture-v2.test.js tests/enumeration-partial-diagnostic.test.js tests/enumeration-partial-persist.test.js tests/enumeration-continuation.test.js tests/enumeration-compound-diagnostic.test.js tests/enumeration-compound-diagnostic-evidence.test.js tests/enumeration-compound-persist.test.js tests/native-compound-witness.test.js tests/native-compound-boundary-acceptance.test.js",
-    "test:preservation": "node --test --test-concurrency=4 tests/*preservation*.test.js tests/native-preserving-name-writer.test.js tests/native-byte*.test.js"
+    "test:preservation": "node --test --test-concurrency=4 tests/*preservation*.test.js tests/native-preserving-name-writer.test.js tests/native-byte*.test.js",
+    "test:safe-apply": "node --test --test-concurrency=4 tests/closed-project-*.test.js tests/desktop-closed-project-apply.test.js",
+    "verify:safe-apply": "node scripts/verify-safe-apply.cjs",
+    "audit:safe-apply-live": "node scripts/audit-safe-apply-live.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "scope": "Disposable synthetic SQLite project in two real Electron processes. Shipped main, preload, renderer, session, transaction and native SQLite helpers; hardware observations, publication and editor readback supplied by a trusted test adapter. No live Resolve claim.",
+  "checks": [
+    "production review/source-picker IPC",
+    "review locks across prepared and published states",
+    "real private backup and strict SQLite Name comparison",
+    "path-free renderer state",
+    "editor readback remains separate from final validation",
+    "native revision and backup retained",
+    "restart discovery, guarded rollback and original byte restoration",
+    "desktop and 600px layouts",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "apply",
+      "finalState": "completed",
+      "exactOriginalRestored": false,
+      "retainedBackupVerified": true,
+      "pathFreePublicState": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0,
+      "publicationCount": 1
+    },
+    {
+      "stage": "restore",
+      "finalState": "rolled-back",
+      "exactOriginalRestored": true,
+      "retainedBackupVerified": true,
+      "pathFreePublicState": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0,
+      "publicationCount": 1
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "operation": "closed-project-name-apply-live-proof",
+  "scope": "Owner-controlled offline workflow; Resolve Free 21.1.2 build 21.1.20010 on macOS; one existing video Name; root local disk library; no external concurrent writer exclusion claim",
+  "transactionId": "1c1f156d-4dd1-48a7-9323-8809531e7645",
+  "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+  "timelineId": "2a1dc480-6a62-4a3e-b93c-c553b33fc69b",
+  "itemId": "dd124594-a329-4d94-b79c-3bb069cb88cb",
+  "oldName": "Preservation offline B 7b371efd3130",
+  "newName": "Safe Apply verified C 7b371efd3130",
+  "sourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+  "candidateSha256": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b",
+  "backupSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+  "bytes": 2945024,
+  "apply": {
+    "state": "completed",
+    "proofSha256": "f59821499d3d046774aa8c4a240c5423ff9b84e58f110fc985edbd939bec75d6",
+    "actualOpenFileBindingVerified": true,
+    "metadataPreserved": true,
+    "sourceSha256": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b",
+    "revisionId": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b"
+  },
+  "restore": {
+    "state": "rolled-back",
+    "proofSha256": "48458d0f04c123c1b2cdd2f37deddc1821052e3f9cfcbb914892265386f7b9dd",
+    "actualOpenFileBindingVerified": true,
+    "metadataPreserved": true,
+    "sourceSha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+    "revisionId": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c"
+  },
+  "allOtherApplicationValuesPreserved": true,
+  "allCellComparison": {
+    "afterLogicalSha256": "1d68eebfe4acadf67abf8f31189149b51d97245408d324b2673b65494409df5b",
+    "afterSnapshot": {
+      "sha256": "270fc28eca90ea73d3b4830907fa987095f5451f3962a92c452700fd2e70200b",
+      "size": 2945024
+    },
+    "allOtherApplicationValuesPreserved": true,
+    "allSuppliedApplicationValuesCompared": true,
+    "authorizedNameCell": {
+      "columnNameSha256": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50",
+      "itemId": "dd124594-a329-4d94-b79c-3bb069cb88cb",
+      "newValueSha256": "03a1266ad42066840c06ac88a4aec5cb1f0bf9280b72441b8902c518723dc183",
+      "oldValueSha256": "aa9fd092d530dabe0627b0202584f7f28f9441838f60932a443495bb8a5b1df2",
+      "tableNameSha256": "b2a4ac5dcb069ad5d46bc73d0c4d55f2f8e7fa61016c985f4df069cda37b7cbf"
+    },
+    "beforeLogicalSha256": "4454b66565b4db13d774888f548d768fe3ca75528f157160a34e96ee8dca8a32",
+    "beforeSnapshot": {
+      "sha256": "fa99fea80a0e7556c54b3abd74827aa9f2645b75bb5c8d2cf6a17876b988464c",
+      "size": 2945024
+    },
+    "closedCheckpointProvenByThisFunction": false,
+    "excludedApplicationColumns": [],
+    "losslessValidated": false,
+    "operation": "compare-native-sqlite-all-cells",
+    "ordinaryApplySupported": false,
+    "physicalContainerEncodingComparedSeparately": true,
+    "physicalFileBytesEqual": false,
+    "projectId": "ad9b6092-e709-475b-8986-79c0adfef8da",
+    "readOnly": true,
+    "runtimeExecutionValidated": false,
+    "safeToApply": false,
+    "schemaVersion": 1,
+    "unexplainedDifferences": []
+  },
+  "backupRetained": true,
+  "failedFirstNativeAttemptRetained": true,
+  "resolveClosedAfterValidation": true,
+  "concurrentWriterResistanceProven": false,
+  "sourceHashes": {
+    "src/closed-project-apply-adapter.js": "d0ae2b078c4a194edc6f8ba3ec6d7bdc00006131efddd030f3039f08475cafbd",
+    "src/closed-project-apply-companion.js": "91a3b6208c90d0b75e1963c838bd88936e19e88ccbb7589f27937b7fbadd0f9a",
+    "src/closed-project-apply-offline-guard.js": "869172318db0c8ff864a27a09f905caef7139e7f67efedc6a00b61e7a0f704f7",
+    "src/closed-project-apply-plan.js": "aea97a514ed26c9142bc319d7d956c45dc7c711f41778542fce8e057f5f146b5",
+    "src/closed-project-apply-publisher.js": "55406a8ef46d5b567553a93cd702354ca3f825ea100f7ac384b14a38fb94c6f6",
+    "src/closed-project-apply-source-binding.js": "d4006a050c1b8e95461eeacbab462c5f290d7be3562a0a6e7a7739e55ffbe048",
+    "src/closed-project-apply-transaction.js": "2dfd056e3647ec8852a5b47d06f47de59a7da0b69ad67a4bb1243a9a53219f71",
+    "src/closed-project-native-store.js": "cf741ef7878a47197ae32f4302e100c772d590682dea4d2ca5f22a2c0d903ed2",
+    "src/native/resolve/native-sqlite-name-copy.py": "95c3f449ccccef2d57ac04c93586a9b5d2af1996361b8fd877f4b344fe526b40",
+    "src/native/resolve/resolve-native-sqlite-snapshot.py": "35bc1c7c324f63e7066cf77c22627a3a56a93e66c3427e14cd0bc0aa8a5c82d6"
+  },
+  "journalEventHashes": [
+    "6f8ab9a2959601db2dfeb63cc9106289c8ea816fe423fab78d83667a2004cbc5",
+    "c13b3e2043813833992c6d7c8b3bdfb5343c27b6873787db960ce90acdcf8d67",
+    "ba8b43050c1850d06cb512d9ba1f0d009179a511bace62cda065ba1024957257",
+    "4d3a5282f5255b04c8db2fb28131b5ee26c012d7cdd405410b5d9234e164906f",
+    "e1c2f8777451892b4621e2fc90562b96c39064fd9e5b9ef3242e67b879c13298",
+    "40be199517ef1bf1aed43f11ebef6bfd40b648edeb47200870558dd5e5f9490a",
+    "214f363cf1539bac8e19ab8c10bbb65254564eaccd17cda300ab153796b333d2",
+    "69c08c5519c56c0a85b5000f6ae1ff3c270ceed83c4b148714bb12240b48b48d",
+    "d5209dcc72d1a0ef07b01fc3a973314b2f8f70835337ed88caa15cc5cce774a2",
+    "601576d7ca31e3f79ae9f333089afb15dbae779ddf2870b262473c9c17d57a6f",
+    "3bba2c9e668b701be160309eb09807054864ae7754136ccbfc28ea198c265abb",
+    "0da5cb117d0b5efe3df45163c962e4bce0b083106fe11d465810dd6a130b453f",
+    "7ff2d336a36163ed69b190bea70dd40127fce54d060f2994f3456de1ff1b60eb"
+  ],
+  "privateRetentionDirectory": "phase-0/private-integration-proof/safe-apply-20261121",
+  "nativeCounts": {
+    "cellsIncludingRowid": 9788,
+    "rows": 540,
+    "schemaObjects": 596,
+    "tables": 146
+  },
+  "postProofHardening": [
+    "Rollback rechecks the fresh source hash after persisting restore intent before publication; covered by injected-divergence regression."
+  ]
+}

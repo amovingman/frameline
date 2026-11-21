@@ -50,6 +50,7 @@ const { createDesktopDiagnostics } = require('./desktop-diagnostics');
 const { createAdapterMetrics } = require('./adapter-metrics');
 const { createResolveTrialSession } = require('./resolve-trial-session');
 const { createResolveHistoryTransfer } = require('./resolve-history-transfer');
+const { createDesktopClosedProjectApply } = require('./desktop-closed-project-apply');
 
 let projectSession;
 let projectScanner;
@@ -64,6 +65,7 @@ let desktopAssetLifecycle;
 let desktopSharedStorage;
 let resolveReviewSession;
 let resolveTrialSession;
+let closedProjectApply;
 let resolveHistoryTransfer;
 let resolveSourcePaths = null;
 let resolveHistoryRevisionIds = null;
@@ -227,6 +229,7 @@ async function currentResolveSources() {
 }
 
 async function runResolveAction(action) {
+  if (closedProjectApply?.isReviewLocked()) return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'closed-apply-active', message: 'Finish or recover the active Apply before changing this review.' } });
   const trial = resolveTrialSession?.getState();
   if (trial?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(trial?.phase)) {
     return getResolveState({ ...resolveReviewSession.getState(), error: { code: 'resolve-trial-active',
@@ -468,6 +471,22 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
       }
       return resolveReviewSession.getVerifiedReview(await currentResolveSources());
     } });
+  closedProjectApply = createDesktopClosedProjectApply({ directory: path.join(app.getPath('userData'), 'closed-project-apply'),
+    getVerifiedReview: async () => {
+      if (resolveBusy || resolveTrialSession.getState().busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command', 'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialSession.getState().phase) || resolveServicePreview) throw new Error('closed-apply-review-unavailable');
+      return resolveReviewSession.getVerifiedReview(await currentResolveSources());
+    },
+    chooseSource: async () => {
+      const choice = await dialog.showOpenDialog({ title: 'Choose the closed Resolve project’s Project.db', properties: ['openFile'], filters: [{ name: 'Resolve project database', extensions: ['db'] }] });
+      return choice.canceled ? null : choice.filePaths[0];
+    }, reveal: filename => shell.showItemInFolder(filename),
+    onChange: state => { for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('closed-apply:state', state); } });
+  ipcMain.handle('closed-apply:state', () => closedProjectApply.action('initialize'));
+  ipcMain.handle('closed-apply:prepare', () => closedProjectApply.action('prepare'));
+  for (const method of ['apply', 'validate', 'recover', 'rollback', 'inspect', 'cancel', 'prepare-check', 'read-check', 'reveal']) {
+    ipcMain.handle(`closed-apply:${method}`, (_event, id) => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id)
+      ? closedProjectApply.action(method, id) : closedProjectApply.getState());
+  }
   logger.info('app.ready', { version: app.getVersion() });
   ipcMain.handle('app:get-state', () => projectSession.getState());
   ipcMain.handle('project:scan-progress', () => projectScanProgress);
@@ -699,31 +718,34 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
     }
   });
   ipcMain.handle('resolve:get-review-state', () => getResolveState());
+  const handleResolveTrial = (channel, action) => ipcMain.handle(channel, (...args) => closedProjectApply?.isReviewLocked()
+    ? { ...resolveTrialSession.getState(), error: 'Finish or recover the active Apply before using a rename drill.' } : action(...args));
   ipcMain.handle('resolve-trial:state', () => resolveTrialSession.initialize());
-  ipcMain.handle('resolve-trial:discover', (_event, append) => resolveTrialSession.refreshDiscovery(append));
-  ipcMain.handle('resolve-trial:recover-discovered', (_event, id) => resolveTrialSession.recoverDiscovered(id));
-  ipcMain.handle('resolve-trial:cancel-discovered', (_event, id) => resolveTrialSession.cancelDiscovered(id));
-  ipcMain.handle('resolve-trial:reveal-records', async (_event, id) => {
+  handleResolveTrial('resolve-trial:discover', (_event, append) => resolveTrialSession.refreshDiscovery(append));
+  handleResolveTrial('resolve-trial:recover-discovered', (_event, id) => resolveTrialSession.recoverDiscovered(id));
+  handleResolveTrial('resolve-trial:cancel-discovered', (_event, id) => resolveTrialSession.cancelDiscovered(id));
+  handleResolveTrial('resolve-trial:reveal-records', async (_event, id) => {
     try { shell.showItemInFolder(await resolveTrialSession.discoveredRecordPath(id)); return resolveTrialSession.getState(); }
     catch { return { ...resolveTrialSession.getState(), error: 'The retained drill folder could not be verified. Keep the records for manual inspection.' }; }
   });
-  ipcMain.handle('resolve-trial:prepare', (_event, projectName, acknowledged, mode) => resolveTrialSession.prepare(projectName, acknowledged, mode));
-  ipcMain.handle('resolve-trial:issue', () => resolveTrialSession.issue());
-  ipcMain.handle('resolve-trial:copy', () => resolveTrialSession.copyCommand());
-  ipcMain.handle('resolve-trial:cancel', () => resolveTrialSession.cancelPreparation());
-  ipcMain.handle('resolve-trial:read', () => resolveTrialSession.read());
-  ipcMain.handle('resolve-trial:inspect', () => resolveTrialSession.inspectRecovery());
-  ipcMain.handle('resolve-trial:save-revision', () => resolveTrialSession.saveRevision());
-  ipcMain.handle('resolve-trial:recover', async () => {
+  handleResolveTrial('resolve-trial:prepare', (_event, projectName, acknowledged, mode) => closedProjectApply?.isReviewLocked() ? resolveTrialSession.getState() : resolveTrialSession.prepare(projectName, acknowledged, mode));
+  handleResolveTrial('resolve-trial:issue', () => resolveTrialSession.issue());
+  handleResolveTrial('resolve-trial:copy', () => resolveTrialSession.copyCommand());
+  handleResolveTrial('resolve-trial:cancel', () => resolveTrialSession.cancelPreparation());
+  handleResolveTrial('resolve-trial:read', () => resolveTrialSession.read());
+  handleResolveTrial('resolve-trial:inspect', () => resolveTrialSession.inspectRecovery());
+  handleResolveTrial('resolve-trial:save-revision', () => resolveTrialSession.saveRevision());
+  handleResolveTrial('resolve-trial:recover', async () => {
     if (!resolveTrialSession.getState().enabled) return resolveTrialSession.getState();
     const choice = await dialog.showOpenDialog({ title: 'Recover a rename drill', defaultPath: trialDirectory, properties: ['openDirectory'] });
     return choice.canceled ? resolveTrialSession.getState() : resolveTrialSession.recover(choice.filePaths[0]);
   });
-  ipcMain.handle('resolve-trial:reveal-backup', async () => {
+  handleResolveTrial('resolve-trial:reveal-backup', async () => {
     try { shell.showItemInFolder(await resolveTrialSession.backupPath()); return resolveTrialSession.getState(); }
     catch { return { ...resolveTrialSession.getState(), error: 'The retained backup could not be verified. Keep the trial records for recovery.' }; }
   });
   ipcMain.handle('resolve-companion:prepare', async (_event, expectedProjectName) => {
+    if (closedProjectApply?.isReviewLocked()) return { ready: false, error: 'Finish or recover the active Apply first.' };
     companionPending = null;
     companionVerifiedSnapshot = null;
     resolveCaptureGeneration++; desktopResolveServiceSync.captureChanged();

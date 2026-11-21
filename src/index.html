@@ -16,6 +16,7 @@
   <script defer src="./frame-timecode.js"></script>
   <script defer src="./renderer.js"></script>
   <script defer src="./resolve-comparison-renderer.js"></script>
+  <script defer src="./closed-project-apply-renderer.js"></script>
   <script defer src="./resolve-policy-renderer.js"></script>
   <script defer src="./setup-support-renderer.js"></script>
   <script defer src="./shared-storage-renderer.js"></script>
@@ -98,9 +99,29 @@
       </section>
 
       <section id="view-resolve" class="view" aria-label="Resolve preview">
-        <div class="masthead"><div><h1>Resolve merge preview</h1><p>Compare base, local, and incoming captures before reviewing conflicts.</p></div><span class="status ready">Preview only</span></div>
-        <div class="resolve-toolbar"><button id="resolve-choose" type="button">Choose three captures</button><button id="resolve-refresh" type="button" disabled>Refresh sources</button><button id="resolve-save" type="button" disabled>Save preview</button><button id="resolve-save-review" type="button" disabled>Save review</button><button type="button" disabled>Apply unavailable</button></div>
+        <div class="masthead"><div><h1>Resolve merge preview</h1><p>Compare base, local, and incoming captures before reviewing conflicts.</p></div><span class="status ready">Review sources</span></div>
+        <div class="resolve-toolbar"><button id="resolve-choose" type="button">Choose three captures</button><button id="resolve-refresh" type="button" disabled>Refresh sources</button><button id="resolve-save" type="button" disabled>Save preview</button><button id="resolve-save-review" type="button" disabled>Save review</button><button id="closed-apply-show" type="button">Apply reviewed rename</button></div>
         <p id="resolve-notice" class="resolve-notice" role="status" aria-live="polite">Choose base, local, and incoming Resolve capture or snapshot JSON files. No timeline will be modified.</p>
+        <section id="closed-apply-panel" class="resolve-companion closed-apply-panel" aria-labelledby="closed-apply-title" hidden>
+          <h2 id="closed-apply-title" tabindex="-1">Apply reviewed rename</h2>
+          <p>Apply one reviewed video clip name to a closed local project in Resolve Free 21.1.2. Quit Resolve before preparing or applying. Keep it closed until the editor check is ready.</p>
+          <p>A verified restore point is kept with every change. Other edits and service-history comparisons cannot be applied.</p>
+          <p id="closed-apply-status" role="status" aria-live="polite">Checking retained Apply records…</p>
+          <p id="closed-apply-edit" hidden></p>
+          <p id="closed-apply-check" hidden></p>
+          <div class="resolve-toolbar" aria-label="Apply actions">
+            <button id="closed-apply-prepare" type="button" disabled>Choose project and prepare</button>
+            <button id="closed-apply-apply" type="button" hidden>Back up and apply rename</button>
+            <button id="closed-apply-prepare-check" type="button" hidden>Prepare Resolve check</button>
+            <button id="closed-apply-read-check" type="button" hidden>Read Resolve check</button>
+            <button id="closed-apply-validate" type="button" hidden>Finish validation</button>
+            <button id="closed-apply-recover" type="button" hidden>Check recovery options</button>
+            <button id="closed-apply-rollback" type="button" hidden>Restore original</button>
+            <button id="closed-apply-cancel" type="button" hidden>Cancel preparation</button>
+            <button id="closed-apply-reveal" type="button" hidden>Show retained backup</button>
+          </div>
+          <details id="closed-apply-history" hidden><summary>Retained Apply records</summary><div id="closed-apply-records"></div></details>
+        </section>
         <section id="resolve-service-provenance" class="resolve-service-provenance" aria-labelledby="resolve-service-provenance-title" hidden><h2 id="resolve-service-provenance-title">Service history preview</h2><p id="resolve-service-provenance-summary"></p><dl id="resolve-service-provenance-facts" class="service-base-facts"></dl><p>These are accepted historical observations of one Resolve API project. They do not establish the live branch, cross-device identity or authority to apply. Conflict choices record review intent only.</p></section>
         <section id="resolve-trial" class="resolve-companion" aria-labelledby="resolve-trial-title" hidden>
           <div class="section-head"><h2 id="resolve-trial-title">Disposable rename experiment</h2><span>Experimental</span></div>

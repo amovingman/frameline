@@ -2935,7 +2935,7 @@ function renderResolveState(state) {
   document.getElementById('resolve-recover').disabled = locked;
   document.getElementById('resolve-notice').textContent = resolveTrialState?.phase?.startsWith('recovery-')
     ? 'Recovering a retained disposable drill. Snapshot review controls are locked until recovery is resolved.'
-    : state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified ${items.length === 1 ? 'field' : 'fields'}${state.plan.classification.observationCoverage ? ` · ${state.plan.classification.observationCoverage.gaps.length} coverage gaps excluded from field choices` : ' · snapshot fields only'}. Save review to preserve choices; applying to Resolve remains unavailable.` : 'Choose base, local, and incoming Resolve capture or snapshot JSON files. No timeline will be modified.');
+    : state?.error?.message || resolveActionNotice || (ready ? `${items.length} classified ${items.length === 1 ? 'field' : 'fields'}${state.plan.classification.observationCoverage ? ` · ${state.plan.classification.observationCoverage.gaps.length} coverage gaps excluded from field choices` : ' · snapshot fields only'}. Save review to preserve choices. Apply reviewed rename supports one video clip name on a verified closed local project.` : 'Choose base, local, and incoming Resolve capture or snapshot JSON files. No timeline will be modified.');
   const sources = document.getElementById('resolve-sources');
   sources.replaceChildren();
   const counts = items.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
@@ -4067,6 +4067,7 @@ document.addEventListener('keydown', event => {
   if (event.altKey && event.key.toLowerCase() === 'n' && document.getElementById('view-resolve').classList.contains('active') && !event.target?.closest?.('input, textarea, select, [contenteditable]')) { event.preventDefault(); nextResolveConflict(); }
 });
 renderResolveState(null);
+document.addEventListener('closed-apply-state', () => renderResolveState(resolveState));
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
 window.desktop?.onResolveReviewState?.(state => {
   resolveReviewEventGeneration++; resolveReviewEventState = state;
@@ -4077,7 +4078,7 @@ var resolveTrialState = null;
 var resolveTrialBusy = false;
 var resolveTrialModeDraft = 'forced-rollback';
 function activeResolveTrial() {
-  return resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
+  return (typeof window !== 'undefined' && window.closedApplyLocked) || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
     'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialState?.phase);
 }
 function renderRetainedResolveTrials() {

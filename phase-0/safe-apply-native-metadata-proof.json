@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "operation": "native-temporary-publisher-metadata-proof",
+  "at": "2026-11-21T06:52:06.563Z",
+  "directory": "/private/tmp/frameline-real-publisher-PThxlf",
+  "actualEditorProjectTouched": false,
+  "applicationSourceLockHeld": true,
+  "sourceSha256": "ee002323efac1d86850935bb9c018d167812db0b0edf6ded18f9e67d8916c32b",
+  "candidateSha256": "f5ce8cfdcf7485bf7525287ce3d763752545f2f536512e4186b341fa7a440669",
+  "forward": {
+    "transactionId": "d7678825-1acb-49ff-a436-2e68d34447f0",
+    "planId": "dc6fdd5e48c591cb9599a6be520327b612392afd2ab26e564d31a01969ed102d",
+    "direction": "apply",
+    "sourceSha256": "f5ce8cfdcf7485bf7525287ce3d763752545f2f536512e4186b341fa7a440669",
+    "atomic": true,
+    "metadataPreserved": true,
+    "sourceMetadata": {
+      "mode": 384,
+      "uid": 501,
+      "gid": 0,
+      "flags": 0,
+      "aclEntries": [],
+      "extendedAttributes": [
+        {
+          "name": "com.apple.provenance",
+          "valueHex": "010200fbb05834f5323746",
+          "bytes": 11
+        },
+        {
+          "name": "com.frameline.empty-proof",
+          "valueHex": "",
+          "bytes": 0
+        },
+        {
+          "name": "com.frameline.metadata-proof",
+          "valueHex": "0001ff807f",
+          "bytes": 5
+        }
+      ],
+      "exactPreservationRequired": true
+    },
+    "sourceIdentityBefore": {
+      "device": "16777229",
+      "inode": "60816088",
+      "size": 54,
+      "mtimeNs": "1795243924545940510",
+      "ctimeNs": "1795243924565942116",
+      "uid": 501,
+      "gid": 0,
+      "mode": 384,
+      "nlink": 1
+    },
+    "sourceIdentityAfter": {
+      "device": "16777229",
+      "inode": "60816092",
+      "size": 55,
+      "mtimeNs": "1795243925028424886",
+      "ctimeNs": "1795243925262232671",
+      "uid": 501,
+      "gid": 0,
+      "mode": 384,
+      "nlink": 1
+    },
+    "applicationSourceLockHeld": true,
+    "applicationSourceLockProvidedByTrustedCaller": true,
+    "editorOfflineRechecked": true,
+    "concurrentWriterResistanceProven": false
+  },
+  "rollback": {
+    "transactionId": "d7678825-1acb-49ff-a436-2e68d34447f0",
+    "planId": "dc6fdd5e48c591cb9599a6be520327b612392afd2ab26e564d31a01969ed102d",
+    "direction": "rollback",
+    "sourceSha256": "ee002323efac1d86850935bb9c018d167812db0b0edf6ded18f9e67d8916c32b",
+    "atomic": true,
+    "metadataPreserved": true,
+    "sourceMetadata": {
+      "mode": 384,
+      "uid": 501,
+      "gid": 0,
+      "flags": 0,
+      "aclEntries": [],
+      "extendedAttributes": [
+        {
+          "name": "com.apple.provenance",
+          "valueHex": "010200fbb05834f5323746",
+          "bytes": 11
+        },
+        {
+          "name": "com.frameline.empty-proof",
+          "valueHex": "",
+          "bytes": 0
+        },
+        {
+          "name": "com.frameline.metadata-proof",
+          "valueHex": "0001ff807f",
+          "bytes": 5
+        }
+      ],
+      "exactPreservationRequired": true
+    },
+    "sourceIdentityBefore": {
+      "device": "16777229",
+      "inode": "60816092",
+      "size": 55,
+      "mtimeNs": "1795243925028424886",
+      "ctimeNs": "1795243925262232671",
+      "uid": 501,
+      "gid": 0,
+      "mode": 384,
+      "nlink": 1
+    },
+    "sourceIdentityAfter": {
+      "device": "16777229",
+      "inode": "60816093",
+      "size": 54,
+      "mtimeNs": "1795243925895025127",
+      "ctimeNs": "1795243926139537054",
+      "uid": 501,
+      "gid": 0,
+      "mode": 384,
+      "nlink": 1
+    },
+    "applicationSourceLockHeld": true,
+    "applicationSourceLockProvidedByTrustedCaller": true,
+    "editorOfflineRechecked": true,
+    "concurrentWriterResistanceProven": false
+  },
+  "originalMetadata": {
+    "mode": 384,
+    "uid": 501,
+    "gid": 0,
+    "flags": 0,
+    "aclEntries": [],
+    "extendedAttributes": [
+      {
+        "name": "com.apple.provenance",
+        "valueHex": "010200fbb05834f5323746",
+        "bytes": 11
+      },
+      {
+        "name": "com.frameline.empty-proof",
+        "valueHex": "",
+        "bytes": 0
+      },
+      {
+        "name": "com.frameline.metadata-proof",
+        "valueHex": "0001ff807f",
+        "bytes": 5
+      }
+    ],
+    "exactPreservationRequired": true
+  },
+  "restoredMetadata": {
+    "mode": 384,
+    "uid": 501,
+    "gid": 0,
+    "flags": 0,
+    "aclEntries": [],
+    "extendedAttributes": [
+      {
+        "name": "com.apple.provenance",
+        "valueHex": "010200fbb05834f5323746",
+        "bytes": 11
+      },
+      {
+        "name": "com.frameline.empty-proof",
+        "valueHex": "",
+        "bytes": 0
+      },
+      {
+        "name": "com.frameline.metadata-proof",
+        "valueHex": "0001ff807f",
+        "bytes": 5
+      }
+    ],
+    "exactPreservationRequired": true
+  },
+  "exactMetadataPreserved": true,
+  "exactOriginalBytesRestored": true,
+  "privateCandidateAndBackupUnchanged": true,
+  "sourceAndStageAttributeMutationsRestrictedToTemporaryFiles": true
+}
