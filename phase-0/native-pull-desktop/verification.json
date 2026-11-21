@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two real Electron processes with shipped main/preload/renderer, authenticated native checkpoint and pull intent journals, and real SQLite census/full diff/native Name planner. Trusted synthetic hardware/library observations are confined to disposable source/profile. Fixture-only SQLite writes create independent local/incoming changes. No publication or live Resolve claim.",
+  "checks": [
+    "native source-picker and existing checkpoint roles",
+    "complete Name and unsupported-field conflicts before planning",
+    "explicit keep-local/take-incoming choices",
+    "only one existing video Name executable",
+    "missing/opaque media warnings and explicit acknowledgment",
+    "source/incoming/report/choice hash bindings",
+    "authenticated intent and choices survive process restart",
+    "no automatic apply on restart",
+    "stale source refresh clears all choices and acknowledgment",
+    "cancel releases the review lock",
+    "source bytes unchanged by all production review actions",
+    "path-free public state and safe text rendering",
+    "1440px and 600px layouts",
+    "zero renderer errors"
+  ],
+  "stages": [
+    {
+      "stage": "prepare",
+      "intentId": "139e4ef4-7c4d-487e-9491-aa5d2b5e0f46",
+      "retainedPlanId": "0deb62ee4524df5eb2ebe60f729088b40046194265cc27c839949aef26c9cad8",
+      "currentSourceSha256": "0a22ff0735f3163b590c28940407d2b1a8f7181ae5243608342da5bb6b184035",
+      "reviewState": "ready",
+      "retainedChoices": 2,
+      "sourceUnchangedByReview": true,
+      "pathFreePublicState": true,
+      "noAutomaticPublication": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    },
+    {
+      "stage": "recover",
+      "intentId": "139e4ef4-7c4d-487e-9491-aa5d2b5e0f46",
+      "retainedPlanId": "0deb62ee4524df5eb2ebe60f729088b40046194265cc27c839949aef26c9cad8",
+      "refreshedPlanId": "626882a258ed7d27781fec1d52f31f95590eff5af8d0171f4d57e2728cc20de9",
+      "currentSourceSha256": "c6cbbfe405aa8b9299f523b3a30af70faa5aa66054818a1ed487b601a6f7c903",
+      "reviewState": "cancelled",
+      "retainedChoices": 2,
+      "sourceUnchangedByReview": true,
+      "pathFreePublicState": true,
+      "noAutomaticPublication": true,
+      "layouts": [
+        {
+          "width": 1440,
+          "scrollWidth": 1440,
+          "panelWidth": 1176
+        },
+        {
+          "width": 600,
+          "scrollWidth": 600,
+          "panelWidth": 568
+        }
+      ],
+      "rendererErrors": 0
+    }
+  ]
+}

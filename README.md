@@ -84,3 +84,5 @@ The scoped local **Apply reviewed rename** workflow is documented in [SAFE_APPLY
 [Native review copies](NATIVE_REVIEW_COPY.md) apply the same supported Name change into a separate local Resolve library while preserving the original and sync base. [Local pull activity](LOCAL_PULL_ACTIVITY.md) records verified completion and restoration without retry duplicates.
 
 [Native checkpoint review](NATIVE_CHECKPOINT_REVIEW.md) retains authenticated library-qualified identity sidecars and compares complete stored fields from a recorded base, a freshly verified local project and related incoming history.
+
+[Native pull plans](NATIVE_PULL.md) bind the full checkpoint comparison, source hashes and explicit conflict choices to the proven single video clip Name writer. Stale review is recalculated, interrupted preparation is recoverable, and native Apply and restoration have separate editor validation.

@@ -63,7 +63,10 @@
     "audit:review-copy-live": "node scripts/audit-native-review-copy.cjs",
     "test:native-checkpoints": "node --test --test-concurrency=4 tests/closed-project-checkpoint-store.test.js tests/native-checkpoint-diff.test.js tests/desktop-native-checkpoints.test.js tests/native-project-identity.test.js tests/native-checkpoints-renderer.test.js",
     "verify:native-checkpoints": "node scripts/verify-native-checkpoints.cjs",
-    "audit:native-checkpoints-live": "node scripts/audit-native-checkpoints.cjs"
+    "audit:native-checkpoints-live": "node scripts/audit-native-checkpoints.cjs",
+    "test:native-pull": "node --test --test-concurrency=4 tests/native-pull*.test.js tests/desktop-native-pull.test.js",
+    "verify:native-pull": "node scripts/verify-native-pull.cjs",
+    "audit:native-pull-live": "node scripts/audit-native-pull.cjs"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",

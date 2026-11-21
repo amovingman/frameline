@@ -4070,6 +4070,7 @@ renderResolveState(null);
 document.addEventListener('closed-apply-state', () => renderResolveState(resolveState));
 document.addEventListener('native-copy-state', () => renderResolveState(resolveState));
 document.addEventListener('native-checkpoint-state', () => renderResolveState(resolveState));
+document.addEventListener('native-pull-state', () => renderResolveState(resolveState));
 window.desktop?.getResolveReviewState?.().then(renderResolveState).catch(() => {});
 window.desktop?.onResolveReviewState?.(state => {
   resolveReviewEventGeneration++; resolveReviewEventState = state;
@@ -4080,7 +4081,7 @@ var resolveTrialState = null;
 var resolveTrialBusy = false;
 var resolveTrialModeDraft = 'forced-rollback';
 function activeResolveTrial() {
-  return (typeof window !== 'undefined' && (window.closedApplyLocked || window.nativeCopyLocked || window.nativeCheckpointBusy)) || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
+  return (typeof window !== 'undefined' && (window.closedApplyLocked || window.nativeCopyLocked || window.nativeCheckpointBusy || window.nativePullLocked)) || resolveTrialBusy || resolveTrialState?.busy || ['effect-command', 'backup-command', 'rollback-command', 'edit-command',
     'recovery-capture', 'recovery-ready', 'recovery-command', 'recovery-required'].includes(resolveTrialState?.phase);
 }
 function renderRetainedResolveTrials() {

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "scope": "Native pull component in the existing Frameline design. Actual Electron screenshots cover the shipped panel at 1440px and 600px; the static inspection HTML preserves rendered content and promotes the component title to h1 for isolated component inspection.",
+  "skill": "design-taste-frontend",
+  "direction": "Matched the existing neutral dark Frameline shell, Plex Sans typography and restrained cyan control accent. No direction redraw was needed for this component.",
+  "question": "Which exact incoming field change can safely be applied to the current saved project?",
+  "sourceLint": { "files": ["src/native-pull-renderer.js", "phase-0/native-pull-desktop/prepare-inspection.html"], "failures": 0, "warnings": 0 },
+  "browserInspector": { "completed": false, "reason": "No Chrome, Edge or Chromium executable is installed for the skill inspector. Actual Electron screenshots and layout measurements were reviewed instead, as the skill's fallback permits." },
+  "visualReview": {
+    "widths": [1440, 600],
+    "horizontalOverflow": false,
+    "rendererErrors": 0,
+    "corrections": ["Mapped required owner-controlled workflow and post-close validation warnings to accurate text.", "Kept conflict radio controls inline with their labels and removed inherited oversized form spacing.", "Retained 44px label targets at narrow widths."],
+    "findings": ["The exact common-base, local and incoming field values stay adjacent to the explicit choices.", "Ready state, source hash prefixes, missing media condition and executable Name are derived from the same retained intent.", "Neutral surfaces and shared left edges match the existing application.", "At narrow widths every field value remains visible and wraps within the panel."]
+  },
+  "sampleData": "Disposable synthetic SQLite fixture only. No customer project or live Resolve observation is represented by these screenshots."
+}
