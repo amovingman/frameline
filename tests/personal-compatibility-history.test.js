@@ -7,6 +7,7 @@ const { createHash } = require('node:crypto');
 const { revisitEditorChoice } = require('../phase-0/revisit-editor-choice');
 const ROOT = path.resolve(__dirname, '..');
 const archive = path.join(ROOT, 'phase-0/evidence-sources/support-matrix-observed-20261119.md.txt');
+const scopeArchive = path.join(ROOT, 'phase-0/evidence-sources/project-scope-observed-20261119.md.txt');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
 test('the original editor decision and hash reproduce from its exact archived support matrix while current personal profiles stay separate', () => {
@@ -25,4 +26,20 @@ test('changed archived matrix bytes cannot silently refresh or inherit the histo
   assert.throws(() => revisitEditorChoice(file => file === archive
     ? Buffer.concat([fs.readFileSync(file), Buffer.from('\nChanged historical evidence\n')]) : fs.readFileSync(file)),
   /historical-support-matrix-changed/);
+});
+
+
+test('the November 19 scope evidence stays exact when the current purpose becomes a portfolio repo', () => {
+  const recorded = JSON.parse(fs.readFileSync(path.join(ROOT, 'phase-0/editor-integration-decision.json'))), reads = [];
+  const actual = revisitEditorChoice(file => { reads.push(file); return fs.readFileSync(file); });
+  assert.deepEqual(actual, recorded);
+  assert.equal(actual.evidence['PROJECT_SCOPE.md'], sha(fs.readFileSync(scopeArchive)));
+  assert.notEqual(sha(fs.readFileSync(path.join(ROOT, 'PROJECT_SCOPE.md'))), actual.evidence['PROJECT_SCOPE.md']);
+  assert(reads.includes(scopeArchive)); assert(!reads.includes(path.join(ROOT, 'PROJECT_SCOPE.md')));
+});
+
+test('changed archived scope bytes cannot silently refresh or inherit the historical decision', () => {
+  assert.throws(() => revisitEditorChoice(file => file === scopeArchive
+    ? Buffer.concat([fs.readFileSync(file), Buffer.from('\nChanged scope evidence\n')]) : fs.readFileSync(file)),
+  /historical-project-scope-changed/);
 });

@@ -1,33 +1,30 @@
 # Frameline product roadmap
 
-A dependency-first roadmap from the current Electron prototype to a safe, collaborative version-control workflow for video projects. The initial integration target is **DaVinci Resolve Free 21.1.2 on macOS with FCPXML 1.10**. Release support remains gated by complete read coverage, stable identity, and a recoverable write transaction.
+This roadmap records the work behind Frameline, a résumé portfolio project for versioning video-editing decisions. The required implementation checklist is complete at the documented prototype scope: **183 completed entries, with no required items left open**. These entries describe bounded capabilities and their evidence, not support for every editor or project format.
 
-## Current personal scope
+## Current portfolio scope
 
-This is a personal project for the project owner using the installed Resolve Free 21.1.2/build 21.1.20010 on macOS. Small disposable synthetic fixtures are sufficient for development; no additional users, customer projects or pilot cohort are required. Public-release, hosting and expansion items below are optional/deferred, not prerequisites for local work or completed features. Editor data-safety and correctness gates remain in force. See `PROJECT_SCOPE.md`.
+The repository lets a reviewer understand the engineering choices, follow a short demo, and run a fixture workflow without Resolve or a cloud account. Start with the [README](README.md), [demo walkthrough](DEMO.md), and [setup instructions](SETUP.md). Public launch and further feature expansion are outside this scope. See [PROJECT_SCOPE.md](PROJECT_SCOPE.md).
 
-## Product outcome
+Editor-backed evidence targets Resolve Free 21.1.2/build 21.1.20010 on macOS. FCPXML 1.10 scanning is read only. Native Apply supports one reviewed existing video clip Name in the declared closed local project profile; other edits remain blocked. The data-safety, source-binding, backup, validation, and recovery checks remain required whenever an operation changes editor data.
 
-Editors can scan a local project, save immutable revisions, share a branch with a collaborator, review a three-way change plan, resolve conflicts, and apply safe edits to the original project or a review copy. Unchanged media is referenced by hash rather than recopied. The app remains useful offline and clearly reports whether media is local, synced, missing, or excluded.
+## How to read this record
 
-## Roadmap overview
+The phase checklists below preserve the implementation history and its operation-specific evidence. Earlier entries may describe a gate that was open at that point; later scoped proofs do not turn those older observations into broader claims. Use [PERSONAL_COMPATIBILITY.md](PERSONAL_COMPATIBILITY.md), [SAFE_APPLY.md](SAFE_APPLY.md), and [NATIVE_PULL.md](NATIVE_PULL.md) for the current supported boundaries.
 
-| Phase | Outcome | Exit gate |
-|---|---|---|
-| 0. Choose and prove the editor integration | Evidence that one real project can be read, identified, and safely written | A copied sample project round-trips and reopens in the editor |
-| 1. Local project safety and history | Scan, manifest, local revisions, branches, and comparison | Revisions are durable; unrelated local work survives a test merge |
-| 2. Safe pull MVP | Pull plan, field conflicts, backup, review copy, in-place apply, validation | One supported edit can be applied and recovered without losing local work |
-| 3. Cloud history and collaboration | Accounts, permissions, immutable remote revisions, branches, sync | Two authorized users can exchange revisions and recover offline changes |
-| 4. Media sync and team operations | Resumable content-addressed media, relinking, audit and retention | Required assets are verifiably available for a pull |
-| 5. Broader product | Additional editors and advanced collaboration | Each new integration meets the same safety and compatibility gates |
-
-Phases 0–2 create a useful local-first MVP. Cloud sharing is deliberately sequenced after the local project model and pull transaction have proven safe.
+| Area | Demonstrated work |
+|---|---|
+| Editor integration | Bounded scanning, saved-object identity, enumeration, and native preservation proofs |
+| Local history | Immutable revisions, branches, comparison, and backup transfer |
+| Safe pull | Three-way review, one supported Name edit, validation, and restoration |
+| Service experiments | Authenticated history exchange, permissions, review, and resumable media transfer |
+| Hardening | Crash recovery, migrations, accessibility, diagnostics, and reproducible checks |
 
 ## Delivery workflow
 
 For this workspace, commit verified features locally and preserve the user’s local-only Git preference. Do not push unless the user explicitly requests it again.
 
-A request to complete a feature means completing one existing roadmap checkbox in full. Supporting capabilities do not count as completed features while that checkbox remains open. Complete the number requested and push verified changes when the user explicitly asks.
+New work should serve the portfolio walkthrough or fix a demonstrated defect. Further product features need a separate scope decision; the future ideas at the end are not an active backlog.
 
 ---
 
@@ -194,7 +191,6 @@ The following completed items are scoped to one reviewed existing video clip Nam
 ## Phase 3 — Cloud history and collaboration
 
 ### 3.1 Service and data model
-- [ ] Select deployment and data-processing regions based on user needs. A standalone HTTPS launcher and stdin-only local account/project tools now have a disposable two-process restart proof, including sessions, viewer restrictions, acknowledged history, and idempotent retry. Provider, region, production keys, and managed operations remain open; see `SERVICE_HOST.md`.
 - [x] Define versioned domain API contracts for users, teams, projects, members, branches, revisions, manifests, pull plans, and activity. An injected authorized HTTP boundary and asynchronous metadata client passed a disposable two-account loopback exchange. Desktop HTTPS sign-in and scoped metadata operations passed browser and native checks, including full app restart; hosted deployment remains open. See `REVISION_NETWORK_SYNC.md` and `DESKTOP_SERVICE_SYNC.md` for validation scope.
 - [x] Add an executable domain store for content-addressed immutable manifests, revision metadata, projects, and branch heads.
 - [x] Use compare-and-swap branch-head updates with expected-head and revision-parent checks.
@@ -257,7 +253,7 @@ The following completed items are scoped to one reviewed existing video clip Nam
 
 **Exit:** Required assets can be located or transferred reliably, and the app clearly communicates storage and availability.
 
-## Phase 5 — Hardening, release, and expansion
+## Phase 5 — Hardening and supporting experiments
 
 ### 5.1 Product quality and support
 - [x] Add first-run onboarding for choosing an editor, project, and workspace. The experimental Resolve target, workspace name, and actual revision-storage folder are selected before the native project picker; cancellation preserves incomplete setup, successful scans complete it, and existing users retain their storage. Custom workspace identity checks prevent silent replacement or fallback. Real filesystem tests and a two-process native restart proof restore the same project/revisions. See `WORKSPACE_SETUP_AND_DIAGNOSTICS.md` and `phase-0/setup-support-desktop/verification.json`.
@@ -267,30 +263,20 @@ The following completed items are scoped to one reviewed existing video clip Nam
 - [x] Create diagnostics export with explicit privacy review and path redaction. Allowlisted app/runtime details, status codes, and counts exclude paths, filenames, media, identities, credentials, and logs; project and performance details are optional. Exact JSON/hash review and explicit consent bind the export, with state rechecks around the save dialog and atomic private publication. Privacy, stale-review, filesystem-failure, and native desktop checks pass. See `WORKSPACE_SETUP_AND_DIAGNOSTICS.md`.
 - [x] Establish support process and compatibility issue templates. See `SUPPORT.md` and `.github/ISSUE_TEMPLATE/compatibility.yml`.
 
-### 5.2 Release engineering
-- [ ] Sign and notarize desktop installers for supported operating systems. A fail-closed evidence checker and release procedure now exist; signing identity, installer, and notarization remain open.
-- [ ] Add secure automatic updates with staged rollout and rollback. A signed-manifest policy verifier now checks HTTPS, hash, version, channel, and rollout eligibility; download, install, health check, and rollback remain open. See `RELEASE_SECURITY.md`.
-- [ ] Establish release channels, version compatibility policy, and change notes. `RELEASE_POLICY.md`, `CHANGELOG.md`, and a strict version/schema planning gate now exist; signed channel releases and published compatibility evidence remain open.
+### 5.2 Build checks and local recovery
 - [x] Add CI for unit, integration, adapter-fixture, security, and packaging checks. `.github/workflows/ci.yml` runs the suite, corpus, migration, security, audit, and package-input checks; installer signing remains a separate gate.
 - [x] Test personal manual-code upgrade, downgrade refusal, interrupted local migration and separate-workspace restoration. Eleven actual historical/current reader processes exercise schema 4→5, two SIGKILL boundaries, exact original revision/branch/base preservation, an old reader refusing schema 5 despite a valid schema-4 backup, future-schema refusal and schema-1 ID migration. An isolated old-reader restore preserves the newer workspace and its subsequent revision. Installer/binary activation and automatic-update rollback remain deferred. See [LOCAL_MIGRATION_RECOVERY.md](LOCAL_MIGRATION_RECOVERY.md).
 - [x] Document incident response, backups, service recovery, and security disclosure. The sole-owner procedure now includes private incident records, consistent encrypted history/media backup, pure verification and exclusive out-of-place restore. A fresh restored HTTPS host verifies historical sessions/roles, canonical history, exact media, resumed partial uploads and retained-reference protection. Keys remain separate; old access/consent and SMTP replay risks are explicit. Managed hosting and external disclosure programs remain optional future scope. See `INCIDENT_RESPONSE.md` and `OWNER_OPERATIONS.md`.
 
-### 5.3 Add integrations only after the first is reliable
-- [ ] Measure real usage and failure rates of the first adapter. The desktop now counts session-local scan outcomes and duration without paths and includes aggregate counts in reviewed diagnostics; owner-use measurements remain deferred until the owner uses the app; no pilot cohort is required.
-- [ ] Generalize the adapter contract only from proven shared behavior. A gate now returns no shared capabilities until two release-ready adapters demonstrate them; only one experimental adapter exists.
-- [ ] Evaluate the next editor against the same identity, diff, write, and validation gates. `EDITOR_EXPANSION.md` and a fail-closed candidate gate define the evidence; selecting and testing a candidate waits on the first adapter's release readiness.
-- [ ] Build one adapter at a time with its own compatibility corpus and release support matrix. The expansion gate requires a candidate corpus; no second adapter or supported matrix row exists yet.
+### 5.3 Keep compatibility claims bounded
 - [x] Do not promise universal project-file compatibility. The README and support matrix now state the exact experimental boundary and rule out arbitrary project files and editors.
 
-### 5.4 Later features (after MVP evidence)
+### 5.4 Delivered collaboration experiments
 - [x] Review comments pinned to clips or timeline ranges. The self-hosted Resolve workflow verifies exact clip IDs or bounded ranges against an immutable service revision observation, with owner/editor posting, current-member reads, author/owner resolution, durable scoped creation receipts, and signed pagination. Real HTTPS browser/native checks verified posting, resolution, viewer restrictions, stale-draft rejection, and native restart recovery; see [revision comments](REVIEW_COMMENTS.md) and [live evidence](phase-0/revision-comments-live-observation.json). FCPXML anchors and cross-revision remapping remain unavailable; this does not establish live-editor identity or authorize apply.
 - [x] Approval requests and protected branches. The self-hosted encrypted runtime persists owner policy versions, exact-head/direct-child requests, independent approvals, seven-day expiry, applied receipts, and matching activity atomically with actual branch publication. History adds a service-branch review panel independent of local editor selection. Disposable native/browser HTTPS checks verified enable protection → blocked queued push → request → separate editor approval → explicit Retry → published, plus viewer restrictions and signed-out clearing. A three-host-process HTTPS proof covers lost-acknowledgment replay after policy/access changes without duplicate history or events. See [branch approvals](COLLABORATION_FOUNDATIONS.md#branch-approvals-on-a-self-hosted-service) and [live evidence](phase-0/branch-approvals-live-observation.json).
 - [x] Notifications and digest preferences. Encrypted combined schema 6 persists recipient-owned per-project off/immediate/daily UTC preferences, consent epochs, exact-request receipts, and bounded leased jobs. Desktop controls require explicit opt-in; optional certificate-verified implicit-TLS mail submission runs independently of the app. Tests cover restart, lost acknowledgments, bounded retry, daily cutoff/catch-up, current-access redaction, project unsubscribe, and account-wide stop. A native/browser fixture delivered immediate mail with the app closed and one injected-clock daily digest, then no further mail after unsubscribe. No external email was sent; operator SMTP setup, managed delivery, and production retention remain separate. See [hosting](SERVICE_HOST.md#optional-notification-email) and [live evidence](phase-0/notifications-live-observation.json).
 - [x] Project templates and team presets. The self-hosted team catalog supports member reads and team-owner versioned saves, exact previews, and atomic creation of an empty service project with access, branches, immutable initial media policy, and a scoped creation receipt. Combined encrypted schema 7 preserves prior domains. Later owner media-policy overrides take precedence. A private desktop journal retains save/create retry identity through lost acknowledgments and restart, with explicit recovery and guarded local dismissal. Native verification recovered the same committed project after its template changed, preserving original branches/classes without duplication; browser viewer controls remained read-only. No editor file, local branch binding, or media upload is created automatically. See [team templates](COLLABORATION_FOUNDATIONS.md#team-templates) and [live evidence](phase-0/team-templates-live-observation.json).
-- [ ] Storage integrations for studios and shared storage volumes. A twenty-feature local desktop slice now registers private selected folders, checks observed device/inode identity, imports bounded source-bound asset requests, streams cancellable verification, recovers historical reports and interrupted markers, and reviews/exports path-free non-executable relink proposals. Disposable real-preload/controller checks cover restart/reload, changed bytes, and 360–1440px layouts. Real studio mounts, portable volume identity, canonical revision bindings, editor relinking, and supported integration remain open. See [delivered feature checklist](STUDIO_STORAGE.md).
 - [x] Advanced asset lifecycle controls. The desktop owner panel now uses authoritative retained-reference reports/plans and explicit reviewed collection alongside holds, retention, filters and exports. Its schema-2 private journal preserves pending requests and last collection receipts; a full app restart after a committed lost acknowledgment verifies exact retry, one deletion receipt, retained-media protection and receipt export. Real main/preload/HTTPS and 390/768/1440 checks pass. See `OWNER_OPERATIONS.md` and `DESKTOP_ASSET_LIFECYCLE.md`.
-- [ ] Real-time co-editing only if editor APIs and user research support it. A fail-closed evidence gate now keeps the product disabled; identity, events, recovery, and research remain unproven.
-- [ ] Cloud rendering only as a separately scoped product capability. A separate evidence gate now keeps the product disabled until consent, rights, processing region, costs, and provenance are proven. See `LATER_FEATURE_FOUNDATIONS.md`.
 
 ## Cross-cutting requirements
 
@@ -303,15 +289,24 @@ The following completed items are scoped to one reviewed existing video clip Nam
 - [x] **Observability — local owner workflow:** closed event/error catalogs prevent arbitrary strings and opaque credentials from entering logs. Reviewed diagnostics optionally include safe current workflow/recovery gauges and bounded session busy periods, with explicit consent, exact-byte export, stale-review refusal and restart reset. Pending native publication is distinct from verified completion; no telemetry or pilot collection is enabled. Two current shipped Electron processes and privacy/lifecycle tests pass. See [OBSERVABILITY.md](OBSERVABILITY.md).
 - [x] **Compatibility — declared personal target:** publish an operation-specific matrix for the exact installed Free build and FCPXML 1.10/native profiles, prerequisites, evidence and refusal boundaries. Current macOS 15.6.1/build 24G90/arm64 observation is separate from historical proofs that recorded only macOS; runtime gates are not misrepresented as patch-version gates. Recognition grants no execution or release authority, and public/cross-version release support remains deferred. See [PERSONAL_COMPATIBILITY.md](PERSONAL_COMPATIBILITY.md).
 
-## Key decisions to resolve early
+## Future ideas outside the portfolio scope
 
-1. Which editor and project format are first? The working experimental choice is Resolve Free 21.1.2/build 21.1.20010 on macOS with FCPXML 1.10 read-only scan. See `EARLY_DECISIONS.md`; safe write remains unproven.
-2. Can its supported API reliably enumerate and write the timeline objects needed for clip-level changes? The internal menu runtime now proves saved-checkpoint identity and six-family outer enumeration for declared exact-build profiles. Complete processing graphs, external Free access, FCPXML mapping and recoverable apply remain open.
-3. Which platforms and editor versions must the first release support? No release row is declared. The personal target is the installed macOS/Free build with small fixtures; broader public releases are deferred.
-4. Is cloud media storage part of the first paid offering, or should teams begin with local/shared storage and cloud manifests? Pilot planning uses local/shared media and metadata-only history; pricing and hosted media remain research decisions.
-5. What project metadata and media are uploaded, and what privacy, retention, and deletion controls do users require? A validated bundle and explicit asset-byte review describe the proposed transfer; hosted region, retention and deletion policy remain open.
-6. What constitutes a safe automatic merge for ripple edits, linked media, transitions, and nested sequences? None is currently proven; `EARLY_DECISIONS.md` records the per-construct evidence needed before an automatic rule can be enabled.
+The eleven former open requirements are listed here for context. They are not required work, and their removal does not claim they were completed. Supporting experiments already in the repository remain available.
+
+1. Choose a managed deployment provider, processing region, and production operations model. The self-hosted launcher remains documented in [SERVICE_HOST.md](SERVICE_HOST.md).
+2. Sign and notarize public desktop installers.
+3. Build automatic update download, installation, staged rollout, and rollback. Existing policy checks are described in [RELEASE_SECURITY.md](RELEASE_SECURITY.md).
+4. Publish signed release channels, version compatibility policy, and release notes. The planning documents remain in [RELEASE_POLICY.md](RELEASE_POLICY.md).
+5. Collect real usage and failure-rate measurements. Session diagnostics are already available; no usage study is required.
+6. Generalize the adapter contract after two independently proven integrations exist.
+7. Evaluate another editor against the same identity, preservation, write, and validation gates.
+8. Build another editor adapter and its own compatibility corpus. See [EDITOR_EXPANSION.md](EDITOR_EXPANSION.md) for the existing guardrails.
+9. Validate studio and shared-volume storage integrations. The local folder-verification experiment remains described in [STUDIO_STORAGE.md](STUDIO_STORAGE.md).
+10. Explore real-time co-editing if editor APIs can support it safely.
+11. Explore cloud rendering as a separate capability. Existing gates for both advanced ideas remain in [LATER_FEATURE_FOUNDATIONS.md](LATER_FEATURE_FOUNDATIONS.md).
 
 ## Current status
 
-The repository contains an Electron UI prototype with synthetic local revision review and a Resolve preview tab for three schema-3 API snapshots or complete richer captures with explicit missing coverage. The preview classifies observed field changes, presents conflicts and warnings, captures per-conflict review choices, reports source hashes and changed roles, and supports timeline/field filtering and unresolved-conflict navigation. Its source-bound preview and review artifacts can be recovered against the exact source bytes; review choices persist, while the audit remains review intent. A separate scoped Apply supports one reviewed video Name after native source checks. The desktop app also offers optional read-only comparison of a schema-3 local snapshot with a selected FCPXML file using candidate matching, plus a review-copy workflow for unchanged FCPXML. The matcher reports hashes, collisions, and unmatched items and fails closed on complex content; it does not establish persistent identity or enable apply. For a selected regular FCPXML source, the path-free media audit reports local, missing, external, or unknown references and streamed fingerprints where available, without claiming media identity or pull readiness. Copy preparation and audit verify an identical artifact; an existing copy is rechecked by hash, scan, and source checks before Finder reveal, and source staleness invalidates the handoff. The app also supports file selection, a read-only FCPXML timeline manifest, local media availability checks, immutable local scan revisions, branches, revision backup transfer, parent comparison of sequence/media inventory, and matching-export ID relink for a narrow top-level picture sequence. Stable API-ID to project mapping, media relinking/identity, integrated clip-level revision comparison, collaboration, media sync, and general safe pull transactions remain unimplemented. The scoped local Name Apply and recovery workflow is complete; see SAFE_APPLY.md. Standalone diagnostic risk gates and preflight utilities do not close those product gates.
+The scoped implementation is complete. Frameline demonstrates local FCPXML scan history, revision comparison, source-bound native checkpoints, conflict decisions, one supported native Name Apply, verified review copies, restoration, and crash recovery. Separate self-hosted experiments demonstrate authenticated revision exchange, comments, branch approvals, and resumable media transfers. A bounded proxy-safe workflow creates a derived FCPXML/Resolve review representation; it does not establish lossless native relinking.
+
+General timeline merging, arbitrary edits, FCPXML occurrence identity across exports, other editors, and public release support remain outside the demonstrated capability. The portfolio should show the working paths and explain those limits clearly. Start with [README.md](README.md) for the reviewer walkthrough.

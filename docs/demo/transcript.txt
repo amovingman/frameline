@@ -1,0 +1,18 @@
+Frameline | local revision demo
+
+1. Scan a synthetic FCPXML 1.10 export in a background worker.
+2. Save "First cut", then save "Shorter cut" as its child.
+3. Reopen both saved records and compare their manifests.
+
+   sequence.name: Edit before -> Edit after
+   sequence.durationFrames: 144 -> 120
+   media.inserted.mov: (absent) -> unknown
+   media.removed.mov: unknown -> (absent)
+
+   Picture clips: 3 -> 3
+   Clip identity: unresolved; no clip pairing or Apply offered.
+
+PASS  Changed source and stale revision head were rejected.
+PASS  Saved parent and child survived reopening the store.
+PASS  Repository fixtures are unchanged.
+Temporary workspace removed.

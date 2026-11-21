@@ -10,6 +10,8 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 
 const HISTORICAL_SUPPORT_MATRIX = 'phase-0/evidence-sources/support-matrix-observed-20261119.md.txt';
 const HISTORICAL_SUPPORT_MATRIX_SHA256 = 'c25547538522d64b236cc1deff140eb04304534397ff1e32d7c521a1b331ca9b';
+const HISTORICAL_PROJECT_SCOPE = 'phase-0/evidence-sources/project-scope-observed-20261119.md.txt';
+const HISTORICAL_PROJECT_SCOPE_SHA256 = 'baf361bba806340342f93eacfd41e5d2d8343bde2048fabcf3cb3f89362f8e7f';
 
 function revisitEditorChoice(read = fs.readFileSync) {
   // Recompute named live-evidence hashes. Missing, altered or incompatible
@@ -26,11 +28,15 @@ function revisitEditorChoice(read = fs.readFileSync) {
     'phase-0/FIRST_EDITOR_READINESS.md', 'phase-0/SUPPORT_MATRIX.md', 'phase-0/external-api-observation.json'];
   const evidence = Object.fromEntries(evidenceFiles.map(file => {
     // This reproduces the historical November19 decision. The current personal
-    // matrix documents later proven operations and must not replace old facts.
-    const bytes = read(path.join(__dirname, '..', file === 'phase-0/SUPPORT_MATRIX.md' ? HISTORICAL_SUPPORT_MATRIX : file));
+    // matrix and portfolio scope describe later work, not its original inputs.
+    const source = file === 'phase-0/SUPPORT_MATRIX.md' ? HISTORICAL_SUPPORT_MATRIX
+      : file === 'PROJECT_SCOPE.md' ? HISTORICAL_PROJECT_SCOPE : file;
+    const bytes = read(path.join(__dirname, '..', source));
     const hash = sha(bytes);
     if (file === 'phase-0/SUPPORT_MATRIX.md' && hash !== HISTORICAL_SUPPORT_MATRIX_SHA256)
       throw new Error('editor-reassessment-historical-support-matrix-changed');
+    if (file === 'PROJECT_SCOPE.md' && hash !== HISTORICAL_PROJECT_SCOPE_SHA256)
+      throw new Error('editor-reassessment-historical-project-scope-changed');
     return [file, hash];
   }));
   const report = {

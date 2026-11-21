@@ -6,45 +6,45 @@
 
 web
 
-Electron hosts a local HTML/CSS/JavaScript interface on desktop. The interface is designed for pointer and keyboard input.
+Electron hosts a local HTML/CSS/JavaScript interface on desktop. The interface supports pointer and keyboard input. Editor-backed validation targets macOS; the fixture demo runs without an editor.
 
 ## Users
 
-The project owner is the sole intended user. This is a personal project using the installed Resolve Free 21.1.2/build 21.1.20010 on macOS. Development uses small disposable synthetic projects; no additional users or customer-project research are required. See `PROJECT_SCOPE.md`.
+Frameline is a résumé portfolio project. The owner uses it to demonstrate desktop engineering, revision models, and careful integration with an external editor. A reviewer should be able to understand the problem, run the fixture demo, and inspect the code without a Resolve installation or cloud account. See [the project scope](PROJECT_SCOPE.md).
 
 ## Product Purpose
 
-Version editing decisions, compare project revisions, and pull clip-level changes into an existing project. Two pull modes are planned: update the current file after creating a restore point, or create a separate review copy.
+Save video-editing decisions as revisions, compare changes, review conflicts, and preserve a way back before changing a project. The prototype demonstrates that workflow through local history, a bounded native Apply operation, and separate self-hosted collaboration experiments.
 
 ## Operating Context
 
-DaVinci Resolve Free 21.1.2 on macOS is the initial integration target, using FCPXML 1.10 for read-only timeline exchange while safe write access is researched. A local synthetic proof has confirmed import, export, and a changed-copy reimport for a simple three-still timeline. A Free editor-backed thousand-clip export can now be scanned for its primary picture clips. This does not yet establish release support for native Resolve project files or complex timeline constructs. Project files and media are local during the first prototype; cloud history and sharing are later parts of the system design.
+The editor target is **DaVinci Resolve Free 21.1.2, build 21.1.20010, on macOS**. FCPXML 1.10 supplies a read-only picture and media inventory. Authenticated closed native checkpoints support a separate comparison and Name Apply workflow. Each path has its own evidence and limits; neither represents arbitrary project-file support. See [exact compatibility](PERSONAL_COMPATIBILITY.md).
+
+Development uses small, disposable synthetic fixtures. The [demo](DEMO.md) exercises the real scanner, revision store, and comparison code locally. The [setup guide](SETUP.md) explains the desktop and deeper verification paths. Hosted deployment, public installers, and further editors are outside the required portfolio scope.
 
 ## Capabilities and Constraints
 
-The current app is an Electron UI prototype. It can scan and rescan the first top-level picture sequence in an FCPXML file or bundle read only, show exact frame counts, and check referenced local media files for availability without exposing their paths to the renderer. It can save immutable local scan revisions on named branches after verifying the export has not changed since scanning. History follows the selected branch, opens validated revision details, and compares sequence and media inventory with a revision's verified parent; the review examples remain synthetic and labeled as such.
+**Local history.** Read and rescan the first top-level picture sequence of an FCPXML file or bundle, report exact frame counts and media availability, and save immutable revisions on named branches. Parent comparison covers sequence metadata and media inventory. Backup import creates separate history rather than replacing existing work. FCPXML occurrence identity across exports, clip-level merge, and Apply remain unsupported.
 
-The Resolve preview tab accepts three schema-3 Resolve API snapshot files (common base, local observation, incoming observation). It classifies observed field changes, compares values, displays conflicts and conservative warnings, and lets users record a review choice for each conflict. Timeline and field filters, unresolved-conflict navigation, source-hash status, media requirements, and warning categories support inspection. Refresh re-reads the sources and clears choices when source bytes change. Preview data can be saved and recovered locally by content hash against the same source bytes; a separate content-addressed review artifact preserves partial or complete choices and verifies them on recovery. Neither artifact stores source files. Once all conflicts have choices, the preview shows a source-bound audit of review intent. This read-only workflow does not establish the branch sync base, map API IDs to an editable project, or apply changes. The separate Apply reviewed rename workflow supports one existing video clip Name on a verified closed local project; see SAFE_APPLY.md.
+**Change review.** Compare base, local, and incoming Resolve captures or authenticated native checkpoints. Show observed field changes, conflicts, coverage gaps, and source hashes; retain review choices against exact source bytes. Native checkpoint review also checks ancestry and persistent UUID/generation bindings. Opaque fields remain explicit. Review does not grant permission to execute every represented change. See [checkpoint review](NATIVE_CHECKPOINT_REVIEW.md) and [pull planning](NATIVE_PULL.md).
 
-The desktop also has an optional read-only comparison between a schema-3 local Resolve API snapshot and a selected FCPXML export. Its JavaScript matcher reports exact hashes, candidate matches, collisions, and unmatched items for supported flat picture content, including the supported Resolve wrapper. It rejects complex content rather than guessing. Candidate results are not persistent identity, and the comparison UI cannot authorize apply. For a selected regular FCPXML source, a separate media audit reports path-free local, missing, offline-volume, proxy-only, excluded, external, or unknown references and streamed fingerprints where available. A selected-folder search classifies moved-media candidates without exposing paths or editing the export. A separate requirement gate reports ready, confirmation-required, or blocked; it does not make project apply safe.
+**Scoped edits and recovery.** Apply one reviewed existing video clip Name to a verified closed local Resolve project, or create a reviewed native copy in another configured local disk library. Verify the backup and unrelated stored fields, validate the result in Resolve, and retain restoration and interruption state. Result audits preserve the decisions behind both Apply and restoration. General timeline edits and lossless SDK Save remain unproven. See [Safe Apply](SAFE_APPLY.md), [native review copies](NATIVE_REVIEW_COPY.md), and [result audits](NATIVE_RESULT_AUDIT.md).
 
-The repository includes an executable local project-service foundation for versioned API contracts, immutable manifests and revisions, compare-and-swap branch heads, idempotency, pagination, migrations, backup/restore drills, and retention reporting. No cloud service is deployed, and accounts, authorization, regions, transport, and durable hosted storage remain future work.
+**Media.** Audit local original/proxy references, stream content checks, and inspect moved-file candidates. A bounded proxy-safe FCPXML workflow patches only reviewed source attributes into a new copy; its optional Resolve import creates a derived representation. It does not establish lossless in-place native relinking. Background scans and media checks provide cancellation and explicit recovery. See [media relinking](MEDIA_RELINK.md) and [crash recovery](CRASH_RECOVERY.md).
 
-The service foundation also includes local proofs for rotating sessions and recovery, team invitations and project roles, mandatory project-resource authorization, protected credential storage, encrypted service records, rate limits, audit events, account deletion safeguards, metadata-only revision push/fetch/divergence, durable offline retry, concurrent-head preservation, and an integrity-checked offline metadata cache. These proofs do not add a desktop account flow, user-facing sync controls, or a deployed collaboration service.
-
-A separate review-copy workflow lets the user choose a destination and filename for an unchanged `.fcpxml` copy, checks for name collisions, and verifies the result by rescan, hashes, and source checks before showing a sanitized result. The copy audit confirms the artifact is identical. An existing copy is re-verified before it can be revealed in Finder, and a stale source invalidates that handoff. No pull plan is applied. FCPXML pull remains unavailable. Scoped native Resolve Name Apply is documented in SAFE_APPLY.md.
+**Service experiments.** The optional self-hosted HTTPS service includes account sessions, project roles, encrypted records, immutable history, compare-and-swap branch updates, and idempotent requests. Desktop controls provide sign-in, reviewed metadata push/fetch, comments, branch approvals, and explicit resumable media transfers with content verification. These workflows have disposable local HTTPS and desktop evidence. No managed cloud service is deployed, and service-derived review does not authorize native Apply. See [service setup](SERVICE_HOST.md), [desktop history sync](DESKTOP_SERVICE_SYNC.md), and [media transfers](DESKTOP_MEDIA_TRANSFERS.md).
 
 ## Evidence on Hand
 
-`SYSTEM_DESIGN.md` contains the architecture and MVP requirements. The current interface is in `src/`.
+[The README](README.md) introduces the working paths and engineering choices. [The roadmap](ROADMAP.md) preserves the completed scoped implementation record; former public-release and expansion requirements are future ideas. [System design](SYSTEM_DESIGN.md) documents the architecture and its original goals. The current application lives in `src/`.
+
+Public fixtures and automated tests let a reviewer exercise local behavior. Some historical native audits need owner-retained private payloads and an installed Resolve build; running the public demo does not repeat those live editor checks. The operation-specific guides distinguish synthetic desktop checks from actual editor observations.
 
 ## Product Principles
 
 - Make the affected edit visible before changing a project file.
-- Explain overlapping edits and preserve local work.
-- Keep review copy and in-place pull as separate, clear choices.
-- State honestly when content is sample data or a feature is unavailable.
-
-The native review-copy workflow applies one reviewed video clip Name into a different configured local disk library, preserves the original and sync base, reports observed media availability, and validates the copy in Resolve. Copies share unchanged media references on this Mac; collection requires Resolve and a fresh capture. Apply history also shows verified local completion/restoration activity. See NATIVE_REVIEW_COPY.md and LOCAL_PULL_ACTIVITY.md.
-
-Native checkpoint review captures closed local Resolve databases into authenticated private history with persistent application IDs. Its read-only desktop three-way comparison verifies base/fork ancestry and fresh local bytes, compares all stored fields and schema, classifies changes, and displays safe values with filtering and paging. Opaque cells and unkeyed rows remain atomic. See NATIVE_CHECKPOINT_REVIEW.md.
+- Bind review to the source bytes that will be used.
+- Preserve local work and make recovery explicit.
+- Keep review copies and in-place edits separate.
+- Label sample data, unknown values, and unsupported operations clearly.
+- Keep the portfolio walkthrough useful without accounts or paid infrastructure.

@@ -2,7 +2,7 @@
   "name": "git-for-video-editing",
   "version": "0.1.0",
   "private": true,
-  "description": "Desktop starter for versioning video editing projects",
+  "description": "Portfolio prototype for version history and change review in video editing",
   "main": "src/main.js",
   "files": [
     "src",
@@ -80,7 +80,9 @@
     "verify:local-migrations": "node scripts/verify-local-migrations.cjs",
     "audit:local-migrations": "node scripts/audit-local-migrations.cjs",
     "audit:personal-compatibility": "node scripts/audit-personal-compatibility.cjs",
-    "test:personal-hardening": "node --test --test-concurrency=4 tests/local-migration-drill.test.js tests/personal-performance.test.js tests/personal-compatibility*.test.js tests/operation-health.test.js tests/observability-desktop-evidence.test.js tests/observed-source-provenance.test.js tests/logger.test.js tests/desktop-diagnostics.test.js"
+    "test:personal-hardening": "node --test --test-concurrency=4 tests/local-migration-drill.test.js tests/personal-performance.test.js tests/personal-compatibility*.test.js tests/operation-health.test.js tests/observability-desktop-evidence.test.js tests/observed-source-provenance.test.js tests/logger.test.js tests/desktop-diagnostics.test.js",
+    "demo": "node scripts/portfolio-demo.cjs",
+    "test:demo": "node --test tests/portfolio-demo.test.js"
   },
   "devDependencies": {
     "@fontsource/anton": "^5.3.0",

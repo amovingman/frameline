@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="598" viewBox="0 0 1120 598" role="img" aria-labelledby="title description">
+<title id="title">Frameline local revision demo</title>
+<desc id="description">Actual terminal transcript showing a synthetic timeline revision comparison and passing source, history, and fixture checks. This is not an app screenshot.</desc>
+<rect width="1120" height="598" rx="12" fill="#141a20"/>
+<path d="M0 52H1120" stroke="#34404b"/>
+<text x="28" y="33" fill="#b4c0cc" font-family="monospace" font-size="15">ACTUAL TERMINAL RUN · node scripts/portfolio-demo.cjs</text>
+<text x="28" y="89" fill="#f0dca7" font-family="monospace" font-size="17" xml:space="preserve">Frameline | local revision demo</text>
+<text x="28" y="116" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve"></text>
+<text x="28" y="143" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">1. Scan a synthetic FCPXML 1.10 export in a background worker.</text>
+<text x="28" y="170" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">2. Save &quot;First cut&quot;, then save &quot;Shorter cut&quot; as its child.</text>
+<text x="28" y="197" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">3. Reopen both saved records and compare their manifests.</text>
+<text x="28" y="224" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve"></text>
+<text x="28" y="251" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">   sequence.name: Edit before -&gt; Edit after</text>
+<text x="28" y="278" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">   sequence.durationFrames: 144 -&gt; 120</text>
+<text x="28" y="305" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">   media.inserted.mov: (absent) -&gt; unknown</text>
+<text x="28" y="332" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">   media.removed.mov: unknown -&gt; (absent)</text>
+<text x="28" y="359" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve"></text>
+<text x="28" y="386" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">   Picture clips: 3 -&gt; 3</text>
+<text x="28" y="413" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">   Clip identity: unresolved; no clip pairing or Apply offered.</text>
+<text x="28" y="440" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve"></text>
+<text x="28" y="467" fill="#a8d5aa" font-family="monospace" font-size="17" xml:space="preserve">PASS  Changed source and stale revision head were rejected.</text>
+<text x="28" y="494" fill="#a8d5aa" font-family="monospace" font-size="17" xml:space="preserve">PASS  Saved parent and child survived reopening the store.</text>
+<text x="28" y="521" fill="#a8d5aa" font-family="monospace" font-size="17" xml:space="preserve">PASS  Repository fixtures are unchanged.</text>
+<text x="28" y="548" fill="#dce3ea" font-family="monospace" font-size="17" xml:space="preserve">Temporary workspace removed.</text>
+</svg>
